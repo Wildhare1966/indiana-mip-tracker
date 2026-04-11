@@ -296,6 +296,8 @@
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: 12px;
     flex: 1;
+    align-content: start;
+    align-items: start;
   }
   .county-card {
     background: var(--panel);
@@ -307,6 +309,7 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
+    align-self: start;
   }
   .county-card:hover { border-color: rgba(232,160,32,0.3); background: var(--panel-hover); }
   .county-card-name {
@@ -589,9 +592,46 @@
   .hearings-empty { color: var(--text-dim); font-size: 12px; line-height: 1.6; padding: 20px 0; }
   .hearings-empty code { font-family: 'IBM Plex Mono',monospace; font-size: 11px; color: var(--text); background: rgba(255,255,255,0.06); padding: 1px 5px; border-radius: 3px; }
 
+  /* HEARINGS TABLE */
+  .hearings-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+  .hearings-th {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--accent);
+    padding: 5px 10px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    white-space: nowrap;
+    background: rgba(0,0,0,0.15);
+  }
+  .hearings-td {
+    padding: 5px 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    vertical-align: middle;
+  }
+  .hearings-td-date {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+  .hearings-td-type {
+    font-size: 11px;
+    color: var(--text);
+    font-weight: 500;
+  }
+  .hearings-table-row:hover .hearings-td { background: rgba(255,255,255,0.02); }
+
   .members-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
     gap: 8px;
   }
 
@@ -693,12 +733,108 @@
   }
   .no-detail-msg .no-detail-icon { font-size: 24px; margin-bottom: 8px; }
 
+  /* SOCIAL LINKS */
+  .social-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 3px;
+    text-decoration: none;
+    transition: opacity 0.15s;
+    border: 1px solid var(--border);
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .social-link:hover { opacity: 0.75; }
+  a.social-link { color: var(--text); background: rgba(255,255,255,0.04); }
+  .social-placeholder { color: var(--text-dim); background: transparent; cursor: default; }
+  .social-icon {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+  .social-linkedin .social-icon { background: rgba(42,95,165,0.3); color: #7aacdf; }
+  .social-facebook .social-icon { background: rgba(30,60,170,0.3); color: #80a0e8; }
+  .social-twitter .social-icon  { background: rgba(40,40,40,0.4); color: var(--text); }
+  .social-campaign .social-icon { background: rgba(232,160,32,0.2); color: var(--accent); }
+  .social-placeholder .social-icon { background: rgba(255,255,255,0.05); color: var(--text-dim); }
+  .social-empty { margin-left: auto; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-dim); }
+
   /* INTELLIGENCE FEED VIEW */
   #view-intel {
     flex-direction: column;
     overflow: hidden;
     height: 100%;
   }
+  .intel-feed-header {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 16px;
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    flex-shrink: 0;
+  }
+  .intel-feed-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .intel-feed-updated {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 0.04em;
+  }
+  .intel-new-badge {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8px;
+    font-weight: 700;
+    background: rgba(232,160,32,0.25);
+    color: var(--accent);
+    border: 1px solid rgba(232,160,32,0.5);
+    padding: 1px 5px;
+    border-radius: 2px;
+    letter-spacing: 0.06em;
+    vertical-align: middle;
+    margin-left: 4px;
+  }
+  .intel-item-new {
+    border-left: 2px solid var(--accent) !important;
+  }
+  .intel-source-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--text-dim);
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    border-radius: 2px;
+  }
+  .intel-source-link {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: #7aacdf;
+    background: rgba(42,95,165,0.15);
+    border: 1px solid rgba(42,95,165,0.3);
+    padding: 1px 6px;
+    border-radius: 2px;
+    text-decoration: none;
+    transition: opacity 0.15s;
+  }
+  .intel-source-link:hover { opacity: 0.75; }
   .intel-filters {
     background: var(--panel);
     border-bottom: 1px solid var(--border);
@@ -832,6 +968,223 @@
     border-radius: 2px;
   }
 
+  /* PUBLIC HEARINGS VIEW */
+  #view-publichearings {
+    overflow-y: auto;
+    padding: 0;
+  }
+  .ph-view-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    min-height: 100%;
+  }
+  .ph-add-form-wrap {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--navy-dark);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 20px;
+  }
+  .ph-add-form-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+  .ph-add-form-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .ph-input {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 12px;
+    padding: 6px 10px;
+    outline: none;
+    min-width: 180px;
+    flex: 1;
+    transition: border 0.15s;
+  }
+  .ph-input:focus { border-color: rgba(232,160,32,0.4); }
+  .ph-input::placeholder { color: var(--text-dim); }
+  .ph-input-wide { flex: 2; }
+  .ph-add-btn {
+    background: var(--accent);
+    color: var(--navy-dark);
+    border: none;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 6px 18px;
+    border-radius: 3px;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+    transition: background 0.15s;
+  }
+  .ph-add-btn:hover { background: var(--accent-light); }
+  .ph-form-msg {
+    margin-top: 8px;
+    font-size: 11px;
+    padding: 5px 10px;
+    border-radius: 3px;
+  }
+  .ph-form-msg.duplicate {
+    background: rgba(232,160,32,0.12);
+    border: 1px solid rgba(232,160,32,0.3);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .ph-form-msg.success {
+    background: rgba(26,122,74,0.15);
+    border: 1px solid rgba(26,122,74,0.3);
+    color: #6dc49a;
+  }
+  .ph-confirm-btn {
+    background: rgba(232,160,32,0.2);
+    color: var(--accent);
+    border: 1px solid rgba(232,160,32,0.4);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    padding: 2px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  .ph-confirm-btn:hover { background: rgba(232,160,32,0.3); }
+  .ph-tracked-section {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .ph-hearings-section {
+    padding: 14px 20px;
+    flex: 1;
+  }
+  .ph-section-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+  .ph-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .ph-section-header .ph-section-label { margin-bottom: 0; }
+  .ph-tracked-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .ph-tracked-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(232,160,32,0.08);
+    border: 1px solid rgba(232,160,32,0.25);
+    border-radius: 3px;
+    padding: 4px 10px;
+    font-size: 11px;
+    color: var(--text);
+  }
+  .ph-tracked-chip-ord {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--text-dim);
+  }
+  .ph-tracked-empty {
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .ph-hearings-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .ph-hearing-item {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: border-color 0.15s;
+  }
+  .ph-hearing-item.unreviewed { border-left: 2px solid rgba(232,160,32,0.5); }
+  .ph-hearing-item.reviewed { opacity: 0.5; }
+  .ph-hearing-item:hover { border-color: rgba(255,255,255,0.12); }
+  .ph-hearing-date {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    min-width: 96px;
+    flex-shrink: 0;
+  }
+  .ph-hearing-juri {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #7aacdf;
+    min-width: 100px;
+    flex-shrink: 0;
+  }
+  .ph-hearing-type {
+    font-size: 11px;
+    color: var(--text);
+    min-width: 80px;
+    flex-shrink: 0;
+  }
+  .ph-hearing-links {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+    flex: 1;
+  }
+  .ph-review-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: all 0.15s;
+  }
+  .ph-review-btn:hover { border-color: rgba(26,122,74,0.5); color: #6dc49a; }
+  .ph-review-btn.done { color: #6dc49a; border-color: rgba(26,122,74,0.4); }
+  .ph-reviewed-toggle {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    padding: 3px 12px;
+    border-radius: 3px;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: all 0.15s;
+  }
+  .ph-reviewed-toggle:hover { color: var(--text); border-color: rgba(255,255,255,0.2); }
+
   /* COUNTY VIEW */
   #view-county {
     padding: 20px;
@@ -862,6 +1215,7 @@
     <button class="topbar-btn active" onclick="switchView('overview')" id="nav-overview">Overview</button>
     <button class="topbar-btn" onclick="switchView('muni')" id="nav-muni">Members</button>
     <button class="topbar-btn" onclick="switchView('intel')" id="nav-intel">Intelligence Feed</button>
+    <button class="topbar-btn" onclick="switchView('publichearings')" id="nav-publichearings">Public Hearings</button>
     <button class="topbar-btn" onclick="switchView('settings')" id="nav-settings">⚙ Settings</button>
   </div>
   <div class="topbar-right">
@@ -946,6 +1300,10 @@
 
     <!-- INTELLIGENCE FEED VIEW -->
     <div id="view-intel" class="view">
+      <div class="intel-feed-header">
+        <div class="intel-feed-title">Intelligence Feed</div>
+        <div class="intel-feed-updated" id="intel-feed-updated">Last updated: —</div>
+      </div>
       <div class="intel-filters">
         <span class="intel-filter-label">COUNTY</span>
         <select class="filter-select" id="filter-county" onchange="filterFeed()">
@@ -967,6 +1325,50 @@
       </div>
       <div class="intel-feed" id="intel-feed">
         <!-- Generated by JS -->
+      </div>
+    </div>
+
+    <!-- PUBLIC HEARINGS VIEW -->
+    <div id="view-publichearings" class="view">
+      <div class="ph-view-wrap">
+        <!-- STICKY ADD PROJECT FORM -->
+        <div class="ph-add-form-wrap" id="ph-add-form-wrap">
+          <div class="ph-add-form-title">Add New Tracked Project</div>
+          <div class="ph-add-form-row">
+            <input class="ph-input" id="ph-ord" type="text" placeholder="Ordinance Number (e.g. ORD-2025-14)">
+            <input class="ph-input ph-input-wide" id="ph-name" type="text" placeholder="Project Name (required)">
+            <button class="ph-add-btn" onclick="phAddProject()">Add</button>
+          </div>
+          <div id="ph-form-msg" class="ph-form-msg" style="display:none;"></div>
+        </div>
+
+        <!-- TRACKED PROJECTS LIST -->
+        <div class="ph-tracked-section">
+          <div class="ph-section-label">Tracked Projects</div>
+          <div id="ph-tracked-list" class="ph-tracked-list">
+            <!-- populated by JS -->
+          </div>
+        </div>
+
+        <!-- RECENT HEARINGS LIST -->
+        <div class="ph-hearings-section">
+          <div class="ph-section-header">
+            <div class="ph-section-label">Recent Public Hearings</div>
+            <select class="filter-select" id="ph-filter-muni" onchange="phFilterHearings()" style="font-size:11px;">
+              <option value="">All Jurisdictions</option>
+            </select>
+          </div>
+          <div id="ph-hearings-list" class="ph-hearings-list">
+            <!-- populated by JS -->
+          </div>
+          <!-- Reviewed section (collapsed) -->
+          <div id="ph-reviewed-wrap" style="margin-top:12px;display:none;">
+            <button class="ph-reviewed-toggle" onclick="phToggleReviewed()">
+              <span id="ph-reviewed-toggle-label">▶ Show Reviewed</span>
+            </button>
+            <div id="ph-reviewed-list" style="display:none;margin-top:8px;"></div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -2397,19 +2799,24 @@ const COUNTY_BODIES = [
 ];
 
 // INTELLIGENCE FEED DATA
+// INTEL_LAST_UPDATED: used to show "Last updated" in feed header and flag NEW items
+const INTEL_LAST_UPDATED = '2026-04-11';
+// Items with dateSort >= INTEL_SESSION_CUTOFF are flagged NEW (items added since last session)
+const INTEL_SESSION_CUTOFF = '2026-04-09';
+
 const INTEL_ITEMS = [
-  { type: 'news', date: 'Apr 2026', muni: 'Westfield', county: 'Hamilton', headline: 'All 7 council seats replaced after 2024 election; new members focused on infrastructure capacity ahead of further residential approvals.' },
-  { type: 'election', date: 'Nov 2024', muni: 'Whitestown', county: 'Boone', headline: 'Significant turnover driven by warehouse development opposition; Thomas (D) elected in District 4.' },
-  { type: 'vote', date: 'Apr 2026', muni: 'Shelbyville', county: 'Shelby', headline: 'Data center annexation approved 5–1 despite significant public opposition; revenue pressure cited by majority.' },
-  { type: 'news', date: 'Apr 2026', muni: 'Noblesville', county: 'Hamilton', headline: '~5,000 units approved but unbuilt. Council signaling caution on new residential entitlements pending infrastructure capacity review.' },
-  { type: 'election', date: 'Nov 2024', muni: 'New Palestine', county: 'Hancock', headline: '4 of 5 council seats replaced. Hartley (Independent) elected VP; all-at-large council now in place.' },
-  { type: 'news', date: 'Mar 2026', muni: 'Carmel', county: 'Hamilton', headline: 'Plan Commission page returned 404; multiple terms expired 12/31/2025. Reappointment status unconfirmed. Verify before submissions.' },
-  { type: 'vote', date: 'Jan 2026', muni: 'Whiteland', county: 'Johnson', headline: 'Joe Csikos appointed to fill At-Large council seat; mid-term appointment effective 3/4/2026.' },
-  { type: 'news', date: 'Apr 2026', muni: 'Franklin', county: 'Johnson', headline: 'Multiple Plan Commission terms expired 12/31/2025. Six of nine members in holdover or uncertain status — verify before PC submissions.' },
-  { type: 'election', date: 'Nov 2024', muni: 'Lafayette', county: 'Tippecanoe', headline: '8D/1R council composition confirmed. Development framed as economic opportunity; planning handled through TCAPC (county body).' },
-  { type: 'news', date: 'Apr 2026', muni: 'Hamilton County', county: 'Hamilton', headline: 'County Plan Commission website shows 2025 roster; multiple terms expired 12/31/2025. 2026 reappointments not yet reflected.' },
-  { type: 'social', date: 'Mar 2026', muni: 'Fishers', county: 'Hamilton', headline: '2 Hamilton County Commissioner PC appointments remain vacant. Fastest-growing city continues to evolve governance capacity.' },
-  { type: 'news', date: 'Apr 2026', muni: 'Sheridan', county: 'Hamilton', headline: 'Town expanded from 5 to 7 council members after Adams Township merger January 2025.' },
+  { type: 'news', date: 'Apr 2026', dateSort: '2026-04-11', muni: 'Westfield', county: 'Hamilton', headline: 'All 7 council seats replaced after 2024 election; new members focused on infrastructure capacity ahead of further residential approvals.', source: 'Municipal PDF', isNew: true },
+  { type: 'vote', date: 'Apr 2026', dateSort: '2026-04-10', muni: 'Shelbyville', county: 'Shelby', headline: 'Data center annexation approved 5–1 despite significant public opposition; revenue pressure cited by majority.', source: 'YouTube/Transcript', isNew: true },
+  { type: 'news', date: 'Apr 2026', dateSort: '2026-04-09', muni: 'Noblesville', county: 'Hamilton', headline: '~5,000 units approved but unbuilt. Council signaling caution on new residential entitlements pending infrastructure capacity review.', source: 'Municipal PDF', isNew: true },
+  { type: 'news', date: 'Apr 2026', dateSort: '2026-04-08', muni: 'Franklin', county: 'Johnson', headline: 'Multiple Plan Commission terms expired 12/31/2025. Six of nine members in holdover or uncertain status — verify before PC submissions.', source: 'Municipal PDF', isNew: false },
+  { type: 'news', date: 'Apr 2026', dateSort: '2026-04-07', muni: 'Hamilton County', county: 'Hamilton', headline: 'County Plan Commission website shows 2025 roster; multiple terms expired 12/31/2025. 2026 reappointments not yet reflected.', source: 'Municipal PDF', isNew: false },
+  { type: 'news', date: 'Mar 2026', dateSort: '2026-03-28', muni: 'Carmel', county: 'Hamilton', headline: 'Plan Commission page returned 404; multiple terms expired 12/31/2025. Reappointment status unconfirmed. Verify before submissions.', source: 'Municipal PDF', isNew: false },
+  { type: 'social', date: 'Mar 2026', dateSort: '2026-03-15', muni: 'Fishers', county: 'Hamilton', headline: '2 Hamilton County Commissioner PC appointments remain vacant. Fastest-growing city continues to evolve governance capacity.', source: 'YouTube/Transcript', isNew: false },
+  { type: 'news', date: 'Mar 2026', dateSort: '2026-03-01', muni: 'Sheridan', county: 'Hamilton', headline: 'Town expanded from 5 to 7 council members after Adams Township merger January 2025.', source: 'Municipal PDF', isNew: false },
+  { type: 'vote', date: 'Jan 2026', dateSort: '2026-01-15', muni: 'Whiteland', county: 'Johnson', headline: 'Joe Csikos appointed to fill At-Large council seat; mid-term appointment effective 3/4/2026.', source: 'YouTube/Transcript', isNew: false },
+  { type: 'election', date: 'Nov 2024', dateSort: '2024-11-05', muni: 'Whitestown', county: 'Boone', headline: 'Significant turnover driven by warehouse development opposition; Thomas (D) elected in District 4.', source: 'Municipal PDF', isNew: false },
+  { type: 'election', date: 'Nov 2024', dateSort: '2024-11-05', muni: 'New Palestine', county: 'Hancock', headline: '4 of 5 council seats replaced. Hartley (Independent) elected VP; all-at-large council now in place.', source: 'Municipal PDF', isNew: false },
+  { type: 'election', date: 'Nov 2024', dateSort: '2024-11-05', muni: 'Lafayette', county: 'Tippecanoe', headline: '8D/1R council composition confirmed. Development framed as economic opportunity; planning handled through TCAPC (county body).', source: 'Municipal PDF', isNew: false },
 ];
 
 // ═══════════════════════════════════════════════════════
@@ -2596,6 +3003,14 @@ function renderMuniPanel() {
       <div class="section-label">Municipality Summary</div>
       <div class="summary-grid">
         <div class="summary-item">
+          <div class="summary-key">PC Size</div>
+          <div class="summary-val">${(m.pc||[]).length} members${m.data_gap?' (incomplete)':''}</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-key">Council Size</div>
+          <div class="summary-val">${(m.council||[]).length} members</div>
+        </div>
+        <div class="summary-item">
           <div class="summary-key">Political</div>
           <div class="summary-val">${m.political || '—'}</div>
         </div>
@@ -2603,15 +3018,7 @@ function renderMuniPanel() {
           <div class="summary-key">Receptivity</div>
           <div class="summary-val"><span class="receptivity-dot ${recColors[m.receptivity]||'rec-med'}"></span>${m.receptivity_label || '—'}</div>
         </div>
-        <div class="summary-item">
-          <div class="summary-key">Council Size</div>
-          <div class="summary-val">${(m.council||[]).length} members</div>
-        </div>
-        <div class="summary-item">
-          <div class="summary-key">PC Size</div>
-          <div class="summary-val">${(m.pc||[]).length} members${m.data_gap?' (incomplete)':''}</div>
-        </div>
-        <div class="summary-item" style="grid-column: span 3;">
+        <div class="summary-item" style="grid-column: span 2;">
           <div class="summary-key">Strategic Notes</div>
           <div class="summary-val" style="text-align:left;line-height:1.5;">${m.notes || '—'}</div>
         </div>
@@ -2759,6 +3166,32 @@ function renderMemberDetail(mem) {
       ${mem.notes ? `<div class="detail-note">${mem.notes}</div>` : `<div style="color:var(--text-dim);font-size:11px;">No affiliations recorded.</div>`}
     </div>
 
+    <div class="detail-section">
+      <div class="detail-section-label">Professional Background</div>
+      <div style="color:var(--text-dim);font-size:11px;margin-bottom:6px;">${mem.professional_background || 'No professional background on record.'}</div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Employment History</div>
+      ${mem.employment_history && mem.employment_history.length
+        ? `<div class="affiliation-list">${mem.employment_history.map(e=>`<div class="affiliation-item">${e}</div>`).join('')}</div>`
+        : `<div style="color:var(--text-dim);font-size:11px;">No employment history on record.</div>`}
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-section-label">Political / Civic History</div>
+      ${mem.political_history && mem.political_history.length
+        ? `<div class="affiliation-list">${mem.political_history.map(e=>`<div class="affiliation-item">${e}</div>`).join('')}</div>`
+        : `<div style="color:var(--text-dim);font-size:11px;">No political/civic history on record.</div>`}
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-section-label">Social Media</div>
+      <div style="display:flex;flex-direction:column;gap:5px;margin-top:2px;">
+        ${mem.linkedin ? `<a href="${mem.linkedin}" target="_blank" rel="noopener" class="social-link social-linkedin"><span class="social-icon">in</span> LinkedIn</a>` : `<span class="social-link social-placeholder"><span class="social-icon">in</span> LinkedIn <span class="social-empty">—</span></span>`}
+        ${mem.facebook ? `<a href="${mem.facebook}" target="_blank" rel="noopener" class="social-link social-facebook"><span class="social-icon">f</span> Facebook</a>` : `<span class="social-link social-placeholder"><span class="social-icon">f</span> Facebook <span class="social-empty">—</span></span>`}
+        ${mem.twitter ? `<a href="${mem.twitter}" target="_blank" rel="noopener" class="social-link social-twitter"><span class="social-icon">X</span> Twitter / X</a>` : `<span class="social-link social-placeholder"><span class="social-icon">X</span> Twitter / X <span class="social-empty">—</span></span>`}
+        ${mem.campaign_site ? `<a href="${mem.campaign_site}" target="_blank" rel="noopener" class="social-link social-campaign"><span class="social-icon">&#9670;</span> Campaign Site</a>` : `<span class="social-link social-placeholder"><span class="social-icon">&#9670;</span> Campaign Site <span class="social-empty">—</span></span>`}
+      </div>
+    </div>
+
     <div style="border-top:1px solid var(--border);padding-top:10px;">
       <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);letter-spacing:0.05em;text-transform:uppercase;margin-bottom:6px;">Profile Archetype</div>
       <span class="profile-badge badge-${(currentMuni?.profile||'a').toLowerCase()}">Profile ${currentMuni?.profile||'—'} · ${currentMuni?.archetype||''}</span>
@@ -2779,6 +3212,14 @@ function renderMemberDetail(mem) {
 // INTELLIGENCE FEED
 // ═══════════════════════════════════════════════════════
 function buildIntelFeed() {
+  // Set last updated label
+  const updEl = document.getElementById('intel-feed-updated');
+  if (updEl && INTEL_LAST_UPDATED) {
+    try {
+      const d = new Date(INTEL_LAST_UPDATED + 'T12:00:00');
+      updEl.textContent = 'Last updated: ' + d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    } catch(e) { updEl.textContent = 'Last updated: ' + INTEL_LAST_UPDATED; }
+  }
   // Populate muni filter
   const muniSel = document.getElementById('filter-muni');
   const allMusnis = [...new Set(INTEL_ITEMS.map(i=>i.muni))].sort();
@@ -2787,7 +3228,9 @@ function buildIntelFeed() {
     opt.value = m; opt.textContent = m;
     muniSel.appendChild(opt);
   });
-  renderFeed(INTEL_ITEMS);
+  // Sort newest first
+  const sorted = INTEL_ITEMS.slice().sort((a,b) => (b.dateSort||'').localeCompare(a.dateSort||''));
+  renderFeed(sorted);
 }
 
 function renderFeed(items) {
@@ -2800,16 +3243,25 @@ function renderFeed(items) {
     const headlineHtml = item.url
       ? `<a href="${item.url}" target="_blank" rel="noopener">${item.headline}</a>`
       : item.headline;
+    const newBadge = item.isNew
+      ? `<span class="intel-new-badge">NEW</span>`
+      : '';
+    const sourceLabel = item.source
+      ? (item.url
+          ? `<a href="${item.url}" target="_blank" rel="noopener" class="intel-source-link">${item.source}</a>`
+          : `<span class="intel-source-label">${item.source}</span>`)
+      : '';
     return `
-    <div class="intel-item" onclick="${item.url ? `window.open('${item.url}','_blank')` : ''}">
+    <div class="intel-item${item.isNew ? ' intel-item-new' : ''}" onclick="${item.url ? `window.open('${item.url}','_blank')` : ''}">
       <div class="intel-type-dot type-${item.type}"></div>
       <div class="intel-body">
-        <div class="intel-headline">${headlineHtml}</div>
+        <div class="intel-headline">${headlineHtml} ${newBadge}</div>
         <div class="intel-meta">
           <span class="intel-date">${item.date}</span>
           <span class="intel-muni">${item.muni}</span>
           <span class="intel-tag itag-${item.type}">${item.type.toUpperCase()}</span>
           <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);">${item.county} Co.</span>
+          ${sourceLabel}
         </div>
       </div>
     </div>`;
@@ -2819,10 +3271,12 @@ function renderFeed(items) {
 function filterFeed() {
   const county = document.getElementById('filter-county').value;
   const muni = document.getElementById('filter-muni').value;
-  let items = INTEL_ITEMS;
+  let items = INTEL_ITEMS.slice();
   if (county) items = items.filter(i => i.county === county);
   if (muni) items = items.filter(i => i.muni === muni);
   if (activeTagFilters.size > 0) items = items.filter(i => activeTagFilters.has(i.type));
+  // Sort newest first
+  items.sort((a,b) => (b.dateSort||'').localeCompare(a.dateSort||''));
   renderFeed(items);
 }
 
@@ -2928,32 +3382,40 @@ function renderHearingsContent(muniId) {
     </div>`;
   }
 
-  // Group by year, most recent first
-  const byYear = {};
-  hearings.forEach(h => {
-    const yr = (h.date || '').substring(0, 4) || 'Unknown';
-    if (!byYear[yr]) byYear[yr] = [];
-    byYear[yr].push(h);
-  });
+  // Sort all hearings newest first
+  const sorted = hearings.slice().sort((a,b) => (b.date||'').localeCompare(a.date||''));
 
-  return Object.keys(byYear).sort().reverse().map(yr => {
-    const rows = byYear[yr].slice().sort((a,b) => (b.date||'').localeCompare(a.date||''));
-    return `<div class="hearings-year-group">
-      <div class="hearings-year-label">${yr}</div>
-      ${rows.map(h => {
-        const links = [];
-        if (h.youtube_url) links.push(`<a href="${h.youtube_url}" target="_blank" class="hearing-link yt">▶ YouTube</a>`);
-        if (h.agenda_url && !h.youtube_url) links.push(`<a href="${h.agenda_url}" target="_blank" class="hearing-link ag">↓ Agenda</a>`);
-        if (h.minutes_url) links.push(`<a href="${h.minutes_url}" target="_blank" class="hearing-link min">↓ Minutes</a>`);
-        if (h.summary_doc) links.push(`<a href="${h.summary_doc}" target="_blank" class="hearing-link doc">✦ AI Summary</a>`);
-        return `<div class="hearing-row">
-          <div class="hearing-date">${fmtHearingDate(h.date)}</div>
-          <div class="hearing-type">${h.meeting_type || 'Meeting'}</div>
-          <div class="hearing-links">${links.length ? links.join('') : '<span style="color:var(--text-dim);font-size:10px;">No links</span>'}</div>
-        </div>`;
-      }).join('')}
-    </div>`;
+  const rows = sorted.map(h => {
+    const agendaCell = h.agenda_url
+      ? `<a href="${h.agenda_url}" target="_blank" class="hearing-link ag">↓ Agenda</a>`
+      : `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
+    const ytCell = h.youtube_url
+      ? `<a href="${h.youtube_url}" target="_blank" class="hearing-link yt">▶ YouTube</a>${h.summary_doc ? `<a href="${h.summary_doc}" target="_blank" class="hearing-link doc" style="margin-left:4px;">✦ Summary</a>` : ''}`
+      : (h.summary_doc ? `<a href="${h.summary_doc}" target="_blank" class="hearing-link doc">✦ Summary</a>` : `<span style="color:var(--text-dim);font-size:10px;">—</span>`);
+    const minCell = h.minutes_url
+      ? `<a href="${h.minutes_url}" target="_blank" class="hearing-link min">↓ Minutes</a>`
+      : `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
+    return `<tr class="hearings-table-row">
+      <td class="hearings-td hearings-td-date">${fmtHearingDate(h.date)}</td>
+      <td class="hearings-td hearings-td-type">${h.meeting_type || 'Meeting'}</td>
+      <td class="hearings-td">${agendaCell}</td>
+      <td class="hearings-td">${ytCell}</td>
+      <td class="hearings-td">${minCell}</td>
+    </tr>`;
   }).join('');
+
+  return `<table class="hearings-table">
+    <thead>
+      <tr>
+        <th class="hearings-th">Meeting Date</th>
+        <th class="hearings-th">Meeting Type</th>
+        <th class="hearings-th">Agenda</th>
+        <th class="hearings-th">YouTube / Summary</th>
+        <th class="hearings-th">Minutes</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+  </table>`;
 }
 
 function fmtHearingDate(s) {
@@ -3481,6 +3943,221 @@ window.addTagCategory = addTagCategory;
 window.deleteTagCategory = deleteTagCategory;
 window.saveApiKey = saveApiKey;
 window.saveSchedule = saveSchedule;
+
+// ═══════════════════════════════════════════════════════
+// PUBLIC HEARINGS VIEW (top-nav)
+// ═══════════════════════════════════════════════════════
+
+// Persistent state for the PH view
+let phTrackedProjects = JSON.parse(localStorage.getItem('mip_ph_tracked') || '[]');
+let phReviewedKeys    = new Set(JSON.parse(localStorage.getItem('mip_ph_reviewed') || '[]'));
+let phReviewedVisible = false;
+let phFilterMuniVal   = '';
+
+function phSaveTracked() {
+  localStorage.setItem('mip_ph_tracked', JSON.stringify(phTrackedProjects));
+}
+function phSaveReviewed() {
+  localStorage.setItem('mip_ph_reviewed', JSON.stringify([...phReviewedKeys]));
+}
+
+function phAddProject() {
+  const ordEl  = document.getElementById('ph-ord');
+  const nameEl = document.getElementById('ph-name');
+  const msgEl  = document.getElementById('ph-form-msg');
+  const ord    = ordEl  ? ordEl.value.trim()  : '';
+  const name   = nameEl ? nameEl.value.trim() : '';
+  if (!name) {
+    if (nameEl) nameEl.style.borderColor = 'rgba(220,80,80,0.6)';
+    return;
+  }
+  if (nameEl) nameEl.style.borderColor = '';
+
+  // Check for duplicates
+  const dupOrd  = ord  && phTrackedProjects.find(p => p.ord  && p.ord.toLowerCase()  === ord.toLowerCase());
+  const dupName =        phTrackedProjects.find(p => p.name.toLowerCase() === name.toLowerCase());
+  if (dupOrd || dupName) {
+    const dup = dupOrd || dupName;
+    msgEl.className = 'ph-form-msg duplicate';
+    msgEl.innerHTML = `Already tracked — add as alias? <button class="ph-confirm-btn" onclick="phAddAlias('${dup.id}','${name.replace(/'/g,"\\'")}','${ord.replace(/'/g,"\\'")}')">Confirm Alias</button>`;
+    msgEl.style.display = 'flex';
+    return;
+  }
+
+  // Add new project
+  const id = 'ph_proj_' + Date.now();
+  phTrackedProjects.unshift({ id, ord, name, aliases: [] });
+  phSaveTracked();
+  if (ordEl)  ordEl.value  = '';
+  if (nameEl) nameEl.value = '';
+  msgEl.className = 'ph-form-msg success';
+  msgEl.textContent = 'Project added successfully.';
+  msgEl.style.display = 'block';
+  setTimeout(() => { msgEl.style.display = 'none'; }, 2500);
+  phRenderTracked();
+}
+
+function phAddAlias(projId, aliasName, aliasOrd) {
+  const proj = phTrackedProjects.find(p => p.id === projId);
+  if (proj) {
+    if (aliasName && !proj.aliases.includes(aliasName)) proj.aliases.push(aliasName);
+    if (aliasOrd  && !proj.aliases.includes(aliasOrd))  proj.aliases.push(aliasOrd);
+    phSaveTracked();
+    phRenderTracked();
+  }
+  const msgEl = document.getElementById('ph-form-msg');
+  if (msgEl) {
+    msgEl.className = 'ph-form-msg success';
+    msgEl.textContent = 'Alias added to existing project.';
+    msgEl.style.display = 'block';
+    setTimeout(() => { msgEl.style.display = 'none'; }, 2500);
+  }
+}
+
+function phRenderTracked() {
+  const container = document.getElementById('ph-tracked-list');
+  if (!container) return;
+  if (phTrackedProjects.length === 0) {
+    container.innerHTML = '<div class="ph-tracked-empty">No projects tracked yet. Use the form above to add one.</div>';
+    return;
+  }
+  container.innerHTML = phTrackedProjects.map(p => {
+    const aliasText = p.aliases && p.aliases.length ? ` <span style="font-size:9px;color:var(--text-dim);">(${p.aliases.join(', ')})</span>` : '';
+    return `<div class="ph-tracked-chip">
+      ${p.ord ? `<span class="ph-tracked-chip-ord">${p.ord}</span>` : ''}
+      <span>${p.name}${aliasText}</span>
+    </div>`;
+  }).join('');
+}
+
+function phGetAllHearings() {
+  // Flatten all PUBLIC_HEARINGS entries into a list with muni id+name
+  const all = [];
+  const muniIdToName = {};
+  MUNICIPALITIES.forEach(m => { muniIdToName[m.id] = m.name; });
+  // Also add county entries
+  ['hamilton-county','hancock-county','johnson-county'].forEach(id => {
+    muniIdToName[id] = id.replace('-county','').charAt(0).toUpperCase() + id.replace('-county','').slice(1) + ' County';
+  });
+
+  Object.keys(PUBLIC_HEARINGS).forEach(muniId => {
+    const hearings = PUBLIC_HEARINGS[muniId];
+    if (!hearings) return;
+    const muni = MUNICIPALITIES.find(m => m.id === muniId);
+    const muniName = muni ? muni.name : muniIdToName[muniId] || muniId;
+    hearings.forEach(h => {
+      all.push({ ...h, muniId, muniName });
+    });
+  });
+  // Sort newest first
+  all.sort((a,b) => (b.date||'').localeCompare(a.date||''));
+  return all;
+}
+
+function phRenderHearings() {
+  const container = document.getElementById('ph-hearings-list');
+  const reviewedContainer = document.getElementById('ph-reviewed-list');
+  const reviewedWrap = document.getElementById('ph-reviewed-wrap');
+  if (!container) return;
+
+  let all = phGetAllHearings();
+  if (phFilterMuniVal) {
+    all = all.filter(h => h.muniId === phFilterMuniVal || h.muniName === phFilterMuniVal);
+  }
+
+  const unreviewed = all.filter(h => !phReviewedKeys.has(h.muniId + '_' + h.date + '_' + (h.youtube_url||h.agenda_url||'')));
+  const reviewed   = all.filter(h =>  phReviewedKeys.has(h.muniId + '_' + h.date + '_' + (h.youtube_url||h.agenda_url||'')));
+
+  function renderItem(h, isReviewed) {
+    const key = h.muniId + '_' + h.date + '_' + (h.youtube_url||h.agenda_url||'');
+    const agendaLink = h.agenda_url ? `<a href="${h.agenda_url}" target="_blank" class="hearing-link ag">↓ Agenda</a>` : '';
+    const ytLink     = h.youtube_url ? `<a href="${h.youtube_url}" target="_blank" class="hearing-link yt">▶ YouTube</a>` : '';
+    const summaryLink = h.summary_doc ? `<a href="${h.summary_doc}" target="_blank" class="hearing-link doc">✦ Summary</a>` : '';
+    const minLink    = h.minutes_url ? `<a href="${h.minutes_url}" target="_blank" class="hearing-link min">↓ Minutes</a>` : '';
+    const reviewBtn = isReviewed
+      ? `<button class="ph-review-btn done" onclick="phUnreview('${key.replace(/'/g,"\\'")}')">✓ Reviewed</button>`
+      : `<button class="ph-review-btn" onclick="phMarkReviewed('${key.replace(/'/g,"\\'")}')">✓ Mark Reviewed</button>`;
+    return `<div class="ph-hearing-item ${isReviewed?'reviewed':'unreviewed'}">
+      <div class="ph-hearing-date">${fmtHearingDate(h.date)}</div>
+      <div class="ph-hearing-juri">${h.muniName.replace('City of ','').replace('Town of ','')}</div>
+      <div class="ph-hearing-type">${h.meeting_type || 'Meeting'}</div>
+      <div class="ph-hearing-links">${agendaLink}${ytLink}${summaryLink}${minLink}</div>
+      ${reviewBtn}
+    </div>`;
+  }
+
+  container.innerHTML = unreviewed.length
+    ? unreviewed.map(h => renderItem(h, false)).join('')
+    : '<div style="color:var(--text-dim);font-size:11px;padding:8px 0;">All hearings reviewed.</div>';
+
+  if (reviewed.length > 0) {
+    reviewedWrap.style.display = 'block';
+    reviewedContainer.innerHTML = reviewed.map(h => renderItem(h, true)).join('');
+  } else {
+    reviewedWrap.style.display = 'none';
+  }
+}
+
+function phMarkReviewed(key) {
+  phReviewedKeys.add(key);
+  phSaveReviewed();
+  phRenderHearings();
+}
+
+function phUnreview(key) {
+  phReviewedKeys.delete(key);
+  phSaveReviewed();
+  phRenderHearings();
+}
+
+function phToggleReviewed() {
+  phReviewedVisible = !phReviewedVisible;
+  const list = document.getElementById('ph-reviewed-list');
+  const label = document.getElementById('ph-reviewed-toggle-label');
+  if (list) list.style.display = phReviewedVisible ? 'flex' : 'none';
+  if (list && phReviewedVisible) list.style.flexDirection = 'column';
+  if (list && phReviewedVisible) list.style.gap = '6px';
+  if (label) label.textContent = phReviewedVisible ? '▼ Hide Reviewed' : '▶ Show Reviewed';
+}
+
+function phFilterHearings() {
+  const sel = document.getElementById('ph-filter-muni');
+  phFilterMuniVal = sel ? sel.value : '';
+  phRenderHearings();
+}
+
+function phBuildMuniFilter() {
+  const sel = document.getElementById('ph-filter-muni');
+  if (!sel) return;
+  const muniIds = Object.keys(PUBLIC_HEARINGS).sort();
+  muniIds.forEach(id => {
+    const muni = MUNICIPALITIES.find(m => m.id === id);
+    const name = muni ? muni.name.replace('City of ','').replace('Town of ','') : id;
+    const opt = document.createElement('option');
+    opt.value = id; opt.textContent = name;
+    sel.appendChild(opt);
+  });
+}
+
+function initPublicHearingsView() {
+  phBuildMuniFilter();
+  phRenderTracked();
+  phRenderHearings();
+}
+
+// Patch switchView to init PH view on first open
+const _origSwitchView = switchView;
+window.switchView = function(name) {
+  _origSwitchView(name);
+  if (name === 'publichearings') initPublicHearingsView();
+};
+
+window.phAddProject = phAddProject;
+window.phAddAlias = phAddAlias;
+window.phMarkReviewed = phMarkReviewed;
+window.phUnreview = phUnreview;
+window.phToggleReviewed = phToggleReviewed;
+window.phFilterHearings = phFilterHearings;
 </script>
 </body>
 </html>
