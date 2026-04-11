@@ -475,6 +475,8 @@
   /* INTELLIGENCE FEED ITEMS — clickable */
   .intel-item { cursor: pointer; }
   .intel-item:hover { background: var(--panel-hover); }
+  .intel-item-linked { cursor: pointer; }
+  .intel-item-linked:hover { background: var(--panel-hover); }
   .intel-headline a { color: var(--text); text-decoration: none; }
   .intel-headline a:hover { color: var(--accent); }
 
@@ -1116,6 +1118,7 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
+    overflow-x: auto;
   }
   .ph-hearing-item {
     background: var(--panel);
@@ -1184,6 +1187,35 @@
     transition: all 0.15s;
   }
   .ph-reviewed-toggle:hover { color: var(--text); border-color: rgba(255,255,255,0.2); }
+
+  /* HEARINGS TABLE */
+  .hearings-table { border-collapse: collapse; width: 100%; }
+  .hearings-th {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--text-dim);
+    text-align: left;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .hearings-table-row { transition: background 0.12s; }
+  .hearings-table-row:hover { background: var(--panel-hover); }
+  .hearings-td {
+    font-size: 11px;
+    padding: 6px 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    vertical-align: middle;
+  }
+  .hearings-td-date {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+  .hearings-td-type { font-size: 10px; color: var(--text); white-space: nowrap; }
 
   /* COUNTY VIEW */
   #view-county {
@@ -2805,18 +2837,18 @@ const INTEL_LAST_UPDATED = '2026-04-11';
 const INTEL_SESSION_CUTOFF = '2026-04-09';
 
 const INTEL_ITEMS = [
-  { type: 'news', date: 'Apr 2026', dateSort: '2026-04-11', muni: 'Westfield', county: 'Hamilton', headline: 'All 7 council seats replaced after 2024 election; new members focused on infrastructure capacity ahead of further residential approvals.', source: 'Municipal PDF', isNew: true },
-  { type: 'vote', date: 'Apr 2026', dateSort: '2026-04-10', muni: 'Shelbyville', county: 'Shelby', headline: 'Data center annexation approved 5–1 despite significant public opposition; revenue pressure cited by majority.', source: 'YouTube/Transcript', isNew: true },
-  { type: 'news', date: 'Apr 2026', dateSort: '2026-04-09', muni: 'Noblesville', county: 'Hamilton', headline: '~5,000 units approved but unbuilt. Council signaling caution on new residential entitlements pending infrastructure capacity review.', source: 'Municipal PDF', isNew: true },
-  { type: 'news', date: 'Apr 2026', dateSort: '2026-04-08', muni: 'Franklin', county: 'Johnson', headline: 'Multiple Plan Commission terms expired 12/31/2025. Six of nine members in holdover or uncertain status — verify before PC submissions.', source: 'Municipal PDF', isNew: false },
-  { type: 'news', date: 'Apr 2026', dateSort: '2026-04-07', muni: 'Hamilton County', county: 'Hamilton', headline: 'County Plan Commission website shows 2025 roster; multiple terms expired 12/31/2025. 2026 reappointments not yet reflected.', source: 'Municipal PDF', isNew: false },
-  { type: 'news', date: 'Mar 2026', dateSort: '2026-03-28', muni: 'Carmel', county: 'Hamilton', headline: 'Plan Commission page returned 404; multiple terms expired 12/31/2025. Reappointment status unconfirmed. Verify before submissions.', source: 'Municipal PDF', isNew: false },
-  { type: 'social', date: 'Mar 2026', dateSort: '2026-03-15', muni: 'Fishers', county: 'Hamilton', headline: '2 Hamilton County Commissioner PC appointments remain vacant. Fastest-growing city continues to evolve governance capacity.', source: 'YouTube/Transcript', isNew: false },
-  { type: 'news', date: 'Mar 2026', dateSort: '2026-03-01', muni: 'Sheridan', county: 'Hamilton', headline: 'Town expanded from 5 to 7 council members after Adams Township merger January 2025.', source: 'Municipal PDF', isNew: false },
-  { type: 'vote', date: 'Jan 2026', dateSort: '2026-01-15', muni: 'Whiteland', county: 'Johnson', headline: 'Joe Csikos appointed to fill At-Large council seat; mid-term appointment effective 3/4/2026.', source: 'YouTube/Transcript', isNew: false },
-  { type: 'election', date: 'Nov 2024', dateSort: '2024-11-05', muni: 'Whitestown', county: 'Boone', headline: 'Significant turnover driven by warehouse development opposition; Thomas (D) elected in District 4.', source: 'Municipal PDF', isNew: false },
-  { type: 'election', date: 'Nov 2024', dateSort: '2024-11-05', muni: 'New Palestine', county: 'Hancock', headline: '4 of 5 council seats replaced. Hartley (Independent) elected VP; all-at-large council now in place.', source: 'Municipal PDF', isNew: false },
-  { type: 'election', date: 'Nov 2024', dateSort: '2024-11-05', muni: 'Lafayette', county: 'Tippecanoe', headline: '8D/1R council composition confirmed. Development framed as economic opportunity; planning handled through TCAPC (county body).', source: 'Municipal PDF', isNew: false },
+  { type: 'news', date: 'Apr 2026', dateSort: '2026-04-11', muni: 'Westfield', county: 'Hamilton', headline: 'All 7 council seats replaced after 2024 election; new members focused on infrastructure capacity ahead of further residential approvals.', source: 'Municipal PDF', isNew: true, url: 'https://www.youtube.com/@westfieldindiana' },
+  { type: 'vote', date: 'Apr 2026', dateSort: '2026-04-10', muni: 'Shelbyville', county: 'Shelby', headline: 'Data center annexation approved 5–1 despite significant public opposition; revenue pressure cited by majority.', source: 'YouTube/Transcript', isNew: true, url: 'https://www.youtube.com/@ShelbyvilleIndiana' },
+  { type: 'news', date: 'Apr 2026', dateSort: '2026-04-09', muni: 'Noblesville', county: 'Hamilton', headline: '~5,000 units approved but unbuilt. Council signaling caution on new residential entitlements pending infrastructure capacity review.', source: 'Municipal PDF', isNew: true, url: 'https://www.noblesville.in.gov/government/council' },
+  { type: 'news', date: 'Apr 2026', dateSort: '2026-04-08', muni: 'Franklin', county: 'Johnson', headline: 'Multiple Plan Commission terms expired 12/31/2025. Six of nine members in holdover or uncertain status — verify before PC submissions.', source: 'Municipal PDF', isNew: false, url: 'https://www.franklin.in.gov/government/plan-commission' },
+  { type: 'news', date: 'Apr 2026', dateSort: '2026-04-07', muni: 'Hamilton County', county: 'Hamilton', headline: 'County Plan Commission website shows 2025 roster; multiple terms expired 12/31/2025. 2026 reappointments not yet reflected.', source: 'Municipal PDF', isNew: false, url: 'https://www.hamiltoncounty.in.gov/213/Plan-Commission' },
+  { type: 'news', date: 'Mar 2026', dateSort: '2026-03-28', muni: 'Carmel', county: 'Hamilton', headline: 'Plan Commission page returned 404; multiple terms expired 12/31/2025. Reappointment status unconfirmed. Verify before submissions.', source: 'Municipal PDF', isNew: false, url: 'https://www.carmel.in.gov/government/boards-and-commissions/plan-commission' },
+  { type: 'social', date: 'Mar 2026', dateSort: '2026-03-15', muni: 'Fishers', county: 'Hamilton', headline: '2 Hamilton County Commissioner PC appointments remain vacant. Fastest-growing city continues to evolve governance capacity.', source: 'YouTube/Transcript', isNew: false, url: 'https://www.youtube.com/@fishersindiana' },
+  { type: 'news', date: 'Mar 2026', dateSort: '2026-03-01', muni: 'Sheridan', county: 'Hamilton', headline: 'Town expanded from 5 to 7 council members after Adams Township merger January 2025.', source: 'Municipal PDF', isNew: false, url: 'https://www.town.sheridan.in.us/government/town-council' },
+  { type: 'vote', date: 'Jan 2026', dateSort: '2026-01-15', muni: 'Whiteland', county: 'Johnson', headline: 'Joe Csikos appointed to fill At-Large council seat; mid-term appointment effective 3/4/2026.', source: 'YouTube/Transcript', isNew: false, url: 'https://www.youtube.com/@WhitelandIndiana' },
+  { type: 'election', date: 'Nov 2024', dateSort: '2024-11-05', muni: 'Whitestown', county: 'Boone', headline: 'Significant turnover driven by warehouse development opposition; Thomas (D) elected in District 4.', source: 'Municipal PDF', isNew: false, url: 'https://www.whitestown.in.gov/government/town-council' },
+  { type: 'election', date: 'Nov 2024', dateSort: '2024-11-05', muni: 'New Palestine', county: 'Hancock', headline: '4 of 5 council seats replaced. Hartley (Independent) elected VP; all-at-large council now in place.', source: 'Municipal PDF', isNew: false, url: 'https://www.newpalestine.in.gov/government/town-council' },
+  { type: 'election', date: 'Nov 2024', dateSort: '2024-11-05', muni: 'Lafayette', county: 'Tippecanoe', headline: '8D/1R council composition confirmed. Development framed as economic opportunity; planning handled through TCAPC (county body).', source: 'Municipal PDF', isNew: false, url: 'https://www.lafayette.in.gov/213/City-Council' },
 ];
 
 // ═══════════════════════════════════════════════════════
@@ -3252,7 +3284,7 @@ function renderFeed(items) {
           : `<span class="intel-source-label">${item.source}</span>`)
       : '';
     return `
-    <div class="intel-item${item.isNew ? ' intel-item-new' : ''}" onclick="${item.url ? `window.open('${item.url}','_blank')` : ''}">
+    <div class="intel-item${item.isNew ? ' intel-item-new' : ''}${item.url ? ' intel-item-linked' : ''}" ${item.url ? `onclick="window.open('${item.url}','_blank')"` : ''}>
       <div class="intel-type-dot type-${item.type}"></div>
       <div class="intel-body">
         <div class="intel-headline">${headlineHtml} ${newBadge}</div>
@@ -4068,31 +4100,57 @@ function phRenderHearings() {
   const unreviewed = all.filter(h => !phReviewedKeys.has(h.muniId + '_' + h.date + '_' + (h.youtube_url||h.agenda_url||'')));
   const reviewed   = all.filter(h =>  phReviewedKeys.has(h.muniId + '_' + h.date + '_' + (h.youtube_url||h.agenda_url||'')));
 
-  function renderItem(h, isReviewed) {
-    const key = h.muniId + '_' + h.date + '_' + (h.youtube_url||h.agenda_url||'');
-    const agendaLink = h.agenda_url ? `<a href="${h.agenda_url}" target="_blank" class="hearing-link ag">↓ Agenda</a>` : '';
-    const ytLink     = h.youtube_url ? `<a href="${h.youtube_url}" target="_blank" class="hearing-link yt">▶ YouTube</a>` : '';
-    const summaryLink = h.summary_doc ? `<a href="${h.summary_doc}" target="_blank" class="hearing-link doc">✦ Summary</a>` : '';
-    const minLink    = h.minutes_url ? `<a href="${h.minutes_url}" target="_blank" class="hearing-link min">↓ Minutes</a>` : '';
-    const reviewBtn = isReviewed
-      ? `<button class="ph-review-btn done" onclick="phUnreview('${key.replace(/'/g,"\\'")}')">✓ Reviewed</button>`
-      : `<button class="ph-review-btn" onclick="phMarkReviewed('${key.replace(/'/g,"\\'")}')">✓ Mark Reviewed</button>`;
-    return `<div class="ph-hearing-item ${isReviewed?'reviewed':'unreviewed'}">
-      <div class="ph-hearing-date">${fmtHearingDate(h.date)}</div>
-      <div class="ph-hearing-juri">${h.muniName.replace('City of ','').replace('Town of ','')}</div>
-      <div class="ph-hearing-type">${h.meeting_type || 'Meeting'}</div>
-      <div class="ph-hearing-links">${agendaLink}${ytLink}${summaryLink}${minLink}</div>
-      ${reviewBtn}
-    </div>`;
+  function buildTable(rows, isReviewed) {
+    if (rows.length === 0) return '';
+    const tableRows = rows.map(h => {
+      const key = (h.muniId + '_' + h.date + '_' + (h.youtube_url||h.agenda_url||'')).replace(/'/g,"\\'");
+      const agendaCell = h.agenda_url
+        ? `<a href="${h.agenda_url}" target="_blank" class="hearing-link ag">↓ Agenda</a>`
+        : `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
+      const ytCell = h.youtube_url
+        ? `<a href="${h.youtube_url}" target="_blank" class="hearing-link yt">▶ YouTube</a>${h.summary_doc ? `<a href="${h.summary_doc}" target="_blank" class="hearing-link doc" style="margin-left:4px;">✦ Summary</a>` : ''}`
+        : (h.summary_doc ? `<a href="${h.summary_doc}" target="_blank" class="hearing-link doc">✦ Summary</a>` : `<span style="color:var(--text-dim);font-size:10px;">—</span>`);
+      const minCell = h.minutes_url
+        ? `<a href="${h.minutes_url}" target="_blank" class="hearing-link min">↓ Minutes</a>`
+        : `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
+      const juriLabel = h.muniName.replace('City of ','').replace('Town of ','');
+      const reviewBtn = isReviewed
+        ? `<button class="ph-review-btn done" onclick="phUnreview('${key}')">✓ Reviewed</button>`
+        : `<button class="ph-review-btn" onclick="phMarkReviewed('${key}')">✓ Mark Reviewed</button>`;
+      return `<tr class="hearings-table-row">
+        <td class="hearings-td hearings-td-date">${fmtHearingDate(h.date)}</td>
+        <td class="hearings-td" style="color:var(--accent-light);font-size:11px;">${juriLabel}</td>
+        <td class="hearings-td hearings-td-type">${h.meeting_type || 'Meeting'}</td>
+        <td class="hearings-td">${agendaCell}</td>
+        <td class="hearings-td">${ytCell}</td>
+        <td class="hearings-td">${minCell}</td>
+        <td class="hearings-td">${reviewBtn}</td>
+      </tr>`;
+    }).join('');
+
+    return `<table class="hearings-table" style="width:100%;">
+      <thead>
+        <tr>
+          <th class="hearings-th">Date</th>
+          <th class="hearings-th">Jurisdiction</th>
+          <th class="hearings-th">Type</th>
+          <th class="hearings-th">Agenda</th>
+          <th class="hearings-th">YouTube / Summary</th>
+          <th class="hearings-th">Minutes</th>
+          <th class="hearings-th"></th>
+        </tr>
+      </thead>
+      <tbody>${tableRows}</tbody>
+    </table>`;
   }
 
   container.innerHTML = unreviewed.length
-    ? unreviewed.map(h => renderItem(h, false)).join('')
+    ? buildTable(unreviewed, false)
     : '<div style="color:var(--text-dim);font-size:11px;padding:8px 0;">All hearings reviewed.</div>';
 
   if (reviewed.length > 0) {
     reviewedWrap.style.display = 'block';
-    reviewedContainer.innerHTML = reviewed.map(h => renderItem(h, true)).join('');
+    reviewedContainer.innerHTML = buildTable(reviewed, true);
   } else {
     reviewedWrap.style.display = 'none';
   }
