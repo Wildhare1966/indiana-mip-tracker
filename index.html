@@ -1236,6 +1236,138 @@
     align-self: flex-start;
   }
   .back-btn:hover { border-color: rgba(255,255,255,0.2); color: var(--text); }
+
+/* ── GEMINI CHAT PANEL ── */
+.gemini-chat-panel {
+  background: var(--intel-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  height: 320px;
+}
+.gemini-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: var(--accent);
+  letter-spacing: 0.06em;
+  flex-shrink: 0;
+}
+.gemini-chat-toggle {
+  background: none; border: none; color: var(--text-dim);
+  cursor: pointer; font-size: 12px; padding: 0 4px;
+}
+.gemini-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.gchat-msg-user {
+  align-self: flex-end;
+  background: var(--navy-mid);
+  color: var(--white);
+  padding: 6px 10px;
+  border-radius: 12px 12px 2px 12px;
+  max-width: 80%;
+  font-size: 11px;
+}
+.gchat-msg-ai {
+  align-self: flex-start;
+  background: var(--panel);
+  color: var(--text);
+  padding: 8px 12px;
+  border-radius: 2px 12px 12px 12px;
+  max-width: 90%;
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.gchat-msg-ai a { color: var(--accent); }
+.gchat-msg-error {
+  color: #e05252; font-size: 10px; padding: 4px 0;
+}
+.gemini-chat-input-row {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.gemini-chat-input {
+  flex: 1;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 11px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  outline: none;
+  resize: none;
+}
+.gemini-chat-input:focus { border-color: var(--navy-light); }
+.gemini-chat-send {
+  background: var(--accent);
+  color: var(--navy-dark);
+  border: none;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.gemini-chat-send:hover { background: var(--accent-light); }
+.gemini-chat-send:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── VOTE HISTORY ── */
+.vote-history-section {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.vote-history-title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+.vote-history-item {
+  font-size: 11px;
+  color: var(--text);
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  line-height: 1.4;
+}
+.vote-history-item a { color: var(--accent); font-size: 10px; }
+.vote-history-empty { font-size: 10px; color: var(--text-dim); font-style: italic; }
+.update-profile-btn {
+  background: none;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  padding: 4px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: all 0.15s;
+}
+.update-profile-btn:hover { background: rgba(232,160,32,0.1); }
+.update-profile-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>
 </head>
 <body>
@@ -1437,6 +1569,20 @@
             <input class="settings-input" type="password" id="api-key-input" placeholder="sk-ant-...">
             <button class="settings-save-btn" onclick="saveApiKey()">Save Key</button>
             <div id="api-key-status" style="font-size:11px;color:var(--text-dim);margin-top:6px;"></div>
+            <div class="settings-section" style="margin-top:16px;">
+              <div class="settings-section-title">Gemini API Key</div>
+              <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
+                <input id="gemini-key-input" type="password" placeholder="AIza..."
+                  style="flex:1;background:var(--panel);border:1px solid var(--border);color:var(--text);
+                  font-family:'IBM Plex Mono',monospace;font-size:11px;padding:6px 10px;border-radius:4px;outline:none;"
+                  oninput="saveGeminiKey(this.value)">
+                <span id="gemini-key-status" style="font-size:10px;color:var(--text-dim);">Not set</span>
+              </div>
+              <div style="font-size:10px;color:var(--text-dim);margin-top:4px;">
+                Stored in browser localStorage. Used for jurisdiction/member chat and vote history analysis.
+                Get a key at <a href="https://aistudio.google.com" target="_blank" style="color:var(--accent);">aistudio.google.com</a>
+              </div>
+            </div>
           </div>
 
           <!-- RESEARCH SCHEDULE -->
@@ -1473,6 +1619,207 @@
 </div>
 
 <script>
+// ── GEMINI CLIENT ─────────────────────────────────────────────────────────────
+function getGeminiKey() { return localStorage.getItem('mip_gemini_key') || ''; }
+function saveGeminiKey(val) {
+  localStorage.setItem('mip_gemini_key', val.trim());
+  const el = document.getElementById('gemini-key-status');
+  if (el) el.textContent = val.trim() ? '✓ Saved' : 'Not set';
+}
+
+async function callGemini(prompt, maxTokens) {
+  const key = getGeminiKey();
+  if (!key) {
+    alert('Gemini API key not set. Go to Settings to add your key.');
+    return null;
+  }
+  maxTokens = maxTokens || 2048;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.3, maxOutputTokens: maxTokens }
+    })
+  });
+  const data = await resp.json();
+  if (data.error) throw new Error(data.error.message);
+  return data.candidates[0].content.parts[0].text;
+}
+
+async function fetchDocText(docUrl) {
+  if (!docUrl) return null;
+  const match = docUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  if (!match) return null;
+  const exportUrl = `https://docs.google.com/document/d/${match[1]}/export?format=txt`;
+  try {
+    const r = await fetch(exportUrl);
+    if (!r.ok) return null;
+    return await r.text();
+  } catch(e) { return null; }
+}
+
+function initGeminiKeyUI() {
+  const input = document.getElementById('gemini-key-input');
+  const status = document.getElementById('gemini-key-status');
+  const k = getGeminiKey();
+  if (input && k) input.value = k;
+  if (status) status.textContent = k ? '✓ Saved' : 'Not set';
+}
+
+// ── VOTE HISTORY & PROFILE UPDATE ─────────────────────────────────────────────
+const memberVoteCache = {}; // keyed by memberId
+
+async function updateMemberVoteHistory(memberId, memberName, muniName, muniId, btnEl, containerEl) {
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Analyzing…'; }
+
+  const hearings = (PUBLIC_HEARINGS[muniId] || [])
+    .filter(h => h.summary_doc)
+    .slice(0, 8); // limit to 8 most recent docs
+
+  if (hearings.length === 0) {
+    if (containerEl) containerEl.innerHTML = '<div class="vote-history-empty">No summary docs available for this jurisdiction.</div>';
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Update Vote History'; }
+    return;
+  }
+
+  // Fetch doc texts (up to 4 in parallel)
+  const docFetches = hearings.slice(0, 4).map(async h => {
+    const text = await fetchDocText(h.summary_doc);
+    return { date: h.date, url: h.summary_doc, text: text || '' };
+  });
+  const docs = (await Promise.all(docFetches)).filter(d => d.text.length > 50);
+
+  if (docs.length === 0) {
+    if (containerEl) containerEl.innerHTML = '<div class="vote-history-empty">Summary docs could not be fetched (may not be publicly shared).</div>';
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Update Vote History'; }
+    return;
+  }
+
+  const docBlock = docs.map(d => `=== Meeting ${d.date} ===\n${d.text.substring(0, 3000)}`).join('\n\n');
+
+  const prompt = `You are analyzing meeting minutes/summaries for ${muniName}, Indiana.
+
+Find every mention of "${memberName}" in the documents below. For each mention, extract:
+1. The meeting date
+2. Any vote they cast (yes/no/abstain) on residential development, rezoning, annexation, subdivision, or related topics
+3. Any comments or positions stated
+4. The topic/project name if mentioned
+
+Format each finding as:
+DATE: [date]
+TOPIC: [topic name]
+ACTION: [vote or position]
+DETAIL: [brief description]
+
+If no mentions found, say "No relevant votes or mentions found for ${memberName}."
+
+Documents:
+${docBlock}`;
+
+  try {
+    const result = await callGemini(prompt, 1024);
+    if (!result) { if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Update Vote History'; } return; }
+
+    memberVoteCache[memberId] = { text: result, sources: docs, timestamp: new Date().toLocaleDateString() };
+
+    if (containerEl) {
+      const sourceLinks = docs.map(d => `<a href="${d.url}" target="_blank">${d.date}</a>`).join(' · ');
+      containerEl.innerHTML = `
+        <div class="vote-history-title">Vote / Position History — ${memberName}</div>
+        <div class="vote-history-item" style="white-space:pre-wrap;">${result}</div>
+        <div style="margin-top:6px;font-size:9px;color:var(--text-dim);">Sources: ${sourceLinks} · Analyzed ${new Date().toLocaleDateString()}</div>`;
+    }
+  } catch(e) {
+    if (containerEl) containerEl.innerHTML = `<div class="vote-history-empty">Error: ${e.message}</div>`;
+  }
+
+  if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Update Vote History'; }
+}
+
+async function updateAllMemberVotes(muniId, muniName, btnEl) {
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Updating All…'; }
+  const muni = MUNICIPALITIES.find(m => m.id === muniId);
+  if (!muni || !muni.members) { if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Update All Profiles'; } return; }
+  for (const mem of muni.members) {
+    const cId = 'vote-' + mem.id;
+    const cEl = document.getElementById(cId);
+    await updateMemberVoteHistory(mem.id, mem.name, muniName, muniId, null, cEl);
+    await new Promise(r => setTimeout(r, 500));
+  }
+  if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Update All Profiles'; }
+}
+
+// ── GEMINI CHAT COMPONENT ──────────────────────────────────────────────────────
+const chatHistories = {}; // keyed by chatId
+
+function renderChatPanel(chatId, systemContext, titleLabel) {
+  return `<div class="gemini-chat-panel" id="chat-panel-${chatId}">
+    <div class="gemini-chat-header">
+      ◈ GEMINI — ${titleLabel}
+      <button class="gemini-chat-toggle" onclick="toggleChatPanel('${chatId}')" title="Collapse">▼</button>
+    </div>
+    <div class="gemini-chat-messages" id="chat-msgs-${chatId}">
+      <div class="gchat-msg-ai" style="color:var(--text-dim);font-size:10px;">Ask anything about ${titleLabel.toLowerCase()}…</div>
+    </div>
+    <div class="gemini-chat-input-row">
+      <textarea class="gemini-chat-input" id="chat-input-${chatId}" rows="1"
+        placeholder="Ask about votes, members, development activity…"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();chatSend('${chatId}','${encodeURIComponent(systemContext)}');}"></textarea>
+      <button class="gemini-chat-send" onclick="chatSend('${chatId}','${encodeURIComponent(systemContext)}')">Send</button>
+    </div>
+  </div>`;
+}
+
+function toggleChatPanel(chatId) {
+  const msgs = document.getElementById('chat-msgs-' + chatId);
+  const inputRow = document.querySelector(`#chat-panel-${chatId} .gemini-chat-input-row`);
+  const btn = document.querySelector(`#chat-panel-${chatId} .gemini-chat-toggle`);
+  const hidden = msgs && msgs.style.display === 'none';
+  if (msgs) msgs.style.display = hidden ? '' : 'none';
+  if (inputRow) inputRow.style.display = hidden ? '' : 'none';
+  if (btn) btn.textContent = hidden ? '▼' : '▶';
+}
+
+async function chatSend(chatId, encodedContext) {
+  const input = document.getElementById('chat-input-' + chatId);
+  const msgsEl = document.getElementById('chat-msgs-' + chatId);
+  const sendBtn = document.querySelector(`#chat-panel-${chatId} .gemini-chat-send`);
+  if (!input || !msgsEl) return;
+  const userMsg = input.value.trim();
+  if (!userMsg) return;
+
+  input.value = '';
+  sendBtn.disabled = true;
+
+  if (!chatHistories[chatId]) chatHistories[chatId] = [];
+  chatHistories[chatId].push({ role: 'user', text: userMsg });
+
+  // Add user message to UI
+  msgsEl.innerHTML += `<div class="gchat-msg-user">${userMsg}</div>`;
+  msgsEl.scrollTop = msgsEl.scrollHeight;
+
+  const systemContext = decodeURIComponent(encodedContext);
+  const historyBlock = chatHistories[chatId]
+    .map(m => (m.role === 'user' ? 'User: ' : 'Assistant: ') + m.text)
+    .join('\n\n');
+
+  const fullPrompt = `${systemContext}\n\nConversation:\n${historyBlock}`;
+
+  try {
+    const reply = await callGemini(fullPrompt, 1024);
+    if (!reply) { sendBtn.disabled = false; return; }
+    chatHistories[chatId].push({ role: 'assistant', text: reply });
+    msgsEl.innerHTML += `<div class="gchat-msg-ai">${reply.replace(/\n/g,'<br>')}</div>`;
+  } catch(e) {
+    msgsEl.innerHTML += `<div class="gchat-msg-error">Error: ${e.message}</div>`;
+  }
+
+  msgsEl.scrollTop = msgsEl.scrollHeight;
+  sendBtn.disabled = false;
+}
+
 // ═══════════════════════════════════════════════════════
 // PUBLIC HEARINGS DATA — keyed by municipality ID
 // Generated by: export_hearings_data.py
@@ -3077,6 +3424,17 @@ function renderMuniPanel() {
         ${currentTab==='hearings' ? renderHearingsContent(m.id) : renderMemberCards(currentTab==='council' ? m.council : m.pc)}
       </div>
     </div>
+    ${(function() {
+      const jurisChatId = 'juris-' + m.id;
+      const escapedMuniName = (m.name || '').replace(/'/g, "\\'");
+      const memberCount = m.members ? m.members.length : ((m.council||[]).length + (m.pc||[]).length);
+      const jurisContext = `You are an AI assistant for the Municipal Intelligence Platform. You have detailed knowledge about ${m.name}, Indiana. The jurisdiction has ${memberCount} plan commission/council members. Focus: residential development, rezoning, planning commission activity, council votes, member positions. Be concise and cite meeting dates when possible.`;
+      return `<div style="margin-top:16px;display:flex;align-items:center;gap:10px;">
+  <button class="update-profile-btn" onclick="updateAllMemberVotes('${m.id}','${escapedMuniName}',this)">Update All Profiles</button>
+  <span style="font-size:10px;color:var(--text-dim);">Fetches recent meeting summaries and analyzes vote history for all members</span>
+</div>
+${renderChatPanel(jurisChatId, jurisContext, (m.name||'').replace('City of ','').replace('Town of ',''))}`;
+    })()}
   `;
 }
 
@@ -3237,6 +3595,29 @@ function renderMemberDetail(mem) {
           ? `<button class="settings-add-btn" style="margin-top:0;" onclick="unverifyMember('${verifyKey}')">↩ Unmark Verified</button>`
           : ''}
     </div>
+
+    ${(function() {
+      const memId = mem.id || mem.name.replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_]/g,'');
+      const escapedMemName = (mem.name || '').replace(/'/g, "\\'");
+      const escapedMuniName = (currentMuni ? (currentMuni.name || '') : '').replace(/'/g, "\\'");
+      const memChatId = 'mem-' + memId;
+      const memContext = `You are an AI assistant for the Municipal Intelligence Platform. You are analyzing ${mem.name}, a ${mem.role || 'member'} of ${currentMuni ? currentMuni.name : 'this municipality'}, Indiana. Focus on their voting record on residential development, rezoning, annexation, and subdivision matters. Be specific and cite dates when possible.`;
+      const muniId = currentMuni ? currentMuni.id : '';
+      const muniName = currentMuni ? currentMuni.name : '';
+      return `<div class="vote-history-section">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+    <div class="vote-history-title">Vote / Position History</div>
+    <button class="update-profile-btn" id="vbtn-${memId}"
+      onclick="updateMemberVoteHistory('${memId}','${escapedMemName}','${escapedMuniName}','${muniId}',this,document.getElementById('vote-${memId}'))">
+      Update Vote History
+    </button>
+  </div>
+  <div id="vote-${memId}">
+    <div class="vote-history-empty">Click "Update Vote History" to analyze recent meeting minutes.</div>
+  </div>
+</div>
+${renderChatPanel(memChatId, memContext, escapedMemName)}`;
+    })()}
   `;
 }
 
@@ -3632,6 +4013,9 @@ function initSettings() {
 
   // Tag categories
   renderTagCategories(s.tags);
+
+  // Gemini key UI
+  initGeminiKeyUI();
 }
 
 function renderSourcesList(sources) {
@@ -3975,6 +4359,11 @@ window.addTagCategory = addTagCategory;
 window.deleteTagCategory = deleteTagCategory;
 window.saveApiKey = saveApiKey;
 window.saveSchedule = saveSchedule;
+window.saveGeminiKey = saveGeminiKey;
+window.updateMemberVoteHistory = updateMemberVoteHistory;
+window.updateAllMemberVotes = updateAllMemberVotes;
+window.toggleChatPanel = toggleChatPanel;
+window.chatSend = chatSend;
 
 // ═══════════════════════════════════════════════════════
 // PUBLIC HEARINGS VIEW (top-nav)
