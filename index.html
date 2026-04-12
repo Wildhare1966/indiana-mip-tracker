@@ -668,7 +668,7 @@
 
   /* MEMBER DETAIL PANEL */
   .member-detail {
-    width: 50%;
+    width: 25%;
     flex-shrink: 0;
     background: var(--intel-bg);
     border-left: 1px solid var(--border);
@@ -677,7 +677,7 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
-    min-width: 280px;
+    min-width: 220px;
   }
   .member-detail::-webkit-scrollbar { width: 4px; }
   .member-detail::-webkit-scrollbar-track { background: transparent; }
@@ -1674,67 +1674,87 @@ const memberVoteCache = {}; // keyed by memberId
 async function updateMemberVoteHistory(memberId, memberName, muniName, muniId, btnEl, containerEl) {
   if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Analyzing…'; }
 
-  const hearings = (PUBLIC_HEARINGS[muniId] || [])
-    .filter(h => h.summary_doc)
-    .slice(0, 8); // limit to 8 most recent docs
+  const allHearings = PUBLIC_HEARINGS[muniId] || [];
 
-  if (hearings.length === 0) {
-    if (containerEl) containerEl.innerHTML = '<div class="vote-history-empty">No summary docs available for this jurisdiction.</div>';
+  // ── Stream A: try Google Doc summaries first ──────────────────────────────
+  const docHearings = allHearings.filter(h => h.summary_doc).slice(0, 4);
+  let docs = [];
+  if (docHearings.length > 0) {
+    const fetches = docHearings.map(async h => {
+      const text = await fetchDocText(h.summary_doc);
+      return { date: h.date, url: h.summary_doc, text: text || '' };
+    });
+    docs = (await Promise.all(fetches)).filter(d => d.text.length > 50);
+  }
+
+  if (docs.length > 0) {
+    // Analyse text-based summaries
+    const docBlock = docs.map(d => `=== Meeting ${d.date} ===\n${d.text.substring(0, 3000)}`).join('\n\n');
+    const prompt = `You are analyzing meeting minutes/summaries for ${muniName}, Indiana.\n\nFind every mention of "${memberName}" in the documents below. For each mention, extract:\n1. The meeting date\n2. Any vote they cast (yes/no/abstain) on residential development, rezoning, annexation, subdivision, or related topics\n3. Any comments or positions stated\n4. The topic/project name if mentioned\n\nFormat each finding as:\nDATE: [date]\nTOPIC: [topic name]\nACTION: [vote or position]\nDETAIL: [brief description]\n\nIf no mentions found, say "No relevant votes or mentions found for ${memberName}."\n\nDocuments:\n${docBlock}`;
+    try {
+      const result = await callGemini(prompt, 1024);
+      if (!result) { if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Update Vote History'; } return; }
+      memberVoteCache[memberId] = { text: result, sources: docs, timestamp: new Date().toLocaleDateString() };
+      if (containerEl) {
+        const sourceLinks = docs.map(d => `<a href="${d.url}" target="_blank">${d.date}</a>`).join(' · ');
+        containerEl.innerHTML = `
+          <div class="vote-history-title">Vote / Position History — ${memberName}</div>
+          <div class="vote-history-item" style="white-space:pre-wrap;">${result}</div>
+          <div style="margin-top:6px;font-size:9px;color:var(--text-dim);">Sources: ${sourceLinks} · Analyzed ${new Date().toLocaleDateString()}</div>`;
+      }
+    } catch(e) {
+      if (containerEl) containerEl.innerHTML = `<div class="vote-history-empty">Error: ${e.message}</div>`;
+    }
     if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Update Vote History'; }
     return;
   }
 
-  // Fetch doc texts (up to 4 in parallel)
-  const docFetches = hearings.slice(0, 4).map(async h => {
-    const text = await fetchDocText(h.summary_doc);
-    return { date: h.date, url: h.summary_doc, text: text || '' };
-  });
-  const docs = (await Promise.all(docFetches)).filter(d => d.text.length > 50);
-
-  if (docs.length === 0) {
-    if (containerEl) containerEl.innerHTML = '<div class="vote-history-empty">Summary docs could not be fetched (may not be publicly shared).</div>';
+  // ── Stream B: fall back to YouTube video analysis via Gemini ─────────────
+  const ytHearings = allHearings.filter(h => h.youtube_url).slice(0, 3);
+  if (ytHearings.length === 0) {
+    if (containerEl) containerEl.innerHTML = '<div class="vote-history-empty">No meeting records found for this jurisdiction.</div>';
     if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Update Vote History'; }
     return;
   }
 
-  const docBlock = docs.map(d => `=== Meeting ${d.date} ===\n${d.text.substring(0, 3000)}`).join('\n\n');
+  const key = getGeminiKey();
+  if (!key) {
+    alert('Gemini API key not set. Go to Settings to add your key.');
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Update Vote History'; }
+    return;
+  }
 
-  const prompt = `You are analyzing meeting minutes/summaries for ${muniName}, Indiana.
-
-Find every mention of "${memberName}" in the documents below. For each mention, extract:
-1. The meeting date
-2. Any vote they cast (yes/no/abstain) on residential development, rezoning, annexation, subdivision, or related topics
-3. Any comments or positions stated
-4. The topic/project name if mentioned
-
-Format each finding as:
-DATE: [date]
-TOPIC: [topic name]
-ACTION: [vote or position]
-DETAIL: [brief description]
-
-If no mentions found, say "No relevant votes or mentions found for ${memberName}."
-
-Documents:
-${docBlock}`;
+  if (containerEl) containerEl.innerHTML = '<div class="vote-history-empty" style="color:var(--accent);">Analyzing meeting videos… (30–90 sec)</div>';
 
   try {
-    const result = await callGemini(prompt, 1024);
-    if (!result) { if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Update Vote History'; } return; }
+    const parts = [];
+    ytHearings.forEach(h => parts.push({ fileData: { fileUri: h.youtube_url } }));
+    parts.push({ text: `You are analyzing meeting recordings for ${muniName}, Indiana. Dates covered: ${ytHearings.map(h=>h.date).join(', ')}.\n\nFind every mention of "${memberName}". For each, extract:\nDATE: [meeting date]\nTOPIC: [project or agenda item]\nACTION: [vote yes/no/abstain or comment made]\nDETAIL: [brief description]\n\nIf not mentioned, say "No relevant votes or mentions found for ${memberName}."` });
 
-    memberVoteCache[memberId] = { text: result, sources: docs, timestamp: new Date().toLocaleDateString() };
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${key}`;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts }],
+        generationConfig: { temperature: 0.3, maxOutputTokens: 1024 }
+      })
+    });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error.message);
+    const result = data.candidates[0].content.parts[0].text;
 
+    memberVoteCache[memberId] = { text: result, sources: ytHearings, timestamp: new Date().toLocaleDateString() };
     if (containerEl) {
-      const sourceLinks = docs.map(d => `<a href="${d.url}" target="_blank">${d.date}</a>`).join(' · ');
+      const sourceLinks = ytHearings.map(h => `<a href="${h.youtube_url}" target="_blank">${h.date}</a>`).join(' · ');
       containerEl.innerHTML = `
         <div class="vote-history-title">Vote / Position History — ${memberName}</div>
         <div class="vote-history-item" style="white-space:pre-wrap;">${result}</div>
-        <div style="margin-top:6px;font-size:9px;color:var(--text-dim);">Sources: ${sourceLinks} · Analyzed ${new Date().toLocaleDateString()}</div>`;
+        <div style="margin-top:6px;font-size:9px;color:var(--text-dim);">Sources (video): ${sourceLinks} · Analyzed ${new Date().toLocaleDateString()}</div>`;
     }
   } catch(e) {
     if (containerEl) containerEl.innerHTML = `<div class="vote-history-empty">Error: ${e.message}</div>`;
   }
-
   if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Update Vote History'; }
 }
 
@@ -1757,24 +1777,28 @@ async function updateAllMemberVotes(muniId, muniName, btnEl) {
 const chatHistories = {}; // keyed by chatId
 
 function renderChatPanel(chatId, systemContext, titleLabel, opts) {
-  // opts: { collapsed: bool, marginTop: string }
+  // opts: { collapsed: bool, marginTop: string, noHeader: bool }
   const o = opts || {};
   const collapsed = o.collapsed !== undefined ? o.collapsed : false;
   const mTop = o.marginTop !== undefined ? o.marginTop : '0';
+  const noHeader = o.noHeader === true;
   const msgsStyle = collapsed ? 'display:none;' : '';
   const inputStyle = collapsed ? 'display:none;' : '';
   const toggleTxt = collapsed ? '▶' : '▼';
-  return `<div class="gemini-chat-panel" id="chat-panel-${chatId}" style="margin-top:${mTop};">
+  const headerHtml = noHeader ? '' : `
     <div class="gemini-chat-header">
       ◈ GEMINI — ${titleLabel}
       <button class="gemini-chat-toggle" onclick="toggleChatPanel('${chatId}')" title="${collapsed?'Expand':'Collapse'}">${toggleTxt}</button>
-    </div>
-    <div class="gemini-chat-messages" id="chat-msgs-${chatId}" style="${msgsStyle}">
-      <div class="gchat-msg-ai" style="color:var(--text-dim);font-size:10px;">Ask anything about ${titleLabel.toLowerCase()}…</div>
+    </div>`;
+  const placeholderHtml = noHeader ? '' : `
+      <div class="gchat-msg-ai" style="color:var(--text-dim);font-size:10px;">Ask anything about ${titleLabel.toLowerCase()}…</div>`;
+  return `<div class="gemini-chat-panel" id="chat-panel-${chatId}" style="margin-top:${mTop};">
+    ${headerHtml}
+    <div class="gemini-chat-messages" id="chat-msgs-${chatId}" style="${msgsStyle}">${placeholderHtml}
     </div>
     <div class="gemini-chat-input-row" style="${inputStyle}">
       <textarea class="gemini-chat-input" id="chat-input-${chatId}" rows="1"
-        placeholder="Ask about votes, members, development activity…"
+        placeholder="Ask about this jurisdiction…"
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();chatSend('${chatId}','${encodeURIComponent(systemContext)}');}"></textarea>
       <button class="gemini-chat-send" onclick="chatSend('${chatId}','${encodeURIComponent(systemContext)}')">Send</button>
     </div>
@@ -3398,7 +3422,7 @@ function renderMuniPanel() {
         <div class="muni-county">${m.county} County</div>
       </div>
       <div style="flex:1;min-width:0;">
-        ${renderChatPanel(jurisChatId, jurisContext, shortMuniName, { collapsed: true })}
+        ${renderChatPanel(jurisChatId, jurisContext, shortMuniName, { noHeader: true })}
       </div>
     </div>
     
