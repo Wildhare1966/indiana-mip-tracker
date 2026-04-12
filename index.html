@@ -668,7 +668,7 @@
 
   /* MEMBER DETAIL PANEL */
   .member-detail {
-    width: 300px;
+    width: 50%;
     flex-shrink: 0;
     background: var(--intel-bg);
     border-left: 1px solid var(--border);
@@ -677,6 +677,7 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+    min-width: 280px;
   }
   .member-detail::-webkit-scrollbar { width: 4px; }
   .member-detail::-webkit-scrollbar-track { background: transparent; }
@@ -1242,7 +1243,6 @@
   background: var(--intel-bg);
   border: 1px solid var(--border);
   border-radius: 6px;
-  margin-top: 16px;
   display: flex;
   flex-direction: column;
   height: 320px;
@@ -1741,11 +1741,13 @@ ${docBlock}`;
 async function updateAllMemberVotes(muniId, muniName, btnEl) {
   if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Updating All…'; }
   const muni = MUNICIPALITIES.find(m => m.id === muniId);
-  if (!muni || !muni.members) { if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Update All Profiles'; } return; }
-  for (const mem of muni.members) {
-    const cId = 'vote-' + mem.id;
+  const allMembers = [...(muni && muni.council ? muni.council : []), ...(muni && muni.pc ? muni.pc : [])];
+  if (!muni || allMembers.length === 0) { if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Update All Profiles'; } return; }
+  for (const mem of allMembers) {
+    const memId = mem.id || (mem.name || '').replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_]/g,'');
+    const cId = 'vote-' + memId;
     const cEl = document.getElementById(cId);
-    await updateMemberVoteHistory(mem.id, mem.name, muniName, muniId, null, cEl);
+    await updateMemberVoteHistory(memId, mem.name, muniName, muniId, null, cEl);
     await new Promise(r => setTimeout(r, 500));
   }
   if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Update All Profiles'; }
@@ -1754,16 +1756,23 @@ async function updateAllMemberVotes(muniId, muniName, btnEl) {
 // ── GEMINI CHAT COMPONENT ──────────────────────────────────────────────────────
 const chatHistories = {}; // keyed by chatId
 
-function renderChatPanel(chatId, systemContext, titleLabel) {
-  return `<div class="gemini-chat-panel" id="chat-panel-${chatId}">
+function renderChatPanel(chatId, systemContext, titleLabel, opts) {
+  // opts: { collapsed: bool, marginTop: string }
+  const o = opts || {};
+  const collapsed = o.collapsed !== undefined ? o.collapsed : false;
+  const mTop = o.marginTop !== undefined ? o.marginTop : '0';
+  const msgsStyle = collapsed ? 'display:none;' : '';
+  const inputStyle = collapsed ? 'display:none;' : '';
+  const toggleTxt = collapsed ? '▶' : '▼';
+  return `<div class="gemini-chat-panel" id="chat-panel-${chatId}" style="margin-top:${mTop};">
     <div class="gemini-chat-header">
       ◈ GEMINI — ${titleLabel}
-      <button class="gemini-chat-toggle" onclick="toggleChatPanel('${chatId}')" title="Collapse">▼</button>
+      <button class="gemini-chat-toggle" onclick="toggleChatPanel('${chatId}')" title="${collapsed?'Expand':'Collapse'}">${toggleTxt}</button>
     </div>
-    <div class="gemini-chat-messages" id="chat-msgs-${chatId}">
+    <div class="gemini-chat-messages" id="chat-msgs-${chatId}" style="${msgsStyle}">
       <div class="gchat-msg-ai" style="color:var(--text-dim);font-size:10px;">Ask anything about ${titleLabel.toLowerCase()}…</div>
     </div>
-    <div class="gemini-chat-input-row">
+    <div class="gemini-chat-input-row" style="${inputStyle}">
       <textarea class="gemini-chat-input" id="chat-input-${chatId}" rows="1"
         placeholder="Ask about votes, members, development activity…"
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();chatSend('${chatId}','${encodeURIComponent(systemContext)}');}"></textarea>
@@ -3184,18 +3193,18 @@ const INTEL_LAST_UPDATED = '2026-04-11';
 const INTEL_SESSION_CUTOFF = '2026-04-09';
 
 const INTEL_ITEMS = [
-  { type: 'news', date: 'Apr 2026', dateSort: '2026-04-11', muni: 'Westfield', county: 'Hamilton', headline: 'All 7 council seats replaced after 2024 election; new members focused on infrastructure capacity ahead of further residential approvals.', source: 'Municipal PDF', isNew: true, url: 'https://www.youtube.com/@westfieldindiana' },
-  { type: 'vote', date: 'Apr 2026', dateSort: '2026-04-10', muni: 'Shelbyville', county: 'Shelby', headline: 'Data center annexation approved 5–1 despite significant public opposition; revenue pressure cited by majority.', source: 'YouTube/Transcript', isNew: true, url: 'https://www.youtube.com/@ShelbyvilleIndiana' },
-  { type: 'news', date: 'Apr 2026', dateSort: '2026-04-09', muni: 'Noblesville', county: 'Hamilton', headline: '~5,000 units approved but unbuilt. Council signaling caution on new residential entitlements pending infrastructure capacity review.', source: 'Municipal PDF', isNew: true, url: 'https://www.noblesville.in.gov/government/council' },
-  { type: 'news', date: 'Apr 2026', dateSort: '2026-04-08', muni: 'Franklin', county: 'Johnson', headline: 'Multiple Plan Commission terms expired 12/31/2025. Six of nine members in holdover or uncertain status — verify before PC submissions.', source: 'Municipal PDF', isNew: false, url: 'https://www.franklin.in.gov/government/plan-commission' },
-  { type: 'news', date: 'Apr 2026', dateSort: '2026-04-07', muni: 'Hamilton County', county: 'Hamilton', headline: 'County Plan Commission website shows 2025 roster; multiple terms expired 12/31/2025. 2026 reappointments not yet reflected.', source: 'Municipal PDF', isNew: false, url: 'https://www.hamiltoncounty.in.gov/213/Plan-Commission' },
-  { type: 'news', date: 'Mar 2026', dateSort: '2026-03-28', muni: 'Carmel', county: 'Hamilton', headline: 'Plan Commission page returned 404; multiple terms expired 12/31/2025. Reappointment status unconfirmed. Verify before submissions.', source: 'Municipal PDF', isNew: false, url: 'https://www.carmel.in.gov/government/boards-and-commissions/plan-commission' },
-  { type: 'social', date: 'Mar 2026', dateSort: '2026-03-15', muni: 'Fishers', county: 'Hamilton', headline: '2 Hamilton County Commissioner PC appointments remain vacant. Fastest-growing city continues to evolve governance capacity.', source: 'YouTube/Transcript', isNew: false, url: 'https://www.youtube.com/@fishersindiana' },
-  { type: 'news', date: 'Mar 2026', dateSort: '2026-03-01', muni: 'Sheridan', county: 'Hamilton', headline: 'Town expanded from 5 to 7 council members after Adams Township merger January 2025.', source: 'Municipal PDF', isNew: false, url: 'https://www.town.sheridan.in.us/government/town-council' },
-  { type: 'vote', date: 'Jan 2026', dateSort: '2026-01-15', muni: 'Whiteland', county: 'Johnson', headline: 'Joe Csikos appointed to fill At-Large council seat; mid-term appointment effective 3/4/2026.', source: 'YouTube/Transcript', isNew: false, url: 'https://www.youtube.com/@WhitelandIndiana' },
-  { type: 'election', date: 'Nov 2024', dateSort: '2024-11-05', muni: 'Whitestown', county: 'Boone', headline: 'Significant turnover driven by warehouse development opposition; Thomas (D) elected in District 4.', source: 'Municipal PDF', isNew: false, url: 'https://www.whitestown.in.gov/government/town-council' },
-  { type: 'election', date: 'Nov 2024', dateSort: '2024-11-05', muni: 'New Palestine', county: 'Hancock', headline: '4 of 5 council seats replaced. Hartley (Independent) elected VP; all-at-large council now in place.', source: 'Municipal PDF', isNew: false, url: 'https://www.newpalestine.in.gov/government/town-council' },
-  { type: 'election', date: 'Nov 2024', dateSort: '2024-11-05', muni: 'Lafayette', county: 'Tippecanoe', headline: '8D/1R council composition confirmed. Development framed as economic opportunity; planning handled through TCAPC (county body).', source: 'Municipal PDF', isNew: false, url: 'https://www.lafayette.in.gov/213/City-Council' },
+  { type: 'news', date: 'Apr 2026', dateSort: '2026-04-11', muni: 'Westfield', county: 'Hamilton', headline: 'All 7 council seats replaced after 2024 election; new members focused on infrastructure capacity ahead of further residential approvals.', source: 'Municipal PDF', isNew: true },
+  { type: 'vote', date: 'Apr 2026', dateSort: '2026-04-10', muni: 'Shelbyville', county: 'Shelby', headline: 'Data center annexation approved 5–1 despite significant public opposition; revenue pressure cited by majority.', source: 'YouTube/Transcript', isNew: true },
+  { type: 'news', date: 'Apr 2026', dateSort: '2026-04-09', muni: 'Noblesville', county: 'Hamilton', headline: '~5,000 units approved but unbuilt. Council signaling caution on new residential entitlements pending infrastructure capacity review.', source: 'Municipal PDF', isNew: true },
+  { type: 'news', date: 'Apr 2026', dateSort: '2026-04-08', muni: 'Franklin', county: 'Johnson', headline: 'Multiple Plan Commission terms expired 12/31/2025. Six of nine members in holdover or uncertain status — verify before PC submissions.', source: 'Municipal PDF', isNew: false },
+  { type: 'news', date: 'Apr 2026', dateSort: '2026-04-07', muni: 'Hamilton County', county: 'Hamilton', headline: 'County Plan Commission website shows 2025 roster; multiple terms expired 12/31/2025. 2026 reappointments not yet reflected.', source: 'Municipal PDF', isNew: false },
+  { type: 'news', date: 'Mar 2026', dateSort: '2026-03-28', muni: 'Carmel', county: 'Hamilton', headline: 'Plan Commission page returned 404; multiple terms expired 12/31/2025. Reappointment status unconfirmed. Verify before submissions.', source: 'Municipal PDF', isNew: false },
+  { type: 'social', date: 'Mar 2026', dateSort: '2026-03-15', muni: 'Fishers', county: 'Hamilton', headline: '2 Hamilton County Commissioner PC appointments remain vacant. Fastest-growing city continues to evolve governance capacity.', source: 'YouTube/Transcript', isNew: false },
+  { type: 'news', date: 'Mar 2026', dateSort: '2026-03-01', muni: 'Sheridan', county: 'Hamilton', headline: 'Town expanded from 5 to 7 council members after Adams Township merger January 2025.', source: 'Municipal PDF', isNew: false },
+  { type: 'vote', date: 'Jan 2026', dateSort: '2026-01-15', muni: 'Whiteland', county: 'Johnson', headline: 'Joe Csikos appointed to fill At-Large council seat; mid-term appointment effective 3/4/2026.', source: 'YouTube/Transcript', isNew: false },
+  { type: 'election', date: 'Nov 2024', dateSort: '2024-11-05', muni: 'Whitestown', county: 'Boone', headline: 'Significant turnover driven by warehouse development opposition; Thomas (D) elected in District 4.', source: 'Municipal PDF', isNew: false },
+  { type: 'election', date: 'Nov 2024', dateSort: '2024-11-05', muni: 'New Palestine', county: 'Hancock', headline: '4 of 5 council seats replaced. Hartley (Independent) elected VP; all-at-large council now in place.', source: 'Municipal PDF', isNew: false },
+  { type: 'election', date: 'Nov 2024', dateSort: '2024-11-05', muni: 'Lafayette', county: 'Tippecanoe', headline: '8D/1R council composition confirmed. Development framed as economic opportunity; planning handled through TCAPC (county body).', source: 'Municipal PDF', isNew: false },
 ];
 
 // ═══════════════════════════════════════════════════════
@@ -3241,6 +3250,12 @@ document.addEventListener('DOMContentLoaded', () => {
   buildCountyGrid();
   buildIntelFeed();
   updateTotalMembers();
+  // Hide Refresh Hearings button when not running on a local server
+  const isLocal = ['localhost','127.0.0.1'].includes(window.location.hostname);
+  const refreshBtn = document.getElementById('refresh-btn');
+  if (refreshBtn && !isLocal) {
+    refreshBtn.style.display = 'none';
+  }
 });
 
 function updateTotalMembers() {
@@ -3365,17 +3380,26 @@ function renderMuniPanel() {
   if (!currentMuni) return;
   const m = currentMuni;
   const panel = document.getElementById('muni-panel');
-  
+
   const recColors = { high: 'rec-high', med: 'rec-med', low: 'rec-low', mixed: 'rec-mixed' };
-  
+
+  // Prepare chat context up-front so it's available in the template
+  const jurisChatId = 'juris-' + m.id;
+  const escapedMuniName = (m.name || '').replace(/'/g, "\\'");
+  const memberCount = (m.council||[]).length + (m.pc||[]).length;
+  const shortMuniName = (m.name||'').replace('City of ','').replace('Town of ','');
+  const jurisContext = `You are an AI assistant for the Municipal Intelligence Platform. You have detailed knowledge about ${m.name}, Indiana. The jurisdiction has ${memberCount} plan commission/council members. Focus: residential development, rezoning, planning commission activity, council votes, member positions. Be concise and cite meeting dates when possible.`;
+
   panel.innerHTML = `
     ${m.data_gap ? `<div class="warn-banner"><span class="warn-banner-icon">⚠</span><span>${m.gap_note}</span></div>` : ''}
-    <div class="muni-title-row">
-      <div>
+    <div class="muni-title-row" style="align-items:flex-start;gap:16px;">
+      <div style="flex:0 0 auto;">
         <div class="muni-title">${m.name}</div>
         <div class="muni-county">${m.county} County</div>
       </div>
-      <span class="muni-archetype-tag tag-${m.profile.toLowerCase()}">Profile ${m.profile} · ${m.archetype}</span>
+      <div style="flex:1;min-width:0;">
+        ${renderChatPanel(jurisChatId, jurisContext, shortMuniName, { collapsed: true })}
+      </div>
     </div>
     
     <div class="muni-summary-box">
@@ -3424,17 +3448,10 @@ function renderMuniPanel() {
         ${currentTab==='hearings' ? renderHearingsContent(m.id) : renderMemberCards(currentTab==='council' ? m.council : m.pc)}
       </div>
     </div>
-    ${(function() {
-      const jurisChatId = 'juris-' + m.id;
-      const escapedMuniName = (m.name || '').replace(/'/g, "\\'");
-      const memberCount = m.members ? m.members.length : ((m.council||[]).length + (m.pc||[]).length);
-      const jurisContext = `You are an AI assistant for the Municipal Intelligence Platform. You have detailed knowledge about ${m.name}, Indiana. The jurisdiction has ${memberCount} plan commission/council members. Focus: residential development, rezoning, planning commission activity, council votes, member positions. Be concise and cite meeting dates when possible.`;
-      return `<div style="margin-top:16px;display:flex;align-items:center;gap:10px;">
-  <button class="update-profile-btn" onclick="updateAllMemberVotes('${m.id}','${escapedMuniName}',this)">Update All Profiles</button>
-  <span style="font-size:10px;color:var(--text-dim);">Fetches recent meeting summaries and analyzes vote history for all members</span>
-</div>
-${renderChatPanel(jurisChatId, jurisContext, (m.name||'').replace('City of ','').replace('Town of ',''))}`;
-    })()}
+    <div style="margin-top:4px;display:flex;align-items:center;gap:10px;">
+      <button class="update-profile-btn" onclick="updateAllMemberVotes('${m.id}','${escapedMuniName}',this)">Update All Profiles</button>
+      <span style="font-size:10px;color:var(--text-dim);">Fetches recent meeting summaries and analyzes vote history for all members</span>
+    </div>
   `;
 }
 
@@ -3616,7 +3633,7 @@ function renderMemberDetail(mem) {
     <div class="vote-history-empty">Click "Update Vote History" to analyze recent meeting minutes.</div>
   </div>
 </div>
-${renderChatPanel(memChatId, memContext, escapedMemName)}`;
+${renderChatPanel(memChatId, memContext, escapedMemName, { marginTop: '16px' })}`;
     })()}
   `;
 }
