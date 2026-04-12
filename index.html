@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- MIP build 2026-04-12T12:40:00Z -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1563,6 +1564,35 @@
               <button class="settings-add-btn" style="margin-top:0;" onclick="addTagCategory()">+ Add</button>
             </div>
           </div>
+
+          <!-- MEMBER PROFILE RESEARCH -->
+          <div class="settings-card">
+            <div class="settings-card-title">Member Profile Research</div>
+            <div class="settings-card-sub">Server-side Gemini pipeline populates member profiles via Apps Script.</div>
+            <div class="settings-row">
+              <span class="settings-label">Web App URL</span>
+              <input class="settings-input" type="text" id="profile-webapp-url" placeholder="https://script.google.com/macros/s/.../exec" style="flex:1;">
+            </div>
+            <div class="settings-row">
+              <span class="settings-label">Cache Duration</span>
+              <select class="settings-select" id="profile-cache-ttl">
+                <option value="4">4 hours</option>
+                <option value="12">12 hours</option>
+                <option value="24" selected>24 hours</option>
+                <option value="48">48 hours</option>
+                <option value="168">7 days</option>
+              </select>
+            </div>
+            <div id="profile-stats-box" style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:4px;padding:10px;margin:10px 0;font-size:11px;color:var(--text-dim);font-family:'IBM Plex Mono',monospace;">
+              No data — configure Web App URL and fetch.
+            </div>
+            <div style="display:flex;gap:8px;margin-bottom:8px;">
+              <button class="settings-save-btn" style="flex:1;margin-top:0;" onclick="refreshMemberProfiles()">Fetch Profiles Now</button>
+              <button class="settings-add-btn" style="margin-top:0;" onclick="clearProfileCache()">Clear Cache</button>
+            </div>
+            <div id="profile-fetch-status" style="font-size:11px;color:var(--text-dim);margin-bottom:8px;"></div>
+            <button class="settings-save-btn" onclick="saveProfileSettings()">Save Settings</button>
+          </div>
         </div>
 
         <div class="settings-col">
@@ -1623,6 +1653,13 @@
 </div>
 
 <script>
+// ── MEMBER PROFILE PIPELINE CONSTANTS ────────────────────────────────────────────────────────────────────────
+const PROFILE_CACHE_KEY = 'mip_member_profiles';
+const PROFILE_CACHE_TS_KEY = 'mip_profiles_fetched_at';
+const PROFILE_CACHE_TTL_KEY = 'mip_profile_cache_ttl';
+const WEBAPP_URL_KEY = 'mip_webapp_url';
+const PROFILE_CACHE_TTL_DEFAULT = 24;
+
 // ── GEMINI CLIENT (build 2026-04-12T09:19:32Z) ─────────────────────────────────────────────────────────────
 function getGeminiKey() { return localStorage.getItem('mip_gemini_key') || ''; }
 function saveGeminiKey(val) {
@@ -3438,6 +3475,7 @@ document.addEventListener('DOMContentLoaded', () => {
   buildIntelFeed();
   updateTotalMembers();
   checkGeminiKeyBanner();
+  fetchAndMergeMemberProfiles();
   // Hide Refresh Hearings button when not running on a local server
   const isLocal = ['localhost','127.0.0.1'].includes(window.location.hostname);
   const refreshBtn = document.getElementById('refresh-btn');
@@ -3792,6 +3830,13 @@ function renderMemberDetail(mem) {
         ${mem.campaign_site ? `<a href="${mem.campaign_site}" target="_blank" rel="noopener" class="social-link social-campaign"><span class="social-icon">&#9670;</span> Campaign Site</a>` : `<span class="social-link social-placeholder"><span class="social-icon">&#9670;</span> Campaign Site <span class="social-empty">—</span></span>`}
       </div>
     </div>
+
+    ${mem._last_researched ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);letter-spacing:0.05em;">
+        PROFILE RESEARCHED: ${new Date(mem._last_researched).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}
+        <span style="opacity:0.6;margin-left:6px;">${mem._profile_confidence || ''} confidence</span>
+      </div>
+    </div>` : ''}
 
     <div style="border-top:1px solid var(--border);padding-top:10px;">
       <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);letter-spacing:0.05em;text-transform:uppercase;margin-bottom:6px;">Profile Archetype</div>
@@ -4203,6 +4248,130 @@ const DEFAULT_SOURCES = [
 
 const DEFAULT_TAG_CATEGORIES = ['news', 'vote', 'election', 'social'];
 
+// ── MEMBER PROFILE PIPELINE FUNCTIONS ────────────────────────────────────────────────────────────────────────
+
+function normalizeMemberKey(muniId, body, name) {
+  const normalized = name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+  return muniId + '::' + body.toLowerCase() + '::' + normalized;
+}
+
+async function fetchAndMergeMemberProfiles() {
+  const url = localStorage.getItem(WEBAPP_URL_KEY);
+  if (!url) return;
+
+  const ttlHours = parseInt(localStorage.getItem(PROFILE_CACHE_TTL_KEY) || PROFILE_CACHE_TTL_DEFAULT);
+  const cached = localStorage.getItem(PROFILE_CACHE_KEY);
+  const cachedTs = localStorage.getItem(PROFILE_CACHE_TS_KEY);
+
+  if (cached && cachedTs) {
+    const age = (Date.now() - new Date(cachedTs).getTime()) / (1000 * 60 * 60);
+    if (age < ttlHours) {
+      try { mergeMemberProfiles(JSON.parse(cached)); } catch(e) {}
+      return;
+    }
+  }
+
+  try {
+    const resp = await fetch(url + '?action=member_profiles', { signal: AbortSignal.timeout(30000) });
+    const data = await resp.json();
+    localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(data));
+    localStorage.setItem(PROFILE_CACHE_TS_KEY, new Date().toISOString());
+    mergeMemberProfiles(data);
+  } catch(e) {
+    console.warn('Profile fetch failed:', e.message);
+    if (cached) {
+      try { mergeMemberProfiles(JSON.parse(cached)); } catch(ex) {}
+    }
+  }
+}
+
+function mergeMemberProfiles(profiles) {
+  if (!profiles || !profiles.length) return;
+  const profilesByKey = new Map();
+  profiles.forEach(p => profilesByKey.set(p.member_key, p));
+
+  MUNICIPALITIES.forEach(muni => {
+    ['council', 'pc'].forEach(bodyType => {
+      const members = muni[bodyType] || [];
+      const bodyLabel = bodyType === 'council' ? 'Council' : 'PC';
+      members.forEach(mem => {
+        const key = normalizeMemberKey(muni.id, bodyLabel, mem.name);
+        const p = profilesByKey.get(key);
+        if (p && p.research_status === 'completed') {
+          mem.professional_background = p.professional_background;
+          mem.employment_history = p.employment_history || [];
+          mem.political_history = p.political_history || [];
+          mem.linkedin = p.linkedin || null;
+          mem.facebook = p.facebook || null;
+          mem.twitter = p.twitter || null;
+          mem.campaign_site = p.campaign_site || null;
+          mem._profile_confidence = p.confidence;
+          mem._last_researched = p.last_researched;
+        }
+      });
+    });
+  });
+}
+
+async function refreshMemberProfiles() {
+  localStorage.removeItem(PROFILE_CACHE_KEY);
+  localStorage.removeItem(PROFILE_CACHE_TS_KEY);
+  const statusEl = document.getElementById('profile-fetch-status');
+  if (statusEl) statusEl.textContent = 'Fetching...';
+  try {
+    await fetchAndMergeMemberProfiles();
+    const profiles = JSON.parse(localStorage.getItem(PROFILE_CACHE_KEY) || 'null');
+    updateProfileStats(profiles);
+    if (statusEl) statusEl.textContent = profiles ? 'Done — ' + profiles.length + ' profiles loaded.' : 'No data returned.';
+  } catch(e) {
+    if (statusEl) statusEl.textContent = 'Error: ' + e.message;
+  }
+}
+
+function clearProfileCache() {
+  localStorage.removeItem(PROFILE_CACHE_KEY);
+  localStorage.removeItem(PROFILE_CACHE_TS_KEY);
+  updateProfileStats(null);
+  const statusEl = document.getElementById('profile-fetch-status');
+  if (statusEl) statusEl.textContent = 'Cache cleared.';
+}
+
+function updateProfileStats(profiles) {
+  const box = document.getElementById('profile-stats-box');
+  if (!box) return;
+  if (!profiles || !profiles.length) {
+    box.innerHTML = 'No data — configure Web App URL and fetch.';
+    return;
+  }
+  const completed = profiles.filter(p => p.research_status === 'completed').length;
+  const fetchedAt = localStorage.getItem(PROFILE_CACHE_TS_KEY);
+  const ttlHours = parseInt(localStorage.getItem(PROFILE_CACHE_TTL_KEY) || PROFILE_CACHE_TTL_DEFAULT);
+  let cacheStatus = 'Empty';
+  if (fetchedAt) {
+    const age = (Date.now() - new Date(fetchedAt).getTime()) / (1000 * 60 * 60);
+    cacheStatus = age < ttlHours ? 'Fresh' : 'Stale';
+  }
+  box.innerHTML = `${completed} / ${profiles.length} profiles completed<br>`
+    + `Last fetched: ${fetchedAt ? new Date(fetchedAt).toLocaleString() : 'Never'}<br>`
+    + `Cache: ${cacheStatus}`;
+}
+
+function loadProfileSettings() {
+  const urlInput = document.getElementById('profile-webapp-url');
+  const ttlSelect = document.getElementById('profile-cache-ttl');
+  if (urlInput) urlInput.value = localStorage.getItem(WEBAPP_URL_KEY) || '';
+  if (ttlSelect) ttlSelect.value = localStorage.getItem(PROFILE_CACHE_TTL_KEY) || PROFILE_CACHE_TTL_DEFAULT;
+}
+
+function saveProfileSettings() {
+  const urlInput = document.getElementById('profile-webapp-url');
+  const ttlSelect = document.getElementById('profile-cache-ttl');
+  if (urlInput) localStorage.setItem(WEBAPP_URL_KEY, urlInput.value.trim());
+  if (ttlSelect) localStorage.setItem(PROFILE_CACHE_TTL_KEY, ttlSelect.value);
+  const statusEl = document.getElementById('profile-fetch-status');
+  if (statusEl) statusEl.textContent = '✓ Settings saved.';
+}
+
 function loadSettings() {
   return {
     sources:  JSON.parse(localStorage.getItem('mip_sources')  || 'null') || DEFAULT_SOURCES,
@@ -4235,6 +4404,10 @@ function initSettings() {
 
   // Gemini key UI
   initGeminiKeyUI();
+
+  // Profile research settings
+  loadProfileSettings();
+  updateProfileStats(JSON.parse(localStorage.getItem(PROFILE_CACHE_KEY) || 'null'));
 }
 
 function renderSourcesList(sources) {
@@ -4579,6 +4752,9 @@ window.deleteTagCategory = deleteTagCategory;
 window.saveApiKey = saveApiKey;
 window.saveSchedule = saveSchedule;
 window.saveGeminiKey = saveGeminiKey;
+window.refreshMemberProfiles = refreshMemberProfiles;
+window.clearProfileCache = clearProfileCache;
+window.saveProfileSettings = saveProfileSettings;
 window.updateMemberVoteHistory = updateMemberVoteHistory;
 window.updateAllMemberVotes = updateAllMemberVotes;
 window.toggleChatPanel = toggleChatPanel;
