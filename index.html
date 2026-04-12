@@ -1385,6 +1385,10 @@
   <div class="topbar-right">
     <span class="topbar-badge">Central Indiana · 9 Counties</span>
     <span class="topbar-badge">Apr 2026</span>
+    <div id="gemini-key-banner" onclick="switchView('settings');setTimeout(()=>{const i=document.getElementById('gemini-key-input');if(i){i.focus();i.scrollIntoView({behavior:'smooth',block:'center'});}},150);"
+         style="display:none;align-items:center;gap:6px;background:rgba(232,160,32,0.15);border:1px solid rgba(232,160,32,0.4);border-radius:4px;padding:3px 10px;cursor:pointer;font-family:'IBM Plex Mono',monospace;font-size:10px;color:#e8a020;letter-spacing:0.04em;">
+      ⚠ Gemini key not set — click to add
+    </div>
     <button class="refresh-btn" id="refresh-btn" onclick="refreshHearings()" title="Re-fetch hearing records from Google Sheets">↺ Refresh Hearings</button>
     <button class="export-btn" onclick="exportBriefing()">↓ EXPORT</button>
   </div>
@@ -1624,13 +1628,34 @@ function getGeminiKey() { return localStorage.getItem('mip_gemini_key') || ''; }
 function saveGeminiKey(val) {
   localStorage.setItem('mip_gemini_key', val.trim());
   const el = document.getElementById('gemini-key-status');
-  if (el) el.textContent = val.trim() ? '✓ Saved' : 'Not set';
+  if (el) { el.textContent = val.trim() ? '✓ Saved' : 'Not set'; el.style.color = ''; }
+  // Hide the missing-key banner
+  const banner = document.getElementById('gemini-key-banner');
+  if (banner) banner.style.display = val.trim() ? 'none' : '';
+}
+
+function checkGeminiKeyBanner() {
+  const banner = document.getElementById('gemini-key-banner');
+  if (!banner) return;
+  banner.style.display = getGeminiKey() ? 'none' : 'flex';
+}
+
+function promptGeminiKey(msg) {
+  // Show a non-blocking inline key entry instead of a blocking alert
+  switchView('settings');
+  setTimeout(() => {
+    const inp = document.getElementById('gemini-key-input');
+    if (inp) { inp.focus(); inp.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    // Show a brief notice in the status span
+    const st = document.getElementById('gemini-key-status');
+    if (st) { st.textContent = '⚠ Key required — paste here'; st.style.color = '#e8a020'; }
+  }, 150);
 }
 
 async function callGemini(prompt, maxTokens) {
   const key = getGeminiKey();
   if (!key) {
-    alert('Gemini API key not set. Go to Settings to add your key.');
+    promptGeminiKey();
     return null;
   }
   maxTokens = maxTokens || 2048;
@@ -1719,7 +1744,7 @@ async function updateMemberVoteHistory(memberId, memberName, muniName, muniId, b
 
   const key = getGeminiKey();
   if (!key) {
-    alert('Gemini API key not set. Go to Settings to add your key.');
+    promptGeminiKey(); return;
     if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Update Vote History'; }
     return;
   }
@@ -1777,7 +1802,7 @@ async function researchMemberProfile(memId, memberName, muniId, muniName, contai
 
   const key = getGeminiKey();
   if (!key) {
-    alert('Gemini API key not set. Go to Settings.');
+    promptGeminiKey(); return;
     if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Update Profile'; }
     return;
   }
@@ -3412,6 +3437,7 @@ document.addEventListener('DOMContentLoaded', () => {
   buildCountyGrid();
   buildIntelFeed();
   updateTotalMembers();
+  checkGeminiKeyBanner();
   // Hide Refresh Hearings button when not running on a local server
   const isLocal = ['localhost','127.0.0.1'].includes(window.location.hostname);
   const refreshBtn = document.getElementById('refresh-btn');
