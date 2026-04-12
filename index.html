@@ -1759,18 +1759,155 @@ async function updateMemberVoteHistory(memberId, memberName, muniName, muniId, b
 }
 
 async function updateAllMemberVotes(muniId, muniName, btnEl) {
-  if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Updating All…'; }
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Researching All…'; }
   const muni = MUNICIPALITIES.find(m => m.id === muniId);
   const allMembers = [...(muni && muni.council ? muni.council : []), ...(muni && muni.pc ? muni.pc : [])];
   if (!muni || allMembers.length === 0) { if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Update All Profiles'; } return; }
   for (const mem of allMembers) {
     const memId = mem.id || (mem.name || '').replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_]/g,'');
-    const cId = 'vote-' + memId;
-    const cEl = document.getElementById(cId);
-    await updateMemberVoteHistory(memId, mem.name, muniName, muniId, null, cEl);
-    await new Promise(r => setTimeout(r, 500));
+    const cEl = document.getElementById('profile-research-' + memId);
+    await researchMemberProfile(memId, mem.name, muniId, muniName, cEl, null);
+    await new Promise(r => setTimeout(r, 800));
   }
   if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Update All Profiles'; }
+}
+
+async function researchMemberProfile(memId, memberName, muniId, muniName, containerEl, btnEl) {
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Researching…'; }
+
+  const key = getGeminiKey();
+  if (!key) {
+    alert('Gemini API key not set. Go to Settings.');
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Update Profile'; }
+    return;
+  }
+
+  const sources = loadSettings().sources;
+  const sourceList = sources.map(s => `- ${s.name}${s.url ? ' ('+s.url+')' : ''}`).join('\n');
+  const ytHearings = (PUBLIC_HEARINGS[muniId] || []).filter(h => h.youtube_url).slice(0, 2);
+
+  if (containerEl) containerEl.innerHTML = '<div style="color:var(--accent);font-size:11px;">Researching profile… (30–90 sec)</div>';
+
+  try {
+    const parts = [];
+    ytHearings.forEach(h => parts.push({ fileData: { fileUri: h.youtube_url } }));
+
+    const prompt = `You are researching ${memberName}, a public official serving as a member of the ${muniName}, Indiana municipal government (plan commission and/or city/town council).
+
+Using your training data and any information from the provided meeting videos, compile a comprehensive profile. Reference these sources where applicable:
+${sourceList}
+
+Provide information in EXACTLY this format:
+
+PROFESSIONAL_BACKGROUND: [Current employer, profession, or business. If unknown write "Not found."]
+
+EMPLOYMENT_HISTORY:
+- [Job title, employer, years if known]
+- [additional entries or "Not found."]
+
+POLITICAL_CIVIC_HISTORY:
+- [Previous offices, board memberships, civic organizations, campaign history]
+- [additional entries or "Not found."]
+
+SOCIAL_LINKEDIN: [LinkedIn URL or "Not found."]
+SOCIAL_FACEBOOK: [Facebook URL or "Not found."]
+SOCIAL_TWITTER: [Twitter/X URL or handle or "Not found."]
+SOCIAL_CAMPAIGN: [Campaign website URL or "Not found."]
+
+VOTE_HISTORY:
+- [DATE: YYYY-MM-DD | TOPIC: topic name | ACTION: yes/no/abstain/comment | DETAIL: brief description]
+- [additional entries or "Not found in available records."]
+
+NOTES: [Any other relevant background, controversies, notable positions, or context. Or "None."]`;
+
+    parts.push({ text: prompt });
+
+    const model = ytHearings.length > 0 ? 'gemini-1.5-pro' : 'gemini-1.5-flash';
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts }],
+        generationConfig: { temperature: 0.3, maxOutputTokens: 1500 }
+      })
+    });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error.message);
+    const result = data.candidates[0].content.parts[0].text;
+
+    // Store in localStorage
+    localStorage.setItem(`profile_${muniId}_${memId}`, JSON.stringify({
+      text: result, timestamp: new Date().toLocaleDateString(), sources: ytHearings.map(h=>h.date)
+    }));
+
+    // Render results
+    if (containerEl) renderProfileResearch(containerEl, result, memberName);
+
+  } catch(e) {
+    if (containerEl) containerEl.innerHTML = `<div style="color:#e05252;font-size:11px;">Error: ${e.message}</div>`;
+  }
+  if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Update Profile'; }
+}
+
+function renderProfileResearch(el, text, memberName) {
+  // Parse structured output
+  const get = (key) => {
+    const m = text.match(new RegExp(key + ':\\s*([^\\n]+(?:\\n(?!\\w+:)[^\\n]*)*)'));
+    return m ? m[1].trim() : null;
+  };
+  const getList = (key) => {
+    const m = text.match(new RegExp(key + ':\\s*\\n((?:- [^\\n]+\\n?)+)'));
+    if (!m) return null;
+    return m[1].split('\n').filter(l=>l.trim().startsWith('-')).map(l=>l.replace(/^- /,'').trim());
+  };
+
+  const profBg   = get('PROFESSIONAL_BACKGROUND') || 'Not found.';
+  const empHist  = getList('EMPLOYMENT_HISTORY')   || ['Not found.'];
+  const polHist  = getList('POLITICAL_CIVIC_HISTORY') || ['Not found.'];
+  const linkedin = get('SOCIAL_LINKEDIN');
+  const facebook = get('SOCIAL_FACEBOOK');
+  const twitter  = get('SOCIAL_TWITTER');
+  const campaign = get('SOCIAL_CAMPAIGN');
+  const votes    = getList('VOTE_HISTORY')         || ['Not found in available records.'];
+  const notes    = get('NOTES') || '';
+  const ts       = new Date().toLocaleDateString();
+
+  const socialLink = (label, val) => {
+    if (!val || val === 'Not found.') return `<span style="color:var(--text-dim);">${label}: —</span>`;
+    const isUrl = val.startsWith('http');
+    return isUrl ? `<a href="${val}" target="_blank" style="color:var(--accent);">${label}</a>` : `<span style="color:var(--text);">${label}: ${val}</span>`;
+  };
+
+  el.innerHTML = `
+    <div style="font-size:9px;color:var(--text-dim);font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">AI Research · ${ts}</div>
+    <div style="margin-bottom:8px;">
+      <div class="detail-section-label">Professional Background</div>
+      <div style="font-size:11px;color:var(--text);line-height:1.5;">${profBg}</div>
+    </div>
+    <div style="margin-bottom:8px;">
+      <div class="detail-section-label">Employment History</div>
+      ${empHist.map(e=>`<div style="font-size:11px;color:var(--text);padding:2px 0;border-left:2px solid var(--border);padding-left:8px;margin-bottom:3px;">${e}</div>`).join('')}
+    </div>
+    <div style="margin-bottom:8px;">
+      <div class="detail-section-label">Political / Civic History</div>
+      ${polHist.map(e=>`<div style="font-size:11px;color:var(--text);padding:2px 0;border-left:2px solid var(--border);padding-left:8px;margin-bottom:3px;">${e}</div>`).join('')}
+    </div>
+    <div style="margin-bottom:8px;">
+      <div class="detail-section-label">Social Media</div>
+      <div style="display:flex;flex-direction:column;gap:3px;font-size:11px;">
+        ${socialLink('LinkedIn', linkedin)}
+        ${socialLink('Facebook', facebook)}
+        ${socialLink('Twitter/X', twitter)}
+        ${socialLink('Campaign', campaign)}
+      </div>
+    </div>
+    <div style="margin-bottom:8px;">
+      <div class="detail-section-label">Vote / Position History</div>
+      ${votes.map(v=>`<div style="font-size:11px;color:var(--text);padding:2px 0;border-left:2px solid var(--border-gold,#e8a020);padding-left:8px;margin-bottom:3px;">${v}</div>`).join('')}
+    </div>
+    ${notes && notes !== 'None.' ? `<div><div class="detail-section-label">Notes</div><div style="font-size:11px;color:var(--text-dim);line-height:1.5;">${notes}</div></div>` : ''}
+  `;
 }
 
 // ── GEMINI CHAT COMPONENT ──────────────────────────────────────────────────────
@@ -1831,6 +1968,7 @@ async function chatSend(chatId, encodedContext) {
 
   // Add user message to UI
   msgsEl.innerHTML += `<div class="gchat-msg-user">${userMsg}</div>`;
+  msgsEl.style.display = 'flex';
   msgsEl.scrollTop = msgsEl.scrollHeight;
 
   const systemContext = decodeURIComponent(encodedContext);
@@ -3416,16 +3554,22 @@ function renderMuniPanel() {
 
   panel.innerHTML = `
     ${m.data_gap ? `<div class="warn-banner"><span class="warn-banner-icon">⚠</span><span>${m.gap_note}</span></div>` : ''}
-    <div class="muni-title-row" style="align-items:flex-start;gap:16px;">
+    <div class="muni-title-row" style="align-items:center;gap:16px;">
       <div style="flex:0 0 auto;">
         <div class="muni-title">${m.name}</div>
         <div class="muni-county">${m.county} County</div>
       </div>
-      <div style="flex:1;min-width:0;">
-        ${renderChatPanel(jurisChatId, jurisContext, shortMuniName, { noHeader: true })}
+      <div id="chat-panel-${jurisChatId}" style="flex:1;min-width:0;">
+        <div class="gemini-chat-input-row" style="padding:0;border:none;">
+          <textarea class="gemini-chat-input" id="chat-input-${jurisChatId}" rows="1"
+            placeholder="Ask about this jurisdiction…"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();chatSend('${jurisChatId}','${encodeURIComponent(jurisContext)}');}"></textarea>
+          <button class="gemini-chat-send" onclick="chatSend('${jurisChatId}','${encodeURIComponent(jurisContext)}')">Send</button>
+        </div>
       </div>
     </div>
-    
+    <div class="gemini-chat-messages" id="chat-msgs-${jurisChatId}" style="display:none;background:var(--intel-bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;max-height:200px;overflow-y:auto;flex-direction:column;gap:8px;font-size:12px;line-height:1.5;"></div>
+
     <div class="muni-summary-box">
       <div class="section-label">Municipality Summary</div>
       <div class="summary-grid">
@@ -3645,16 +3789,24 @@ function renderMemberDetail(mem) {
       const memContext = `You are an AI assistant for the Municipal Intelligence Platform. You are analyzing ${mem.name}, a ${mem.role || 'member'} of ${currentMuni ? currentMuni.name : 'this municipality'}, Indiana. Focus on their voting record on residential development, rezoning, annexation, and subdivision matters. Be specific and cite dates when possible.`;
       const muniId = currentMuni ? currentMuni.id : '';
       const muniName = currentMuni ? currentMuni.name : '';
+      const cachedRaw = localStorage.getItem(`profile_${muniId}_${memId}`);
+      let cachedHtml = '<div class="vote-history-empty">Click "Update Profile" to run AI research on this member.</div>';
+      if (cachedRaw) {
+        try {
+          const cached = JSON.parse(cachedRaw);
+          cachedHtml = `<div style="font-size:9px;color:var(--text-dim);">Cached ${cached.timestamp} — click Update Profile to refresh</div>`;
+        } catch(e) {}
+      }
       return `<div class="vote-history-section">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-    <div class="vote-history-title">Vote / Position History</div>
+    <div class="vote-history-title">AI Research Profile</div>
     <button class="update-profile-btn" id="vbtn-${memId}"
-      onclick="updateMemberVoteHistory('${memId}','${escapedMemName}','${escapedMuniName}','${muniId}',this,document.getElementById('vote-${memId}'))">
-      Update Vote History
+      onclick="researchMemberProfile('${memId}','${escapedMemName}','${muniId}','${escapedMuniName}',document.getElementById('profile-research-${memId}'),this)">
+      Update Profile
     </button>
   </div>
-  <div id="vote-${memId}">
-    <div class="vote-history-empty">Click "Update Vote History" to analyze recent meeting minutes.</div>
+  <div id="profile-research-${memId}">
+    ${cachedHtml}
   </div>
 </div>
 ${renderChatPanel(memChatId, memContext, escapedMemName, { marginTop: '16px' })}`;
