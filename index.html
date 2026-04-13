@@ -1369,6 +1369,40 @@
 }
 .update-profile-btn:hover { background: rgba(232,160,32,0.1); }
 .update-profile-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── SCHEDULE & REQUIREMENTS ─────────────────────────── */
+.sched-input-wrap { display:flex; gap:16px; }
+.sched-input-col { flex:1; display:flex; flex-direction:column; gap:12px; }
+.sched-export-bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
+.sched-section { margin-bottom:20px; }
+.sched-section-title { font-size:14px; font-weight:700; color:var(--text); margin-bottom:12px; letter-spacing:0.03em; }
+.sched-step { display:flex; gap:14px; padding:12px 0 12px 16px; border-left:3px solid var(--accent); margin-left:8px; position:relative; }
+.sched-step::before { content:''; position:absolute; left:-6px; top:16px; width:9px; height:9px; border-radius:50%; background:var(--accent); }
+.sched-step-date { min-width:90px; font-size:12px; font-weight:700; color:var(--accent); font-family:'IBM Plex Mono',monospace; padding-top:1px; }
+.sched-step-body { flex:1; }
+.sched-step-milestone { font-size:13px; font-weight:600; color:var(--text); margin-bottom:3px; }
+.sched-step-desc { font-size:11px; color:var(--text-dim); line-height:1.5; }
+.sched-step-meta { display:flex; gap:8px; align-items:center; margin-top:4px; }
+.sched-type-badge { font-size:9px; font-weight:700; letter-spacing:0.06em; padding:2px 7px; border-radius:3px; text-transform:uppercase; }
+.sched-type-filing { background:rgba(42,95,165,0.2); color:#7aacdf; }
+.sched-type-hearing { background:rgba(232,160,32,0.15); color:#e8a020; }
+.sched-type-notice { background:rgba(45,122,79,0.2); color:#5cb88a; }
+.sched-type-vote { background:rgba(184,92,26,0.2); color:#e8a060; }
+.sched-type-other { background:rgba(255,255,255,0.06); color:var(--text-dim); }
+.sched-days-badge { font-size:9px; color:var(--text-dim); font-family:'IBM Plex Mono',monospace; }
+.sched-step-warning { background:rgba(184,92,26,0.08); border-left-color:#b85c1a; }
+.sched-step-warning::before { background:#b85c1a; }
+.sched-req-group { margin-bottom:14px; }
+.sched-req-group-title { font-size:11px; font-weight:700; color:var(--accent); letter-spacing:0.05em; text-transform:uppercase; margin-bottom:6px; }
+.sched-req-item { display:flex; gap:10px; padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.04); font-size:11px; }
+.sched-req-item-name { color:var(--text); font-weight:600; min-width:180px; }
+.sched-req-item-detail { color:var(--text-dim); flex:1; line-height:1.5; }
+.sched-req-item-source { color:var(--text-dim); font-size:10px; font-style:italic; min-width:120px; text-align:right; }
+.sched-assumption { font-size:11px; color:var(--text-dim); padding:4px 0 4px 16px; border-left:2px solid rgba(255,255,255,0.08); margin-bottom:4px; line-height:1.5; }
+.sched-loading-spinner { width:32px; height:32px; border:3px solid rgba(232,160,32,0.2); border-top-color:var(--accent); border-radius:50%; animation:sched-spin 0.8s linear infinite; margin:0 auto; }
+@keyframes sched-spin { to { transform:rotate(360deg); } }
+.sched-no-ref { color:var(--warn); font-style:italic; }
+@media (max-width:800px) { .sched-input-wrap { flex-direction:column; } }
 </style>
 </head>
 <body>
@@ -1382,6 +1416,7 @@
     <button class="topbar-btn" onclick="switchView('intel')" id="nav-intel">Intelligence Feed</button>
     <button class="topbar-btn" onclick="switchView('publichearings')" id="nav-publichearings">Public Hearings</button>
     <button class="topbar-btn" onclick="switchView('settings')" id="nav-settings">⚙ Settings</button>
+    <button class="topbar-btn" onclick="switchView('schedule')" id="nav-schedule">Schedule & Requirements</button>
   </div>
   <div class="topbar-right">
     <span class="topbar-badge">Central Indiana · 9 Counties</span>
@@ -1655,6 +1690,79 @@
             </div>
             <button class="settings-save-btn" onclick="saveSchedule()">Save Schedule</button>
           </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- SCHEDULE & REQUIREMENTS VIEW -->
+    <div id="view-schedule" class="view">
+      <div style="padding:24px 32px;max-width:1200px;margin:0 auto;width:100%;">
+        <div style="margin-bottom:20px;">
+          <div class="overview-title">Schedule & Requirements</div>
+          <div class="overview-sub">Generate backward-scheduled entitlement timelines and application checklists by jurisdiction</div>
+        </div>
+
+        <div class="sched-input-wrap">
+          <div class="sched-input-col">
+            <div class="settings-card">
+              <div class="settings-card-title">Jurisdiction</div>
+              <div class="settings-card-sub">Select the municipality or county for this entitlement process.</div>
+              <select class="settings-select" id="sched-jurisdiction" style="width:100%;padding:8px 10px;font-size:12px;">
+                <option value="">— Select jurisdiction —</option>
+              </select>
+              <div id="sched-jurisdiction-status" style="font-size:10px;margin-top:6px;color:var(--text-dim);"></div>
+            </div>
+            <div class="settings-card">
+              <div class="settings-card-title">Process Description</div>
+              <div class="settings-card-sub">Describe the entitlement process needed (rezoning, annexation, PUD, preliminary plat, etc.)</div>
+              <textarea id="sched-process" class="settings-input" rows="4"
+                style="width:100%;resize:vertical;font-family:'IBM Plex Mono',monospace;font-size:11px;line-height:1.5;"
+                placeholder="e.g., Rezoning from AG to R-2 and preliminary plat for 80-lot single-family residential subdivision"></textarea>
+            </div>
+          </div>
+          <div class="sched-input-col">
+            <div class="settings-card">
+              <div class="settings-card-title">Target Approval Date</div>
+              <div class="settings-card-sub">Latest date the final approval (e.g., preliminary plat) must be granted. Schedule works backward from this date.</div>
+              <input type="date" id="sched-target-date" class="settings-input" style="width:100%;padding:8px 10px;font-size:12px;">
+            </div>
+            <div class="settings-card">
+              <div class="settings-card-title">Generate</div>
+              <div class="settings-card-sub">AI will produce a proposed schedule and requirements checklist specific to the selected jurisdiction.</div>
+              <button class="settings-save-btn" id="sched-run-btn" onclick="runScheduleGeneration()" style="width:100%;padding:10px;font-size:13px;">
+                Run Schedule & Requirements
+              </button>
+              <div style="font-size:10px;color:var(--text-dim);margin-top:6px;text-align:center;">
+                Powered by Gemini 2.5 Pro · Typical response: 30–60 seconds
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="sched-loading" style="display:none;text-align:center;padding:40px 0;">
+          <div class="sched-loading-spinner"></div>
+          <div id="sched-loading-text" style="color:var(--accent);font-family:'IBM Plex Mono',monospace;font-size:12px;margin-top:12px;">
+            Generating schedule...
+          </div>
+        </div>
+
+        <div id="sched-error" style="display:none;background:rgba(184,92,26,0.12);border:1px solid rgba(184,92,26,0.3);border-radius:6px;padding:14px 18px;margin-top:16px;color:#e8a060;font-size:12px;">
+        </div>
+
+        <div id="sched-results-wrap" style="display:none;margin-top:24px;">
+          <div class="sched-export-bar">
+            <span style="font-size:13px;color:var(--text);font-weight:600;">Results</span>
+            <div style="display:flex;gap:8px;">
+              <button class="refresh-btn" onclick="exportScheduleDoc()">↓ Word Doc</button>
+              <button class="refresh-btn" onclick="exportScheduleCSV()">↓ CSV</button>
+              <button class="refresh-btn" id="sched-copy-btn" onclick="copyScheduleToClipboard()">Copy</button>
+            </div>
+          </div>
+
+          <div id="sched-timeline" class="sched-section"></div>
+          <div id="sched-checklist" class="sched-section"></div>
+          <div id="sched-assumptions" class="sched-section"></div>
         </div>
 
       </div>
@@ -3896,6 +4004,706 @@ window.phMarkReviewed = phMarkReviewed;
 window.phUnreview = phUnreview;
 window.phToggleReviewed = phToggleReviewed;
 window.phFilterHearings = phFilterHearings;
+
+// ═══════════════════════════════════════════════════════
+// SCHEDULE & REQUIREMENTS MODULE
+// ═══════════════════════════════════════════════════════
+
+const JURISDICTION_REFS = {
+  'avon': {
+    name:'Town of Avon, Indiana', county:'Hendricks',
+    udoUrl:'https://avon.municipalcodeonline.com/book?type=development#name=Chapter_1_General_Provisions',
+    rezoningAppUrl:'https://avonindiana.gov/DocumentCenter/View/333/Zoning-Amendment-Application-PDF',
+    primaryPlatUrl:'https://avonindiana.gov/DocumentCenter/View/325/Major-Subdivision-Preliminary-Plat-Application-PDF',
+    secondaryPlatUrl:'https://avonindiana.gov/DocumentCenter/View/324/Major-Subdivision-Final-Plat-Application-PDF',
+    pcScheduleUrl:'https://avonindiana.gov/DocumentCenter/View/2095/2026-Plan-Commission----Schedule-PDF',
+    bzaScheduleUrl:'https://avonindiana.gov/DocumentCenter/View/2094/2026-Board-of-Zoning-Appeals-Schedule-PDF',
+    notes:'UDO replaces prior Zoning Ordinance and SCO; hosted on MunicipalCodeOnline', status:'Verified'
+  },
+  'bargersville': {
+    name:'Town of Bargersville, Indiana', county:'Johnson',
+    udoUrl:'https://bargersville.in.gov/services/planning___zoning/index.php',
+    rezoningAppUrl:'https://bargersville.in.gov/services/planning___zoning/permits___applications.php',
+    primaryPlatUrl:'',
+    secondaryPlatUrl:'',
+    pcScheduleUrl:'https://bargersville.in.gov/services/planning___zoning/index.php',
+    bzaScheduleUrl:'',
+    notes:'UDC adopted August 6 2022; replaces Zoning Ordinance and SCO', status:'Verified'
+  },
+  'carmel': {
+    name:'City of Carmel, Indiana', county:'Hamilton',
+    udoUrl:'https://www.carmel.in.gov/government/departments-services/community-services/planning-zoning-office/unified-development-ordinance',
+    rezoningAppUrl:'https://www.carmel.in.gov/DocumentCenter/View/210/Rezone-Application-to-Change-Carmel-Zoning-Map-PDF',
+    primaryPlatUrl:'https://www.carmel.in.gov/DocumentCenter/View/209/Primary-Plat-or-Replat-PDF',
+    secondaryPlatUrl:'https://www.carmel.in.gov/DocumentCenter/View/211/Secondary-Plat-or-Replat-PDF',
+    pcScheduleUrl:'https://www.carmel.in.gov/202/All-Meetings-Agendas-Minutes',
+    bzaScheduleUrl:'https://www.carmel.in.gov/202/All-Meetings-Agendas-Minutes',
+    notes:'UDO hosted at Gridics platform', status:'Verified'
+  },
+  'cicero': {
+    name:'Town of Cicero, Indiana', county:'Hamilton',
+    udoUrl:'https://www.ciceroin.org/government/cjt-board-of-zoning-appeals/',
+    rezoningAppUrl:'',
+    primaryPlatUrl:'',
+    secondaryPlatUrl:'',
+    pcScheduleUrl:'https://www.ciceroin.org/',
+    bzaScheduleUrl:'https://www.ciceroin.org/government/cjt-board-of-zoning-appeals/',
+    notes:'Cicero/Jackson Township joint zoning; BZA meets 3rd Thursday at 7 pm', status:'Verified'
+  },
+  'danville': {
+    name:'Town of Danville, Indiana', county:'Hendricks',
+    udoUrl:'https://danvillein.gov/department/division.php?structureid=135',
+    rezoningAppUrl:'https://danvillein.gov/egov/documents/1754414470_20983.pdf',
+    primaryPlatUrl:'https://danvillein.gov/egov/documents/1754414470_20983.pdf',
+    secondaryPlatUrl:'',
+    pcScheduleUrl:'https://danvillein.gov/department/board.php?structureid=33',
+    bzaScheduleUrl:'https://danvillein.gov/department/board.php?structureid=34',
+    notes:'UDO Ordinance 01-2024; PC meets 2nd Wednesday at 7 pm', status:'Verified'
+  },
+  'fishers': {
+    name:'City of Fishers, Indiana', county:'Hamilton',
+    udoUrl:'https://online.encodeplus.com/regs/fishers-in/index.aspx',
+    rezoningAppUrl:'https://fishersin.gov/departments/planning-zoning/',
+    primaryPlatUrl:'https://fishersin.gov/departments/planning-zoning/',
+    secondaryPlatUrl:'',
+    pcScheduleUrl:'https://fishersin.gov/departments/planning-zoning/',
+    bzaScheduleUrl:'',
+    notes:'Interactive UDO hosted on EncodePlus', status:'Verified'
+  },
+  'fortville': {
+    name:'Town of Fortville, Indiana', county:'Hancock',
+    udoUrl:'https://www.fortville.in.gov/fortville-code-of-ordinances/',
+    rezoningAppUrl:'https://www.fortville.in.gov/planning-building/',
+    primaryPlatUrl:'',
+    secondaryPlatUrl:'',
+    pcScheduleUrl:'https://www.fortville.in.gov/news-and-notices/town-of-fortvilles-public-meeting-and-office-closure-calendar-for-2025/',
+    bzaScheduleUrl:'',
+    notes:'PC last Tuesday; BZA last Thursday each month', status:'Verified'
+  },
+  'franklin': {
+    name:'City of Franklin, Indiana', county:'Johnson',
+    udoUrl:'https://www.franklin.in.gov/egov/documents/1686840628_57795.pdf',
+    rezoningAppUrl:'https://www.franklin.in.gov/planning/',
+    primaryPlatUrl:'',
+    secondaryPlatUrl:'',
+    pcScheduleUrl:'https://www.franklin.in.gov/department/board.php?structureid=80',
+    bzaScheduleUrl:'https://www.franklin.in.gov/department/board.php?structureid=83',
+    notes:'Separate Zoning Ordinance and SCO; not yet unified', status:'Verified'
+  },
+  'greenfield': {
+    name:'City of Greenfield, Indiana', county:'Hancock',
+    udoUrl:'https://codelibrary.amlegal.com/codes/greenfieldin/latest/greenfield_in/0-0-0-1',
+    rezoningAppUrl:'',
+    primaryPlatUrl:'https://www.greenfieldin.org/planningdocuments?download=10345:subdivision-plat-application-6-24-2024',
+    secondaryPlatUrl:'',
+    pcScheduleUrl:'https://www.greenfieldin.org/government/planning-and-building/plan-commission',
+    bzaScheduleUrl:'https://www.greenfieldin.org/government/planning-and-building/1516-board-of-zoning-appeals-meeting-and-filing-dates',
+    notes:'Combined primary/secondary plat application updated June 2024', status:'Verified'
+  },
+  'greenwood': {
+    name:'City of Greenwood, Indiana', county:'Johnson',
+    udoUrl:'https://codelibrary.amlegal.com/codes/greenwood/latest/greenwood_in/0-0-0-23270',
+    rezoningAppUrl:'https://www.greenwood.in.gov/division/blocks.php?structureid=97',
+    primaryPlatUrl:'',
+    secondaryPlatUrl:'',
+    pcScheduleUrl:'https://www.greenwood.in.gov/division/index.php?structureid=120',
+    bzaScheduleUrl:'https://www.greenwood.in.gov/division/index.php?structureid=122',
+    notes:'UDO adopted Oct 2020; BZA meets 2nd and 4th Monday', status:'Verified'
+  },
+  'lafayette': {
+    name:'City of Lafayette, Indiana', county:'Tippecanoe',
+    udoUrl:'https://www.tippecanoe.in.gov/378/Area-Plan-Commission-APC',
+    rezoningAppUrl:'https://www.tippecanoe.in.gov/378/Area-Plan-Commission-APC',
+    primaryPlatUrl:'',
+    secondaryPlatUrl:'',
+    pcScheduleUrl:'https://www.tippecanoe.in.gov/378/Area-Plan-Commission-APC',
+    bzaScheduleUrl:'',
+    notes:'Administered by Tippecanoe County APC; multi-jurisdictional UZO; APC meets Wednesdays', status:'Verified'
+  },
+  'lapel': {
+    name:'Town of Lapel, Indiana', county:'Madison',
+    udoUrl:'https://lapelindiana.org/chapters.asp',
+    rezoningAppUrl:'',
+    primaryPlatUrl:'',
+    secondaryPlatUrl:'',
+    pcScheduleUrl:'https://lapelindiana.org/',
+    bzaScheduleUrl:'',
+    notes:'2015 zoning ordinance Ch14; SCO Ch15; PAC meets 2nd Thursday at 6:30 PM', status:'Verified'
+  },
+  'lebanon': {
+    name:'City of Lebanon, Indiana', county:'Boone',
+    udoUrl:'https://lebanon.in.gov/wp-content/uploads/2024/03/LEB-UDO-Adopted-Version-on-27-Feb-2024.pdf',
+    rezoningAppUrl:'https://lebanon.in.gov/planning-department/',
+    primaryPlatUrl:'https://lebanon.in.gov/wp-content/uploads/2020/04/primary_plot_req.pdf',
+    secondaryPlatUrl:'',
+    pcScheduleUrl:'https://lebanon.in.gov/planning-department/',
+    bzaScheduleUrl:'',
+    notes:'UDO adopted February 27 2024', status:'Verified'
+  },
+  'mccordsville': {
+    name:'Town of McCordsville, Indiana', county:'Hancock',
+    udoUrl:'https://codelibrary.amlegal.com/codes/mccordsville/latest/mccordsville_in/0-0-0-4361',
+    rezoningAppUrl:'https://mccordsville.in.gov/departments/planning_and_building/index.php',
+    primaryPlatUrl:'',
+    secondaryPlatUrl:'',
+    pcScheduleUrl:'https://www.mccordsville.org/department/board.php?structureid=31',
+    bzaScheduleUrl:'',
+    notes:'Plans to adopt new UDO in 2025/2026; all apps via SDL online portal', status:'Verified'
+  },
+  'mooresville': {
+    name:'Town of Mooresville, Indiana', county:'Other',
+    udoUrl:'https://www.mooresville.in.gov/online-forms/',
+    rezoningAppUrl:'',
+    primaryPlatUrl:'',
+    secondaryPlatUrl:'',
+    pcScheduleUrl:'https://www.mooresville.in.gov/public-works/',
+    bzaScheduleUrl:'',
+    notes:'UDO adopted per GRW engineering work', status:'Verified'
+  },
+  'new-palestine': {
+    name:'Town of New Palestine, Indiana', county:'Hancock',
+    udoUrl:'https://codelibrary.amlegal.com/codes/newpalestine/latest/overview',
+    rezoningAppUrl:'',
+    primaryPlatUrl:'',
+    secondaryPlatUrl:'',
+    pcScheduleUrl:'https://www.newpalestine.in.gov/',
+    bzaScheduleUrl:'',
+    notes:'Code current through Ordinance 080625A; PC meets 1st and 3rd Wednesday at 7 pm', status:'Verified'
+  },
+  'new-whiteland': {
+    name:'Town of New Whiteland, Indiana', county:'Johnson',
+    udoUrl:'https://www.in.gov/towns/new-whiteland/planning-and-zoning/',
+    rezoningAppUrl:'https://newwhiteland.in.gov/planning-zoning/',
+    primaryPlatUrl:'',
+    secondaryPlatUrl:'',
+    pcScheduleUrl:'',
+    bzaScheduleUrl:'',
+    notes:'PC meets 4th Tuesday at 7 pm; BZA 4th Tuesday at 6:30 pm', status:'Verified'
+  },
+  'noblesville': {
+    name:'City of Noblesville, Indiana', county:'Hamilton',
+    udoUrl:'https://www.noblesville.in.gov/275/Current-Planning-Zoning',
+    rezoningAppUrl:'https://www.noblesville.in.gov/217/Planning',
+    primaryPlatUrl:'',
+    secondaryPlatUrl:'',
+    pcScheduleUrl:'https://www.noblesville.in.gov/217/Planning',
+    bzaScheduleUrl:'',
+    notes:'UDO accessible online per Current Planning & Zoning page', status:'Verified'
+  },
+  'pendleton': {
+    name:'Town of Pendleton, Indiana', county:'Madison',
+    udoUrl:'https://www.town.pendleton.in.us/town-code-approved-plans-standards',
+    rezoningAppUrl:'https://www.town.pendleton.in.us/planning-building-department',
+    primaryPlatUrl:'',
+    secondaryPlatUrl:'',
+    pcScheduleUrl:'https://www.town.pendleton.in.us/plan-commission',
+    bzaScheduleUrl:'',
+    notes:'UDO adopted Oct 2021; PC meets 1st Wednesday at 7 pm', status:'Verified'
+  },
+  'shelbyville': {
+    name:'City of Shelbyville, Indiana', county:'Shelby',
+    udoUrl:'https://www.shelbyville.in.gov/295/Zoning-Ordinance',
+    rezoningAppUrl:'https://shelbyville.in.gov/291/Planning-Department-Processes',
+    primaryPlatUrl:'https://www.cityofshelbyvillein.com/departments/planning-building/planning-department-forms/',
+    secondaryPlatUrl:'',
+    pcScheduleUrl:'https://www.shelbyville.in.gov/294/Plan-Commission',
+    bzaScheduleUrl:'',
+    notes:'Detailed process guide at shelbyville.in.gov', status:'Verified'
+  },
+  'sheridan': {
+    name:'Town of Sheridan, Indiana', county:'Hamilton',
+    udoUrl:'https://codelibrary.amlegal.com/codes/sheridan/latest/sheridan_in/0-0-0-5556',
+    rezoningAppUrl:'https://sheridan.in.gov/planning-and-development/',
+    primaryPlatUrl:'',
+    secondaryPlatUrl:'',
+    pcScheduleUrl:'https://sheridan.in.gov/planning-and-development/',
+    bzaScheduleUrl:'',
+    notes:'Meeting schedule not directly surfaced; contact Planning & Development', status:'Unverified'
+  },
+  'whiteland': {
+    name:'Town of Whiteland, Indiana', county:'Johnson',
+    udoUrl:'https://codelibrary.amlegal.com/codes/whiteland/latest/overview',
+    rezoningAppUrl:'',
+    primaryPlatUrl:'',
+    secondaryPlatUrl:'',
+    pcScheduleUrl:'',
+    bzaScheduleUrl:'',
+    notes:'Minimal online presence; contact town directly for applications', status:'Unverified'
+  },
+  'whitestown': {
+    name:'Town of Whitestown, Indiana', county:'Boone',
+    udoUrl:'https://whitestown.in.gov/wp-content/uploads/2020/07/Whitestown-UDO-Adopted-2020-06-12_Amended-February-2022.pdf',
+    rezoningAppUrl:'https://whitestown.in.gov/government/departments/planning-department/',
+    primaryPlatUrl:'',
+    secondaryPlatUrl:'',
+    pcScheduleUrl:'https://whitestown.in.gov/government/departments/planning-department/',
+    bzaScheduleUrl:'',
+    notes:'UDO adopted June 2020 amended Feb 2022; permits via Mobile-Eyes', status:'Verified'
+  },
+  'westfield': {
+    name:'City of Westfield, Indiana', county:'Hamilton',
+    udoUrl:'https://www.westfieldin.gov/469/Unified-Development-Ordinance-UDO',
+    rezoningAppUrl:'https://westfieldin.gov/195/Planning-and-Zoning-Applications',
+    primaryPlatUrl:'https://westfieldin.gov/195/Planning-and-Zoning-Applications',
+    secondaryPlatUrl:'',
+    pcScheduleUrl:'https://www.westfieldin.gov/196/Schedule-of-Meetings',
+    bzaScheduleUrl:'https://www.westfieldin.gov/196/Schedule-of-Meetings',
+    notes:'Full application list including rezoning plat BZA apps; 2026 meeting schedule posted', status:'Verified'
+  },
+  'zionsville': {
+    name:'City of Zionsville, Indiana', county:'Boone',
+    udoUrl:'https://codelibrary.amlegal.com/codes/zionsville/latest/zionsville_in_zoning/0-0-0-7053',
+    rezoningAppUrl:'https://www.zionsville-in.gov/234/Permit-Applications-Forms',
+    primaryPlatUrl:'https://www.zionsville-in.gov/234/Permit-Applications-Forms',
+    secondaryPlatUrl:'',
+    pcScheduleUrl:'https://www.zionsville-in.gov/310/Plan-Commission',
+    bzaScheduleUrl:'https://www.zionsville-in.gov/311/Board-of-Zoning-Appeals',
+    notes:'Zoning current through Ordinance 2025-01; BZA meets first Wednesday', status:'Verified'
+  },
+  'columbus': {
+    name:'City of Columbus, Indiana', county:'Other',
+    udoUrl:'https://www.columbus.in.gov/planning/zoning-subdivision-regulations/',
+    rezoningAppUrl:'https://www.columbus.in.gov/planning/applications-forms/',
+    primaryPlatUrl:'',
+    secondaryPlatUrl:'',
+    pcScheduleUrl:'https://www.columbus.in.gov/planning/applications-forms/',
+    bzaScheduleUrl:'',
+    notes:'Zoning Ordinance updated June 18 2024; OpenGov portal since Nov 2025', status:'Verified'
+  },
+  'martinsville': {
+    name:'City of Martinsville, Indiana', county:'Other',
+    udoUrl:'https://library.municode.com/in/martinsville/codes/code_of_ordinances',
+    rezoningAppUrl:'https://www.martinsville.in.gov/194/Building-Services',
+    primaryPlatUrl:'',
+    secondaryPlatUrl:'',
+    pcScheduleUrl:'https://www.martinsville.in.gov/AgendaCenter',
+    bzaScheduleUrl:'https://www.martinsville.in.gov/229/Board-of-Zoning-Appeals',
+    notes:'PC meets 4th Tuesday at 7 pm; BZA 4th Tuesday at 6 pm', status:'Verified'
+  },
+  'tipton': {
+    name:'City of Tipton, Indiana', county:'Other',
+    udoUrl:'https://www.tiptongov.com/egov/apps/document/center.egov?view=detail&id=429',
+    rezoningAppUrl:'',
+    primaryPlatUrl:'',
+    secondaryPlatUrl:'',
+    pcScheduleUrl:'',
+    bzaScheduleUrl:'https://www.tiptongov.com/county/department/board.php?structureid=110',
+    notes:'BZA meets 4th Tuesday if needed; contact planning office for apps', status:'Unverified'
+  },
+  'muncie': {
+    name:'City of Muncie, Indiana', county:'Other',
+    udoUrl:'https://www.co.delaware.in.us/department/index.php?structureid=22',
+    rezoningAppUrl:'https://www.co.delaware.in.us/department/index.php?structureid=22',
+    primaryPlatUrl:'',
+    secondaryPlatUrl:'',
+    pcScheduleUrl:'https://www.co.delaware.in.us/department/index.php?structureid=22',
+    bzaScheduleUrl:'',
+    notes:'Delaware-Muncie Metropolitan Plan Commission administers zoning and platting', status:'Verified'
+  }
+};
+
+// ── State ──
+let schedViewInited = false;
+window.currentScheduleResults = null;
+
+// ── Init ──
+function initScheduleView() {
+  if (schedViewInited) return;
+  schedViewInited = true;
+  buildSchedDropdown();
+  // Default target date: 90 days from today
+  const d = new Date(); d.setDate(d.getDate() + 90);
+  const dateStr = d.toISOString().split('T')[0];
+  const dateInput = document.getElementById('sched-target-date');
+  if (dateInput) dateInput.value = dateStr;
+}
+
+function buildSchedDropdown() {
+  const sel = document.getElementById('sched-jurisdiction');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— Select jurisdiction —</option>';
+  // Group by county using COUNTY_GROUPS if available, else flat list
+  const groups = (typeof COUNTY_GROUPS !== 'undefined' && COUNTY_GROUPS.length) ? COUNTY_GROUPS : null;
+  if (groups) {
+    groups.forEach(g => {
+      const optgroup = document.createElement('optgroup');
+      optgroup.label = g.name + ' County';
+      g.munis.forEach(id => {
+        const m = (typeof MUNICIPALITIES !== 'undefined') ? MUNICIPALITIES.find(x => x.id === id) : null;
+        const name = m ? m.name : id;
+        const opt = document.createElement('option');
+        opt.value = id;
+        const hasRef = !!JURISDICTION_REFS[id];
+        opt.textContent = name + (hasRef ? '' : ' (limited data)');
+        if (!hasRef) opt.style.color = '#b85c1a';
+        optgroup.appendChild(opt);
+      });
+      sel.appendChild(optgroup);
+    });
+  } else {
+    // Flat fallback
+    Object.keys(JURISDICTION_REFS).forEach(id => {
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = JURISDICTION_REFS[id].name;
+      sel.appendChild(opt);
+    });
+  }
+  sel.onchange = onSchedJurisdictionChange;
+}
+
+function onSchedJurisdictionChange() {
+  const id = document.getElementById('sched-jurisdiction').value;
+  const status = document.getElementById('sched-jurisdiction-status');
+  if (!id) { status.textContent = ''; return; }
+  const ref = JURISDICTION_REFS[id];
+  if (ref) {
+    const urls = [ref.udoUrl, ref.rezoningAppUrl, ref.primaryPlatUrl, ref.pcScheduleUrl].filter(Boolean);
+    status.innerHTML = `<span style="color:#5cb88a;">${urls.length} reference documents available</span>` +
+      (ref.notes ? ` · <span style="color:var(--text-dim);">${ref.notes}</span>` : '');
+  } else {
+    status.innerHTML = '<span style="color:#b85c1a;">No ordinance references on file — schedule will use general Indiana statutory knowledge</span>';
+  }
+}
+
+// ── Gemini API (Schedule-specific, uses gemini-2.5-pro with systemInstruction) ──
+async function callGeminiSchedule(systemPrompt, userPrompt) {
+  const key = getGeminiKey();
+  if (!key) { promptGeminiKey(); return null; }
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${key}`;
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+      generationConfig: { temperature: 0.2, maxOutputTokens: 8192 }
+    })
+  });
+  const data = await resp.json();
+  if (data.error) throw new Error(data.error.message);
+  return data.candidates[0].content.parts[0].text;
+}
+
+// ── System Prompt ──
+function buildScheduleSystemPrompt() {
+  return `You are an Indiana municipal development entitlement scheduling expert. You generate backward-scheduled timelines for residential land development processes.
+
+RULES:
+1. Work backward from the target approval date to determine every deadline, filing, hearing, notice, and vote needed.
+2. Account for Indiana statutory notice requirements per IC 36-7-4:
+   - Plan Commission public hearings require 10-day notice via certified mail to adjacent property owners
+   - Legal notice publication in newspaper of general circulation at least 10 days before hearing
+   - BZA hearings also require 10-day certified mail notice
+   - Remonstrance/waiver periods per IC 36-7-4-608 (at least 10 days after Plan Commission favorable recommendation before Council action)
+3. Account for jurisdiction-specific filing deadlines, meeting cadences, and application procedures when reference data is provided.
+4. Include all required public hearings, staff reviews, commission meetings, and council votes.
+5. Flag any steps where the timeline is infeasible (insufficient lead time given the target date).
+6. Use business days for filing deadlines; hearings occur on their actual calendar dates.
+7. For rezoning: typically requires Plan Commission public hearing (recommendation) then 2 Town Council/City Council readings (introduction + adoption vote).
+8. For preliminary plats: typically requires Plan Commission public hearing and approval vote. Some jurisdictions require concurrent rezoning.
+9. For PUD/Planned Development: typically follows rezoning process with additional design review.
+10. For annexation: follows IC 36-4-3 with fiscal plan requirements and additional notice periods.
+
+OUTPUT FORMAT: Return valid JSON only (no markdown code fences, no commentary outside JSON) with this exact structure:
+{
+  "schedule": [
+    {
+      "date": "YYYY-MM-DD",
+      "milestone": "Short milestone name",
+      "description": "Detailed description of what happens at this step",
+      "type": "filing|hearing|notice|vote|review|other",
+      "days_before_target": 0,
+      "notes": "Optional additional context or null",
+      "warning": "Timeline concern or null"
+    }
+  ],
+  "requirements": [
+    {
+      "category": "Application Materials|Fees|Studies & Reports|Public Notice|Recording|Other",
+      "item": "Requirement name",
+      "detail": "Specific details about what is needed",
+      "source": "Where this requirement comes from"
+    }
+  ],
+  "warnings": ["Any timeline warnings or feasibility concerns"],
+  "assumptions": ["Any assumptions made about the jurisdiction or process"]
+}
+
+Sort the schedule array in chronological order (earliest date first). Be specific about dates. Be factual — cite Indiana Code sections and jurisdiction-specific ordinance sections where applicable.`;
+}
+
+// ── User Prompt ──
+function buildScheduleUserPrompt(jurisdictionName, county, processDesc, targetDate, refs) {
+  let prompt = `JURISDICTION: ${jurisdictionName} (${county} County, Indiana)\n`;
+  prompt += `PROCESS REQUESTED: ${processDesc}\n`;
+  prompt += `TARGET FINAL APPROVAL DATE: ${targetDate}\n\n`;
+
+  if (refs) {
+    prompt += `JURISDICTION REFERENCE DOCUMENTS (use these for jurisdiction-specific procedures and requirements):\n`;
+    if (refs.udoUrl) prompt += `- Unified Development Ordinance / Zoning Code: ${refs.udoUrl}\n`;
+    if (refs.rezoningAppUrl) prompt += `- Rezoning Application: ${refs.rezoningAppUrl}\n`;
+    if (refs.primaryPlatUrl) prompt += `- Primary/Preliminary Plat Application: ${refs.primaryPlatUrl}\n`;
+    if (refs.secondaryPlatUrl) prompt += `- Secondary/Final Plat Application: ${refs.secondaryPlatUrl}\n`;
+    if (refs.pcScheduleUrl) prompt += `- Plan Commission Schedule: ${refs.pcScheduleUrl}\n`;
+    if (refs.bzaScheduleUrl) prompt += `- BZA Schedule: ${refs.bzaScheduleUrl}\n`;
+    if (refs.notes) prompt += `- Notes: ${refs.notes}\n`;
+    prompt += '\n';
+  } else {
+    prompt += `No jurisdiction-specific reference documents are available. Use general Indiana statutory requirements (IC 36-7-4) and typical Central Indiana municipal procedures.\n\n`;
+  }
+
+  prompt += `Generate the complete backward-scheduled timeline and requirements checklist. Return only the JSON object as specified.`;
+  return prompt;
+}
+
+// ── Parse Response ──
+function parseScheduleResponse(rawText) {
+  let text = rawText.trim();
+  // Strip markdown code fences
+  text = text.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
+  const parsed = JSON.parse(text);
+  if (!parsed.schedule || !parsed.requirements) {
+    throw new Error('Response missing required schedule or requirements fields');
+  }
+  return parsed;
+}
+
+// ── Main Orchestrator ──
+async function runScheduleGeneration() {
+  const jurisdictionId = document.getElementById('sched-jurisdiction').value;
+  const processDesc = document.getElementById('sched-process').value.trim();
+  const targetDate = document.getElementById('sched-target-date').value;
+
+  // Validate
+  if (!jurisdictionId) { showSchedError('Please select a jurisdiction.'); return; }
+  if (!processDesc) { showSchedError('Please describe the entitlement process needed.'); return; }
+  if (!targetDate) { showSchedError('Please set a target approval date.'); return; }
+
+  const key = getGeminiKey();
+  if (!key) { promptGeminiKey(); return; }
+
+  // Look up jurisdiction info
+  const ref = JURISDICTION_REFS[jurisdictionId] || null;
+  const muni = (typeof MUNICIPALITIES !== 'undefined') ? MUNICIPALITIES.find(m => m.id === jurisdictionId) : null;
+  const jurisdictionName = ref ? ref.name : (muni ? muni.name : jurisdictionId);
+  const county = ref ? ref.county : (muni ? muni.county : 'Indiana');
+
+  // Reset UI
+  document.getElementById('sched-results-wrap').style.display = 'none';
+  document.getElementById('sched-error').style.display = 'none';
+  const btn = document.getElementById('sched-run-btn');
+  btn.disabled = true;
+  btn.textContent = 'Generating...';
+  showSchedLoading('Building schedule with Gemini 2.5 Pro... this typically takes 30–60 seconds');
+
+  try {
+    const systemPrompt = buildScheduleSystemPrompt();
+    const userPrompt = buildScheduleUserPrompt(jurisdictionName, county, processDesc, targetDate, ref);
+    const rawText = await callGeminiSchedule(systemPrompt, userPrompt);
+    if (!rawText) { hideSchedLoading(); btn.disabled = false; btn.textContent = 'Run Schedule & Requirements'; return; }
+
+    const parsed = parseScheduleResponse(rawText);
+    currentScheduleResults = { ...parsed, jurisdiction: jurisdictionName, county, process: processDesc, targetDate };
+    hideSchedLoading();
+    renderScheduleResults(currentScheduleResults);
+  } catch (e) {
+    hideSchedLoading();
+    showSchedError('Error: ' + e.message);
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Run Schedule & Requirements';
+}
+
+// ── Loading / Error ──
+function showSchedLoading(msg) {
+  const el = document.getElementById('sched-loading');
+  el.style.display = 'block';
+  document.getElementById('sched-loading-text').textContent = msg || 'Generating schedule...';
+}
+function hideSchedLoading() {
+  document.getElementById('sched-loading').style.display = 'none';
+}
+function showSchedError(msg) {
+  const el = document.getElementById('sched-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+// ── Render Results ──
+function renderScheduleResults(results) {
+  renderScheduleTimeline(results.schedule);
+  renderScheduleChecklist(results.requirements);
+  renderScheduleAssumptions(results.assumptions || [], results.warnings || []);
+  document.getElementById('sched-results-wrap').style.display = 'block';
+}
+
+function renderScheduleTimeline(schedule) {
+  const el = document.getElementById('sched-timeline');
+  let html = '<div class="sched-section-title">Entitlement Timeline</div>';
+  schedule.forEach(s => {
+    const warn = s.warning ? ' sched-step-warning' : '';
+    const dateFormatted = new Date(s.date + 'T12:00:00').toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' });
+    html += `<div class="sched-step${warn}">
+      <div class="sched-step-date">${dateFormatted}</div>
+      <div class="sched-step-body">
+        <div class="sched-step-milestone">${s.milestone}</div>
+        <div class="sched-step-desc">${s.description}</div>
+        <div class="sched-step-meta">
+          <span class="sched-type-badge sched-type-${s.type || 'other'}">${s.type || 'other'}</span>
+          <span class="sched-days-badge">${s.days_before_target} days before target</span>
+          ${s.notes ? `<span style="font-size:10px;color:var(--text-dim);">${s.notes}</span>` : ''}
+        </div>
+        ${s.warning ? `<div style="font-size:10px;color:#e8a060;margin-top:4px;">⚠ ${s.warning}</div>` : ''}
+      </div>
+    </div>`;
+  });
+  el.innerHTML = html;
+}
+
+function renderScheduleChecklist(requirements) {
+  const el = document.getElementById('sched-checklist');
+  // Group by category
+  const groups = {};
+  requirements.forEach(r => {
+    const cat = r.category || 'Other';
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(r);
+  });
+
+  let html = '<div class="sched-section-title">Application Requirements Checklist</div>';
+  Object.keys(groups).forEach(cat => {
+    html += `<div class="sched-req-group">
+      <div class="sched-req-group-title">${cat}</div>`;
+    groups[cat].forEach(r => {
+      html += `<div class="sched-req-item">
+        <div class="sched-req-item-name">${r.item}</div>
+        <div class="sched-req-item-detail">${r.detail}</div>
+        <div class="sched-req-item-source">${r.source || ''}</div>
+      </div>`;
+    });
+    html += '</div>';
+  });
+  el.innerHTML = html;
+}
+
+function renderScheduleAssumptions(assumptions, warnings) {
+  const el = document.getElementById('sched-assumptions');
+  let html = '';
+  if (warnings.length) {
+    html += '<div class="sched-section-title" style="color:#e8a060;">Warnings</div>';
+    warnings.forEach(w => { html += `<div class="sched-assumption" style="border-left-color:#b85c1a;">⚠ ${w}</div>`; });
+  }
+  if (assumptions.length) {
+    html += '<div class="sched-section-title" style="margin-top:12px;">Assumptions</div>';
+    assumptions.forEach(a => { html += `<div class="sched-assumption">${a}</div>`; });
+  }
+  el.innerHTML = html;
+}
+
+// ── Export: Word Doc ──
+function exportScheduleDoc() {
+  if (!currentScheduleResults) return;
+  const r = currentScheduleResults;
+  let c = `<h1>Entitlement Schedule: ${r.jurisdiction}</h1>`;
+  c += `<p><b>Process:</b> ${r.process}<br><b>Target Date:</b> ${r.targetDate}<br><b>County:</b> ${r.county}</p>`;
+  c += `<h2>Timeline</h2><table border="1" cellpadding="4" cellspacing="0" style="border-collapse:collapse;font-size:11px;">`;
+  c += `<tr style="background:#1e3a5f;color:#fff;"><th>Date</th><th>Milestone</th><th>Type</th><th>Description</th><th>Days Before</th><th>Notes</th></tr>`;
+  r.schedule.forEach(s => {
+    c += `<tr><td>${s.date}</td><td><b>${s.milestone}</b></td><td>${s.type}</td><td>${s.description}</td><td>${s.days_before_target}</td><td>${s.notes||''}${s.warning ? ' ⚠ '+s.warning : ''}</td></tr>`;
+  });
+  c += `</table>`;
+  c += `<h2>Requirements Checklist</h2><table border="1" cellpadding="4" cellspacing="0" style="border-collapse:collapse;font-size:11px;">`;
+  c += `<tr style="background:#1e3a5f;color:#fff;"><th>Category</th><th>Item</th><th>Detail</th><th>Source</th></tr>`;
+  r.requirements.forEach(q => {
+    c += `<tr><td>${q.category}</td><td><b>${q.item}</b></td><td>${q.detail}</td><td>${q.source||''}</td></tr>`;
+  });
+  c += `</table>`;
+  if (r.warnings && r.warnings.length) {
+    c += `<h2>Warnings</h2><ul>`;
+    r.warnings.forEach(w => { c += `<li>${w}</li>`; });
+    c += `</ul>`;
+  }
+  if (r.assumptions && r.assumptions.length) {
+    c += `<h2>Assumptions</h2><ul>`;
+    r.assumptions.forEach(a => { c += `<li>${a}</li>`; });
+    c += `</ul>`;
+  }
+  c += `<p style="font-size:9px;color:#888;margin-top:20px;">Generated by MIP — Municipal Intelligence Platform · ${new Date().toLocaleDateString()}</p>`;
+  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>${r.jurisdiction} Schedule</title></head><body>${c}</body></html>`;
+  const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Schedule-${r.jurisdiction.replace(/[^a-zA-Z0-9]/g,'_')}-${r.targetDate}.doc`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ── Export: CSV ──
+function exportScheduleCSV() {
+  if (!currentScheduleResults) return;
+  const r = currentScheduleResults;
+  const esc = v => '"' + String(v||'').replace(/"/g,'""') + '"';
+  let csv = 'Date,Milestone,Type,Description,Days Before Target,Notes,Warning\n';
+  r.schedule.forEach(s => {
+    csv += [s.date,s.milestone,s.type,s.description,s.days_before_target,s.notes||'',s.warning||''].map(esc).join(',') + '\n';
+  });
+  csv += '\nCategory,Item,Detail,Source\n';
+  r.requirements.forEach(q => {
+    csv += [q.category,q.item,q.detail,q.source||''].map(esc).join(',') + '\n';
+  });
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Schedule-${r.jurisdiction.replace(/[^a-zA-Z0-9]/g,'_')}-${r.targetDate}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ── Export: Clipboard ──
+function copyScheduleToClipboard() {
+  if (!currentScheduleResults) return;
+  const r = currentScheduleResults;
+  let t = `ENTITLEMENT SCHEDULE: ${r.jurisdiction}\n`;
+  t += `Process: ${r.process}\nTarget: ${r.targetDate}\nCounty: ${r.county}\n\n`;
+  t += `TIMELINE\n${'─'.repeat(60)}\n`;
+  r.schedule.forEach(s => {
+    t += `${s.date}  ${s.milestone} [${s.type}]\n  ${s.description}\n`;
+    if (s.warning) t += `  ⚠ ${s.warning}\n`;
+    if (s.notes) t += `  Note: ${s.notes}\n`;
+    t += '\n';
+  });
+  t += `REQUIREMENTS CHECKLIST\n${'─'.repeat(60)}\n`;
+  r.requirements.forEach(q => {
+    t += `[ ] ${q.item} (${q.category})\n    ${q.detail}\n`;
+    if (q.source) t += `    Source: ${q.source}\n`;
+    t += '\n';
+  });
+  if (r.assumptions && r.assumptions.length) {
+    t += `ASSUMPTIONS\n${'─'.repeat(60)}\n`;
+    r.assumptions.forEach(a => { t += `- ${a}\n`; });
+  }
+  navigator.clipboard.writeText(t).then(() => {
+    const btn = document.getElementById('sched-copy-btn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+  });
+}
+
+// ── Patch switchView for schedule tab init ──
+const _origSwitchView2 = window.switchView;
+window.switchView = function(name) {
+  _origSwitchView2(name);
+  if (name === 'schedule') initScheduleView();
+};
+
+window.runScheduleGeneration = runScheduleGeneration;
+window.exportScheduleDoc = exportScheduleDoc;
+window.exportScheduleCSV = exportScheduleCSV;
+window.copyScheduleToClipboard = copyScheduleToClipboard;
 </script>
 </body>
 </html>
