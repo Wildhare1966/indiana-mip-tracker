@@ -4435,6 +4435,7 @@ RULES:
 8. For preliminary plats: typically requires Plan Commission public hearing and approval vote. Some jurisdictions require concurrent rezoning.
 9. For PUD/Planned Development: typically follows rezoning process with additional design review.
 10. For annexation: follows IC 36-4-3 with fiscal plan requirements and additional notice periods.
+11. When plan commission or BZA meeting schedule content is provided below, use the ACTUAL meeting dates from that content rather than estimating cadences. Align filing deadlines, notice periods, and hearing dates to the real scheduled meeting dates. If the content does not contain clear meeting dates, fall back to estimating based on typical cadences.
 
 OUTPUT FORMAT: Return valid JSON only (no markdown code fences, no commentary outside JSON) with this exact structure:
 {
@@ -4465,7 +4466,7 @@ Sort the schedule array in chronological order (earliest date first). Be specifi
 }
 
 // ── User Prompt ──
-function buildScheduleUserPrompt(jurisdictionName, county, processDesc, targetDate, refs, fetchedContent) {
+function buildScheduleUserPrompt(jurisdictionName, county, processDesc, targetDate, refs, fetchedContent, pcScheduleContent, bzaScheduleContent) {
   let prompt = `JURISDICTION: ${jurisdictionName} (${county} County, Indiana)\n`;
   prompt += `PROCESS REQUESTED: ${processDesc}\n`;
   prompt += `TARGET FINAL APPROVAL DATE: ${targetDate}\n\n`;
@@ -4487,6 +4488,16 @@ function buildScheduleUserPrompt(jurisdictionName, county, processDesc, targetDa
   if (fetchedContent) {
     prompt += `LIVE ORDINANCE CONTENT (fetched from jurisdiction website — use this for specific procedures, deadlines, fees, and filing requirements):\n`;
     prompt += `${fetchedContent}\n\n`;
+  }
+
+  if (pcScheduleContent) {
+    prompt += `PLAN COMMISSION MEETING SCHEDULE (fetched from jurisdiction website — use these ACTUAL meeting dates for scheduling hearings and filings):\n`;
+    prompt += `${pcScheduleContent}\n\n`;
+  }
+
+  if (bzaScheduleContent) {
+    prompt += `BZA MEETING SCHEDULE (fetched from jurisdiction website — use these ACTUAL meeting dates for BZA hearings):\n`;
+    prompt += `${bzaScheduleContent}\n\n`;
   }
 
   prompt += `Generate the complete backward-scheduled timeline and requirements checklist. Return only the JSON object as specified.`;
@@ -4531,22 +4542,29 @@ async function runScheduleGeneration() {
   const btn = document.getElementById('sched-run-btn');
   btn.disabled = true;
   btn.textContent = 'Generating...';
-  showSchedLoading('Fetching live ordinance data...');
+  showSchedLoading('Fetching ordinance data & meeting schedules...');
 
-  // Fetch live URL content from the jurisdiction's UDO page via Apps Script proxy
-  let fetchedContent = null;
-  if (ref && ref.udoUrl) {
-    try {
-      fetchedContent = await fetchLiveUrlContent(ref.udoUrl);
-      if (fetchedContent) console.log('[MIP] Fetched ' + fetchedContent.length + ' chars from UDO URL');
-    } catch (e) { console.warn('[MIP] Live URL fetch skipped:', e.message); }
-  }
+  // Fetch live URL content in parallel: UDO page + PC schedule + BZA schedule
+  let fetchedContent = null, pcScheduleContent = null, bzaScheduleContent = null;
+  try {
+    const [udoResult, pcResult, bzaResult] = await Promise.all([
+      (ref && ref.udoUrl) ? fetchLiveUrlContent(ref.udoUrl) : Promise.resolve(null),
+      (ref && ref.pcScheduleUrl) ? fetchLiveUrlContent(ref.pcScheduleUrl) : Promise.resolve(null),
+      (ref && ref.bzaScheduleUrl) ? fetchLiveUrlContent(ref.bzaScheduleUrl) : Promise.resolve(null)
+    ]);
+    fetchedContent = udoResult;
+    pcScheduleContent = pcResult;
+    bzaScheduleContent = bzaResult;
+    if (fetchedContent) console.log('[MIP] Fetched ' + fetchedContent.length + ' chars from UDO URL');
+    if (pcScheduleContent) console.log('[MIP] Fetched ' + pcScheduleContent.length + ' chars from PC schedule URL');
+    if (bzaScheduleContent) console.log('[MIP] Fetched ' + bzaScheduleContent.length + ' chars from BZA schedule URL');
+  } catch (e) { console.warn('[MIP] Live URL fetch error:', e.message); }
 
   showSchedLoading('Building schedule with Gemini 2.5 Pro... this typically takes 30–60 seconds');
 
   try {
     const systemPrompt = buildScheduleSystemPrompt();
-    const userPrompt = buildScheduleUserPrompt(jurisdictionName, county, processDesc, targetDate, ref, fetchedContent);
+    const userPrompt = buildScheduleUserPrompt(jurisdictionName, county, processDesc, targetDate, ref, fetchedContent, pcScheduleContent, bzaScheduleContent);
     const rawText = await callGeminiSchedule(systemPrompt, userPrompt);
     if (!rawText) { hideSchedLoading(); btn.disabled = false; btn.textContent = 'Run Schedule & Requirements'; return; }
 
