@@ -2521,6 +2521,9 @@ async function fetchLiveIntelFeed() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+  // Kill Chrome autofill on sidebar search by cloning the input
+  const oldSearch = document.getElementById('sidebar-search');
+  if (oldSearch) { const n = oldSearch.cloneNode(true); oldSearch.parentNode.replaceChild(n, oldSearch); }
   await Promise.all([loadMuniData(), fetchLiveIntelFeed(), fetchScrapedDocuments()]);
   buildSidebar();
   buildCountyGrid();
