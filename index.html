@@ -2461,8 +2461,58 @@ async function loadMuniData() {
   }
 }
 
+let SCRAPED_DOCS = []; // populated from ?action=scraped_documents if available
+
+async function fetchScrapedDocuments() {
+  const url = localStorage.getItem(WEBAPP_URL_KEY);
+  if (!url) return;
+  try {
+    const resp = await fetch(url + '?action=scraped_documents', { signal: AbortSignal.timeout(15000) });
+    const data = await resp.json();
+    if (Array.isArray(data) && data.length) {
+      SCRAPED_DOCS = data;
+      console.log('[MIP] Scraped documents: ' + data.length + ' items loaded');
+    }
+  } catch(e) {
+    console.warn('[MIP] Scraped documents fetch not available:', e.message);
+  }
+}
+
+async function fetchLiveIntelFeed() {
+  const url = localStorage.getItem(WEBAPP_URL_KEY);
+  if (!url) return;
+  try {
+    const resp = await fetch(url + '?action=intel_feed', { signal: AbortSignal.timeout(15000) });
+    const data = await resp.json();
+    if (Array.isArray(data) && data.length) {
+      // Merge live items — replace hardcoded fallback entirely if live data available
+      // Live items from generateIntelFromScrape() have: headline, date, muni, county, type, url, source
+      const liveItems = data.map(item => ({
+        type: item.type || 'news',
+        date: item.date || '',
+        dateSort: item.dateSort || item.date_sort || '',
+        muni: item.muni || '',
+        county: item.county || '',
+        headline: item.headline || '',
+        source: item.source || '',
+        url: item.url || '',
+        isNew: item.dateSort >= INTEL_SESSION_CUTOFF || item.date_sort >= INTEL_SESSION_CUTOFF
+      }));
+      // Prepend live items, then append any hardcoded items that don't duplicate
+      const liveHeadlines = new Set(liveItems.map(i => i.headline));
+      const uniqueFallbacks = INTEL_ITEMS.filter(i => !liveHeadlines.has(i.headline));
+      INTEL_ITEMS.length = 0;
+      INTEL_ITEMS.push(...liveItems, ...uniqueFallbacks);
+      console.log('[MIP] Live intel feed: ' + liveItems.length + ' items loaded');
+    }
+  } catch(e) {
+    console.warn('[MIP] Intel feed fetch failed, using fallback:', e.message);
+  }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   await loadMuniData();
+  await Promise.all([fetchLiveIntelFeed(), fetchScrapedDocuments()]);
   buildSidebar();
   buildCountyGrid();
   buildIntelFeed();
@@ -3052,23 +3102,63 @@ function exportBriefing() {
 // ═══════════════════════════════════════════════════════
 // PUBLIC HEARINGS RENDERER
 // ═══════════════════════════════════════════════════════
+function getScrapedDocsForMuni(muniId) {
+  // Match scraped docs to this jurisdiction by muniId or muni name
+  if (!SCRAPED_DOCS.length) return {};
+  const muni = MUNICIPALITIES.find(m => m.id === muniId);
+  const muniName = muni ? muni.name : '';
+  const shortName = muniName.replace('City of ','').replace('Town of ','');
+  const matched = SCRAPED_DOCS.filter(d =>
+    d.jurisdiction_id === muniId ||
+    d.jurisdiction === muniName ||
+    d.jurisdiction === shortName ||
+    (d.muni_id && d.muni_id === muniId)
+  );
+  // Index by date for quick lookup
+  const byDate = {};
+  matched.forEach(d => {
+    const date = d.date || d.meeting_date || '';
+    if (!byDate[date]) byDate[date] = [];
+    byDate[date].push(d);
+  });
+  return byDate;
+}
+
 function renderHearingsContent(muniId) {
   const hearings = PUBLIC_HEARINGS[muniId];
-  if (!hearings || hearings.length === 0) {
+  const scrapedByDate = getScrapedDocsForMuni(muniId);
+
+  if ((!hearings || hearings.length === 0) && Object.keys(scrapedByDate).length === 0) {
     return `<div class="hearings-empty">
       No hearing records loaded for this jurisdiction.<br>
-      <small>Run <code>export_hearings_data.py</code> in the indiana-agenda-tracker folder to refresh, then re-open this file.</small>
+      <small>Configure the Web App URL in Settings to load live data from Google Sheets.</small>
     </div>`;
   }
 
   // Sort all hearings newest first
-  const sorted = hearings.slice().sort((a,b) => (b.date||'').localeCompare(a.date||''));
+  const sorted = (hearings || []).slice().sort((a,b) => (b.date||'').localeCompare(a.date||''));
 
   const rows = sorted.map(h => {
     const docLinks = [];
     if (h.agenda_url) docLinks.push(`<a href="${h.agenda_url}" target="_blank" class="hearing-link ag">↓ Agenda</a>`);
     if (h.youtube_url) docLinks.push(`<a href="${h.youtube_url}" target="_blank" class="hearing-link yt">▶ YouTube</a>`);
     if (h.summary_doc) docLinks.push(`<a href="${h.summary_doc}" target="_blank" class="hearing-link doc">✦ Summary</a>`);
+    // Merge scraped docs for this date that aren't already linked
+    const scraped = scrapedByDate[h.date] || [];
+    scraped.forEach(sd => {
+      const sdUrl = sd.url || sd.doc_url || '';
+      if (!sdUrl) return;
+      const already = [h.agenda_url, h.youtube_url, h.summary_doc].filter(Boolean);
+      if (already.includes(sdUrl)) return;
+      const docType = (sd.doc_type || sd.type || '').toLowerCase();
+      if (docType.includes('agenda')) {
+        docLinks.push(`<a href="${sdUrl}" target="_blank" class="hearing-link ag">↓ Agenda</a>`);
+      } else if (docType.includes('minute')) {
+        docLinks.push(`<a href="${sdUrl}" target="_blank" class="hearing-link min">↓ Minutes</a>`);
+      } else {
+        docLinks.push(`<a href="${sdUrl}" target="_blank" class="hearing-link doc">↓ ${sd.doc_type || 'Document'}</a>`);
+      }
+    });
     const docsCell = docLinks.length ? docLinks.join(' ') : `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
     return `<tr class="hearings-table-row">
       <td class="hearings-td hearings-td-date">${fmtHearingDate(h.date)}</td>
@@ -3917,6 +4007,23 @@ function phRenderHearings() {
       if (h.agenda_url) docLinks.push(`<a href="${h.agenda_url}" target="_blank" class="hearing-link ag">↓ Agenda</a>`);
       if (h.youtube_url) docLinks.push(`<a href="${h.youtube_url}" target="_blank" class="hearing-link yt">▶ YouTube</a>`);
       if (h.summary_doc) docLinks.push(`<a href="${h.summary_doc}" target="_blank" class="hearing-link doc">✦ Summary</a>`);
+      // Merge scraped docs for this hearing
+      const scrapedByDate = getScrapedDocsForMuni(h.muniId);
+      const scraped = scrapedByDate[h.date] || [];
+      scraped.forEach(sd => {
+        const sdUrl = sd.url || sd.doc_url || '';
+        if (!sdUrl) return;
+        const already = [h.agenda_url, h.youtube_url, h.summary_doc].filter(Boolean);
+        if (already.includes(sdUrl)) return;
+        const docType = (sd.doc_type || sd.type || '').toLowerCase();
+        if (docType.includes('agenda')) {
+          docLinks.push(`<a href="${sdUrl}" target="_blank" class="hearing-link ag">↓ Agenda</a>`);
+        } else if (docType.includes('minute')) {
+          docLinks.push(`<a href="${sdUrl}" target="_blank" class="hearing-link min">↓ Minutes</a>`);
+        } else {
+          docLinks.push(`<a href="${sdUrl}" target="_blank" class="hearing-link doc">↓ ${sd.doc_type || 'Document'}</a>`);
+        }
+      });
       const docsCell = docLinks.length ? docLinks.join(' ') : `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
       const juriLabel = h.muniName.replace('City of ','').replace('Town of ','');
       const reviewBtn = isReviewed
