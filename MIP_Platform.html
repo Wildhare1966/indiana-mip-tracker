@@ -1820,7 +1820,7 @@ async function callGemini(prompt, maxTokens) {
     return null;
   }
   maxTokens = maxTokens || 2048;
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-04-17:generateContent?key=${key}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`;
   const resp = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1917,7 +1917,7 @@ async function updateMemberVoteHistory(memberId, memberName, muniName, muniId, b
     ytHearings.forEach(h => parts.push({ fileData: { fileUri: h.youtube_url } }));
     parts.push({ text: `You are analyzing meeting recordings for ${muniName}, Indiana. Dates covered: ${ytHearings.map(h=>h.date).join(', ')}.\n\nFind every mention of "${memberName}". For each, extract:\nDATE: [meeting date]\nTOPIC: [project or agenda item]\nACTION: [vote yes/no/abstain or comment made]\nDETAIL: [brief description]\n\nIf not mentioned, say "No relevant votes or mentions found for ${memberName}."` });
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-04-17:generateContent?key=${key}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`;
     const resp = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2008,7 +2008,7 @@ NOTES: [Any other relevant background, controversies, notable positions, or cont
 
     parts.push({ text: prompt });
 
-    const model = ytHearings.length > 0 ? 'gemini-2.5-flash-preview-04-17' : 'gemini-2.5-flash-preview-04-17';
+    const model = ytHearings.length > 0 ? 'gemini-2.5-flash' : 'gemini-2.5-flash';
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
     const resp = await fetch(url, {
       method: 'POST',
@@ -2438,6 +2438,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   checkGeminiKeyBanner();
   checkMuniDataBanner();
   fetchAndMergeMemberProfiles();
+  fetchLiveJurisdictionRefs();
   // Hide Refresh Hearings button when not running on a local server
   const isLocal = ['localhost','127.0.0.1'].includes(window.location.hostname);
   const refreshBtn = document.getElementById('refresh-btn');
@@ -4009,6 +4010,36 @@ window.phFilterHearings = phFilterHearings;
 // SCHEDULE & REQUIREMENTS MODULE
 // ═══════════════════════════════════════════════════════
 
+// ── Live Jurisdiction References (fetched from Google Sheet, merged over hardcoded) ──
+async function fetchLiveJurisdictionRefs() {
+  const url = localStorage.getItem(WEBAPP_URL_KEY);
+  if (!url) return;
+  try {
+    const resp = await fetch(url + '?action=jurisdiction_references');
+    if (!resp.ok) return;
+    const data = await resp.json();
+    if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+      Object.keys(data).forEach(id => {
+        JURISDICTION_REFS[id] = data[id];
+      });
+      console.log('[MIP] Merged ' + Object.keys(data).length + ' live jurisdiction refs');
+    }
+  } catch (e) { console.warn('[MIP] Failed to fetch live jurisdiction refs:', e.message); }
+}
+
+// ── Live URL Content Fetching (via Apps Script UrlFetchApp proxy) ──
+async function fetchLiveUrlContent(targetUrl) {
+  const webappUrl = localStorage.getItem(WEBAPP_URL_KEY);
+  if (!webappUrl || !targetUrl) return null;
+  try {
+    const resp = await fetch(webappUrl + '?action=fetch_url&url=' + encodeURIComponent(targetUrl));
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    if (data.error) { console.warn('[MIP] URL fetch error:', data.error); return null; }
+    return data.content || null;
+  } catch (e) { console.warn('[MIP] URL fetch failed:', e.message); return null; }
+}
+
 const JURISDICTION_REFS = {
   'avon': {
     name:'Town of Avon, Indiana', county:'Hendricks',
@@ -4434,7 +4465,7 @@ Sort the schedule array in chronological order (earliest date first). Be specifi
 }
 
 // ── User Prompt ──
-function buildScheduleUserPrompt(jurisdictionName, county, processDesc, targetDate, refs) {
+function buildScheduleUserPrompt(jurisdictionName, county, processDesc, targetDate, refs, fetchedContent) {
   let prompt = `JURISDICTION: ${jurisdictionName} (${county} County, Indiana)\n`;
   prompt += `PROCESS REQUESTED: ${processDesc}\n`;
   prompt += `TARGET FINAL APPROVAL DATE: ${targetDate}\n\n`;
@@ -4451,6 +4482,11 @@ function buildScheduleUserPrompt(jurisdictionName, county, processDesc, targetDa
     prompt += '\n';
   } else {
     prompt += `No jurisdiction-specific reference documents are available. Use general Indiana statutory requirements (IC 36-7-4) and typical Central Indiana municipal procedures.\n\n`;
+  }
+
+  if (fetchedContent) {
+    prompt += `LIVE ORDINANCE CONTENT (fetched from jurisdiction website — use this for specific procedures, deadlines, fees, and filing requirements):\n`;
+    prompt += `${fetchedContent}\n\n`;
   }
 
   prompt += `Generate the complete backward-scheduled timeline and requirements checklist. Return only the JSON object as specified.`;
@@ -4495,11 +4531,22 @@ async function runScheduleGeneration() {
   const btn = document.getElementById('sched-run-btn');
   btn.disabled = true;
   btn.textContent = 'Generating...';
+  showSchedLoading('Fetching live ordinance data...');
+
+  // Fetch live URL content from the jurisdiction's UDO page via Apps Script proxy
+  let fetchedContent = null;
+  if (ref && ref.udoUrl) {
+    try {
+      fetchedContent = await fetchLiveUrlContent(ref.udoUrl);
+      if (fetchedContent) console.log('[MIP] Fetched ' + fetchedContent.length + ' chars from UDO URL');
+    } catch (e) { console.warn('[MIP] Live URL fetch skipped:', e.message); }
+  }
+
   showSchedLoading('Building schedule with Gemini 2.5 Pro... this typically takes 30–60 seconds');
 
   try {
     const systemPrompt = buildScheduleSystemPrompt();
-    const userPrompt = buildScheduleUserPrompt(jurisdictionName, county, processDesc, targetDate, ref);
+    const userPrompt = buildScheduleUserPrompt(jurisdictionName, county, processDesc, targetDate, ref, fetchedContent);
     const rawText = await callGeminiSchedule(systemPrompt, userPrompt);
     if (!rawText) { hideSchedLoading(); btn.disabled = false; btn.textContent = 'Run Schedule & Requirements'; return; }
 
