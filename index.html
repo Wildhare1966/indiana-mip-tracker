@@ -3103,21 +3103,21 @@ function exportBriefing() {
 // PUBLIC HEARINGS RENDERER
 // ═══════════════════════════════════════════════════════
 function getScrapedDocsForMuni(muniId) {
-  // Match scraped docs to this jurisdiction by muniId or muni name
+  // Match scraped docs to this jurisdiction by code, name, or short name
   if (!SCRAPED_DOCS.length) return {};
   const muni = MUNICIPALITIES.find(m => m.id === muniId);
   const muniName = muni ? muni.name : '';
   const shortName = muniName.replace('City of ','').replace('Town of ','');
-  const matched = SCRAPED_DOCS.filter(d =>
-    d.jurisdiction_id === muniId ||
-    d.jurisdiction === muniName ||
-    d.jurisdiction === shortName ||
-    (d.muni_id && d.muni_id === muniId)
-  );
-  // Index by date for quick lookup
+  const muniIdLower = muniId.toLowerCase();
+  const matched = SCRAPED_DOCS.filter(d => {
+    const dj = (d.jurisdiction || '').toLowerCase();
+    const dc = (d.code || '').toLowerCase();
+    return dc === muniIdLower || dj === muniIdLower || dj === muniName.toLowerCase() || dj === shortName.toLowerCase();
+  });
+  // Index by meeting_date for quick lookup
   const byDate = {};
   matched.forEach(d => {
-    const date = d.date || d.meeting_date || '';
+    const date = d.meeting_date || '';
     if (!byDate[date]) byDate[date] = [];
     byDate[date].push(d);
   });
@@ -3146,17 +3146,17 @@ function renderHearingsContent(muniId) {
     // Merge scraped docs for this date that aren't already linked
     const scraped = scrapedByDate[h.date] || [];
     scraped.forEach(sd => {
-      const sdUrl = sd.url || sd.doc_url || '';
+      const sdUrl = sd.view_url || sd.pdf_url || '';
       if (!sdUrl) return;
       const already = [h.agenda_url, h.youtube_url, h.summary_doc].filter(Boolean);
       if (already.includes(sdUrl)) return;
-      const docType = (sd.doc_type || sd.type || '').toLowerCase();
+      const docType = (sd.document_type || '').toLowerCase();
       if (docType.includes('agenda')) {
         docLinks.push(`<a href="${sdUrl}" target="_blank" class="hearing-link ag">↓ Agenda</a>`);
       } else if (docType.includes('minute')) {
         docLinks.push(`<a href="${sdUrl}" target="_blank" class="hearing-link min">↓ Minutes</a>`);
       } else {
-        docLinks.push(`<a href="${sdUrl}" target="_blank" class="hearing-link doc">↓ ${sd.doc_type || 'Document'}</a>`);
+        docLinks.push(`<a href="${sdUrl}" target="_blank" class="hearing-link doc">↓ ${sd.document_type || 'Document'}</a>`);
       }
     });
     const docsCell = docLinks.length ? docLinks.join(' ') : `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
@@ -4011,17 +4011,17 @@ function phRenderHearings() {
       const scrapedByDate = getScrapedDocsForMuni(h.muniId);
       const scraped = scrapedByDate[h.date] || [];
       scraped.forEach(sd => {
-        const sdUrl = sd.url || sd.doc_url || '';
+        const sdUrl = sd.view_url || sd.pdf_url || '';
         if (!sdUrl) return;
         const already = [h.agenda_url, h.youtube_url, h.summary_doc].filter(Boolean);
         if (already.includes(sdUrl)) return;
-        const docType = (sd.doc_type || sd.type || '').toLowerCase();
+        const docType = (sd.document_type || '').toLowerCase();
         if (docType.includes('agenda')) {
           docLinks.push(`<a href="${sdUrl}" target="_blank" class="hearing-link ag">↓ Agenda</a>`);
         } else if (docType.includes('minute')) {
           docLinks.push(`<a href="${sdUrl}" target="_blank" class="hearing-link min">↓ Minutes</a>`);
         } else {
-          docLinks.push(`<a href="${sdUrl}" target="_blank" class="hearing-link doc">↓ ${sd.doc_type || 'Document'}</a>`);
+          docLinks.push(`<a href="${sdUrl}" target="_blank" class="hearing-link doc">↓ ${sd.document_type || 'Document'}</a>`);
         }
       });
       const docsCell = docLinks.length ? docLinks.join(' ') : `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
