@@ -3225,10 +3225,11 @@ async function ytResubmit(youtubeUrl, jurisdiction, meetingDate, btnId, summaryE
     const resp = await fetch(url);
     const data = await resp.json();
     if (data.success && data.summary_doc) {
-      // Clear cache so next toggle reloads
-      delete window._ytSummaryCache[data.summary_doc];
+      // Update the summary span with a new link to the generated doc
       const el = document.getElementById(summaryElId);
-      if (el) { el.style.display = 'block'; el.textContent = 'Re-summary complete. Loading…'; ytLoadSummary(data.summary_doc, summaryElId); }
+      if (el) {
+        el.innerHTML = `<a href="${data.summary_doc}" target="_blank" class="hearing-link doc">✦ Summary</a>`;
+      }
       if (btn) { btn.textContent = '✓ Done'; btn.style.borderColor = 'rgba(26,122,74,0.45)'; btn.style.color = '#6dc49a'; }
     } else {
       if (btn) { btn.textContent = '✗ Failed'; btn.style.color = '#e08888'; }
@@ -3315,12 +3316,12 @@ function renderHearingsContent(muniId) {
       const btnId = 'ytrs_' + muniId + '_' + rowIdx;
       let ytHtml = `<div class="yt-hearing-item">`;
       ytHtml += `<a href="${hearing.youtube_url}" target="_blank" class="hearing-link yt">▶ YouTube</a>`;
+      ytHtml += `<span id="${summaryId}">`;
       if (hearing.summary_doc) {
         ytHtml += `<a href="${hearing.summary_doc}" target="_blank" class="hearing-link doc">✦ Summary</a>`;
-        ytHtml += `<button class="yt-resubmit-btn" id="${btnId}" onclick="ytResubmit('${hearing.youtube_url}','${muniId}','${date}','${btnId}','${summaryId}')">↻ Resubmit</button>`;
-      } else {
-        ytHtml += `<button class="yt-resubmit-btn" id="${btnId}" onclick="ytResubmit('${hearing.youtube_url}','${muniId}','${date}','${btnId}','${summaryId}')">↻ Generate Summary</button>`;
       }
+      ytHtml += `</span>`;
+      ytHtml += `<button class="yt-resubmit-btn" id="${btnId}" onclick="ytResubmit('${hearing.youtube_url}','${muniId}','${date}','${btnId}','${summaryId}')">↻ ${hearing.summary_doc ? 'Resubmit' : 'Generate Summary'}</button>`;
       ytHtml += `</div>`;
       ytCell = ytHtml;
     }
@@ -4161,6 +4162,9 @@ function phGetAllHearings() {
     muniIdToName[id] = id.replace('-county','').charAt(0).toUpperCase() + id.replace('-county','').slice(1) + ' County';
   });
 
+  // Track which muniId+date combos have hearing records
+  const hearingKeys = new Set();
+
   Object.keys(PUBLIC_HEARINGS).forEach(muniId => {
     const hearings = PUBLIC_HEARINGS[muniId];
     if (!hearings) return;
@@ -4168,8 +4172,29 @@ function phGetAllHearings() {
     const muniName = muni ? muni.name : muniIdToName[muniId] || muniId;
     hearings.forEach(h => {
       all.push({ ...h, muniId, muniName });
+      hearingKeys.add(muniId + '|' + h.date);
     });
   });
+
+  // Add agenda-only rows: scraped agendas whose date+jurisdiction don't match any hearing
+  if (SCRAPED_DOCS.length) {
+    const agendaDocs = SCRAPED_DOCS.filter(d => (d.document_type||'').toLowerCase().includes('agenda'));
+    // Group by muniId + date to avoid duplicate rows
+    const agendaOnly = {};
+    agendaDocs.forEach(d => {
+      const muni = MUNICIPALITIES.find(m => {
+        const dj = (d.jurisdiction||'').toLowerCase();
+        const dc = (d.code||'').toLowerCase();
+        return dc === m.id || dj === m.id || dj === m.name.toLowerCase() || dj === m.name.replace('City of ','').replace('Town of ','').toLowerCase();
+      });
+      if (!muni) return;
+      const key = muni.id + '|' + (d.meeting_date||'');
+      if (hearingKeys.has(key) || agendaOnly[key]) return;
+      agendaOnly[key] = { date: d.meeting_date||'', meeting_type: d.meeting_type||'Meeting', muniId: muni.id, muniName: muni.name };
+    });
+    Object.values(agendaOnly).forEach(row => all.push(row));
+  }
+
   // Sort newest first
   all.sort((a,b) => (b.date||'').localeCompare(a.date||''));
   return all;
@@ -4207,12 +4232,12 @@ function phRenderHearings() {
         const btnId = 'phytrs_' + rIdx;
         let ytHtml = `<div class="yt-hearing-item">`;
         ytHtml += `<a href="${h.youtube_url}" target="_blank" class="hearing-link yt">▶ YouTube</a>`;
+        ytHtml += `<span id="${summaryId}">`;
         if (h.summary_doc) {
           ytHtml += `<a href="${h.summary_doc}" target="_blank" class="hearing-link doc">✦ Summary</a>`;
-          ytHtml += `<button class="yt-resubmit-btn" id="${btnId}" onclick="ytResubmit('${h.youtube_url}','${h.muniId}','${h.date}','${btnId}','${summaryId}')">↻ Resubmit</button>`;
-        } else {
-          ytHtml += `<button class="yt-resubmit-btn" id="${btnId}" onclick="ytResubmit('${h.youtube_url}','${h.muniId}','${h.date}','${btnId}','${summaryId}')">↻ Generate Summary</button>`;
         }
+        ytHtml += `</span>`;
+        ytHtml += `<button class="yt-resubmit-btn" id="${btnId}" onclick="ytResubmit('${h.youtube_url}','${h.muniId}','${h.date}','${btnId}','${summaryId}')">↻ ${h.summary_doc ? 'Resubmit' : 'Generate Summary'}</button>`;
         ytHtml += `</div>`;
         ytCell = ytHtml;
       }
