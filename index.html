@@ -1816,7 +1816,8 @@ const MUNI_CACHE_TS_KEY = 'mip_muni_data_ts';
 const MUNI_CACHE_TTL_HOURS = 4;
 
 // ── GEMINI CLIENT (build 2026-04-12T09:19:32Z) ─────────────────────────────────────────────────────────────
-function getGeminiKey() { return localStorage.getItem('mip_gemini_key') || ''; }
+const DEFAULT_GEMINI_KEY = 'AIzaSyAU4Oo0EF48udZBacevxrF_6gDOscx1b5o';
+function getGeminiKey() { return localStorage.getItem('mip_gemini_key') || DEFAULT_GEMINI_KEY; }
 function saveGeminiKey(val) {
   localStorage.setItem('mip_gemini_key', val.trim());
   const el = document.getElementById('gemini-key-status');
@@ -2524,13 +2525,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Kill Chrome autofill on sidebar search by cloning the input
   const oldSearch = document.getElementById('sidebar-search');
   if (oldSearch) { const n = oldSearch.cloneNode(true); oldSearch.parentNode.replaceChild(n, oldSearch); }
-  await Promise.all([loadMuniData(), fetchLiveIntelFeed(), fetchScrapedDocuments()]);
+
+  // Progressive rendering: start all fetches in parallel, render UI after core data
+  const intelPromise = fetchLiveIntelFeed();
+  const scrapedPromise = fetchScrapedDocuments();
+  await loadMuniData(); // core: municipalities + hearings + county_groups (~3s)
   buildSidebar();
   buildCountyGrid();
-  buildIntelFeed();
   updateTotalMembers();
   checkGeminiKeyBanner();
   checkMuniDataBanner();
+
+  // Non-critical: intel + scraped docs render when ready (don't block UI)
+  Promise.all([intelPromise, scrapedPromise]).then(() => { buildIntelFeed(); });
   fetchAndMergeMemberProfiles();
   fetchLiveJurisdictionRefs();
   // Hide Refresh Hearings button when not running on a local server
