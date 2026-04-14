@@ -3316,12 +3316,10 @@ function renderHearingsContent(muniId) {
       let ytHtml = `<div class="yt-hearing-item">`;
       ytHtml += `<a href="${hearing.youtube_url}" target="_blank" class="hearing-link yt">▶ YouTube</a>`;
       if (hearing.summary_doc) {
-        ytHtml += `<button class="yt-summary-toggle" onclick="ytToggleSummary('${hearing.summary_doc}','${summaryId}')">✦ Summary</button>`;
+        ytHtml += `<a href="${hearing.summary_doc}" target="_blank" class="hearing-link doc">✦ Summary</a>`;
         ytHtml += `<button class="yt-resubmit-btn" id="${btnId}" onclick="ytResubmit('${hearing.youtube_url}','${muniId}','${date}','${btnId}','${summaryId}')">↻ Resubmit</button>`;
-        ytHtml += `<div class="yt-summary-box" id="${summaryId}" style="display:none;"></div>`;
       } else {
         ytHtml += `<button class="yt-resubmit-btn" id="${btnId}" onclick="ytResubmit('${hearing.youtube_url}','${muniId}','${date}','${btnId}','${summaryId}')">↻ Generate Summary</button>`;
-        ytHtml += `<div class="yt-summary-box" id="${summaryId}" style="display:none;"></div>`;
       }
       ytHtml += `</div>`;
       ytCell = ytHtml;
@@ -4210,12 +4208,10 @@ function phRenderHearings() {
         let ytHtml = `<div class="yt-hearing-item">`;
         ytHtml += `<a href="${h.youtube_url}" target="_blank" class="hearing-link yt">▶ YouTube</a>`;
         if (h.summary_doc) {
-          ytHtml += `<button class="yt-summary-toggle" onclick="ytToggleSummary('${h.summary_doc}','${summaryId}')">✦ Summary</button>`;
+          ytHtml += `<a href="${h.summary_doc}" target="_blank" class="hearing-link doc">✦ Summary</a>`;
           ytHtml += `<button class="yt-resubmit-btn" id="${btnId}" onclick="ytResubmit('${h.youtube_url}','${h.muniId}','${h.date}','${btnId}','${summaryId}')">↻ Resubmit</button>`;
-          ytHtml += `<div class="yt-summary-box" id="${summaryId}" style="display:none;"></div>`;
         } else {
           ytHtml += `<button class="yt-resubmit-btn" id="${btnId}" onclick="ytResubmit('${h.youtube_url}','${h.muniId}','${h.date}','${btnId}','${summaryId}')">↻ Generate Summary</button>`;
-          ytHtml += `<div class="yt-summary-box" id="${summaryId}" style="display:none;"></div>`;
         }
         ytHtml += `</div>`;
         ytCell = ytHtml;
