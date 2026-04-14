@@ -1625,7 +1625,7 @@
   <div class="topbar-nav">
     <button class="topbar-btn active" onclick="switchView('overview')" id="nav-overview">Overview</button>
     <button class="topbar-btn" onclick="switchView('muni')" id="nav-muni">Members</button>
-    <button class="topbar-btn" onclick="switchView('intel')" id="nav-intel">Intelligence Feed</button>
+    <!-- Intelligence Feed nav temporarily removed (P13) — view element and data pipeline retained in code for future re-enable. -->
     <button class="topbar-btn" onclick="switchView('publichearings')" id="nav-publichearings">Public Hearings</button>
     <button class="topbar-btn" onclick="switchView('schedule')" id="nav-schedule">Schedule & Requirements</button>
     <button class="topbar-btn" onclick="switchView('settings')" id="nav-settings">⚙ Settings</button>
@@ -1894,16 +1894,18 @@
               <button class="settings-save-btn" onclick="saveApiKey()">Save Key</button>
               <div id="api-key-status" style="font-size:11px;color:var(--text-dim);margin-top:6px;"></div>
               <div class="settings-section" style="margin-top:16px;">
-                <div class="settings-section-title">Gemini API Key</div>
+                <div class="settings-section-title">Gemini API Key (optional override)</div>
                 <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
-                  <input id="gemini-key-input" type="password" placeholder="AIza..."
+                  <input id="gemini-key-input" type="password" placeholder="AIza... (leave blank to use project default)"
                     style="flex:1;background:var(--panel);border:1px solid var(--border);color:var(--text);
                     font-family:'IBM Plex Mono',monospace;font-size:11px;padding:6px 10px;border-radius:4px;outline:none;"
                     oninput="saveGeminiKey(this.value)">
-                  <span id="gemini-key-status" style="font-size:10px;color:var(--text-dim);">Not set</span>
+                  <span id="gemini-key-status" style="font-size:10px;color:var(--text-dim);">Using project default</span>
                 </div>
                 <div style="font-size:10px;color:var(--text-dim);margin-top:4px;">
-                  Stored in browser localStorage. Used for jurisdiction/member chat and vote history analysis.
+                  All Gemini calls now go through the MRD backend proxy using a project key stored server-side.
+                  Paste a personal key here ONLY if you want to meter your own Google Cloud quota — it will be forwarded
+                  to the proxy on your requests. Stored in browser localStorage; never sent anywhere else.
                   Get a key at <a href="https://aistudio.google.com" target="_blank" style="color:var(--accent);">aistudio.google.com</a>
                 </div>
               </div>
@@ -2060,57 +2062,77 @@ const MUNI_CACHE_KEY = 'mip_muni_data';
 const MUNI_CACHE_TS_KEY = 'mip_muni_data_ts';
 const MUNI_CACHE_TTL_HOURS = 4;
 
-// ── GEMINI CLIENT (build 2026-04-12T09:19:32Z) ─────────────────────────────────────────────────────────────
-const DEFAULT_GEMINI_KEY = 'AIzaSyDORpmlS4IdZzKPTciRJUUS0ti4p93dhac';
-function getGeminiKey() { return localStorage.getItem('mip_gemini_key') || DEFAULT_GEMINI_KEY; }
+// ── GEMINI CLIENT (P13: all calls proxied through Apps Script backend) ────────────────────────────
+// Project key lives ONLY in Apps Script Script Properties. The Settings "Gemini API Key" field
+// is now OPTIONAL — if set, it's forwarded to the proxy as a per-request override.
+function getUserGeminiKey() { return (localStorage.getItem('mip_gemini_key') || '').trim(); }
+function getGeminiKey() { return getUserGeminiKey(); } // legacy shim — returns '' when user has no override
 function saveGeminiKey(val) {
-  localStorage.setItem('mip_gemini_key', val.trim());
+  localStorage.setItem('mip_gemini_key', (val || '').trim());
   const el = document.getElementById('gemini-key-status');
-  if (el) { el.textContent = val.trim() ? '✓ Saved' : 'Not set'; el.style.color = ''; }
-  // Hide the missing-key banner
+  if (el) { el.textContent = val && val.trim() ? '✓ Override saved' : 'Using project default'; el.style.color = ''; }
   const banner = document.getElementById('gemini-key-banner');
-  if (banner) banner.style.display = val.trim() ? 'none' : '';
+  if (banner) banner.style.display = 'none';
 }
 
 function checkGeminiKeyBanner() {
+  // P13: project key is always available server-side, so the "missing key" banner is suppressed by default.
   const banner = document.getElementById('gemini-key-banner');
-  if (!banner) return;
-  banner.style.display = getGeminiKey() ? 'none' : 'flex';
+  if (banner) banner.style.display = 'none';
 }
 
 function promptGeminiKey(msg) {
-  // Show a non-blocking inline key entry instead of a blocking alert
+  // Optional user override flow — only reached if the proxy itself reports a server-side key problem.
   switchView('settings');
   setTimeout(() => {
     const b = document.getElementById('api-keys-body');
     if (b && b.style.display === 'none') toggleSettingsSection('api-keys-body');
     const inp = document.getElementById('gemini-key-input');
     if (inp) { inp.focus(); inp.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
-    // Show a brief notice in the status span
     const st = document.getElementById('gemini-key-status');
-    if (st) { st.textContent = '⚠ Key required — paste here'; st.style.color = '#e8a020'; }
+    if (st) { st.textContent = msg || 'Optional: paste a personal Gemini key to meter your own quota'; st.style.color = '#e8a020'; }
   }, 150);
 }
 
-async function callGemini(prompt, maxTokens) {
-  const key = getGeminiKey();
-  if (!key) {
-    promptGeminiKey();
-    return null;
-  }
-  maxTokens = maxTokens || 2048;
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`;
+/**
+ * Unified Gemini proxy caller. All direct generativelanguage.googleapis.com fetches were
+ * removed in P13 — everything now goes through Apps Script `?action=gemini_proxy`.
+ *
+ * opts: { prompt?, parts?, systemInstruction?, model?, temperature?, maxTokens? }
+ * Returns: the generated text string (first candidate). Throws on error.
+ */
+async function callGeminiProxy(opts) {
+  const webappUrl = getWebAppUrl();
+  if (!webappUrl) throw new Error('Web App URL not configured.');
+  const body = {
+    prompt: opts.prompt,
+    parts: opts.parts,
+    systemInstruction: opts.systemInstruction,
+    model: opts.model || 'gemini-2.5-flash',
+    temperature: typeof opts.temperature === 'number' ? opts.temperature : 0.3,
+    maxTokens: opts.maxTokens || 2048
+  };
+  const userKey = getUserGeminiKey();
+  if (userKey) body.userKey = userKey;
+  const url = webappUrl + (webappUrl.indexOf('?') === -1 ? '?' : '&') + 'action=gemini_proxy';
+  // Use text/plain Content-Type so the request is a CORS "simple request" (no preflight) — Apps Script
+  // cannot respond to OPTIONS, so preflight would fail. JSON is still parsed server-side from postData.
   const resp = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.3, maxOutputTokens: maxTokens }
-    })
+    headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+    body: JSON.stringify(body)
   });
   const data = await resp.json();
-  if (data.error) throw new Error(data.error.message);
+  if (data.error) {
+    if (/server key missing/i.test(data.error)) promptGeminiKey('Server Gemini key not configured — paste a personal key to proceed.');
+    throw new Error(data.error);
+  }
+  if (!data.candidates || !data.candidates[0]) throw new Error('Empty Gemini response.');
   return data.candidates[0].content.parts[0].text;
+}
+
+async function callGemini(prompt, maxTokens) {
+  return callGeminiProxy({ prompt: prompt, maxTokens: maxTokens || 2048, model: 'gemini-2.5-flash' });
 }
 
 async function fetchDocText(docUrl) {
@@ -2128,9 +2150,9 @@ async function fetchDocText(docUrl) {
 function initGeminiKeyUI() {
   const input = document.getElementById('gemini-key-input');
   const status = document.getElementById('gemini-key-status');
-  const k = getGeminiKey();
+  const k = getUserGeminiKey();
   if (input && k) input.value = k;
-  if (status) status.textContent = k ? '✓ Saved' : 'Not set';
+  if (status) status.textContent = k ? '✓ Override saved' : 'Using project default';
 }
 
 function toggleSettingsSection(id) {
@@ -2191,13 +2213,6 @@ async function updateMemberVoteHistory(memberId, memberName, muniName, muniId, b
     return;
   }
 
-  const key = getGeminiKey();
-  if (!key) {
-    promptGeminiKey(); return;
-    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Update Vote History'; }
-    return;
-  }
-
   if (containerEl) containerEl.innerHTML = '<div class="vote-history-empty" style="color:var(--accent);">Analyzing meeting videos… (30–90 sec)</div>';
 
   try {
@@ -2205,18 +2220,7 @@ async function updateMemberVoteHistory(memberId, memberName, muniName, muniId, b
     ytHearings.forEach(h => parts.push({ fileData: { fileUri: h.youtube_url } }));
     parts.push({ text: `You are analyzing meeting recordings for ${muniName}, Indiana. Dates covered: ${ytHearings.map(h=>h.date).join(', ')}.\n\nFind every mention of "${memberName}". For each, extract:\nDATE: [meeting date]\nTOPIC: [project or agenda item]\nACTION: [vote yes/no/abstain or comment made]\nDETAIL: [brief description]\n\nIf not mentioned, say "No relevant votes or mentions found for ${memberName}."` });
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`;
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts }],
-        generationConfig: { temperature: 0.3, maxOutputTokens: 1024 }
-      })
-    });
-    const data = await resp.json();
-    if (data.error) throw new Error(data.error.message);
-    const result = data.candidates[0].content.parts[0].text;
+    const result = await callGeminiProxy({ parts, model: 'gemini-2.5-flash', temperature: 0.3, maxTokens: 1024 });
 
     memberVoteCache[memberId] = { text: result, sources: ytHearings, timestamp: new Date().toLocaleDateString() };
     if (containerEl) {
@@ -2248,13 +2252,6 @@ async function updateAllMemberVotes(muniId, muniName, btnEl) {
 
 async function researchMemberProfile(memId, memberName, muniId, muniName, containerEl, btnEl) {
   if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Researching…'; }
-
-  const key = getGeminiKey();
-  if (!key) {
-    promptGeminiKey(); return;
-    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Update Profile'; }
-    return;
-  }
 
   const sources = loadSettings().sources;
   const sourceList = sources.map(s => `- ${s.name}${s.url ? ' ('+s.url+')' : ''}`).join('\n');
@@ -2296,19 +2293,7 @@ NOTES: [Any other relevant background, controversies, notable positions, or cont
 
     parts.push({ text: prompt });
 
-    const model = ytHearings.length > 0 ? 'gemini-2.5-flash' : 'gemini-2.5-flash';
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts }],
-        generationConfig: { temperature: 0.3, maxOutputTokens: 1500 }
-      })
-    });
-    const data = await resp.json();
-    if (data.error) throw new Error(data.error.message);
-    const result = data.candidates[0].content.parts[0].text;
+    const result = await callGeminiProxy({ parts, model: 'gemini-2.5-flash', temperature: 0.3, maxTokens: 1500 });
 
     // Store in localStorage
     localStorage.setItem(`profile_${muniId}_${memId}`, JSON.stringify({
@@ -3356,13 +3341,7 @@ function exportBriefing() {
       content += `<tr><td>${m.warn?'<span class="warn">⚠ </span>':''}${m.name}</td><td>${m.role}</td><td>${m.term||'—'}</td><td>${m.notes||''}</td></tr>`;
     });
     content += `</table>`;
-    const muniIntel = INTEL_ITEMS.filter(i => i.muni === muni.name.replace('City of ','').replace('Town of ',''));
-    if (muniIntel.length) {
-      content += `<h2>Intelligence Feed (${muniIntel.length} items)</h2>`;
-      content += `<table><tr><th>Date</th><th>Type</th><th>Item</th></tr>`;
-      muniIntel.forEach(i => { content += `<tr><td>${i.date}</td><td>${i.type.toUpperCase()}</td><td>${i.headline}</td></tr>`; });
-      content += `</table>`;
-    }
+    // P13: intelligence feed export temporarily disabled.
   } else {
     content = `<h1>MIP Intelligence Briefing — Central Indiana</h1>`;
     content += `<p>31 Municipalities · 9 Counties</p>`;
@@ -3878,8 +3857,11 @@ async function refreshHearings() {
 
 // ═══════════════════════════════════════════════════════
 // MUNI INTEL FEED (on jurisdiction page)
+// P13: temporarily disabled — returns empty string so the section doesn't render
+// on jurisdiction panels. Full implementation retained below for easy re-enable.
 // ═══════════════════════════════════════════════════════
-function renderMuniIntelFeed(m) {
+function renderMuniIntelFeed(m) { return ''; }
+function _renderMuniIntelFeed_disabled(m) {
   const shortName = m.name.replace('City of ','').replace('Town of ','');
   const items = INTEL_ITEMS.filter(i => i.muni === shortName || i.muni === m.name);
   if (!items.length) return '';
@@ -5262,6 +5244,35 @@ function updateStageSelection() {
       `<span class="stage-tag">${s} <span class="stage-tag-x" onclick="removeStage('${s.replace(/'/g,"\\'")}')">✕</span></span>`
     ).join('');
   }
+  // P5-H: persist to localStorage so stage selections survive page reload
+  try {
+    const preset = Array.from(document.querySelectorAll('#stage-dropdown-list input[type="checkbox"]'))
+      .filter(cb => cb.id !== 'stage-custom-check' && cb.checked).map(cb => cb.value);
+    const customCheck = document.getElementById('stage-custom-check');
+    const customText = (document.getElementById('stage-custom-text')?.value || '').trim();
+    localStorage.setItem('mrd_schedule_stages', JSON.stringify({
+      preset, customChecked: !!(customCheck && customCheck.checked), customText
+    }));
+  } catch (e) { /* localStorage full or blocked — silently skip */ }
+}
+
+function restoreStageSelection() {
+  try {
+    const raw = localStorage.getItem('mrd_schedule_stages');
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    const presetSet = new Set(saved.preset || []);
+    document.querySelectorAll('#stage-dropdown-list input[type="checkbox"]').forEach(cb => {
+      if (cb.id === 'stage-custom-check') {
+        cb.checked = !!saved.customChecked;
+      } else {
+        cb.checked = presetSet.has(cb.value);
+      }
+    });
+    const customInput = document.getElementById('stage-custom-text');
+    if (customInput && saved.customText) customInput.value = saved.customText;
+    updateStageSelection();
+  } catch (e) { /* corrupt JSON — ignore */ }
 }
 function removeStage(stageName) {
   const checks = document.querySelectorAll('#stage-dropdown-list input[type="checkbox"]');
@@ -5290,6 +5301,8 @@ function initScheduleView() {
   const dateStr = d.toISOString().split('T')[0];
   const dateInput = document.getElementById('sched-target-date');
   if (dateInput) dateInput.value = dateStr;
+  // P5-H: restore last-used stage selections
+  restoreStageSelection();
 }
 
 function buildSchedDropdown() {
@@ -5340,23 +5353,15 @@ function onSchedJurisdictionChange() {
   }
 }
 
-// ── Gemini API (Schedule-specific, uses gemini-2.5-pro with systemInstruction) ──
+// ── Gemini API (Schedule-specific, uses gemini-2.5-pro with systemInstruction, proxied via Apps Script) ──
 async function callGeminiSchedule(systemPrompt, userPrompt) {
-  const key = getGeminiKey();
-  if (!key) { promptGeminiKey(); return null; }
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${key}`;
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-      contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-      generationConfig: { temperature: 0.2, maxOutputTokens: 8192 }
-    })
+  return callGeminiProxy({
+    prompt: userPrompt,
+    systemInstruction: systemPrompt,
+    model: 'gemini-2.5-pro',
+    temperature: 0.2,
+    maxTokens: 8192
   });
-  const data = await resp.json();
-  if (data.error) throw new Error(data.error.message);
-  return data.candidates[0].content.parts[0].text;
 }
 
 // ── System Prompt ──
@@ -5470,8 +5475,7 @@ async function runScheduleGeneration() {
   if (!processDesc) { showSchedError('Please select at least one entitlement stage or enter additional details.'); return; }
   if (!targetDate) { showSchedError('Please set a target approval date.'); return; }
 
-  const key = getGeminiKey();
-  if (!key) { promptGeminiKey(); return; }
+  // P13: no client-side key check — proxy handles authentication.
 
   // Look up jurisdiction info
   const ref = JURISDICTION_REFS[jurisdictionId] || null;
