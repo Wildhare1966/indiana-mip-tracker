@@ -631,6 +631,42 @@
     font-weight: 500;
   }
   .hearings-table-row:hover .hearings-td { background: rgba(255,255,255,0.02); }
+  .hearings-td-yt, .hearings-td-ag { vertical-align: top; }
+  .yt-hearing-item, .ag-item { margin-bottom: 6px; }
+  .yt-hearing-item:last-child, .ag-item:last-child { margin-bottom: 0; }
+  .yt-summary-toggle {
+    font-family: 'IBM Plex Mono', monospace; font-size: 9px; padding: 1px 6px;
+    border-radius: 3px; cursor: pointer; border: 1px solid rgba(232,160,32,0.35);
+    background: rgba(232,160,32,0.12); color: var(--accent-light); margin-left: 4px;
+  }
+  .yt-summary-toggle:hover { opacity: 0.75; }
+  .yt-summary-box {
+    font-size: 10px; color: var(--text-dim); line-height: 1.5; padding: 6px 8px;
+    margin-top: 4px; background: rgba(0,0,0,0.2); border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.05); max-height: 200px; overflow-y: auto;
+  }
+  .yt-resubmit-btn {
+    font-family: 'IBM Plex Mono', monospace; font-size: 9px; padding: 1px 6px;
+    border-radius: 3px; cursor: pointer; border: 1px solid rgba(200,50,50,0.4);
+    background: rgba(200,50,50,0.15); color: #e08888; margin-left: 4px;
+  }
+  .yt-resubmit-btn:hover { opacity: 0.75; }
+  .yt-resubmit-btn:disabled { opacity: 0.4; cursor: wait; }
+  .ag-correct-btn {
+    font-family: 'IBM Plex Mono', monospace; font-size: 9px; padding: 1px 6px;
+    border-radius: 3px; cursor: pointer; margin-left: 3px;
+  }
+  .ag-correct-btn.yes {
+    border: 1px solid rgba(26,122,74,0.45); background: rgba(26,122,74,0.15); color: #6dc49a;
+  }
+  .ag-correct-btn.no {
+    border: 1px solid rgba(200,50,50,0.4); background: rgba(200,50,50,0.12); color: #e08888;
+  }
+  .ag-correct-btn:hover { opacity: 0.75; }
+  .ag-correct-btn:disabled { opacity: 0.4; cursor: default; }
+  .ag-approved { opacity: 0.6; }
+  .ag-approved::after { content: ' ✓'; color: #6dc49a; font-size: 9px; }
+  .ag-rejected { opacity: 0.3; text-decoration: line-through; transition: opacity 0.5s; }
 
   .members-grid {
     display: grid;
@@ -3143,6 +3179,113 @@ function getScrapedDocsForMuni(muniId) {
   return byDate;
 }
 
+// ═══════════════════════════════════════════════════════
+// YOUTUBE RESUBMIT — re-summarize a hearing video via Apps Script
+// ═══════════════════════════════════════════════════════
+window._ytSummaryCache = {}; // summaryDocUrl -> text (loaded on demand)
+
+async function ytLoadSummary(summaryDocUrl, elId) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (window._ytSummaryCache[summaryDocUrl]) {
+    el.textContent = window._ytSummaryCache[summaryDocUrl];
+    return;
+  }
+  el.textContent = 'Loading summary…';
+  try {
+    const resp = await fetch(getWebAppUrl() + '?action=fetch_url&url=' + encodeURIComponent(summaryDocUrl));
+    const data = await resp.json();
+    const text = (data.content || data.text || 'Summary could not be loaded.').substring(0, 4000);
+    window._ytSummaryCache[summaryDocUrl] = text;
+    el.textContent = text;
+  } catch(e) {
+    el.textContent = 'Error loading summary: ' + e.message;
+  }
+}
+
+function ytToggleSummary(summaryDocUrl, elId) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (el.style.display === 'none' || !el.style.display) {
+    el.style.display = 'block';
+    ytLoadSummary(summaryDocUrl, elId);
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+async function ytResubmit(youtubeUrl, jurisdiction, meetingDate, btnId, summaryElId) {
+  const btn = document.getElementById(btnId);
+  if (btn) { btn.disabled = true; btn.textContent = '↻ Processing…'; }
+  try {
+    const url = getWebAppUrl() + '?action=resummarize_hearing'
+      + '&youtube_url=' + encodeURIComponent(youtubeUrl)
+      + '&jurisdiction=' + encodeURIComponent(jurisdiction)
+      + '&meeting_date=' + encodeURIComponent(meetingDate);
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (data.success && data.summary_doc) {
+      // Clear cache so next toggle reloads
+      delete window._ytSummaryCache[data.summary_doc];
+      const el = document.getElementById(summaryElId);
+      if (el) { el.style.display = 'block'; el.textContent = 'Re-summary complete. Loading…'; ytLoadSummary(data.summary_doc, summaryElId); }
+      if (btn) { btn.textContent = '✓ Done'; btn.style.borderColor = 'rgba(26,122,74,0.45)'; btn.style.color = '#6dc49a'; }
+    } else {
+      if (btn) { btn.textContent = '✗ Failed'; btn.style.color = '#e08888'; }
+    }
+  } catch(e) {
+    if (btn) { btn.textContent = '✗ Error'; btn.style.color = '#e08888'; }
+  }
+  setTimeout(() => { if (btn) { btn.disabled = false; btn.textContent = '↻ Resubmit'; btn.style.borderColor = ''; btn.style.color = ''; } }, 5000);
+}
+
+// ═══════════════════════════════════════════════════════
+// AGENDA APPROVAL — approve or reject scraped agendas
+// ═══════════════════════════════════════════════════════
+window._agendaApprovalStatus = {}; // scrapedDocId -> 'approved'|'rejected'
+
+async function agApprove(docId, meetingType, jurisdiction, btnYesId, btnNoId, rowId) {
+  const btnY = document.getElementById(btnYesId);
+  const btnN = document.getElementById(btnNoId);
+  if (btnY) { btnY.disabled = true; btnY.textContent = '…'; }
+  if (btnN) btnN.disabled = true;
+  try {
+    const url = getWebAppUrl() + '?action=approve_agenda'
+      + '&id=' + encodeURIComponent(docId)
+      + '&meeting_type=' + encodeURIComponent(meetingType)
+      + '&jurisdiction=' + encodeURIComponent(jurisdiction);
+    await fetch(url);
+    window._agendaApprovalStatus[docId] = 'approved';
+    const row = document.getElementById(rowId);
+    if (row) row.classList.add('ag-approved');
+    if (btnY) { btnY.textContent = '✓ Yes'; btnY.disabled = true; }
+    if (btnN) btnN.style.display = 'none';
+  } catch(e) {
+    if (btnY) { btnY.textContent = 'Err'; btnY.disabled = false; }
+    if (btnN) btnN.disabled = false;
+  }
+}
+
+async function agReject(docId, meetingType, jurisdiction, btnYesId, btnNoId, rowId) {
+  const btnY = document.getElementById(btnYesId);
+  const btnN = document.getElementById(btnNoId);
+  if (btnN) { btnN.disabled = true; btnN.textContent = '…'; }
+  if (btnY) btnY.disabled = true;
+  try {
+    const url = getWebAppUrl() + '?action=reject_agenda'
+      + '&id=' + encodeURIComponent(docId)
+      + '&meeting_type=' + encodeURIComponent(meetingType)
+      + '&jurisdiction=' + encodeURIComponent(jurisdiction);
+    await fetch(url);
+    window._agendaApprovalStatus[docId] = 'rejected';
+    const row = document.getElementById(rowId);
+    if (row) { row.classList.add('ag-rejected'); setTimeout(() => { if (row) row.style.display = 'none'; }, 1500); }
+  } catch(e) {
+    if (btnN) { btnN.textContent = 'Err'; btnN.disabled = false; }
+    if (btnY) btnY.disabled = false;
+  }
+}
+
 function renderHearingsContent(muniId) {
   const hearings = PUBLIC_HEARINGS[muniId];
   const scrapedByDate = getScrapedDocsForMuni(muniId);
@@ -3153,44 +3296,75 @@ function renderHearingsContent(muniId) {
     </div>`;
   }
 
-  // Sort all hearings newest first
-  const sorted = (hearings || []).slice().sort((a,b) => (b.date||'').localeCompare(a.date||''));
+  // Collect all unique dates from hearings + scraped docs
+  const allDates = new Set();
+  (hearings || []).forEach(h => { if (h.date) allDates.add(h.date); });
+  Object.keys(scrapedByDate).forEach(d => allDates.add(d));
+  const sortedDates = [...allDates].sort((a,b) => b.localeCompare(a));
 
-  const rows = sorted.map(h => {
-    const docLinks = [];
-    if (h.agenda_url) docLinks.push(`<a href="${h.agenda_url}" target="_blank" class="hearing-link ag">↓ Agenda</a>`);
-    if (h.youtube_url) docLinks.push(`<a href="${h.youtube_url}" target="_blank" class="hearing-link yt">▶ YouTube</a>`);
-    if (h.summary_doc) docLinks.push(`<a href="${h.summary_doc}" target="_blank" class="hearing-link doc">✦ Summary</a>`);
-    // Merge scraped docs for this date that aren't already linked
-    const scraped = scrapedByDate[h.date] || [];
-    scraped.forEach(sd => {
-      const sdUrl = sd.view_url || sd.pdf_url || '';
-      if (!sdUrl) return;
-      const already = [h.agenda_url, h.youtube_url, h.summary_doc].filter(Boolean);
-      if (already.includes(sdUrl)) return;
-      const docType = (sd.document_type || '').toLowerCase();
-      if (docType.includes('agenda')) {
-        docLinks.push(`<a href="${sdUrl}" target="_blank" class="hearing-link ag">↓ Agenda</a>`);
-      } else if (docType.includes('minute')) {
-        docLinks.push(`<a href="${sdUrl}" target="_blank" class="hearing-link min">↓ Minutes</a>`);
+  let rowIdx = 0;
+  const rows = sortedDates.map(date => {
+    const hearing = (hearings || []).find(h => h.date === date);
+    const scraped = (scrapedByDate[date] || []).filter(sd => (sd.document_type||'').toLowerCase().includes('agenda'));
+
+    // YouTube Hearings column
+    let ytCell = `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
+    if (hearing && hearing.youtube_url) {
+      const uid = 'yt_' + muniId + '_' + rowIdx;
+      const summaryId = 'yts_' + muniId + '_' + rowIdx;
+      const btnId = 'ytrs_' + muniId + '_' + rowIdx;
+      let ytHtml = `<div class="yt-hearing-item">`;
+      ytHtml += `<a href="${hearing.youtube_url}" target="_blank" class="hearing-link yt">▶ YouTube</a>`;
+      if (hearing.summary_doc) {
+        ytHtml += `<button class="yt-summary-toggle" onclick="ytToggleSummary('${hearing.summary_doc}','${summaryId}')">✦ Summary</button>`;
+        ytHtml += `<button class="yt-resubmit-btn" id="${btnId}" onclick="ytResubmit('${hearing.youtube_url}','${muniId}','${date}','${btnId}','${summaryId}')">↻ Resubmit</button>`;
+        ytHtml += `<div class="yt-summary-box" id="${summaryId}" style="display:none;"></div>`;
       } else {
-        docLinks.push(`<a href="${sdUrl}" target="_blank" class="hearing-link doc">↓ ${sd.document_type || 'Document'}</a>`);
+        ytHtml += `<button class="yt-resubmit-btn" id="${btnId}" onclick="ytResubmit('${hearing.youtube_url}','${muniId}','${date}','${btnId}','${summaryId}')">↻ Generate Summary</button>`;
+        ytHtml += `<div class="yt-summary-box" id="${summaryId}" style="display:none;"></div>`;
       }
-    });
-    const docsCell = docLinks.length ? docLinks.join(' ') : `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
+      ytHtml += `</div>`;
+      ytCell = ytHtml;
+    }
+
+    // Agendas column
+    let agCell = `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
+    if (scraped.length > 0) {
+      agCell = scraped.map((sd, si) => {
+        const sdUrl = sd.view_url || sd.pdf_url || '';
+        const agId = 'ag_' + muniId + '_' + rowIdx + '_' + si;
+        const btnYId = 'agy_' + muniId + '_' + rowIdx + '_' + si;
+        const btnNId = 'agn_' + muniId + '_' + rowIdx + '_' + si;
+        const status = window._agendaApprovalStatus[sd.id] || '';
+        const cls = status === 'approved' ? ' ag-approved' : status === 'rejected' ? ' ag-rejected' : '';
+        let html = `<div class="ag-item${cls}" id="${agId}">`;
+        html += sdUrl ? `<a href="${sdUrl}" target="_blank" class="hearing-link ag">↓ Agenda</a>` : `<span class="hearing-link ag" style="cursor:default;">↓ Agenda</span>`;
+        if (!status) {
+          html += `<button class="ag-correct-btn yes" id="${btnYId}" onclick="agApprove('${sd.id}','${(sd.meeting_type||'').replace(/'/g,"\\'")}','${muniId}','${btnYId}','${btnNId}','${agId}')">✓ Yes</button>`;
+          html += `<button class="ag-correct-btn no" id="${btnNId}" onclick="agReject('${sd.id}','${(sd.meeting_type||'').replace(/'/g,"\\'")}','${muniId}','${btnYId}','${btnNId}','${agId}')">✗ No</button>`;
+        }
+        html += `</div>`;
+        return html;
+      }).join('');
+    }
+
+    const meetingType = hearing ? (hearing.meeting_type || 'Meeting') : (scraped[0]?.meeting_type || 'Meeting');
+    rowIdx++;
     return `<tr class="hearings-table-row">
-      <td class="hearings-td hearings-td-date">${fmtHearingDate(h.date)}</td>
-      <td class="hearings-td hearings-td-type">${h.meeting_type || 'Meeting'}</td>
-      <td class="hearings-td">${docsCell}</td>
+      <td class="hearings-td hearings-td-date">${fmtHearingDate(date)}</td>
+      <td class="hearings-td hearings-td-type">${meetingType}</td>
+      <td class="hearings-td hearings-td-yt">${ytCell}</td>
+      <td class="hearings-td hearings-td-ag">${agCell}</td>
     </tr>`;
   }).join('');
 
   return `<table class="hearings-table">
     <thead>
       <tr>
-        <th class="hearings-th">Meeting Date</th>
-        <th class="hearings-th">Meeting Type</th>
-        <th class="hearings-th">Public Hearings</th>
+        <th class="hearings-th">Date</th>
+        <th class="hearings-th">Type</th>
+        <th class="hearings-th">YouTube Hearings</th>
+        <th class="hearings-th">Agendas</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
@@ -4019,39 +4193,64 @@ function phRenderHearings() {
 
   function buildTable(rows, isReviewed) {
     if (rows.length === 0) return '';
+    let rIdx = 0;
     const tableRows = rows.map(h => {
       const key = (h.muniId + '_' + h.date + '_' + (h.youtube_url||h.agenda_url||'')).replace(/'/g,"\\'");
-      const docLinks = [];
-      if (h.agenda_url) docLinks.push(`<a href="${h.agenda_url}" target="_blank" class="hearing-link ag">↓ Agenda</a>`);
-      if (h.youtube_url) docLinks.push(`<a href="${h.youtube_url}" target="_blank" class="hearing-link yt">▶ YouTube</a>`);
-      if (h.summary_doc) docLinks.push(`<a href="${h.summary_doc}" target="_blank" class="hearing-link doc">✦ Summary</a>`);
-      // Merge scraped docs for this hearing
-      const scrapedByDate = getScrapedDocsForMuni(h.muniId);
-      const scraped = scrapedByDate[h.date] || [];
-      scraped.forEach(sd => {
-        const sdUrl = sd.view_url || sd.pdf_url || '';
-        if (!sdUrl) return;
-        const already = [h.agenda_url, h.youtube_url, h.summary_doc].filter(Boolean);
-        if (already.includes(sdUrl)) return;
-        const docType = (sd.document_type || '').toLowerCase();
-        if (docType.includes('agenda')) {
-          docLinks.push(`<a href="${sdUrl}" target="_blank" class="hearing-link ag">↓ Agenda</a>`);
-        } else if (docType.includes('minute')) {
-          docLinks.push(`<a href="${sdUrl}" target="_blank" class="hearing-link min">↓ Minutes</a>`);
-        } else {
-          docLinks.push(`<a href="${sdUrl}" target="_blank" class="hearing-link doc">↓ ${sd.document_type || 'Document'}</a>`);
-        }
-      });
-      const docsCell = docLinks.length ? docLinks.join(' ') : `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
       const juriLabel = h.muniName.replace('City of ','').replace('Town of ','');
       const reviewBtn = isReviewed
         ? `<button class="ph-review-btn done" onclick="phUnreview('${key}')">✓ Reviewed</button>`
         : `<button class="ph-review-btn" onclick="phMarkReviewed('${key}')">✓ Mark Reviewed</button>`;
+
+      // YouTube Hearings column
+      let ytCell = `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
+      if (h.youtube_url) {
+        const uid = 'phyt_' + rIdx;
+        const summaryId = 'phyts_' + rIdx;
+        const btnId = 'phytrs_' + rIdx;
+        let ytHtml = `<div class="yt-hearing-item">`;
+        ytHtml += `<a href="${h.youtube_url}" target="_blank" class="hearing-link yt">▶ YouTube</a>`;
+        if (h.summary_doc) {
+          ytHtml += `<button class="yt-summary-toggle" onclick="ytToggleSummary('${h.summary_doc}','${summaryId}')">✦ Summary</button>`;
+          ytHtml += `<button class="yt-resubmit-btn" id="${btnId}" onclick="ytResubmit('${h.youtube_url}','${h.muniId}','${h.date}','${btnId}','${summaryId}')">↻ Resubmit</button>`;
+          ytHtml += `<div class="yt-summary-box" id="${summaryId}" style="display:none;"></div>`;
+        } else {
+          ytHtml += `<button class="yt-resubmit-btn" id="${btnId}" onclick="ytResubmit('${h.youtube_url}','${h.muniId}','${h.date}','${btnId}','${summaryId}')">↻ Generate Summary</button>`;
+          ytHtml += `<div class="yt-summary-box" id="${summaryId}" style="display:none;"></div>`;
+        }
+        ytHtml += `</div>`;
+        ytCell = ytHtml;
+      }
+
+      // Agendas column
+      const scrapedByDate = getScrapedDocsForMuni(h.muniId);
+      const scraped = (scrapedByDate[h.date] || []).filter(sd => (sd.document_type||'').toLowerCase().includes('agenda'));
+      let agCell = `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
+      if (scraped.length > 0) {
+        agCell = scraped.map((sd, si) => {
+          const sdUrl = sd.view_url || sd.pdf_url || '';
+          const agId = 'phag_' + rIdx + '_' + si;
+          const btnYId = 'phagy_' + rIdx + '_' + si;
+          const btnNId = 'phagn_' + rIdx + '_' + si;
+          const status = window._agendaApprovalStatus[sd.id] || '';
+          const cls = status === 'approved' ? ' ag-approved' : status === 'rejected' ? ' ag-rejected' : '';
+          let html = `<div class="ag-item${cls}" id="${agId}">`;
+          html += sdUrl ? `<a href="${sdUrl}" target="_blank" class="hearing-link ag">↓ Agenda</a>` : `<span class="hearing-link ag" style="cursor:default;">↓ Agenda</span>`;
+          if (!status) {
+            html += `<button class="ag-correct-btn yes" id="${btnYId}" onclick="agApprove('${sd.id}','${(sd.meeting_type||'').replace(/'/g,"\\'")}','${h.muniId}','${btnYId}','${btnNId}','${agId}')">✓ Yes</button>`;
+            html += `<button class="ag-correct-btn no" id="${btnNId}" onclick="agReject('${sd.id}','${(sd.meeting_type||'').replace(/'/g,"\\'")}','${h.muniId}','${btnYId}','${btnNId}','${agId}')">✗ No</button>`;
+          }
+          html += `</div>`;
+          return html;
+        }).join('');
+      }
+
+      rIdx++;
       return `<tr class="hearings-table-row">
         <td class="hearings-td hearings-td-date">${fmtHearingDate(h.date)}</td>
         <td class="hearings-td" style="color:var(--accent-light);font-size:11px;">${juriLabel}</td>
         <td class="hearings-td hearings-td-type">${h.meeting_type || 'Meeting'}</td>
-        <td class="hearings-td">${docsCell}</td>
+        <td class="hearings-td hearings-td-yt">${ytCell}</td>
+        <td class="hearings-td hearings-td-ag">${agCell}</td>
         <td class="hearings-td">${reviewBtn}</td>
       </tr>`;
     }).join('');
@@ -4062,7 +4261,8 @@ function phRenderHearings() {
           <th class="hearings-th">Date</th>
           <th class="hearings-th">Jurisdiction</th>
           <th class="hearings-th">Type</th>
-          <th class="hearings-th">Public Hearings</th>
+          <th class="hearings-th">YouTube Hearings</th>
+          <th class="hearings-th">Agendas</th>
           <th class="hearings-th"></th>
         </tr>
       </thead>
