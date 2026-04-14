@@ -35,65 +35,97 @@
   }
 
   [data-theme="light"] {
-    --bg: #f0f2f5;
+    --bg: #eef1f5;
     --panel: #ffffff;
-    --panel-hover: #f5f7fa;
-    --border: rgba(0,0,0,0.1);
-    --text: #1a2332;
-    --text-dim: #5a6678;
-    --intel-bg: #e8ecf0;
-    --navy: #1e3a5f;
-    --navy-dark: #162840;
-    --navy-mid: #2a4f7c;
-    --navy-light: #4a7ab5;
-    --accent: #c07800;
-    --accent-light: #d48a10;
-    --white: #f4f6f9;
-    --gray-100: #edf0f4;
-    --gray-200: #d8dde6;
-    --gray-400: #6b7a8c;
-    --gray-600: #4a5568;
-    --success: #1a6b3a;
-    --warn: #a04e10;
-    --profile-a: #1e4d8c;
-    --profile-b: #146038;
-    --profile-c: #7a2828;
+    --panel-hover: #f0f3f7;
+    --border: rgba(0,0,0,0.12);
+    --text: #111820;
+    --text-dim: #4a5568;
+    --intel-bg: #e2e7ed;
+    --navy: #14304f;
+    --navy-dark: #0d1e33;
+    --navy-mid: #1e4570;
+    --navy-light: #2a5a8c;
+    --accent: #9a5f00;
+    --accent-light: #b37000;
+    --white: #111820;
+    --gray-100: #e0e4ea;
+    --gray-200: #c8ced8;
+    --gray-400: #556070;
+    --gray-600: #3a4555;
+    --success: #0d5a2a;
+    --warn: #8a4000;
+    --profile-a: #14408a;
+    --profile-b: #0d5428;
+    --profile-c: #6a1e1e;
   }
-  [data-theme="light"] .topbar { background: #1e3a5f; }
-  [data-theme="light"] .sidebar { background: #e4e8ee; border-right-color: rgba(0,0,0,0.08); }
-  [data-theme="light"] .sidebar .county-header { color: #1e3a5f; }
-  [data-theme="light"] .sidebar .muni-item { color: #2a3a50; }
-  [data-theme="light"] .sidebar .muni-item:hover { background: rgba(30,58,95,0.08); }
-  [data-theme="light"] .sidebar .muni-item.active { background: rgba(30,58,95,0.12); color: #1e3a5f; }
-  [data-theme="light"] .settings-card { background: #ffffff; border-color: rgba(0,0,0,0.08); }
-  [data-theme="light"] .settings-input,
-  [data-theme="light"] .settings-select { background: #f5f7fa; border-color: rgba(0,0,0,0.12); color: #1a2332; }
-  [data-theme="light"] .hearings-table-row:hover { background: rgba(30,58,95,0.04); }
-  [data-theme="light"] .hearings-th { background: rgba(30,58,95,0.06); color: #1e3a5f; }
-  [data-theme="light"] .hearing-link.yt { background: rgba(220,50,50,0.08); color: #c0392b; border-color: rgba(220,50,50,0.2); }
-  [data-theme="light"] .hearing-link.doc { background: rgba(30,100,180,0.08); color: #1a5fa5; border-color: rgba(30,100,180,0.2); }
-  [data-theme="light"] .hearing-link.ag { background: rgba(26,122,74,0.08); color: #146038; border-color: rgba(26,122,74,0.2); }
-  [data-theme="light"] .member-detail { background: #f8f9fb; border-left-color: rgba(0,0,0,0.08); }
-  [data-theme="light"] .member-card { background: #ffffff; border-color: rgba(0,0,0,0.08); }
-  [data-theme="light"] .member-card:hover { background: #f5f7fa; border-color: rgba(30,58,95,0.2); }
+  /* ── Topbar ── */
+  [data-theme="light"] .topbar { background: #14304f; }
   [data-theme="light"] .topbar-badge { background: rgba(255,255,255,0.15); }
   [data-theme="light"] .refresh-btn { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.2); }
-  [data-theme="light"] .export-btn { background: rgba(192,120,0,0.9); }
-  [data-theme="light"] .intel-item { background: #ffffff; border-color: rgba(0,0,0,0.06); }
-  [data-theme="light"] .county-card { background: #ffffff; border-color: rgba(0,0,0,0.08); }
-  [data-theme="light"] .stat-box { background: rgba(30,58,95,0.05); border-color: rgba(0,0,0,0.06); }
-  [data-theme="light"] .yt-resubmit-btn { background: rgba(30,58,95,0.06); border-color: rgba(30,58,95,0.15); color: #4a7ab5; }
-  [data-theme="light"] .ag-correct-btn.yes { background: rgba(26,122,74,0.08); border-color: rgba(26,122,74,0.2); color: #146038; }
-  [data-theme="light"] .ag-correct-btn.no { background: rgba(180,50,50,0.08); border-color: rgba(180,50,50,0.2); color: #a03030; }
-  [data-theme="light"] .overview-title { color: #1a2332; }
-  [data-theme="light"] .ph-review-btn { background: rgba(30,58,95,0.06); border-color: rgba(30,58,95,0.15); color: #4a5568; }
-  [data-theme="light"] .ph-review-btn.done { background: rgba(26,122,74,0.08); border-color: rgba(26,122,74,0.2); color: #146038; }
-  [data-theme="light"] .tag-filter-btn { background: rgba(30,58,95,0.06); border-color: rgba(30,58,95,0.12); color: #4a5568; }
-  [data-theme="light"] .gemini-chat-header { background: rgba(30,58,95,0.06); }
-  [data-theme="light"] .muni-summary-card { background: #ffffff; border-color: rgba(0,0,0,0.08); }
-  [data-theme="light"] .tracked-project-card { background: #ffffff; border-color: rgba(0,0,0,0.08); }
-  [data-theme="light"] .sched-step { border-left-color: #c07800; }
-  [data-theme="light"] .sched-step::before { background: #c07800; }
+  [data-theme="light"] .export-btn { background: #9a5f00; color: #fff; }
+  /* ── Sidebar ── */
+  [data-theme="light"] .sidebar { background: #dce1e8; border-right-color: rgba(0,0,0,0.1); }
+  [data-theme="light"] .sidebar .county-header { color: #14304f; }
+  [data-theme="light"] .sidebar .muni-item { color: #1a2a40; }
+  [data-theme="light"] .sidebar .muni-item:hover { background: rgba(20,48,79,0.1); }
+  [data-theme="light"] .sidebar .muni-item.active { background: rgba(20,48,79,0.15); color: #0d1e33; font-weight: 600; }
+  [data-theme="light"] #sidebar-search { background: #fff; border-color: rgba(0,0,0,0.15); color: #111820; }
+  /* ── Overview ── */
+  [data-theme="light"] .overview-title { color: #0d1e33; }
+  [data-theme="light"] .overview-sub { color: #3a4555; }
+  [data-theme="light"] .stat-box { background: #f5f7fa; border: 1px solid rgba(0,0,0,0.08); }
+  [data-theme="light"] .stat-value { color: #14304f; }
+  [data-theme="light"] .stat-label { color: #4a5568; }
+  [data-theme="light"] .county-card { background: #ffffff; border-color: rgba(0,0,0,0.1); }
+  [data-theme="light"] .county-card .county-card-title { color: #14304f; }
+  /* ── Members view ── */
+  [data-theme="light"] .muni-title { color: #0d1e33; }
+  [data-theme="light"] .muni-county { color: #3a4555; }
+  [data-theme="light"] .muni-summary-card { background: #f8f9fb; border-color: rgba(0,0,0,0.1); }
+  [data-theme="light"] .member-card { background: #ffffff; border-color: rgba(0,0,0,0.1); }
+  [data-theme="light"] .member-card:hover { background: #f0f3f7; border-color: rgba(20,48,79,0.25); }
+  [data-theme="light"] .member-name { color: #0d1e33; }
+  [data-theme="light"] .member-role { color: #3a4555; }
+  [data-theme="light"] .member-detail { background: #f3f5f8; border-left-color: rgba(0,0,0,0.1); }
+  [data-theme="light"] .member-detail .member-detail-name { color: #0d1e33; }
+  [data-theme="light"] .members-tab { color: #4a5568; }
+  [data-theme="light"] .members-tab:hover { color: #14304f; }
+  [data-theme="light"] .members-tab.active { color: #9a5f00; border-bottom-color: #9a5f00; }
+  [data-theme="light"] .members-tabs { border-bottom-color: rgba(0,0,0,0.1); }
+  [data-theme="light"] .profile-badge { border-color: rgba(0,0,0,0.2); }
+  /* ── Settings ── */
+  [data-theme="light"] .settings-card { background: #ffffff; border-color: rgba(0,0,0,0.1); }
+  [data-theme="light"] .settings-card-title { color: #14304f; }
+  [data-theme="light"] .settings-input,
+  [data-theme="light"] .settings-select { background: #f0f2f5; border-color: rgba(0,0,0,0.15); color: #111820; }
+  [data-theme="light"] .settings-save-btn { background: #14304f; color: #fff; }
+  /* ── Public Hearings ── */
+  [data-theme="light"] .hearings-th { background: #e8ecf0; color: #14304f; border-bottom: 2px solid rgba(0,0,0,0.1); }
+  [data-theme="light"] .hearings-td { color: #111820; border-bottom-color: rgba(0,0,0,0.06); }
+  [data-theme="light"] .hearings-table-row:hover { background: rgba(20,48,79,0.04); }
+  [data-theme="light"] .hearing-link.yt { background: rgba(200,30,30,0.1); color: #a02020; border-color: rgba(200,30,30,0.25); }
+  [data-theme="light"] .hearing-link.doc { background: rgba(20,80,160,0.1); color: #14508a; border-color: rgba(20,80,160,0.25); }
+  [data-theme="light"] .hearing-link.ag { background: rgba(13,90,42,0.1); color: #0d5428; border-color: rgba(13,90,42,0.25); }
+  [data-theme="light"] .yt-resubmit-btn { background: rgba(20,48,79,0.08); border-color: rgba(20,48,79,0.2); color: #1e4570; }
+  [data-theme="light"] .ag-correct-btn.yes { background: rgba(13,90,42,0.1); border-color: rgba(13,90,42,0.25); color: #0d5428; }
+  [data-theme="light"] .ag-correct-btn.no { background: rgba(160,30,30,0.1); border-color: rgba(160,30,30,0.25); color: #8a1e1e; }
+  [data-theme="light"] .ph-review-btn { background: rgba(20,48,79,0.08); border-color: rgba(20,48,79,0.2); color: #3a4555; }
+  [data-theme="light"] .ph-review-btn.done { background: rgba(13,90,42,0.1); border-color: rgba(13,90,42,0.25); color: #0d5428; }
+  /* ── Intel Feed ── */
+  [data-theme="light"] .intel-item { background: #ffffff; border-color: rgba(0,0,0,0.08); }
+  [data-theme="light"] .tag-filter-btn { background: rgba(20,48,79,0.08); border-color: rgba(20,48,79,0.15); color: #3a4555; }
+  /* ── Gemini chat ── */
+  [data-theme="light"] .gemini-chat-header { background: rgba(20,48,79,0.08); color: #14304f; }
+  [data-theme="light"] .gemini-chat-input { background: #f0f2f5; border-color: rgba(0,0,0,0.15); color: #111820; }
+  /* ── Tracked projects ── */
+  [data-theme="light"] .tracked-project-card { background: #ffffff; border-color: rgba(0,0,0,0.1); }
+  /* ── Schedule ── */
+  [data-theme="light"] .sched-step { border-left-color: #9a5f00; }
+  [data-theme="light"] .sched-step::before { background: #9a5f00; }
+  [data-theme="light"] .sched-step-date { color: #9a5f00; }
+  /* ── Warning banner ── */
+  [data-theme="light"] .muni-warn-banner { background: rgba(180,80,0,0.08); border-color: rgba(180,80,0,0.2); color: #8a4000; }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
   
