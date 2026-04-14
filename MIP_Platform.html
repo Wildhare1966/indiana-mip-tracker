@@ -34,6 +34,99 @@
     --intel-bg: #0a1520;
   }
 
+  [data-theme="light"] {
+    --bg: #eef1f5;
+    --panel: #ffffff;
+    --panel-hover: #f0f3f7;
+    --border: rgba(0,0,0,0.12);
+    --text: #111820;
+    --text-dim: #4a5568;
+    --intel-bg: #e2e7ed;
+    --navy: #14304f;
+    --navy-dark: #0d1e33;
+    --navy-mid: #1e4570;
+    --navy-light: #2a5a8c;
+    --accent: #9a5f00;
+    --accent-light: #b37000;
+    --white: #111820;
+    --gray-100: #e0e4ea;
+    --gray-200: #c8ced8;
+    --gray-400: #556070;
+    --gray-600: #3a4555;
+    --success: #0d5a2a;
+    --warn: #8a4000;
+    --profile-a: #14408a;
+    --profile-b: #0d5428;
+    --profile-c: #6a1e1e;
+  }
+  /* ── Topbar ── */
+  [data-theme="light"] .topbar { background: #14304f; }
+  [data-theme="light"] .topbar-badge { background: rgba(255,255,255,0.15); }
+  [data-theme="light"] .refresh-btn { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.2); }
+  [data-theme="light"] .export-btn { background: #9a5f00; color: #fff; }
+  /* ── Sidebar ── */
+  [data-theme="light"] .sidebar { background: #dce1e8; border-right-color: rgba(0,0,0,0.1); }
+  [data-theme="light"] .sidebar .county-header { color: #14304f; }
+  [data-theme="light"] .sidebar .muni-item { color: #1a2a40; }
+  [data-theme="light"] .sidebar .muni-item:hover { background: rgba(20,48,79,0.1); }
+  [data-theme="light"] .sidebar .muni-item.active { background: rgba(20,48,79,0.15); color: #0d1e33; font-weight: 600; }
+  [data-theme="light"] #sidebar-search { background: #fff; border-color: rgba(0,0,0,0.15); color: #111820; }
+  /* ── Overview ── */
+  [data-theme="light"] .overview-title { color: #0d1e33; }
+  [data-theme="light"] .overview-sub { color: #3a4555; }
+  [data-theme="light"] .stat-box { background: #f5f7fa; border: 1px solid rgba(0,0,0,0.08); }
+  [data-theme="light"] .stat-value { color: #14304f; }
+  [data-theme="light"] .stat-label { color: #4a5568; }
+  [data-theme="light"] .county-card { background: #ffffff; border-color: rgba(0,0,0,0.1); }
+  [data-theme="light"] .county-card .county-card-title { color: #14304f; }
+  /* ── Members view ── */
+  [data-theme="light"] .muni-title { color: #0d1e33; }
+  [data-theme="light"] .muni-county { color: #3a4555; }
+  [data-theme="light"] .muni-summary-card { background: #f8f9fb; border-color: rgba(0,0,0,0.1); }
+  [data-theme="light"] .member-card { background: #ffffff; border-color: rgba(0,0,0,0.1); }
+  [data-theme="light"] .member-card:hover { background: #f0f3f7; border-color: rgba(20,48,79,0.25); }
+  [data-theme="light"] .member-name { color: #0d1e33; }
+  [data-theme="light"] .member-role { color: #3a4555; }
+  [data-theme="light"] .member-detail { background: #f3f5f8; border-left-color: rgba(0,0,0,0.1); }
+  [data-theme="light"] .member-detail .member-detail-name { color: #0d1e33; }
+  [data-theme="light"] .members-tab { color: #4a5568; }
+  [data-theme="light"] .members-tab:hover { color: #14304f; }
+  [data-theme="light"] .members-tab.active { color: #9a5f00; border-bottom-color: #9a5f00; }
+  [data-theme="light"] .members-tabs { border-bottom-color: rgba(0,0,0,0.1); }
+  [data-theme="light"] .profile-badge { border-color: rgba(0,0,0,0.2); }
+  /* ── Settings ── */
+  [data-theme="light"] .settings-card { background: #ffffff; border-color: rgba(0,0,0,0.1); }
+  [data-theme="light"] .settings-card-title { color: #14304f; }
+  [data-theme="light"] .settings-input,
+  [data-theme="light"] .settings-select { background: #f0f2f5; border-color: rgba(0,0,0,0.15); color: #111820; }
+  [data-theme="light"] .settings-save-btn { background: #14304f; color: #fff; }
+  /* ── Public Hearings ── */
+  [data-theme="light"] .hearings-th { background: #e8ecf0; color: #14304f; border-bottom: 2px solid rgba(0,0,0,0.1); }
+  [data-theme="light"] .hearings-td { color: #111820; border-bottom-color: rgba(0,0,0,0.06); }
+  [data-theme="light"] .hearings-table-row:hover { background: rgba(20,48,79,0.04); }
+  [data-theme="light"] .hearing-link.yt { background: rgba(200,30,30,0.1); color: #a02020; border-color: rgba(200,30,30,0.25); }
+  [data-theme="light"] .hearing-link.doc { background: rgba(20,80,160,0.1); color: #14508a; border-color: rgba(20,80,160,0.25); }
+  [data-theme="light"] .hearing-link.ag { background: rgba(13,90,42,0.1); color: #0d5428; border-color: rgba(13,90,42,0.25); }
+  [data-theme="light"] .yt-resubmit-btn { background: rgba(20,48,79,0.08); border-color: rgba(20,48,79,0.2); color: #1e4570; }
+  [data-theme="light"] .ag-correct-btn.yes { background: rgba(13,90,42,0.1); border-color: rgba(13,90,42,0.25); color: #0d5428; }
+  [data-theme="light"] .ag-correct-btn.no { background: rgba(160,30,30,0.1); border-color: rgba(160,30,30,0.25); color: #8a1e1e; }
+  [data-theme="light"] .ph-review-btn { background: rgba(20,48,79,0.08); border-color: rgba(20,48,79,0.2); color: #3a4555; }
+  [data-theme="light"] .ph-review-btn.done { background: rgba(13,90,42,0.1); border-color: rgba(13,90,42,0.25); color: #0d5428; }
+  /* ── Intel Feed ── */
+  [data-theme="light"] .intel-item { background: #ffffff; border-color: rgba(0,0,0,0.08); }
+  [data-theme="light"] .tag-filter-btn { background: rgba(20,48,79,0.08); border-color: rgba(20,48,79,0.15); color: #3a4555; }
+  /* ── Gemini chat ── */
+  [data-theme="light"] .gemini-chat-header { background: rgba(20,48,79,0.08); color: #14304f; }
+  [data-theme="light"] .gemini-chat-input { background: #f0f2f5; border-color: rgba(0,0,0,0.15); color: #111820; }
+  /* ── Tracked projects ── */
+  [data-theme="light"] .tracked-project-card { background: #ffffff; border-color: rgba(0,0,0,0.1); }
+  /* ── Schedule ── */
+  [data-theme="light"] .sched-step { border-left-color: #9a5f00; }
+  [data-theme="light"] .sched-step::before { background: #9a5f00; }
+  [data-theme="light"] .sched-step-date { color: #9a5f00; }
+  /* ── Warning banner ── */
+  [data-theme="light"] .muni-warn-banner { background: rgba(180,80,0,0.08); border-color: rgba(180,80,0,0.2); color: #8a4000; }
+
   * { box-sizing: border-box; margin: 0; padding: 0; }
   
   body {
@@ -631,6 +724,42 @@
     font-weight: 500;
   }
   .hearings-table-row:hover .hearings-td { background: rgba(255,255,255,0.02); }
+  .hearings-td-yt, .hearings-td-ag { vertical-align: top; }
+  .yt-hearing-item, .ag-item { margin-bottom: 6px; }
+  .yt-hearing-item:last-child, .ag-item:last-child { margin-bottom: 0; }
+  .yt-summary-toggle {
+    font-family: 'IBM Plex Mono', monospace; font-size: 9px; padding: 1px 6px;
+    border-radius: 3px; cursor: pointer; border: 1px solid rgba(232,160,32,0.35);
+    background: rgba(232,160,32,0.12); color: var(--accent-light); margin-left: 4px;
+  }
+  .yt-summary-toggle:hover { opacity: 0.75; }
+  .yt-summary-box {
+    font-size: 10px; color: var(--text-dim); line-height: 1.5; padding: 6px 8px;
+    margin-top: 4px; background: rgba(0,0,0,0.2); border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.05); max-height: 200px; overflow-y: auto;
+  }
+  .yt-resubmit-btn {
+    font-family: 'IBM Plex Mono', monospace; font-size: 9px; padding: 1px 6px;
+    border-radius: 3px; cursor: pointer; border: 1px solid rgba(200,50,50,0.4);
+    background: rgba(200,50,50,0.15); color: #e08888; margin-left: 4px;
+  }
+  .yt-resubmit-btn:hover { opacity: 0.75; }
+  .yt-resubmit-btn:disabled { opacity: 0.4; cursor: wait; }
+  .ag-correct-btn {
+    font-family: 'IBM Plex Mono', monospace; font-size: 9px; padding: 1px 6px;
+    border-radius: 3px; cursor: pointer; margin-left: 3px;
+  }
+  .ag-correct-btn.yes {
+    border: 1px solid rgba(26,122,74,0.45); background: rgba(26,122,74,0.15); color: #6dc49a;
+  }
+  .ag-correct-btn.no {
+    border: 1px solid rgba(200,50,50,0.4); background: rgba(200,50,50,0.12); color: #e08888;
+  }
+  .ag-correct-btn:hover { opacity: 0.75; }
+  .ag-correct-btn:disabled { opacity: 0.4; cursor: default; }
+  .ag-approved { opacity: 0.6; }
+  .ag-approved::after { content: ' ✓'; color: #6dc49a; font-size: 9px; }
+  .ag-rejected { opacity: 0.3; text-decoration: line-through; transition: opacity 0.5s; }
 
   .members-grid {
     display: grid;
@@ -1373,6 +1502,32 @@
 /* ── SCHEDULE & REQUIREMENTS ─────────────────────────── */
 .sched-input-wrap { display:flex; gap:16px; }
 .sched-input-col { flex:1; display:flex; flex-direction:column; gap:12px; }
+.stage-dropdown { position:relative; }
+.stage-dropdown-btn { width:100%; padding:8px 10px; font-size:12px; font-family:'IBM Plex Mono',monospace;
+  background:var(--panel); border:1px solid var(--border); color:var(--text); border-radius:3px;
+  cursor:pointer; text-align:left; display:flex; justify-content:space-between; align-items:center; }
+.stage-dropdown-btn:hover { border-color:rgba(255,255,255,0.15); }
+.stage-dropdown-list { display:none; position:absolute; top:100%; left:0; right:0; z-index:50;
+  background:var(--panel); border:1px solid var(--border); border-top:none; border-radius:0 0 3px 3px;
+  max-height:260px; overflow-y:auto; }
+.stage-dropdown-list.open { display:block; }
+.stage-dropdown-item { display:flex; align-items:center; gap:8px; padding:6px 10px; cursor:pointer;
+  font-size:11px; font-family:'IBM Plex Mono',monospace; color:var(--text); transition:background 0.1s; }
+.stage-dropdown-item:hover { background:var(--panel-hover); }
+.stage-dropdown-item input[type="checkbox"] { accent-color:var(--accent); cursor:pointer; }
+.stage-custom-input { flex:1; background:transparent; border:none; border-bottom:1px solid var(--border);
+  color:var(--text); font-size:11px; font-family:'IBM Plex Mono',monospace; padding:2px 4px; outline:none; }
+.stage-custom-input:focus { border-bottom-color:var(--accent); }
+.stage-tags { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+.stage-tag { display:inline-flex; align-items:center; gap:4px; background:rgba(232,160,32,0.12);
+  border:1px solid rgba(232,160,32,0.3); color:var(--accent-light); font-size:10px; font-family:'IBM Plex Mono',monospace;
+  padding:2px 8px; border-radius:2px; }
+.stage-tag-x { cursor:pointer; opacity:0.6; font-size:12px; }
+.stage-tag-x:hover { opacity:1; }
+[data-theme="light"] .stage-dropdown-btn { background:#f5f7fa; border-color:rgba(0,0,0,0.12); color:#1a2332; }
+[data-theme="light"] .stage-dropdown-list { background:#ffffff; border-color:rgba(0,0,0,0.1); }
+[data-theme="light"] .stage-dropdown-item:hover { background:#f5f7fa; }
+[data-theme="light"] .stage-tag { background:rgba(192,120,0,0.1); border-color:rgba(192,120,0,0.25); color:#c07800; }
 .sched-export-bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
 .sched-section { margin-bottom:20px; }
 .sched-section-title { font-size:14px; font-weight:700; color:var(--text); margin-bottom:12px; letter-spacing:0.03em; }
@@ -1417,6 +1572,49 @@
 .gantt-bar-other { background:rgba(122,139,160,0.5); }
 .gantt-date-axis { display:flex; justify-content:space-between; padding-left:200px; margin-top:4px; font-size:9px; color:var(--text-dim); font-family:'IBM Plex Mono',monospace; }
 @media (max-width:800px) { .sched-input-wrap { flex-direction:column; } }
+
+/* ═══ P12: Schedule Banner ═══ */
+.schedule-banner { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 14px; border-radius:6px; margin-bottom:12px; font-size:11px; font-family:'IBM Plex Mono',monospace; flex-wrap:wrap; }
+.schedule-banner.confirmed { background:rgba(26,122,74,0.12); border:1px solid rgba(26,122,74,0.3); color:#6dc49a; }
+.schedule-banner.projected { background:rgba(232,160,32,0.1); border:1px solid rgba(232,160,32,0.25); color:var(--accent); }
+.schedule-banner.none { background:rgba(122,139,160,0.08); border:1px solid rgba(122,139,160,0.2); color:var(--text-dim); }
+.schedule-banner-url { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.schedule-banner-url input { width:260px; max-width:100%; }
+
+/* ═══ P12: Body Section Header ═══ */
+.body-section-header { font-size:12px; font-weight:600; color:var(--white); letter-spacing:0.05em; text-transform:uppercase; padding:8px 0 4px 2px; margin-top:14px; border-bottom:1px solid var(--border); font-family:'IBM Plex Mono',monospace; }
+
+/* ═══ P12: Status Badges ═══ */
+.status-badge { display:inline-block; font-size:9px; padding:1px 6px; border-radius:3px; margin-left:6px; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; vertical-align:middle; font-family:'IBM Plex Mono',monospace; }
+.status-badge.confirmed { background:rgba(26,122,74,0.15); color:#6dc49a; border:1px solid rgba(26,122,74,0.3); }
+.status-badge.projected { background:rgba(232,160,32,0.12); color:var(--accent); border:1px solid rgba(232,160,32,0.25); }
+
+/* ═══ P12: Missing Content Row ═══ */
+.hearings-row-missing { background:rgba(224,136,136,0.04); }
+.hearings-row-missing td:first-child { border-left:2px solid rgba(224,136,136,0.25); }
+
+/* ═══ P12: Add URL Button ═══ */
+.add-url-btn { background:none; border:1px dashed rgba(255,255,255,0.15); color:var(--text-dim); font-size:10px; font-family:'IBM Plex Mono',monospace; padding:3px 8px; border-radius:3px; cursor:pointer; transition:all 0.15s; letter-spacing:0.02em; }
+.add-url-btn:hover { border-color:var(--accent); color:var(--accent); background:rgba(232,160,32,0.06); }
+
+/* ═══ P12: URL Popover ═══ */
+.url-popover { display:flex; gap:6px; align-items:center; margin-top:6px; flex-wrap:wrap; }
+.url-popover-input { background:var(--panel); border:1px solid var(--border); color:var(--text); font-family:'IBM Plex Mono',monospace; font-size:11px; padding:5px 8px; border-radius:4px; outline:none; width:220px; max-width:100%; }
+.url-popover-input:focus { border-color:var(--accent); }
+
+/* ═══ P12: Light Theme Overrides ═══ */
+[data-theme="light"] .schedule-banner.confirmed { background:rgba(26,122,74,0.08); border-color:rgba(26,122,74,0.25); color:#1a7a4a; }
+[data-theme="light"] .schedule-banner.projected { background:rgba(154,95,0,0.06); border-color:rgba(154,95,0,0.2); color:#9a5f00; }
+[data-theme="light"] .schedule-banner.none { background:rgba(74,85,104,0.06); border-color:rgba(74,85,104,0.15); color:#4a5568; }
+[data-theme="light"] .body-section-header { color:#111820; border-bottom-color:rgba(0,0,0,0.12); }
+[data-theme="light"] .status-badge.confirmed { background:rgba(26,122,74,0.1); color:#1a7a4a; border-color:rgba(26,122,74,0.25); }
+[data-theme="light"] .status-badge.projected { background:rgba(154,95,0,0.08); color:#9a5f00; border-color:rgba(154,95,0,0.2); }
+[data-theme="light"] .hearings-row-missing { background:rgba(220,80,80,0.04); }
+[data-theme="light"] .hearings-row-missing td:first-child { border-left-color:rgba(220,80,80,0.2); }
+[data-theme="light"] .add-url-btn { border-color:rgba(0,0,0,0.15); color:#4a5568; }
+[data-theme="light"] .add-url-btn:hover { border-color:#9a5f00; color:#9a5f00; background:rgba(154,95,0,0.04); }
+[data-theme="light"] .url-popover-input { background:#fff; border-color:rgba(0,0,0,0.12); color:#111820; }
+[data-theme="light"] .url-popover-input:focus { border-color:#9a5f00; }
 </style>
 </head>
 <body>
@@ -1435,6 +1633,7 @@
   <div class="topbar-right">
     <span class="topbar-badge">Central Indiana · 9 Counties</span>
     <span class="topbar-badge">Apr 2026</span>
+    <button class="refresh-btn" id="theme-toggle-btn" onclick="toggleTheme()" title="Switch light/dark theme" style="font-size:14px;padding:4px 10px;">☀</button>
     <div id="gemini-key-banner" onclick="switchView('settings');setTimeout(()=>{const b=document.getElementById('api-keys-body');if(b&&b.style.display==='none')toggleSettingsSection('api-keys-body');const i=document.getElementById('gemini-key-input');if(i){i.focus();i.scrollIntoView({behavior:'smooth',block:'center'});}},150);"
          style="display:none;align-items:center;gap:6px;background:rgba(232,160,32,0.15);border:1px solid rgba(232,160,32,0.4);border-radius:4px;padding:3px 10px;cursor:pointer;font-family:'IBM Plex Mono',monospace;font-size:10px;color:#e8a020;letter-spacing:0.04em;">
       ⚠ Gemini key not set — click to add
@@ -1448,7 +1647,7 @@
   <!-- LEFT SIDEBAR -->
   <div class="sidebar">
     <div class="sidebar-header">
-      <input class="sidebar-search" type="text" placeholder="Search municipalities..." oninput="filterSidebar(this.value)" id="sidebar-search">
+      <input class="sidebar-search" type="search" placeholder="Search municipalities..." oninput="filterSidebar(this.value)" id="sidebar-search" autocomplete="off" name="mrd-search-filter" readonly onfocus="this.removeAttribute('readonly')">
     </div>
     <div class="sidebar-scroll" id="sidebar-content">
       <!-- Generated by JS -->
@@ -1614,33 +1813,38 @@
             </div>
           </div>
 
-          <!-- MEMBER PROFILE RESEARCH -->
+          <!-- MEMBER PROFILE RESEARCH (collapsible) -->
           <div class="settings-card">
-            <div class="settings-card-title">Member Profile Research</div>
+            <div class="settings-card-title" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;" onclick="toggleSettingsSection('profile-research-body')">
+              Member Profile Research
+              <span id="profile-research-body-toggle" style="font-size:10px;color:var(--text-dim);transition:transform 0.2s;">▶</span>
+            </div>
             <div class="settings-card-sub">Server-side Gemini pipeline populates member profiles via Apps Script.</div>
-            <div class="settings-row">
-              <span class="settings-label">Web App URL</span>
-              <input class="settings-input" type="text" id="profile-webapp-url" placeholder="https://script.google.com/macros/s/.../exec" style="flex:1;">
+            <div id="profile-research-body" style="display:none;margin-top:10px;">
+              <div class="settings-row">
+                <span class="settings-label">Web App URL</span>
+                <input class="settings-input" type="text" id="profile-webapp-url" placeholder="https://script.google.com/macros/s/.../exec" style="flex:1;">
+              </div>
+              <div class="settings-row">
+                <span class="settings-label">Cache Duration</span>
+                <select class="settings-select" id="profile-cache-ttl">
+                  <option value="4">4 hours</option>
+                  <option value="12">12 hours</option>
+                  <option value="24" selected>24 hours</option>
+                  <option value="48">48 hours</option>
+                  <option value="168">7 days</option>
+                </select>
+              </div>
+              <div id="profile-stats-box" style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:4px;padding:10px;margin:10px 0;font-size:11px;color:var(--text-dim);font-family:'IBM Plex Mono',monospace;">
+                No profile data loaded.
+              </div>
+              <div style="display:flex;gap:8px;margin-bottom:8px;">
+                <button class="settings-save-btn" style="flex:1;margin-top:0;" onclick="refreshMemberProfiles()">Fetch Profiles Now</button>
+                <button class="settings-add-btn" style="margin-top:0;" onclick="clearProfileCache()">Clear Cache</button>
+              </div>
+              <div id="profile-fetch-status" style="font-size:11px;color:var(--text-dim);margin-bottom:8px;"></div>
+              <button class="settings-save-btn" onclick="saveProfileSettings()">Save Settings</button>
             </div>
-            <div class="settings-row">
-              <span class="settings-label">Cache Duration</span>
-              <select class="settings-select" id="profile-cache-ttl">
-                <option value="4">4 hours</option>
-                <option value="12">12 hours</option>
-                <option value="24" selected>24 hours</option>
-                <option value="48">48 hours</option>
-                <option value="168">7 days</option>
-              </select>
-            </div>
-            <div id="profile-stats-box" style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:4px;padding:10px;margin:10px 0;font-size:11px;color:var(--text-dim);font-family:'IBM Plex Mono',monospace;">
-              No data — configure Web App URL and fetch.
-            </div>
-            <div style="display:flex;gap:8px;margin-bottom:8px;">
-              <button class="settings-save-btn" style="flex:1;margin-top:0;" onclick="refreshMemberProfiles()">Fetch Profiles Now</button>
-              <button class="settings-add-btn" style="margin-top:0;" onclick="clearProfileCache()">Clear Cache</button>
-            </div>
-            <div id="profile-fetch-status" style="font-size:11px;color:var(--text-dim);margin-bottom:8px;"></div>
-            <button class="settings-save-btn" onclick="saveProfileSettings()">Save Settings</button>
           </div>
 
           <!-- JURISDICTION DATA CACHE -->
@@ -1651,6 +1855,26 @@
             <div style="display:flex;gap:8px;">
               <button class="settings-save-btn" style="flex:1;margin-top:0;" onclick="refreshMuniData()">Refresh Now</button>
               <button class="settings-add-btn" style="margin-top:0;" onclick="clearMuniCache()">Clear Cache</button>
+            </div>
+          </div>
+
+          <!-- MEETING SCHEDULE SCRAPER (collapsible) -->
+          <div class="settings-card" style="margin-top:12px;">
+            <div class="settings-card-title" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;" onclick="toggleSettingsSection('schedule-scraper-body')">
+              Meeting Schedule Scraper
+              <span id="schedule-scraper-body-toggle" style="font-size:10px;color:var(--text-dim);transition:transform 0.2s;">▶</span>
+            </div>
+            <div class="settings-card-sub">Scrape municipal schedule pages to populate confirmed meeting dates via Gemini.</div>
+            <div id="schedule-scraper-body" style="display:none;margin-top:10px;">
+              <div style="font-size:11px;color:var(--text-dim);margin-bottom:10px;">
+                Run near end of year when jurisdictions publish new schedules. Uses Gemini to extract dates from schedule pages.
+                Jurisdictions with schedule URLs (pcScheduleUrl, bzaScheduleUrl, councilScheduleUrl) will be scraped.
+              </div>
+              <div id="scrape-stats-box" style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:4px;padding:10px;margin:10px 0;font-size:11px;color:var(--text-dim);font-family:'IBM Plex Mono',monospace;">
+                No scrape data. Click below to run.
+              </div>
+              <button class="settings-save-btn" style="width:100%;" id="scrape-all-btn" onclick="runScheduleScrapeAll()">Scrape All Schedules</button>
+              <div id="scrape-status" style="font-size:11px;color:var(--text-dim);margin-top:8px;"></div>
             </div>
           </div>
         </div>
@@ -1735,11 +1959,37 @@
               <div id="sched-jurisdiction-status" style="font-size:10px;margin-top:6px;color:var(--text-dim);"></div>
             </div>
             <div class="settings-card">
-              <div class="settings-card-title">Process Description</div>
-              <div class="settings-card-sub">Describe the entitlement process needed (rezoning, annexation, PUD, preliminary plat, etc.)</div>
-              <textarea id="sched-process" class="settings-input" rows="4"
+              <div class="settings-card-title">Entitlement Stages</div>
+              <div class="settings-card-sub">Select the entitlement process stages required for this project.</div>
+              <div class="stage-dropdown" id="stage-dropdown">
+                <button type="button" class="stage-dropdown-btn" onclick="toggleStageDropdown()">
+                  <span id="stage-dropdown-label">Select stages…</span> <span>▼</span>
+                </button>
+                <div class="stage-dropdown-list" id="stage-dropdown-list">
+                  <label class="stage-dropdown-item"><input type="checkbox" value="Rezoning" onchange="updateStageSelection()"> Rezoning</label>
+                  <label class="stage-dropdown-item"><input type="checkbox" value="Annexation" onchange="updateStageSelection()"> Annexation</label>
+                  <label class="stage-dropdown-item"><input type="checkbox" value="PUD (Planned Unit Development)" onchange="updateStageSelection()"> PUD (Planned Unit Development)</label>
+                  <label class="stage-dropdown-item"><input type="checkbox" value="Preliminary Plat" onchange="updateStageSelection()"> Preliminary Plat</label>
+                  <label class="stage-dropdown-item"><input type="checkbox" value="Secondary/Final Plat" onchange="updateStageSelection()"> Secondary / Final Plat</label>
+                  <label class="stage-dropdown-item"><input type="checkbox" value="Variance (BZA)" onchange="updateStageSelection()"> Variance (BZA)</label>
+                  <label class="stage-dropdown-item"><input type="checkbox" value="Special Exception (BZA)" onchange="updateStageSelection()"> Special Exception (BZA)</label>
+                  <label class="stage-dropdown-item"><input type="checkbox" value="Development Plan" onchange="updateStageSelection()"> Development Plan</label>
+                  <div class="stage-dropdown-item" style="border-top:1px solid var(--border);margin-top:2px;padding-top:8px;">
+                    <input type="checkbox" id="stage-custom-check" onchange="updateStageSelection()">
+                    <input type="text" class="stage-custom-input" id="stage-custom-text" placeholder="Custom stage…"
+                      onfocus="document.getElementById('stage-custom-check').checked=true;updateStageSelection()"
+                      oninput="updateStageSelection()">
+                  </div>
+                </div>
+              </div>
+              <div class="stage-tags" id="stage-tags"></div>
+            </div>
+            <div class="settings-card">
+              <div class="settings-card-title">Additional Details</div>
+              <div class="settings-card-sub">Provide project-specific details to fine-tune the schedule and requirements.</div>
+              <textarea id="sched-detail" class="settings-input" rows="3"
                 style="width:100%;resize:vertical;font-family:'IBM Plex Mono',monospace;font-size:11px;line-height:1.5;"
-                placeholder="e.g., Rezoning from AG to R-2 and preliminary plat for 80-lot single-family residential subdivision"></textarea>
+                placeholder="e.g., 80-lot single-family subdivision, currently zoned AG, requesting R-2 density"></textarea>
             </div>
           </div>
           <div class="sched-input-col">
@@ -1798,7 +2048,12 @@ const PROFILE_CACHE_KEY = 'mip_member_profiles';
 const PROFILE_CACHE_TS_KEY = 'mip_profiles_fetched_at';
 const PROFILE_CACHE_TTL_KEY = 'mip_profile_cache_ttl';
 const WEBAPP_URL_KEY = 'mip_webapp_url';
+const DEFAULT_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbx-pd1dKH4qpjSCNmLv8qwpdgVvpWvGiFAgJVdUVwsdLOK3fG5tkALln-UG_UaojJGC/exec';
 const PROFILE_CACHE_TTL_DEFAULT = 24;
+
+function getWebAppUrl() {
+  return localStorage.getItem(WEBAPP_URL_KEY) || DEFAULT_WEBAPP_URL;
+}
 
 // ── MUNI DATA CACHE CONSTANTS ────────────────────────────────────────────────────────────────────────
 const MUNI_CACHE_KEY = 'mip_muni_data';
@@ -1806,7 +2061,8 @@ const MUNI_CACHE_TS_KEY = 'mip_muni_data_ts';
 const MUNI_CACHE_TTL_HOURS = 4;
 
 // ── GEMINI CLIENT (build 2026-04-12T09:19:32Z) ─────────────────────────────────────────────────────────────
-function getGeminiKey() { return localStorage.getItem('mip_gemini_key') || ''; }
+const DEFAULT_GEMINI_KEY = 'AIzaSyDORpmlS4IdZzKPTciRJUUS0ti4p93dhac';
+function getGeminiKey() { return localStorage.getItem('mip_gemini_key') || DEFAULT_GEMINI_KEY; }
 function saveGeminiKey(val) {
   localStorage.setItem('mip_gemini_key', val.trim());
   const el = document.getElementById('gemini-key-status');
@@ -2400,8 +2656,8 @@ window.exportBriefing = exportBriefing;
 // Falls back to empty stubs if Web App URL not configured or fetch fails
 // ═══════════════════════════════════════════════════════
 async function loadMuniData() {
-  const url = localStorage.getItem(WEBAPP_URL_KEY);
-  if (!url) return; // no endpoint configured; use fallback stubs
+  const url = getWebAppUrl();
+  if (!url) return;
 
   // Check localStorage cache first
   const cached = localStorage.getItem(MUNI_CACHE_KEY);
@@ -2462,9 +2718,10 @@ async function loadMuniData() {
 }
 
 let SCRAPED_DOCS = []; // populated from ?action=scraped_documents if available
+let MEETING_DATES = {}; // populated from ?action=meeting_dates if available
 
 async function fetchScrapedDocuments() {
-  const url = localStorage.getItem(WEBAPP_URL_KEY);
+  const url = getWebAppUrl();
   if (!url) return;
   try {
     const resp = await fetch(url + '?action=scraped_documents', { signal: AbortSignal.timeout(15000) });
@@ -2478,8 +2735,23 @@ async function fetchScrapedDocuments() {
   }
 }
 
+async function fetchMeetingDates() {
+  const url = getWebAppUrl();
+  if (!url) return;
+  try {
+    const resp = await fetch(url + '?action=meeting_dates', { signal: AbortSignal.timeout(15000) });
+    const data = await resp.json();
+    if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+      MEETING_DATES = data;
+      console.log('[MRD] Meeting dates: ' + Object.keys(data).length + ' jurisdictions loaded');
+    }
+  } catch(e) {
+    console.warn('[MRD] Meeting dates fetch not available:', e.message);
+  }
+}
+
 async function fetchLiveIntelFeed() {
-  const url = localStorage.getItem(WEBAPP_URL_KEY);
+  const url = getWebAppUrl();
   if (!url) return;
   try {
     const resp = await fetch(url + '?action=intel_feed', { signal: AbortSignal.timeout(15000) });
@@ -2510,17 +2782,48 @@ async function fetchLiveIntelFeed() {
   }
 }
 
+// ═══════════════════════════════════════════════════════
+// THEME TOGGLE — light / dark mode
+// ═══════════════════════════════════════════════════════
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  const btn = document.getElementById('theme-toggle-btn');
+  if (btn) btn.textContent = theme === 'light' ? '☾' : '☀';
+}
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || 'dark';
+  const next = current === 'light' ? 'dark' : 'light';
+  applyTheme(next);
+  try { localStorage.setItem('mrd_theme', next); } catch(e) {}
+}
+// Apply saved theme immediately (before DOMContentLoaded paint)
+(function() {
+  try { const t = localStorage.getItem('mrd_theme'); if (t) applyTheme(t); } catch(e) {}
+})();
+
 document.addEventListener('DOMContentLoaded', async () => {
-  await loadMuniData();
-  await Promise.all([fetchLiveIntelFeed(), fetchScrapedDocuments()]);
+  // Apply saved theme to button text on load
+  try { const t = localStorage.getItem('mrd_theme'); if (t) applyTheme(t); } catch(e) {}
+
+  // Kill Chrome autofill on sidebar search by cloning the input
+  const oldSearch = document.getElementById('sidebar-search');
+  if (oldSearch) { const n = oldSearch.cloneNode(true); oldSearch.parentNode.replaceChild(n, oldSearch); }
+
+  // Progressive rendering: start all fetches in parallel, render UI after core data
+  const intelPromise = fetchLiveIntelFeed();
+  const scrapedPromise = fetchScrapedDocuments();
+  await loadMuniData(); // core: municipalities + hearings + county_groups (~3s)
   buildSidebar();
   buildCountyGrid();
-  buildIntelFeed();
   updateTotalMembers();
   checkGeminiKeyBanner();
   checkMuniDataBanner();
+
+  // Non-critical: intel + scraped docs render when ready (don't block UI)
+  Promise.all([intelPromise, scrapedPromise]).then(() => { buildIntelFeed(); });
   fetchAndMergeMemberProfiles();
   fetchLiveJurisdictionRefs();
+  fetchMeetingDates();
   // Hide Refresh Hearings button when not running on a local server
   const isLocal = ['localhost','127.0.0.1'].includes(window.location.hostname);
   const refreshBtn = document.getElementById('refresh-btn');
@@ -2534,7 +2837,7 @@ function checkMuniDataBanner() {
     const banner = document.createElement('div');
     banner.id = 'muni-data-banner';
     banner.style.cssText = 'background:#1a1a2e;border:1px solid #e74c3c;color:#e74c3c;padding:12px 20px;text-align:center;font-size:13px;font-family:IBM Plex Mono,monospace;';
-    banner.innerHTML = '⚠ No jurisdiction data loaded. Configure Web App URL in <a href="#" onclick="switchView(\'settings\')" style="color:#f39c12;text-decoration:underline;">Settings</a> to load live data from Google Sheets.';
+    banner.innerHTML = '⚠ Data temporarily unavailable — try refreshing the page.';
     const main = document.querySelector('.main-content') || document.body;
     main.prepend(banner);
   }
@@ -3124,59 +3427,409 @@ function getScrapedDocsForMuni(muniId) {
   return byDate;
 }
 
-function renderHearingsContent(muniId) {
-  const hearings = PUBLIC_HEARINGS[muniId];
-  const scrapedByDate = getScrapedDocsForMuni(muniId);
+// ═══════════════════════════════════════════════════════
+// YOUTUBE RESUBMIT — re-summarize a hearing video via Apps Script
+// ═══════════════════════════════════════════════════════
+window._ytSummaryCache = {}; // summaryDocUrl -> text (loaded on demand)
 
-  if ((!hearings || hearings.length === 0) && Object.keys(scrapedByDate).length === 0) {
-    return `<div class="hearings-empty">
-      No hearing records loaded for this jurisdiction.<br>
-      <small>Configure the Web App URL in Settings to load live data from Google Sheets.</small>
-    </div>`;
+async function ytLoadSummary(summaryDocUrl, elId) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (window._ytSummaryCache[summaryDocUrl]) {
+    el.textContent = window._ytSummaryCache[summaryDocUrl];
+    return;
+  }
+  el.textContent = 'Loading summary…';
+  try {
+    const resp = await fetch(getWebAppUrl() + '?action=fetch_url&url=' + encodeURIComponent(summaryDocUrl));
+    const data = await resp.json();
+    const text = (data.content || data.text || 'Summary could not be loaded.').substring(0, 4000);
+    window._ytSummaryCache[summaryDocUrl] = text;
+    el.textContent = text;
+  } catch(e) {
+    el.textContent = 'Error loading summary: ' + e.message;
+  }
+}
+
+function ytToggleSummary(summaryDocUrl, elId) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (el.style.display === 'none' || !el.style.display) {
+    el.style.display = 'block';
+    ytLoadSummary(summaryDocUrl, elId);
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+async function ytResubmit(youtubeUrl, jurisdiction, meetingDate, btnId, summaryElId) {
+  const btn = document.getElementById(btnId);
+  if (btn) { btn.disabled = true; btn.textContent = '↻ Processing…'; }
+  try {
+    const url = getWebAppUrl() + '?action=resummarize_hearing'
+      + '&youtube_url=' + encodeURIComponent(youtubeUrl)
+      + '&jurisdiction=' + encodeURIComponent(jurisdiction)
+      + '&meeting_date=' + encodeURIComponent(meetingDate);
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (data.success && data.summary_doc) {
+      // Update the summary span with a new link to the generated doc
+      const el = document.getElementById(summaryElId);
+      if (el) {
+        el.innerHTML = `<a href="${data.summary_doc}" target="_blank" class="hearing-link doc">✦ Summary</a>`;
+      }
+      if (btn) { btn.textContent = '✓ Done'; btn.style.borderColor = 'rgba(26,122,74,0.45)'; btn.style.color = '#6dc49a'; }
+    } else {
+      if (btn) { btn.textContent = '✗ Failed'; btn.style.color = '#e08888'; }
+    }
+  } catch(e) {
+    if (btn) { btn.textContent = '✗ Error'; btn.style.color = '#e08888'; }
+  }
+  setTimeout(() => { if (btn) { btn.disabled = false; btn.textContent = '↻ Resubmit'; btn.style.borderColor = ''; btn.style.color = ''; } }, 5000);
+}
+
+// ═══════════════════════════════════════════════════════
+// AGENDA APPROVAL — approve or reject scraped agendas
+// ═══════════════════════════════════════════════════════
+window._agendaApprovalStatus = {}; // scrapedDocId -> 'approved'|'rejected'
+
+async function agApprove(docId, meetingType, jurisdiction, btnYesId, btnNoId, rowId) {
+  const btnY = document.getElementById(btnYesId);
+  const btnN = document.getElementById(btnNoId);
+  if (btnY) { btnY.disabled = true; btnY.textContent = '…'; }
+  if (btnN) btnN.disabled = true;
+  try {
+    const url = getWebAppUrl() + '?action=approve_agenda'
+      + '&id=' + encodeURIComponent(docId)
+      + '&meeting_type=' + encodeURIComponent(meetingType)
+      + '&jurisdiction=' + encodeURIComponent(jurisdiction);
+    await fetch(url);
+    window._agendaApprovalStatus[docId] = 'approved';
+    const row = document.getElementById(rowId);
+    if (row) row.classList.add('ag-approved');
+    if (btnY) { btnY.textContent = '✓ Yes'; btnY.disabled = true; }
+    if (btnN) btnN.style.display = 'none';
+  } catch(e) {
+    if (btnY) { btnY.textContent = 'Err'; btnY.disabled = false; }
+    if (btnN) btnN.disabled = false;
+  }
+}
+
+async function agReject(docId, meetingType, jurisdiction, btnYesId, btnNoId, rowId) {
+  const btnY = document.getElementById(btnYesId);
+  const btnN = document.getElementById(btnNoId);
+  if (btnN) { btnN.disabled = true; btnN.textContent = '…'; }
+  if (btnY) btnY.disabled = true;
+  try {
+    const url = getWebAppUrl() + '?action=reject_agenda'
+      + '&id=' + encodeURIComponent(docId)
+      + '&meeting_type=' + encodeURIComponent(meetingType)
+      + '&jurisdiction=' + encodeURIComponent(jurisdiction);
+    await fetch(url);
+    window._agendaApprovalStatus[docId] = 'rejected';
+    const row = document.getElementById(rowId);
+    if (row) { row.classList.add('ag-rejected'); setTimeout(() => { if (row) row.style.display = 'none'; }, 1500); }
+  } catch(e) {
+    if (btnN) { btnN.textContent = 'Err'; btnN.disabled = false; }
+    if (btnY) btnY.disabled = false;
+  }
+}
+
+function renderHearingsContent(muniId) {
+  const unified = buildUnifiedDateSet(muniId);
+  const ref = JURISDICTION_REFS[muniId] || {};
+
+  // Split by body type
+  const councilDates = unified.filter(d => isCouncilType(d.body_type));
+  const pcDates = unified.filter(d => isPlanCommissionType(d.body_type));
+  const otherDates = unified.filter(d => !isCouncilType(d.body_type) && !isPlanCommissionType(d.body_type));
+
+  let html = renderScheduleBanner(muniId, unified, ref);
+
+  if (councilDates.length > 0) {
+    html += renderBodySection('Council', councilDates, muniId);
+  }
+  if (pcDates.length > 0) {
+    html += renderBodySection('Plan Commission', pcDates, muniId);
+  }
+  if (otherDates.length > 0) {
+    html += renderBodySection('Other Meetings', otherDates, muniId);
   }
 
-  // Sort all hearings newest first
-  const sorted = (hearings || []).slice().sort((a,b) => (b.date||'').localeCompare(a.date||''));
+  if (!unified.length) {
+    html += `<div class="hearings-empty">No hearing records or scheduled dates loaded for this jurisdiction.</div>`;
+  }
 
-  const rows = sorted.map(h => {
-    const docLinks = [];
-    if (h.agenda_url) docLinks.push(`<a href="${h.agenda_url}" target="_blank" class="hearing-link ag">↓ Agenda</a>`);
-    if (h.youtube_url) docLinks.push(`<a href="${h.youtube_url}" target="_blank" class="hearing-link yt">▶ YouTube</a>`);
-    if (h.summary_doc) docLinks.push(`<a href="${h.summary_doc}" target="_blank" class="hearing-link doc">✦ Summary</a>`);
-    // Merge scraped docs for this date that aren't already linked
-    const scraped = scrapedByDate[h.date] || [];
-    scraped.forEach(sd => {
-      const sdUrl = sd.view_url || sd.pdf_url || '';
-      if (!sdUrl) return;
-      const already = [h.agenda_url, h.youtube_url, h.summary_doc].filter(Boolean);
-      if (already.includes(sdUrl)) return;
-      const docType = (sd.document_type || '').toLowerCase();
-      if (docType.includes('agenda')) {
-        docLinks.push(`<a href="${sdUrl}" target="_blank" class="hearing-link ag">↓ Agenda</a>`);
-      } else if (docType.includes('minute')) {
-        docLinks.push(`<a href="${sdUrl}" target="_blank" class="hearing-link min">↓ Minutes</a>`);
-      } else {
-        docLinks.push(`<a href="${sdUrl}" target="_blank" class="hearing-link doc">↓ ${sd.document_type || 'Document'}</a>`);
+  return html;
+}
+
+// ── Body type classification helpers ──
+function isCouncilType(type) {
+  if (!type) return false;
+  return /\b(council|town\s*council|city\s*council|common\s*council)\b/i.test(type);
+}
+function isPlanCommissionType(type) {
+  if (!type) return false;
+  return /\b(plan\s*commission|planning\s*commission|area\s*plan|advisory\s*plan)\b/i.test(type);
+}
+
+// ── Build unified date set from 3 sources ──
+function buildUnifiedDateSet(muniId) {
+  const hearings = PUBLIC_HEARINGS[muniId] || [];
+  const scrapedByDate = getScrapedDocsForMuni(muniId);
+  const meetingDates = MEETING_DATES[muniId] || [];
+
+  // Map: "date|body_type" -> entry
+  const dateMap = {};
+  const key = (date, bt) => date + '|' + (bt || 'Meeting');
+
+  // 1. Meeting_Dates skeleton
+  meetingDates.forEach(md => {
+    const k = key(md.date, md.body_type);
+    if (!dateMap[k]) {
+      dateMap[k] = { date: md.date, body_type: md.body_type || 'Meeting', status: md.status || 'confirmed', youtube_url: '', summary_doc: '', agendas: [], meeting_type: md.body_type || 'Meeting' };
+    } else {
+      if (md.status === 'confirmed') dateMap[k].status = 'confirmed';
+    }
+  });
+
+  // 2. PUBLIC_HEARINGS overlay
+  hearings.forEach(h => {
+    if (!h.date) return;
+    const bt = classifyBodyType(h.meeting_type);
+    const k = key(h.date, bt);
+    if (!dateMap[k]) {
+      dateMap[k] = { date: h.date, body_type: bt, status: '', youtube_url: '', summary_doc: '', agendas: [], meeting_type: h.meeting_type || bt };
+    }
+    if (h.youtube_url) dateMap[k].youtube_url = h.youtube_url;
+    if (h.summary_doc) dateMap[k].summary_doc = h.summary_doc;
+    if (h.meeting_type) dateMap[k].meeting_type = h.meeting_type;
+  });
+
+  // 3. Scraped docs overlay (agendas)
+  Object.keys(scrapedByDate).forEach(date => {
+    const docs = scrapedByDate[date].filter(sd => (sd.document_type||'').toLowerCase().includes('agenda'));
+    docs.forEach(sd => {
+      const bt = classifyBodyType(sd.meeting_type);
+      const k = key(date, bt);
+      if (!dateMap[k]) {
+        dateMap[k] = { date, body_type: bt, status: '', youtube_url: '', summary_doc: '', agendas: [], meeting_type: sd.meeting_type || bt };
       }
+      dateMap[k].agendas.push(sd);
     });
-    const docsCell = docLinks.length ? docLinks.join(' ') : `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
-    return `<tr class="hearings-table-row">
-      <td class="hearings-td hearings-td-date">${fmtHearingDate(h.date)}</td>
-      <td class="hearings-td hearings-td-type">${h.meeting_type || 'Meeting'}</td>
-      <td class="hearings-td">${docsCell}</td>
+  });
+
+  // Convert to array and sort: future dates ascending first (up to 3 weeks), then past descending
+  const entries = Object.values(dateMap);
+  const today = new Date().toISOString().split('T')[0];
+  const threeWeeks = new Date(Date.now() + 21 * 86400000).toISOString().split('T')[0];
+
+  entries.sort((a, b) => {
+    const aFuture = a.date >= today && a.date <= threeWeeks;
+    const bFuture = b.date >= today && b.date <= threeWeeks;
+    if (aFuture && !bFuture) return -1;
+    if (!aFuture && bFuture) return 1;
+    if (aFuture && bFuture) return a.date.localeCompare(b.date); // ascending
+    return b.date.localeCompare(a.date); // past: descending
+  });
+
+  return entries;
+}
+
+function classifyBodyType(meetingType) {
+  if (!meetingType) return 'Meeting';
+  if (isCouncilType(meetingType)) return 'Council';
+  if (isPlanCommissionType(meetingType)) return 'Plan Commission';
+  return meetingType;
+}
+
+// ── Schedule Banner ──
+function renderScheduleBanner(muniId, unified, ref) {
+  const today = new Date().toISOString().split('T')[0];
+  const futureConfirmed = unified.filter(d => d.date >= today && d.status === 'confirmed');
+  const futureProjected = unified.filter(d => d.date >= today && d.status === 'projected');
+
+  let bannerClass, bannerText, showUrlInput;
+
+  if (futureConfirmed.length > 0) {
+    const lastDate = futureConfirmed.sort((a,b) => b.date.localeCompare(a.date))[0].date;
+    bannerClass = 'schedule-banner confirmed';
+    bannerText = 'Schedule confirmed through ' + fmtHearingDate(lastDate);
+    showUrlInput = false;
+  } else if (futureProjected.length > 0) {
+    bannerClass = 'schedule-banner projected';
+    bannerText = 'Schedule unconfirmed — dates projected from cadence pattern';
+    showUrlInput = !ref.councilScheduleUrl && !ref.pcScheduleUrl;
+  } else {
+    bannerClass = 'schedule-banner none';
+    bannerText = 'No upcoming dates loaded';
+    showUrlInput = true;
+  }
+
+  let html = `<div class="${bannerClass}"><span>${bannerText}</span>`;
+  if (showUrlInput) {
+    html += `<div class="schedule-banner-url" id="sched-url-wrap-${muniId}">
+      <input type="text" class="url-popover-input" id="sched-url-input-${muniId}" placeholder="Paste schedule page URL...">
+      <button class="add-url-btn" onclick="submitScheduleUrl('${muniId}')">Add Schedule URL</button>
+    </div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+// ── Render one body section ──
+function renderBodySection(bodyLabel, dates, muniId) {
+  let rowIdx = 0;
+  const rows = dates.map(entry => {
+    const isPast = entry.date < new Date().toISOString().split('T')[0];
+
+    // Status badge
+    const statusBadge = entry.status === 'confirmed' ? '<span class="status-badge confirmed">confirmed</span>'
+      : entry.status === 'projected' ? '<span class="status-badge projected">projected</span>' : '';
+
+    // YouTube cell
+    let ytCell = '';
+    if (entry.youtube_url) {
+      const summaryId = 'yts_' + muniId + '_' + bodyLabel.replace(/\s/g,'') + '_' + rowIdx;
+      const btnId = 'ytrs_' + muniId + '_' + bodyLabel.replace(/\s/g,'') + '_' + rowIdx;
+      ytCell = `<div class="yt-hearing-item">`;
+      ytCell += `<a href="${entry.youtube_url}" target="_blank" class="hearing-link yt">▶ YouTube</a>`;
+      ytCell += `<span id="${summaryId}">`;
+      if (entry.summary_doc) {
+        ytCell += `<a href="${entry.summary_doc}" target="_blank" class="hearing-link doc">✦ Summary</a>`;
+      }
+      ytCell += `</span>`;
+      ytCell += `<button class="yt-resubmit-btn" id="${btnId}" onclick="ytResubmit('${entry.youtube_url}','${muniId}','${entry.date}','${btnId}','${summaryId}')">↻ ${entry.summary_doc ? 'Resubmit' : 'Generate Summary'}</button>`;
+      ytCell += `</div>`;
+    } else if (isPast) {
+      const addYtId = 'addyt_' + muniId + '_' + rowIdx;
+      ytCell = `<button class="add-url-btn" id="${addYtId}" onclick="showAddUrlPopover(this,'youtube','${muniId}','${entry.date}')">+ Add YouTube</button>`;
+    } else {
+      ytCell = `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
+    }
+
+    // Agendas cell
+    let agCell = '';
+    if (entry.agendas.length > 0) {
+      agCell = entry.agendas.map((sd, si) => {
+        const sdUrl = sd.view_url || sd.pdf_url || '';
+        const agId = 'ag_' + muniId + '_' + rowIdx + '_' + si;
+        const btnYId = 'agy_' + muniId + '_' + rowIdx + '_' + si;
+        const btnNId = 'agn_' + muniId + '_' + rowIdx + '_' + si;
+        const status = window._agendaApprovalStatus[sd.id] || '';
+        const cls = status === 'approved' ? ' ag-approved' : status === 'rejected' ? ' ag-rejected' : '';
+        let h = `<div class="ag-item${cls}" id="${agId}">`;
+        h += sdUrl ? `<a href="${sdUrl}" target="_blank" class="hearing-link ag">↓ Agenda</a>` : `<span class="hearing-link ag" style="cursor:default;">↓ Agenda</span>`;
+        if (!status) {
+          h += `<button class="ag-correct-btn yes" id="${btnYId}" onclick="agApprove('${sd.id}','${(sd.meeting_type||'').replace(/'/g,"\\'")}','${muniId}','${btnYId}','${btnNId}','${agId}')">✓ Yes</button>`;
+          h += `<button class="ag-correct-btn no" id="${btnNId}" onclick="agReject('${sd.id}','${(sd.meeting_type||'').replace(/'/g,"\\'")}','${muniId}','${btnYId}','${btnNId}','${agId}')">✗ No</button>`;
+        }
+        h += `</div>`;
+        return h;
+      }).join('');
+    } else if (isPast) {
+      const addAgId = 'addag_' + muniId + '_' + rowIdx;
+      agCell = `<button class="add-url-btn" id="${addAgId}" onclick="showAddUrlPopover(this,'agenda','${muniId}','${entry.date}')">+ Add Agenda</button>`;
+    } else {
+      agCell = `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
+    }
+
+    // Missing content highlight
+    const missingBoth = isPast && !entry.youtube_url && entry.agendas.length === 0;
+    const rowClass = 'hearings-table-row' + (missingBoth ? ' hearings-row-missing' : '');
+
+    rowIdx++;
+    return `<tr class="${rowClass}">
+      <td class="hearings-td hearings-td-date">${fmtHearingDate(entry.date)} ${statusBadge}</td>
+      <td class="hearings-td hearings-td-type">${entry.meeting_type || bodyLabel}</td>
+      <td class="hearings-td hearings-td-yt">${ytCell}</td>
+      <td class="hearings-td hearings-td-ag">${agCell}</td>
     </tr>`;
   }).join('');
 
-  return `<table class="hearings-table">
+  return `<div class="body-section-header">${bodyLabel}</div>
+  <table class="hearings-table">
     <thead>
       <tr>
-        <th class="hearings-th">Meeting Date</th>
-        <th class="hearings-th">Meeting Type</th>
-        <th class="hearings-th">Public Hearings</th>
+        <th class="hearings-th">Date</th>
+        <th class="hearings-th">Type</th>
+        <th class="hearings-th">YouTube Hearings</th>
+        <th class="hearings-th">Agendas</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
   </table>`;
+}
+
+// ── Add URL Popover ──
+function showAddUrlPopover(anchorEl, urlType, muniId, date) {
+  // Remove any existing popover
+  document.querySelectorAll('.url-popover').forEach(p => p.remove());
+  const pop = document.createElement('div');
+  pop.className = 'url-popover';
+  pop.innerHTML = `<input type="text" class="url-popover-input" id="pop-url-input" placeholder="Paste ${urlType === 'youtube' ? 'YouTube' : 'agenda'} URL...">
+    <button class="add-url-btn" onclick="submitAddUrl('${urlType}','${muniId}','${date}')">Add</button>
+    <button class="add-url-btn" style="border-color:rgba(255,255,255,0.1);" onclick="this.closest('.url-popover').remove()">Cancel</button>`;
+  anchorEl.parentElement.appendChild(pop);
+  pop.querySelector('input').focus();
+}
+
+// ── Submit Add URL ──
+async function submitAddUrl(urlType, muniId, date) {
+  const input = document.getElementById('pop-url-input');
+  if (!input || !input.value.trim()) return;
+  const url = input.value.trim();
+  const pop = input.closest('.url-popover');
+
+  try {
+    const endpoint = getWebAppUrl() + '?action=add_hearing_url'
+      + '&jurisdiction_id=' + encodeURIComponent(muniId)
+      + '&date=' + encodeURIComponent(date)
+      + '&url_type=' + encodeURIComponent(urlType)
+      + '&url=' + encodeURIComponent(url);
+
+    if (pop) pop.innerHTML = `<span style="color:var(--accent);font-size:11px;">${urlType === 'youtube' ? 'Adding & generating summary...' : 'Adding...'}</span>`;
+    const resp = await fetch(endpoint);
+    const data = await resp.json();
+
+    if (data.success || !data.error) {
+      if (pop) pop.innerHTML = `<span style="color:#6dc49a;font-size:11px;">Added</span>`;
+      setTimeout(() => { if (pop) pop.remove(); renderMuniPanel(); }, 1200);
+    } else {
+      if (pop) pop.innerHTML = `<span style="color:#e08888;font-size:11px;">Error: ${data.error}</span>`;
+    }
+  } catch(e) {
+    if (pop) pop.innerHTML = `<span style="color:#e08888;font-size:11px;">Error: ${e.message}</span>`;
+  }
+}
+
+// ── Submit Schedule URL (from banner) ──
+async function submitScheduleUrl(muniId) {
+  const input = document.getElementById('sched-url-input-' + muniId);
+  if (!input || !input.value.trim()) return;
+  const url = input.value.trim();
+  const wrap = document.getElementById('sched-url-wrap-' + muniId);
+
+  try {
+    const endpoint = getWebAppUrl() + '?action=update_schedule_url'
+      + '&jurisdiction_id=' + encodeURIComponent(muniId)
+      + '&url_type=council'
+      + '&url=' + encodeURIComponent(url);
+
+    if (wrap) wrap.innerHTML = `<span style="color:var(--accent);font-size:11px;">Saving...</span>`;
+    const resp = await fetch(endpoint);
+    const data = await resp.json();
+
+    if (data.success) {
+      // Update client-side refs
+      if (JURISDICTION_REFS[muniId]) JURISDICTION_REFS[muniId].councilScheduleUrl = url;
+      if (wrap) wrap.innerHTML = `<span style="color:#6dc49a;font-size:11px;">URL saved — run Schedule Scrape from Settings to populate dates.</span>`;
+    } else {
+      if (wrap) wrap.innerHTML = `<span style="color:#e08888;font-size:11px;">Error: ${data.error || 'Unknown'}</span>`;
+    }
+  } catch(e) {
+    if (wrap) wrap.innerHTML = `<span style="color:#e08888;font-size:11px;">Error: ${e.message}</span>`;
+  }
 }
 
 function fmtHearingDate(s) {
@@ -3340,7 +3993,7 @@ function normalizeMemberKey(muniId, body, name) {
 }
 
 async function fetchAndMergeMemberProfiles() {
-  const url = localStorage.getItem(WEBAPP_URL_KEY);
+  const url = getWebAppUrl();
   if (!url) return;
 
   const ttlHours = parseInt(localStorage.getItem(PROFILE_CACHE_TTL_KEY) || PROFILE_CACHE_TTL_DEFAULT);
@@ -3442,7 +4095,7 @@ async function refreshMuniData() {
       fetchAndMergeMemberProfiles();
       if (statusEl) statusEl.textContent = 'Done — ' + MUNICIPALITIES.length + ' jurisdictions, ' + Object.keys(PUBLIC_HEARINGS).length + ' with hearings.';
     } else {
-      if (statusEl) statusEl.textContent = 'No data returned. Check Web App URL.';
+      if (statusEl) statusEl.textContent = 'No data returned. Try refreshing.';
     }
   } catch(e) {
     if (statusEl) statusEl.textContent = 'Error: ' + e.message;
@@ -3453,7 +4106,7 @@ function updateProfileStats(profiles) {
   const box = document.getElementById('profile-stats-box');
   if (!box) return;
   if (!profiles || !profiles.length) {
-    box.innerHTML = 'No data — configure Web App URL and fetch.';
+    box.innerHTML = 'No profile data loaded.';
     return;
   }
   const completed = profiles.filter(p => p.research_status === 'completed').length;
@@ -3472,7 +4125,7 @@ function updateProfileStats(profiles) {
 function loadProfileSettings() {
   const urlInput = document.getElementById('profile-webapp-url');
   const ttlSelect = document.getElementById('profile-cache-ttl');
-  if (urlInput) urlInput.value = localStorage.getItem(WEBAPP_URL_KEY) || '';
+  if (urlInput) urlInput.value = getWebAppUrl() || '';
   if (ttlSelect) ttlSelect.value = localStorage.getItem(PROFILE_CACHE_TTL_KEY) || PROFILE_CACHE_TTL_DEFAULT;
 }
 
@@ -3484,6 +4137,32 @@ function saveProfileSettings() {
   const statusEl = document.getElementById('profile-fetch-status');
   if (statusEl) statusEl.textContent = '✓ Settings saved.';
 }
+
+// ── Schedule Scraper ──
+async function runScheduleScrapeAll() {
+  const btn = document.getElementById('scrape-all-btn');
+  const statusEl = document.getElementById('scrape-status');
+  const statsBox = document.getElementById('scrape-stats-box');
+  if (btn) { btn.disabled = true; btn.textContent = 'Scraping...'; }
+  if (statusEl) statusEl.textContent = 'Running schedule scrape across all jurisdictions. This may take several minutes...';
+  try {
+    const resp = await fetch(getWebAppUrl() + '?action=scrape_all_schedules', { signal: AbortSignal.timeout(360000) });
+    const data = await resp.json();
+    if (data.error) {
+      if (statusEl) statusEl.textContent = 'Error: ' + data.error;
+    } else {
+      if (statsBox) statsBox.innerHTML = `Scraped: ${data.scraped || 0} / ${data.total || 0} jurisdictions<br>Dates found: ${data.dates_found || 0}<br>Failed: ${data.failed || 0}<br>Last run: ${new Date().toLocaleString()}`;
+      if (statusEl) statusEl.textContent = 'Complete. Refreshing meeting dates...';
+      // Refresh MEETING_DATES
+      await fetchMeetingDates();
+      if (statusEl) statusEl.textContent = 'Done — meeting dates refreshed.';
+    }
+  } catch(e) {
+    if (statusEl) statusEl.textContent = 'Error: ' + e.message;
+  }
+  if (btn) { btn.disabled = false; btn.textContent = 'Scrape All Schedules'; }
+}
+window.runScheduleScrapeAll = runScheduleScrapeAll;
 
 function loadSettings() {
   return {
@@ -3635,6 +4314,9 @@ window.exportBriefing = exportBriefing;
 window.renderHearingsContent = renderHearingsContent;
 window.refreshHearings = refreshHearings;
 window.toggleMuniIntel = toggleMuniIntel;
+window.showAddUrlPopover = showAddUrlPopover;
+window.submitAddUrl = submitAddUrl;
+window.submitScheduleUrl = submitScheduleUrl;
 
 // ─── TRACKED PROJECTS ────────────────────────────────────────────────────────
 
@@ -3971,6 +4653,9 @@ function phGetAllHearings() {
     muniIdToName[id] = id.replace('-county','').charAt(0).toUpperCase() + id.replace('-county','').slice(1) + ' County';
   });
 
+  // Track which muniId+date combos have hearing records
+  const hearingKeys = new Set();
+
   Object.keys(PUBLIC_HEARINGS).forEach(muniId => {
     const hearings = PUBLIC_HEARINGS[muniId];
     if (!hearings) return;
@@ -3978,8 +4663,29 @@ function phGetAllHearings() {
     const muniName = muni ? muni.name : muniIdToName[muniId] || muniId;
     hearings.forEach(h => {
       all.push({ ...h, muniId, muniName });
+      hearingKeys.add(muniId + '|' + h.date);
     });
   });
+
+  // Add agenda-only rows: scraped agendas whose date+jurisdiction don't match any hearing
+  if (SCRAPED_DOCS.length) {
+    const agendaDocs = SCRAPED_DOCS.filter(d => (d.document_type||'').toLowerCase().includes('agenda'));
+    // Group by muniId + date to avoid duplicate rows
+    const agendaOnly = {};
+    agendaDocs.forEach(d => {
+      const muni = MUNICIPALITIES.find(m => {
+        const dj = (d.jurisdiction||'').toLowerCase();
+        const dc = (d.code||'').toLowerCase();
+        return dc === m.id || dj === m.id || dj === m.name.toLowerCase() || dj === m.name.replace('City of ','').replace('Town of ','').toLowerCase();
+      });
+      if (!muni) return;
+      const key = muni.id + '|' + (d.meeting_date||'');
+      if (hearingKeys.has(key) || agendaOnly[key]) return;
+      agendaOnly[key] = { date: d.meeting_date||'', meeting_type: d.meeting_type||'Meeting', muniId: muni.id, muniName: muni.name };
+    });
+    Object.values(agendaOnly).forEach(row => all.push(row));
+  }
+
   // Sort newest first
   all.sort((a,b) => (b.date||'').localeCompare(a.date||''));
   return all;
@@ -4001,39 +4707,62 @@ function phRenderHearings() {
 
   function buildTable(rows, isReviewed) {
     if (rows.length === 0) return '';
+    let rIdx = 0;
     const tableRows = rows.map(h => {
       const key = (h.muniId + '_' + h.date + '_' + (h.youtube_url||h.agenda_url||'')).replace(/'/g,"\\'");
-      const docLinks = [];
-      if (h.agenda_url) docLinks.push(`<a href="${h.agenda_url}" target="_blank" class="hearing-link ag">↓ Agenda</a>`);
-      if (h.youtube_url) docLinks.push(`<a href="${h.youtube_url}" target="_blank" class="hearing-link yt">▶ YouTube</a>`);
-      if (h.summary_doc) docLinks.push(`<a href="${h.summary_doc}" target="_blank" class="hearing-link doc">✦ Summary</a>`);
-      // Merge scraped docs for this hearing
-      const scrapedByDate = getScrapedDocsForMuni(h.muniId);
-      const scraped = scrapedByDate[h.date] || [];
-      scraped.forEach(sd => {
-        const sdUrl = sd.view_url || sd.pdf_url || '';
-        if (!sdUrl) return;
-        const already = [h.agenda_url, h.youtube_url, h.summary_doc].filter(Boolean);
-        if (already.includes(sdUrl)) return;
-        const docType = (sd.document_type || '').toLowerCase();
-        if (docType.includes('agenda')) {
-          docLinks.push(`<a href="${sdUrl}" target="_blank" class="hearing-link ag">↓ Agenda</a>`);
-        } else if (docType.includes('minute')) {
-          docLinks.push(`<a href="${sdUrl}" target="_blank" class="hearing-link min">↓ Minutes</a>`);
-        } else {
-          docLinks.push(`<a href="${sdUrl}" target="_blank" class="hearing-link doc">↓ ${sd.document_type || 'Document'}</a>`);
-        }
-      });
-      const docsCell = docLinks.length ? docLinks.join(' ') : `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
       const juriLabel = h.muniName.replace('City of ','').replace('Town of ','');
       const reviewBtn = isReviewed
         ? `<button class="ph-review-btn done" onclick="phUnreview('${key}')">✓ Reviewed</button>`
         : `<button class="ph-review-btn" onclick="phMarkReviewed('${key}')">✓ Mark Reviewed</button>`;
+
+      // YouTube Hearings column
+      let ytCell = `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
+      if (h.youtube_url) {
+        const uid = 'phyt_' + rIdx;
+        const summaryId = 'phyts_' + rIdx;
+        const btnId = 'phytrs_' + rIdx;
+        let ytHtml = `<div class="yt-hearing-item">`;
+        ytHtml += `<a href="${h.youtube_url}" target="_blank" class="hearing-link yt">▶ YouTube</a>`;
+        ytHtml += `<span id="${summaryId}">`;
+        if (h.summary_doc) {
+          ytHtml += `<a href="${h.summary_doc}" target="_blank" class="hearing-link doc">✦ Summary</a>`;
+        }
+        ytHtml += `</span>`;
+        ytHtml += `<button class="yt-resubmit-btn" id="${btnId}" onclick="ytResubmit('${h.youtube_url}','${h.muniId}','${h.date}','${btnId}','${summaryId}')">↻ ${h.summary_doc ? 'Resubmit' : 'Generate Summary'}</button>`;
+        ytHtml += `</div>`;
+        ytCell = ytHtml;
+      }
+
+      // Agendas column
+      const scrapedByDate = getScrapedDocsForMuni(h.muniId);
+      const scraped = (scrapedByDate[h.date] || []).filter(sd => (sd.document_type||'').toLowerCase().includes('agenda'));
+      let agCell = `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
+      if (scraped.length > 0) {
+        agCell = scraped.map((sd, si) => {
+          const sdUrl = sd.view_url || sd.pdf_url || '';
+          const agId = 'phag_' + rIdx + '_' + si;
+          const btnYId = 'phagy_' + rIdx + '_' + si;
+          const btnNId = 'phagn_' + rIdx + '_' + si;
+          const status = window._agendaApprovalStatus[sd.id] || '';
+          const cls = status === 'approved' ? ' ag-approved' : status === 'rejected' ? ' ag-rejected' : '';
+          let html = `<div class="ag-item${cls}" id="${agId}">`;
+          html += sdUrl ? `<a href="${sdUrl}" target="_blank" class="hearing-link ag">↓ Agenda</a>` : `<span class="hearing-link ag" style="cursor:default;">↓ Agenda</span>`;
+          if (!status) {
+            html += `<button class="ag-correct-btn yes" id="${btnYId}" onclick="agApprove('${sd.id}','${(sd.meeting_type||'').replace(/'/g,"\\'")}','${h.muniId}','${btnYId}','${btnNId}','${agId}')">✓ Yes</button>`;
+            html += `<button class="ag-correct-btn no" id="${btnNId}" onclick="agReject('${sd.id}','${(sd.meeting_type||'').replace(/'/g,"\\'")}','${h.muniId}','${btnYId}','${btnNId}','${agId}')">✗ No</button>`;
+          }
+          html += `</div>`;
+          return html;
+        }).join('');
+      }
+
+      rIdx++;
       return `<tr class="hearings-table-row">
         <td class="hearings-td hearings-td-date">${fmtHearingDate(h.date)}</td>
         <td class="hearings-td" style="color:var(--accent-light);font-size:11px;">${juriLabel}</td>
         <td class="hearings-td hearings-td-type">${h.meeting_type || 'Meeting'}</td>
-        <td class="hearings-td">${docsCell}</td>
+        <td class="hearings-td hearings-td-yt">${ytCell}</td>
+        <td class="hearings-td hearings-td-ag">${agCell}</td>
         <td class="hearings-td">${reviewBtn}</td>
       </tr>`;
     }).join('');
@@ -4044,7 +4773,8 @@ function phRenderHearings() {
           <th class="hearings-th">Date</th>
           <th class="hearings-th">Jurisdiction</th>
           <th class="hearings-th">Type</th>
-          <th class="hearings-th">Public Hearings</th>
+          <th class="hearings-th">YouTube Hearings</th>
+          <th class="hearings-th">Agendas</th>
           <th class="hearings-th"></th>
         </tr>
       </thead>
@@ -4131,7 +4861,7 @@ window.phFilterHearings = phFilterHearings;
 
 // ── Live Jurisdiction References (fetched from Google Sheet, merged over hardcoded) ──
 async function fetchLiveJurisdictionRefs() {
-  const url = localStorage.getItem(WEBAPP_URL_KEY);
+  const url = getWebAppUrl();
   if (!url) return;
   try {
     const resp = await fetch(url + '?action=jurisdiction_references');
@@ -4148,7 +4878,7 @@ async function fetchLiveJurisdictionRefs() {
 
 // ── Live URL Content Fetching (via Apps Script UrlFetchApp proxy) ──
 async function fetchLiveUrlContent(targetUrl) {
-  const webappUrl = localStorage.getItem(WEBAPP_URL_KEY);
+  const webappUrl = getWebAppUrl();
   if (!webappUrl || !targetUrl) return null;
   try {
     const resp = await fetch(webappUrl + '?action=fetch_url&url=' + encodeURIComponent(targetUrl));
@@ -4168,6 +4898,7 @@ const JURISDICTION_REFS = {
     secondaryPlatUrl:'https://avonindiana.gov/DocumentCenter/View/324/Major-Subdivision-Final-Plat-Application-PDF',
     pcScheduleUrl:'https://avonindiana.gov/DocumentCenter/View/2095/2026-Plan-Commission----Schedule-PDF',
     bzaScheduleUrl:'https://avonindiana.gov/DocumentCenter/View/2094/2026-Board-of-Zoning-Appeals-Schedule-PDF',
+    councilScheduleUrl:'', councilCadence:'2nd and 4th Thursday', pcCadence:'1st and 3rd Wednesday',
     notes:'UDO replaces prior Zoning Ordinance and SCO; hosted on MunicipalCodeOnline', status:'Verified'
   },
   'bargersville': {
@@ -4178,6 +4909,7 @@ const JURISDICTION_REFS = {
     secondaryPlatUrl:'',
     pcScheduleUrl:'https://bargersville.in.gov/services/planning___zoning/index.php',
     bzaScheduleUrl:'',
+    councilScheduleUrl:'', councilCadence:'1st and 3rd Thursday', pcCadence:'2nd Tuesday',
     notes:'UDC adopted August 6 2022; replaces Zoning Ordinance and SCO', status:'Verified'
   },
   'carmel': {
@@ -4188,6 +4920,7 @@ const JURISDICTION_REFS = {
     secondaryPlatUrl:'https://www.carmel.in.gov/DocumentCenter/View/211/Secondary-Plat-or-Replat-PDF',
     pcScheduleUrl:'https://www.carmel.in.gov/202/All-Meetings-Agendas-Minutes',
     bzaScheduleUrl:'https://www.carmel.in.gov/202/All-Meetings-Agendas-Minutes',
+    councilScheduleUrl:'', councilCadence:'1st and 3rd Monday', pcCadence:'3rd Tuesday',
     notes:'UDO hosted at Gridics platform', status:'Verified'
   },
   'cicero': {
@@ -4198,6 +4931,7 @@ const JURISDICTION_REFS = {
     secondaryPlatUrl:'',
     pcScheduleUrl:'https://www.ciceroin.org/',
     bzaScheduleUrl:'https://www.ciceroin.org/government/cjt-board-of-zoning-appeals/',
+    councilScheduleUrl:'', councilCadence:'1st and 3rd Monday', pcCadence:'2nd Monday',
     notes:'Cicero/Jackson Township joint zoning; BZA meets 3rd Thursday at 7 pm', status:'Verified'
   },
   'danville': {
@@ -4208,6 +4942,7 @@ const JURISDICTION_REFS = {
     secondaryPlatUrl:'',
     pcScheduleUrl:'https://danvillein.gov/department/board.php?structureid=33',
     bzaScheduleUrl:'https://danvillein.gov/department/board.php?structureid=34',
+    councilScheduleUrl:'', councilCadence:'1st and 3rd Monday', pcCadence:'2nd Wednesday',
     notes:'UDO Ordinance 01-2024; PC meets 2nd Wednesday at 7 pm', status:'Verified'
   },
   'fishers': {
@@ -4218,6 +4953,7 @@ const JURISDICTION_REFS = {
     secondaryPlatUrl:'',
     pcScheduleUrl:'https://fishersin.gov/departments/planning-zoning/',
     bzaScheduleUrl:'',
+    councilScheduleUrl:'', councilCadence:'1st and 3rd Monday', pcCadence:'2nd Wednesday',
     notes:'Interactive UDO hosted on EncodePlus', status:'Verified'
   },
   'fortville': {
@@ -4228,6 +4964,7 @@ const JURISDICTION_REFS = {
     secondaryPlatUrl:'',
     pcScheduleUrl:'https://www.fortville.in.gov/news-and-notices/town-of-fortvilles-public-meeting-and-office-closure-calendar-for-2025/',
     bzaScheduleUrl:'',
+    councilScheduleUrl:'', councilCadence:'', pcCadence:'last Tuesday',
     notes:'PC last Tuesday; BZA last Thursday each month', status:'Verified'
   },
   'franklin': {
@@ -4238,6 +4975,7 @@ const JURISDICTION_REFS = {
     secondaryPlatUrl:'',
     pcScheduleUrl:'https://www.franklin.in.gov/department/board.php?structureid=80',
     bzaScheduleUrl:'https://www.franklin.in.gov/department/board.php?structureid=83',
+    councilScheduleUrl:'', councilCadence:'', pcCadence:'',
     notes:'Separate Zoning Ordinance and SCO; not yet unified', status:'Verified'
   },
   'greenfield': {
@@ -4248,6 +4986,7 @@ const JURISDICTION_REFS = {
     secondaryPlatUrl:'',
     pcScheduleUrl:'https://www.greenfieldin.org/government/planning-and-building/plan-commission',
     bzaScheduleUrl:'https://www.greenfieldin.org/government/planning-and-building/1516-board-of-zoning-appeals-meeting-and-filing-dates',
+    councilScheduleUrl:'', councilCadence:'1st and 3rd Monday', pcCadence:'2nd Wednesday',
     notes:'Combined primary/secondary plat application updated June 2024', status:'Verified'
   },
   'greenwood': {
@@ -4258,6 +4997,7 @@ const JURISDICTION_REFS = {
     secondaryPlatUrl:'',
     pcScheduleUrl:'https://www.greenwood.in.gov/division/index.php?structureid=120',
     bzaScheduleUrl:'https://www.greenwood.in.gov/division/index.php?structureid=122',
+    councilScheduleUrl:'', councilCadence:'1st and 3rd Monday', pcCadence:'2nd and 4th Monday',
     notes:'UDO adopted Oct 2020; BZA meets 2nd and 4th Monday', status:'Verified'
   },
   'lafayette': {
@@ -4268,6 +5008,7 @@ const JURISDICTION_REFS = {
     secondaryPlatUrl:'',
     pcScheduleUrl:'https://www.tippecanoe.in.gov/378/Area-Plan-Commission-APC',
     bzaScheduleUrl:'',
+    councilScheduleUrl:'', councilCadence:'', pcCadence:'',
     notes:'Administered by Tippecanoe County APC; multi-jurisdictional UZO; APC meets Wednesdays', status:'Verified'
   },
   'lapel': {
@@ -4278,6 +5019,7 @@ const JURISDICTION_REFS = {
     secondaryPlatUrl:'',
     pcScheduleUrl:'https://lapelindiana.org/',
     bzaScheduleUrl:'',
+    councilScheduleUrl:'', councilCadence:'', pcCadence:'2nd Thursday',
     notes:'2015 zoning ordinance Ch14; SCO Ch15; PAC meets 2nd Thursday at 6:30 PM', status:'Verified'
   },
   'lebanon': {
@@ -4288,6 +5030,7 @@ const JURISDICTION_REFS = {
     secondaryPlatUrl:'',
     pcScheduleUrl:'https://lebanon.in.gov/planning-department/',
     bzaScheduleUrl:'',
+    councilScheduleUrl:'', councilCadence:'', pcCadence:'',
     notes:'UDO adopted February 27 2024', status:'Verified'
   },
   'mccordsville': {
@@ -4298,6 +5041,7 @@ const JURISDICTION_REFS = {
     secondaryPlatUrl:'',
     pcScheduleUrl:'https://www.mccordsville.org/department/board.php?structureid=31',
     bzaScheduleUrl:'',
+    councilScheduleUrl:'', councilCadence:'', pcCadence:'',
     notes:'Plans to adopt new UDO in 2025/2026; all apps via SDL online portal', status:'Verified'
   },
   'mooresville': {
@@ -4308,6 +5052,7 @@ const JURISDICTION_REFS = {
     secondaryPlatUrl:'',
     pcScheduleUrl:'https://www.mooresville.in.gov/public-works/',
     bzaScheduleUrl:'',
+    councilScheduleUrl:'', councilCadence:'1st and 3rd Tuesday', pcCadence:'1st Tuesday',
     notes:'UDO adopted per GRW engineering work', status:'Verified'
   },
   'new-palestine': {
@@ -4318,6 +5063,7 @@ const JURISDICTION_REFS = {
     secondaryPlatUrl:'',
     pcScheduleUrl:'https://www.newpalestine.in.gov/',
     bzaScheduleUrl:'',
+    councilScheduleUrl:'', councilCadence:'1st and 3rd Wednesday', pcCadence:'1st and 3rd Wednesday',
     notes:'Code current through Ordinance 080625A; PC meets 1st and 3rd Wednesday at 7 pm', status:'Verified'
   },
   'new-whiteland': {
@@ -4328,6 +5074,7 @@ const JURISDICTION_REFS = {
     secondaryPlatUrl:'',
     pcScheduleUrl:'',
     bzaScheduleUrl:'',
+    councilScheduleUrl:'', councilCadence:'', pcCadence:'4th Tuesday',
     notes:'PC meets 4th Tuesday at 7 pm; BZA 4th Tuesday at 6:30 pm', status:'Verified'
   },
   'noblesville': {
@@ -4338,6 +5085,7 @@ const JURISDICTION_REFS = {
     secondaryPlatUrl:'',
     pcScheduleUrl:'https://www.noblesville.in.gov/217/Planning',
     bzaScheduleUrl:'',
+    councilScheduleUrl:'', councilCadence:'2nd and 4th Tuesday', pcCadence:'3rd Monday',
     notes:'UDO accessible online per Current Planning & Zoning page', status:'Verified'
   },
   'pendleton': {
@@ -4348,6 +5096,7 @@ const JURISDICTION_REFS = {
     secondaryPlatUrl:'',
     pcScheduleUrl:'https://www.town.pendleton.in.us/plan-commission',
     bzaScheduleUrl:'',
+    councilScheduleUrl:'', councilCadence:'1st and 3rd Tuesday', pcCadence:'1st Wednesday',
     notes:'UDO adopted Oct 2021; PC meets 1st Wednesday at 7 pm', status:'Verified'
   },
   'shelbyville': {
@@ -4358,6 +5107,7 @@ const JURISDICTION_REFS = {
     secondaryPlatUrl:'',
     pcScheduleUrl:'https://www.shelbyville.in.gov/294/Plan-Commission',
     bzaScheduleUrl:'',
+    councilScheduleUrl:'', councilCadence:'', pcCadence:'',
     notes:'Detailed process guide at shelbyville.in.gov', status:'Verified'
   },
   'sheridan': {
@@ -4368,6 +5118,7 @@ const JURISDICTION_REFS = {
     secondaryPlatUrl:'',
     pcScheduleUrl:'https://sheridan.in.gov/planning-and-development/',
     bzaScheduleUrl:'',
+    councilScheduleUrl:'', councilCadence:'', pcCadence:'',
     notes:'Meeting schedule not directly surfaced; contact Planning & Development', status:'Unverified'
   },
   'whiteland': {
@@ -4378,6 +5129,7 @@ const JURISDICTION_REFS = {
     secondaryPlatUrl:'',
     pcScheduleUrl:'',
     bzaScheduleUrl:'',
+    councilScheduleUrl:'', councilCadence:'', pcCadence:'',
     notes:'Minimal online presence; contact town directly for applications', status:'Unverified'
   },
   'whitestown': {
@@ -4388,6 +5140,7 @@ const JURISDICTION_REFS = {
     secondaryPlatUrl:'',
     pcScheduleUrl:'https://whitestown.in.gov/government/departments/planning-department/',
     bzaScheduleUrl:'',
+    councilScheduleUrl:'', councilCadence:'1st and 3rd Tuesday', pcCadence:'2nd Monday',
     notes:'UDO adopted June 2020 amended Feb 2022; permits via Mobile-Eyes', status:'Verified'
   },
   'westfield': {
@@ -4398,6 +5151,7 @@ const JURISDICTION_REFS = {
     secondaryPlatUrl:'',
     pcScheduleUrl:'https://www.westfieldin.gov/196/Schedule-of-Meetings',
     bzaScheduleUrl:'https://www.westfieldin.gov/196/Schedule-of-Meetings',
+    councilScheduleUrl:'', councilCadence:'2nd and 4th Monday', pcCadence:'1st Monday',
     notes:'Full application list including rezoning plat BZA apps; 2026 meeting schedule posted', status:'Verified'
   },
   'zionsville': {
@@ -4408,6 +5162,7 @@ const JURISDICTION_REFS = {
     secondaryPlatUrl:'',
     pcScheduleUrl:'https://www.zionsville-in.gov/310/Plan-Commission',
     bzaScheduleUrl:'https://www.zionsville-in.gov/311/Board-of-Zoning-Appeals',
+    councilScheduleUrl:'', councilCadence:'1st and 3rd Monday', pcCadence:'2nd Monday',
     notes:'Zoning current through Ordinance 2025-01; BZA meets first Wednesday', status:'Verified'
   },
   'columbus': {
@@ -4418,6 +5173,7 @@ const JURISDICTION_REFS = {
     secondaryPlatUrl:'',
     pcScheduleUrl:'https://www.columbus.in.gov/planning/applications-forms/',
     bzaScheduleUrl:'',
+    councilScheduleUrl:'', councilCadence:'', pcCadence:'',
     notes:'Zoning Ordinance updated June 18 2024; OpenGov portal since Nov 2025', status:'Verified'
   },
   'martinsville': {
@@ -4428,6 +5184,7 @@ const JURISDICTION_REFS = {
     secondaryPlatUrl:'',
     pcScheduleUrl:'https://www.martinsville.in.gov/AgendaCenter',
     bzaScheduleUrl:'https://www.martinsville.in.gov/229/Board-of-Zoning-Appeals',
+    councilScheduleUrl:'', councilCadence:'2nd Monday', pcCadence:'4th Tuesday',
     notes:'PC meets 4th Tuesday at 7 pm; BZA 4th Tuesday at 6 pm', status:'Verified'
   },
   'tipton': {
@@ -4438,6 +5195,7 @@ const JURISDICTION_REFS = {
     secondaryPlatUrl:'',
     pcScheduleUrl:'',
     bzaScheduleUrl:'https://www.tiptongov.com/county/department/board.php?structureid=110',
+    councilScheduleUrl:'', councilCadence:'', pcCadence:'',
     notes:'BZA meets 4th Tuesday if needed; contact planning office for apps', status:'Unverified'
   },
   'muncie': {
@@ -4448,6 +5206,7 @@ const JURISDICTION_REFS = {
     secondaryPlatUrl:'',
     pcScheduleUrl:'https://www.co.delaware.in.us/department/index.php?structureid=22',
     bzaScheduleUrl:'',
+    councilScheduleUrl:'', councilCadence:'', pcCadence:'',
     notes:'Delaware-Muncie Metropolitan Plan Commission administers zoning and platting', status:'Verified'
   }
 };
@@ -4457,6 +5216,71 @@ let schedViewInited = false;
 window.currentScheduleResults = null;
 
 // ── Init ──
+// ── Entitlement Stage Selector ──
+function toggleStageDropdown() {
+  const list = document.getElementById('stage-dropdown-list');
+  if (!list) return;
+  list.classList.toggle('open');
+  // Close on outside click
+  if (list.classList.contains('open')) {
+    setTimeout(() => {
+      document.addEventListener('click', closeStageDropdownOutside, { once: true });
+    }, 0);
+  }
+}
+function closeStageDropdownOutside(e) {
+  const dd = document.getElementById('stage-dropdown');
+  const list = document.getElementById('stage-dropdown-list');
+  if (dd && !dd.contains(e.target) && list) list.classList.remove('open');
+  else if (list && list.classList.contains('open')) {
+    document.addEventListener('click', closeStageDropdownOutside, { once: true });
+  }
+}
+function getSelectedStages() {
+  const stages = [];
+  const checks = document.querySelectorAll('#stage-dropdown-list input[type="checkbox"]');
+  checks.forEach(cb => {
+    if (!cb.checked) return;
+    if (cb.id === 'stage-custom-check') {
+      const txt = (document.getElementById('stage-custom-text')?.value || '').trim();
+      if (txt) stages.push(txt);
+    } else {
+      stages.push(cb.value);
+    }
+  });
+  return stages;
+}
+function updateStageSelection() {
+  const stages = getSelectedStages();
+  // Update button label
+  const label = document.getElementById('stage-dropdown-label');
+  if (label) label.textContent = stages.length ? stages.length + ' stage' + (stages.length > 1 ? 's' : '') + ' selected' : 'Select stages…';
+  // Render tags
+  const tagsEl = document.getElementById('stage-tags');
+  if (tagsEl) {
+    tagsEl.innerHTML = stages.map(s =>
+      `<span class="stage-tag">${s} <span class="stage-tag-x" onclick="removeStage('${s.replace(/'/g,"\\'")}')">✕</span></span>`
+    ).join('');
+  }
+}
+function removeStage(stageName) {
+  const checks = document.querySelectorAll('#stage-dropdown-list input[type="checkbox"]');
+  checks.forEach(cb => {
+    if (cb.id === 'stage-custom-check') {
+      const txt = (document.getElementById('stage-custom-text')?.value || '').trim();
+      if (txt === stageName) { cb.checked = false; document.getElementById('stage-custom-text').value = ''; }
+    } else if (cb.value === stageName) { cb.checked = false; }
+  });
+  updateStageSelection();
+}
+function getScheduleProcessDesc() {
+  const stages = getSelectedStages();
+  const detail = (document.getElementById('sched-detail')?.value || '').trim();
+  let desc = stages.join(', ');
+  if (detail) desc += (desc ? '. ' : '') + detail;
+  return desc;
+}
+
 function initScheduleView() {
   if (schedViewInited) return;
   schedViewInited = true;
@@ -4638,12 +5462,12 @@ function parseScheduleResponse(rawText) {
 // ── Main Orchestrator ──
 async function runScheduleGeneration() {
   const jurisdictionId = document.getElementById('sched-jurisdiction').value;
-  const processDesc = document.getElementById('sched-process').value.trim();
+  const processDesc = getScheduleProcessDesc();
   const targetDate = document.getElementById('sched-target-date').value;
 
   // Validate
   if (!jurisdictionId) { showSchedError('Please select a jurisdiction.'); return; }
-  if (!processDesc) { showSchedError('Please describe the entitlement process needed.'); return; }
+  if (!processDesc) { showSchedError('Please select at least one entitlement stage or enter additional details.'); return; }
   if (!targetDate) { showSchedError('Please set a target approval date.'); return; }
 
   const key = getGeminiKey();
