@@ -34,6 +34,58 @@
     --intel-bg: #0a1520;
   }
 
+  [data-theme="light"] {
+    --bg: #f0f2f5;
+    --panel: #ffffff;
+    --panel-hover: #f5f7fa;
+    --border: rgba(0,0,0,0.1);
+    --text: #1a2332;
+    --text-dim: #5a6678;
+    --intel-bg: #e8ecf0;
+    --navy: #1e3a5f;
+    --navy-dark: #162840;
+    --navy-mid: #2a4f7c;
+    --navy-light: #4a7ab5;
+    --accent: #c07800;
+    --accent-light: #d48a10;
+    --white: #f4f6f9;
+    --gray-100: #edf0f4;
+    --gray-200: #d8dde6;
+    --gray-400: #6b7a8c;
+    --gray-600: #4a5568;
+    --success: #1a6b3a;
+    --warn: #a04e10;
+    --profile-a: #1e4d8c;
+    --profile-b: #146038;
+    --profile-c: #7a2828;
+  }
+  [data-theme="light"] .topbar { background: #1e3a5f; }
+  [data-theme="light"] .sidebar { background: #e4e8ee; border-right-color: rgba(0,0,0,0.08); }
+  [data-theme="light"] .sidebar .county-header { color: #1e3a5f; }
+  [data-theme="light"] .sidebar .muni-item { color: #2a3a50; }
+  [data-theme="light"] .sidebar .muni-item:hover { background: rgba(30,58,95,0.08); }
+  [data-theme="light"] .sidebar .muni-item.active { background: rgba(30,58,95,0.12); color: #1e3a5f; }
+  [data-theme="light"] .settings-card { background: #ffffff; border-color: rgba(0,0,0,0.08); }
+  [data-theme="light"] .settings-input,
+  [data-theme="light"] .settings-select { background: #f5f7fa; border-color: rgba(0,0,0,0.12); color: #1a2332; }
+  [data-theme="light"] .hearings-table-row:hover { background: rgba(30,58,95,0.04); }
+  [data-theme="light"] .hearings-th { background: rgba(30,58,95,0.06); color: #1e3a5f; }
+  [data-theme="light"] .hearing-link.yt { background: rgba(220,50,50,0.08); color: #c0392b; border-color: rgba(220,50,50,0.2); }
+  [data-theme="light"] .hearing-link.doc { background: rgba(30,100,180,0.08); color: #1a5fa5; border-color: rgba(30,100,180,0.2); }
+  [data-theme="light"] .hearing-link.ag { background: rgba(26,122,74,0.08); color: #146038; border-color: rgba(26,122,74,0.2); }
+  [data-theme="light"] .member-detail { background: #f8f9fb; border-left-color: rgba(0,0,0,0.08); }
+  [data-theme="light"] .member-card { background: #ffffff; border-color: rgba(0,0,0,0.08); }
+  [data-theme="light"] .member-card:hover { background: #f5f7fa; border-color: rgba(30,58,95,0.2); }
+  [data-theme="light"] .topbar-badge { background: rgba(255,255,255,0.15); }
+  [data-theme="light"] .refresh-btn { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.2); }
+  [data-theme="light"] .export-btn { background: rgba(192,120,0,0.9); }
+  [data-theme="light"] .intel-item { background: #ffffff; border-color: rgba(0,0,0,0.06); }
+  [data-theme="light"] .county-card { background: #ffffff; border-color: rgba(0,0,0,0.08); }
+  [data-theme="light"] .stat-box { background: rgba(30,58,95,0.05); border-color: rgba(0,0,0,0.06); }
+  [data-theme="light"] .yt-resubmit-btn { background: rgba(30,58,95,0.06); border-color: rgba(30,58,95,0.15); color: #4a7ab5; }
+  [data-theme="light"] .ag-correct-btn.yes { background: rgba(26,122,74,0.08); border-color: rgba(26,122,74,0.2); color: #146038; }
+  [data-theme="light"] .ag-correct-btn.no { background: rgba(180,50,50,0.08); border-color: rgba(180,50,50,0.2); color: #a03030; }
+
   * { box-sizing: border-box; margin: 0; padding: 0; }
   
   body {
@@ -1409,6 +1461,32 @@
 /* ── SCHEDULE & REQUIREMENTS ─────────────────────────── */
 .sched-input-wrap { display:flex; gap:16px; }
 .sched-input-col { flex:1; display:flex; flex-direction:column; gap:12px; }
+.stage-dropdown { position:relative; }
+.stage-dropdown-btn { width:100%; padding:8px 10px; font-size:12px; font-family:'IBM Plex Mono',monospace;
+  background:var(--panel); border:1px solid var(--border); color:var(--text); border-radius:3px;
+  cursor:pointer; text-align:left; display:flex; justify-content:space-between; align-items:center; }
+.stage-dropdown-btn:hover { border-color:rgba(255,255,255,0.15); }
+.stage-dropdown-list { display:none; position:absolute; top:100%; left:0; right:0; z-index:50;
+  background:var(--panel); border:1px solid var(--border); border-top:none; border-radius:0 0 3px 3px;
+  max-height:260px; overflow-y:auto; }
+.stage-dropdown-list.open { display:block; }
+.stage-dropdown-item { display:flex; align-items:center; gap:8px; padding:6px 10px; cursor:pointer;
+  font-size:11px; font-family:'IBM Plex Mono',monospace; color:var(--text); transition:background 0.1s; }
+.stage-dropdown-item:hover { background:var(--panel-hover); }
+.stage-dropdown-item input[type="checkbox"] { accent-color:var(--accent); cursor:pointer; }
+.stage-custom-input { flex:1; background:transparent; border:none; border-bottom:1px solid var(--border);
+  color:var(--text); font-size:11px; font-family:'IBM Plex Mono',monospace; padding:2px 4px; outline:none; }
+.stage-custom-input:focus { border-bottom-color:var(--accent); }
+.stage-tags { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+.stage-tag { display:inline-flex; align-items:center; gap:4px; background:rgba(232,160,32,0.12);
+  border:1px solid rgba(232,160,32,0.3); color:var(--accent-light); font-size:10px; font-family:'IBM Plex Mono',monospace;
+  padding:2px 8px; border-radius:2px; }
+.stage-tag-x { cursor:pointer; opacity:0.6; font-size:12px; }
+.stage-tag-x:hover { opacity:1; }
+[data-theme="light"] .stage-dropdown-btn { background:#f5f7fa; border-color:rgba(0,0,0,0.12); color:#1a2332; }
+[data-theme="light"] .stage-dropdown-list { background:#ffffff; border-color:rgba(0,0,0,0.1); }
+[data-theme="light"] .stage-dropdown-item:hover { background:#f5f7fa; }
+[data-theme="light"] .stage-tag { background:rgba(192,120,0,0.1); border-color:rgba(192,120,0,0.25); color:#c07800; }
 .sched-export-bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
 .sched-section { margin-bottom:20px; }
 .sched-section-title { font-size:14px; font-weight:700; color:var(--text); margin-bottom:12px; letter-spacing:0.03em; }
@@ -1471,6 +1549,7 @@
   <div class="topbar-right">
     <span class="topbar-badge">Central Indiana · 9 Counties</span>
     <span class="topbar-badge">Apr 2026</span>
+    <button class="refresh-btn" id="theme-toggle-btn" onclick="toggleTheme()" title="Switch light/dark theme" style="font-size:14px;padding:4px 10px;">☀</button>
     <div id="gemini-key-banner" onclick="switchView('settings');setTimeout(()=>{const b=document.getElementById('api-keys-body');if(b&&b.style.display==='none')toggleSettingsSection('api-keys-body');const i=document.getElementById('gemini-key-input');if(i){i.focus();i.scrollIntoView({behavior:'smooth',block:'center'});}},150);"
          style="display:none;align-items:center;gap:6px;background:rgba(232,160,32,0.15);border:1px solid rgba(232,160,32,0.4);border-radius:4px;padding:3px 10px;cursor:pointer;font-family:'IBM Plex Mono',monospace;font-size:10px;color:#e8a020;letter-spacing:0.04em;">
       ⚠ Gemini key not set — click to add
@@ -1776,11 +1855,37 @@
               <div id="sched-jurisdiction-status" style="font-size:10px;margin-top:6px;color:var(--text-dim);"></div>
             </div>
             <div class="settings-card">
-              <div class="settings-card-title">Process Description</div>
-              <div class="settings-card-sub">Describe the entitlement process needed (rezoning, annexation, PUD, preliminary plat, etc.)</div>
-              <textarea id="sched-process" class="settings-input" rows="4"
+              <div class="settings-card-title">Entitlement Stages</div>
+              <div class="settings-card-sub">Select the entitlement process stages required for this project.</div>
+              <div class="stage-dropdown" id="stage-dropdown">
+                <button type="button" class="stage-dropdown-btn" onclick="toggleStageDropdown()">
+                  <span id="stage-dropdown-label">Select stages…</span> <span>▼</span>
+                </button>
+                <div class="stage-dropdown-list" id="stage-dropdown-list">
+                  <label class="stage-dropdown-item"><input type="checkbox" value="Rezoning" onchange="updateStageSelection()"> Rezoning</label>
+                  <label class="stage-dropdown-item"><input type="checkbox" value="Annexation" onchange="updateStageSelection()"> Annexation</label>
+                  <label class="stage-dropdown-item"><input type="checkbox" value="PUD (Planned Unit Development)" onchange="updateStageSelection()"> PUD (Planned Unit Development)</label>
+                  <label class="stage-dropdown-item"><input type="checkbox" value="Preliminary Plat" onchange="updateStageSelection()"> Preliminary Plat</label>
+                  <label class="stage-dropdown-item"><input type="checkbox" value="Secondary/Final Plat" onchange="updateStageSelection()"> Secondary / Final Plat</label>
+                  <label class="stage-dropdown-item"><input type="checkbox" value="Variance (BZA)" onchange="updateStageSelection()"> Variance (BZA)</label>
+                  <label class="stage-dropdown-item"><input type="checkbox" value="Special Exception (BZA)" onchange="updateStageSelection()"> Special Exception (BZA)</label>
+                  <label class="stage-dropdown-item"><input type="checkbox" value="Development Plan" onchange="updateStageSelection()"> Development Plan</label>
+                  <div class="stage-dropdown-item" style="border-top:1px solid var(--border);margin-top:2px;padding-top:8px;">
+                    <input type="checkbox" id="stage-custom-check" onchange="updateStageSelection()">
+                    <input type="text" class="stage-custom-input" id="stage-custom-text" placeholder="Custom stage…"
+                      onfocus="document.getElementById('stage-custom-check').checked=true;updateStageSelection()"
+                      oninput="updateStageSelection()">
+                  </div>
+                </div>
+              </div>
+              <div class="stage-tags" id="stage-tags"></div>
+            </div>
+            <div class="settings-card">
+              <div class="settings-card-title">Additional Details</div>
+              <div class="settings-card-sub">Provide project-specific details to fine-tune the schedule and requirements.</div>
+              <textarea id="sched-detail" class="settings-input" rows="3"
                 style="width:100%;resize:vertical;font-family:'IBM Plex Mono',monospace;font-size:11px;line-height:1.5;"
-                placeholder="e.g., Rezoning from AG to R-2 and preliminary plat for 80-lot single-family residential subdivision"></textarea>
+                placeholder="e.g., 80-lot single-family subdivision, currently zoned AG, requesting R-2 density"></textarea>
             </div>
           </div>
           <div class="sched-input-col">
@@ -2557,7 +2662,29 @@ async function fetchLiveIntelFeed() {
   }
 }
 
+// ═══════════════════════════════════════════════════════
+// THEME TOGGLE — light / dark mode
+// ═══════════════════════════════════════════════════════
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  const btn = document.getElementById('theme-toggle-btn');
+  if (btn) btn.textContent = theme === 'light' ? '☾' : '☀';
+}
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || 'dark';
+  const next = current === 'light' ? 'dark' : 'light';
+  applyTheme(next);
+  try { localStorage.setItem('mrd_theme', next); } catch(e) {}
+}
+// Apply saved theme immediately (before DOMContentLoaded paint)
+(function() {
+  try { const t = localStorage.getItem('mrd_theme'); if (t) applyTheme(t); } catch(e) {}
+})();
+
 document.addEventListener('DOMContentLoaded', async () => {
+  // Apply saved theme to button text on load
+  try { const t = localStorage.getItem('mrd_theme'); if (t) applyTheme(t); } catch(e) {}
+
   // Kill Chrome autofill on sidebar search by cloning the input
   const oldSearch = document.getElementById('sidebar-search');
   if (oldSearch) { const n = oldSearch.cloneNode(true); oldSearch.parentNode.replaceChild(n, oldSearch); }
@@ -4696,6 +4823,71 @@ let schedViewInited = false;
 window.currentScheduleResults = null;
 
 // ── Init ──
+// ── Entitlement Stage Selector ──
+function toggleStageDropdown() {
+  const list = document.getElementById('stage-dropdown-list');
+  if (!list) return;
+  list.classList.toggle('open');
+  // Close on outside click
+  if (list.classList.contains('open')) {
+    setTimeout(() => {
+      document.addEventListener('click', closeStageDropdownOutside, { once: true });
+    }, 0);
+  }
+}
+function closeStageDropdownOutside(e) {
+  const dd = document.getElementById('stage-dropdown');
+  const list = document.getElementById('stage-dropdown-list');
+  if (dd && !dd.contains(e.target) && list) list.classList.remove('open');
+  else if (list && list.classList.contains('open')) {
+    document.addEventListener('click', closeStageDropdownOutside, { once: true });
+  }
+}
+function getSelectedStages() {
+  const stages = [];
+  const checks = document.querySelectorAll('#stage-dropdown-list input[type="checkbox"]');
+  checks.forEach(cb => {
+    if (!cb.checked) return;
+    if (cb.id === 'stage-custom-check') {
+      const txt = (document.getElementById('stage-custom-text')?.value || '').trim();
+      if (txt) stages.push(txt);
+    } else {
+      stages.push(cb.value);
+    }
+  });
+  return stages;
+}
+function updateStageSelection() {
+  const stages = getSelectedStages();
+  // Update button label
+  const label = document.getElementById('stage-dropdown-label');
+  if (label) label.textContent = stages.length ? stages.length + ' stage' + (stages.length > 1 ? 's' : '') + ' selected' : 'Select stages…';
+  // Render tags
+  const tagsEl = document.getElementById('stage-tags');
+  if (tagsEl) {
+    tagsEl.innerHTML = stages.map(s =>
+      `<span class="stage-tag">${s} <span class="stage-tag-x" onclick="removeStage('${s.replace(/'/g,"\\'")}')">✕</span></span>`
+    ).join('');
+  }
+}
+function removeStage(stageName) {
+  const checks = document.querySelectorAll('#stage-dropdown-list input[type="checkbox"]');
+  checks.forEach(cb => {
+    if (cb.id === 'stage-custom-check') {
+      const txt = (document.getElementById('stage-custom-text')?.value || '').trim();
+      if (txt === stageName) { cb.checked = false; document.getElementById('stage-custom-text').value = ''; }
+    } else if (cb.value === stageName) { cb.checked = false; }
+  });
+  updateStageSelection();
+}
+function getScheduleProcessDesc() {
+  const stages = getSelectedStages();
+  const detail = (document.getElementById('sched-detail')?.value || '').trim();
+  let desc = stages.join(', ');
+  if (detail) desc += (desc ? '. ' : '') + detail;
+  return desc;
+}
+
 function initScheduleView() {
   if (schedViewInited) return;
   schedViewInited = true;
@@ -4877,12 +5069,12 @@ function parseScheduleResponse(rawText) {
 // ── Main Orchestrator ──
 async function runScheduleGeneration() {
   const jurisdictionId = document.getElementById('sched-jurisdiction').value;
-  const processDesc = document.getElementById('sched-process').value.trim();
+  const processDesc = getScheduleProcessDesc();
   const targetDate = document.getElementById('sched-target-date').value;
 
   // Validate
   if (!jurisdictionId) { showSchedError('Please select a jurisdiction.'); return; }
-  if (!processDesc) { showSchedError('Please describe the entitlement process needed.'); return; }
+  if (!processDesc) { showSchedError('Please select at least one entitlement stage or enter additional details.'); return; }
   if (!targetDate) { showSchedError('Please set a target approval date.'); return; }
 
   const key = getGeminiKey();
