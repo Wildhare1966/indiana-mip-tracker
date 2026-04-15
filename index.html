@@ -2065,6 +2065,23 @@ const MUNI_CACHE_TTL_HOURS = 4;
 // ── GEMINI CLIENT (P13: all calls proxied through Apps Script backend) ────────────────────────────
 // Project key lives ONLY in Apps Script Script Properties. The Settings "Gemini API Key" field
 // is now OPTIONAL — if set, it's forwarded to the proxy as a per-request override.
+//
+// P19-D: One-shot scrub of known-expired Gemini keys that were written to localStorage by the
+// pre-P13 builds (P10/P11 hardcoded DEFAULT_GEMINI_KEY into the page). These keys are now revoked
+// and would override the Script Properties key — silently breaking every AI feature for any user
+// whose browser still has them cached. Safe to run unconditionally on every page load.
+(function _scrubExpiredGeminiKey() {
+  var BAD_KEY_PREFIXES = ['AIzaSyAU4Oo0']; // pre-P13 leaked DEFAULT_GEMINI_KEY values
+  var k = (localStorage.getItem('mip_gemini_key') || '').trim();
+  if (!k) return;
+  for (var i = 0; i < BAD_KEY_PREFIXES.length; i++) {
+    if (k.indexOf(BAD_KEY_PREFIXES[i]) === 0) {
+      localStorage.removeItem('mip_gemini_key');
+      console.info('[mrd] Removed expired Gemini key from localStorage (P19-D scrub).');
+      return;
+    }
+  }
+})();
 function getUserGeminiKey() { return (localStorage.getItem('mip_gemini_key') || '').trim(); }
 function getGeminiKey() { return getUserGeminiKey(); } // legacy shim — returns '' when user has no override
 function saveGeminiKey(val) {
@@ -2079,6 +2096,25 @@ function checkGeminiKeyBanner() {
   // P13: project key is always available server-side, so the "missing key" banner is suppressed by default.
   const banner = document.getElementById('gemini-key-banner');
   if (banner) banner.style.display = 'none';
+}
+
+// P19-F: Self-service banner for users whose saved Gemini override key was rejected.
+// Triggered from callGeminiProxy on 400 INVALID_ARGUMENT / API_KEY_INVALID. One-click clear
+// removes the override; subsequent calls fall through to the project Script Properties key.
+function showExpiredKeyBanner(msg) {
+  let banner = document.getElementById('mrd-expired-key-banner');
+  if (banner) { banner.style.display = 'block'; return; }
+  banner = document.createElement('div');
+  banner.id = 'mrd-expired-key-banner';
+  banner.style.cssText = 'position:fixed;top:50px;left:50%;transform:translateX(-50%);z-index:9999;background:#5a1a1a;color:#fff;padding:10px 14px;border:1px solid #b85c1a;border-radius:6px;font-size:12px;max-width:680px;box-shadow:0 4px 16px rgba(0,0,0,0.5);font-family:inherit;';
+  banner.innerHTML = '⚠ Your saved Gemini API key was rejected by Google: <em style="color:#ffd699;">' +
+    String(msg || 'expired or invalid').replace(/[<>]/g, '') +
+    '</em>. ' +
+    '<button onclick="localStorage.removeItem(\'mip_gemini_key\');document.getElementById(\'mrd-expired-key-banner\').remove();const i=document.getElementById(\'gemini-key-input\');if(i)i.value=\'\';const s=document.getElementById(\'gemini-key-status\');if(s)s.textContent=\'Using project default\';" ' +
+    'style="margin-left:8px;padding:4px 10px;background:#9a5f00;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600;">Clear saved key</button>' +
+    '<button onclick="document.getElementById(\'mrd-expired-key-banner\').remove();" ' +
+    'style="margin-left:6px;padding:4px 8px;background:transparent;color:#fff;border:1px solid #fff;border-radius:4px;cursor:pointer;">Dismiss</button>';
+  document.body.appendChild(banner);
 }
 
 function promptGeminiKey(msg) {
@@ -2128,16 +2164,26 @@ async function callGeminiProxy(opts) {
     // Surface the underlying Gemini status + message when available so users can see transient 503s,
     // rate-limit messages, and quota errors instead of the opaque "Gemini API error" string.
     let detail = '';
+    let innerMsg = '';
     if (data.status) detail += ` [HTTP ${data.status}]`;
     if (data.body) {
       try {
         const inner = JSON.parse(data.body);
-        if (inner && inner.error && inner.error.message) detail += ` ${inner.error.message}`;
+        if (inner && inner.error && inner.error.message) {
+          innerMsg = inner.error.message;
+          detail += ` ${innerMsg}`;
+        }
       } catch (e) {
         detail += ` ${String(data.body).substring(0, 200)}`;
       }
     }
     if (data.retry_after_sec) detail += ` (retry after ${data.retry_after_sec}s)`;
+    // P19-F: If Gemini rejected our request because of an expired/invalid userKey override,
+    // surface a one-click "Clear saved key" banner. Self-service recovery for users whose
+    // saved override has aged out (project Script Properties key would still work without it).
+    if (userKey && (/api key expired/i.test(innerMsg) || /api key not valid/i.test(innerMsg) || /API_KEY_INVALID/i.test(innerMsg))) {
+      showExpiredKeyBanner(innerMsg || data.error);
+    }
     throw new Error(data.error + detail);
   }
   if (!data.candidates || !data.candidates[0]) throw new Error('Empty Gemini response.');
