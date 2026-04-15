@@ -2174,14 +2174,19 @@ async function callGeminiProxy(opts) {
           detail += ` ${innerMsg}`;
         }
       } catch (e) {
-        detail += ` ${String(data.body).substring(0, 200)}`;
+        // Proxy truncates body at 500 chars, so JSON.parse often fails. Best-effort regex extract.
+        const m = String(data.body).match(/"message":\s*"([^"]+)"/);
+        if (m) innerMsg = m[1];
+        detail += ` ${innerMsg || String(data.body).substring(0, 200)}`;
       }
     }
     if (data.retry_after_sec) detail += ` (retry after ${data.retry_after_sec}s)`;
     // P19-F: If Gemini rejected our request because of an expired/invalid userKey override,
     // surface a one-click "Clear saved key" banner. Self-service recovery for users whose
     // saved override has aged out (project Script Properties key would still work without it).
-    if (userKey && (/api key expired/i.test(innerMsg) || /api key not valid/i.test(innerMsg) || /API_KEY_INVALID/i.test(innerMsg))) {
+    // Match against innerMsg AND raw body to catch the case where body was JSON-truncated.
+    const haystack = innerMsg + ' ' + (data.body || '');
+    if (userKey && (/api key expired/i.test(haystack) || /api key not valid/i.test(haystack) || /API_KEY_INVALID/i.test(haystack))) {
       showExpiredKeyBanner(innerMsg || data.error);
     }
     throw new Error(data.error + detail);
