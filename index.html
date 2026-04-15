@@ -1624,7 +1624,7 @@
   <div class="topbar-logo">MRD <span>// Municipal Resource Dashboard</span></div>
   <div class="topbar-nav">
     <button class="topbar-btn active" onclick="switchView('overview')" id="nav-overview">Overview</button>
-    <button class="topbar-btn" onclick="switchView('muni')" id="nav-muni">Members</button>
+    <button class="topbar-btn" onclick="switchView('muni')" id="nav-muni">Jurisdictions</button>
     <!-- Intelligence Feed nav temporarily removed (P13) — view element and data pipeline retained in code for future re-enable. -->
     <button class="topbar-btn" onclick="switchView('publichearings')" id="nav-publichearings">Public Hearings</button>
     <button class="topbar-btn" onclick="switchView('schedule')" id="nav-schedule">Schedule & Requirements</button>
@@ -2050,7 +2050,7 @@ const PROFILE_CACHE_KEY = 'mip_member_profiles';
 const PROFILE_CACHE_TS_KEY = 'mip_profiles_fetched_at';
 const PROFILE_CACHE_TTL_KEY = 'mip_profile_cache_ttl';
 const WEBAPP_URL_KEY = 'mip_webapp_url';
-const DEFAULT_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbx-pd1dKH4qpjSCNmLv8qwpdgVvpWvGiFAgJVdUVwsdLOK3fG5tkALln-UG_UaojJGC/exec';
+const DEFAULT_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbyRh-y9phwErPpmjoDGTN7nJBCu2cI1bUvDIDhQuZYQ5Z5__3R3w_UkeRFfF6eVf9BA/exec';
 const PROFILE_CACHE_TTL_DEFAULT = 24;
 
 function getWebAppUrl() {
@@ -3514,14 +3514,90 @@ async function agReject(docId, meetingType, jurisdiction, btnYesId, btnNoId, row
   }
 }
 
+// P18: Meeting-type options (mirrors classifyMeetingType() in Main_Final.js L64-102)
+const MEETING_TYPE_OPTIONS = [
+  'Advisory Plan Commission', 'Area Plan Commission', 'Plan Commission',
+  'Common Council', 'City Council', 'Town Council', 'Council',
+  'BZA', 'Board of Works', 'Redevelopment Commission',
+  'Parks Board', 'Police Commission', 'Merit Board',
+  'Utilities', 'Library Board', 'Historic Preservation',
+  'Economic Development', 'Fire Department', 'Fiscal Body',
+  'Finance Committee', 'Tree Board', 'Cemetery', 'Meeting'
+];
+
+function showChangeTypePopover(anchorEl, docId, muniId, currentType, agId) {
+  document.querySelectorAll('.url-popover').forEach(p => p.remove());
+  const pop = document.createElement('div');
+  pop.className = 'url-popover change-type-popover';
+  const options = MEETING_TYPE_OPTIONS.map(t => {
+    const sel = (t === currentType) ? ' selected' : '';
+    return `<option value="${t}"${sel}>${t}</option>`;
+  }).join('');
+  pop.innerHTML = `<select class="url-popover-input" id="ct-select-${docId}" style="width:200px;">${options}</select>
+    <button class="add-url-btn" onclick="submitChangeType('${docId}','${muniId}','${agId}')">Save</button>
+    <button class="add-url-btn" style="border-color:rgba(255,255,255,0.1);" onclick="this.closest('.url-popover').remove()">Cancel</button>`;
+  anchorEl.parentElement.appendChild(pop);
+}
+
+async function submitChangeType(docId, muniId, agId) {
+  const sel = document.getElementById('ct-select-' + docId);
+  if (!sel) return;
+  const newType = sel.value;
+  const pop = sel.closest('.url-popover');
+  const saveBtn = pop ? pop.querySelector('button') : null;
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '…'; }
+  try {
+    const url = getWebAppUrl() + '?action=override_meeting_type'
+      + '&id=' + encodeURIComponent(docId)
+      + '&jurisdiction=' + encodeURIComponent(muniId)
+      + '&new_type=' + encodeURIComponent(newType);
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (data && (data.updated || data.ok)) {
+      // Mirror the override locally so re-renders reflect it without full reload
+      const list = SCRAPED_DOCS ? (SCRAPED_DOCS[muniId] || []) : [];
+      const doc = list.find(d => d.id === docId);
+      if (doc) doc.meeting_type_override = newType;
+      if (pop) pop.remove();
+      // Re-render hearings panel to show new type
+      if (typeof currentMuni !== 'undefined' && currentMuni && currentMuni.id === muniId && typeof switchTab === 'function') {
+        const grid = document.getElementById('members-grid');
+        if (grid && typeof renderHearingsContent === 'function') grid.innerHTML = renderHearingsContent(muniId);
+      }
+    } else {
+      if (saveBtn) { saveBtn.textContent = 'Err'; saveBtn.disabled = false; }
+    }
+  } catch(e) {
+    if (saveBtn) { saveBtn.textContent = 'Err'; saveBtn.disabled = false; }
+  }
+}
+
+window.showChangeTypePopover = showChangeTypePopover;
+window.submitChangeType = submitChangeType;
+
 function renderHearingsContent(muniId) {
   const unified = buildUnifiedDateSet(muniId);
   const ref = JURISDICTION_REFS[muniId] || {};
 
+  // P18: Cap Council+PC future dates at the next 3 combined; past dates always shown in full.
+  const today = new Date().toISOString().split('T')[0];
+  const councilPcFuture = unified
+    .filter(d => d.date >= today && (isCouncilType(d.body_type) || isPlanCommissionType(d.body_type)))
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(0, 3);
+  const keepFutureKeys = new Set(councilPcFuture.map(d => d.date + '|' + d.body_type));
+  const filtered = unified.filter(d => {
+    if (d.date < today) return true; // all past
+    if (isCouncilType(d.body_type) || isPlanCommissionType(d.body_type)) {
+      return keepFutureKeys.has(d.date + '|' + d.body_type);
+    }
+    return true; // non-Council/PC future passes through
+  });
+
   // Split by body type
-  const councilDates = unified.filter(d => isCouncilType(d.body_type));
-  const pcDates = unified.filter(d => isPlanCommissionType(d.body_type));
-  const otherDates = unified.filter(d => !isCouncilType(d.body_type) && !isPlanCommissionType(d.body_type));
+  const councilDates = filtered.filter(d => isCouncilType(d.body_type));
+  const pcDates = filtered.filter(d => isPlanCommissionType(d.body_type));
+  const otherDates = filtered.filter(d => !isCouncilType(d.body_type) && !isPlanCommissionType(d.body_type));
 
   let html = renderScheduleBanner(muniId, unified, ref);
 
@@ -3585,27 +3661,30 @@ function buildUnifiedDateSet(muniId) {
     if (h.meeting_type) dateMap[k].meeting_type = h.meeting_type;
   });
 
-  // 3. Scraped docs overlay (agendas)
+  // 3. Scraped docs overlay (agendas) — honor meeting_type_override if set (P18)
   Object.keys(scrapedByDate).forEach(date => {
     const docs = scrapedByDate[date].filter(sd => (sd.document_type||'').toLowerCase().includes('agenda'));
     docs.forEach(sd => {
-      const bt = classifyBodyType(sd.meeting_type);
+      const effectiveType = sd.meeting_type_override || sd.meeting_type;
+      const bt = classifyBodyType(effectiveType);
       const k = key(date, bt);
       if (!dateMap[k]) {
-        dateMap[k] = { date, body_type: bt, status: '', youtube_url: '', summary_doc: '', agendas: [], meeting_type: sd.meeting_type || bt };
+        dateMap[k] = { date, body_type: bt, status: '', youtube_url: '', summary_doc: '', agendas: [], meeting_type: effectiveType || bt };
+      } else if (sd.meeting_type_override) {
+        // Override takes display precedence over any previously-set meeting_type
+        dateMap[k].meeting_type = effectiveType;
       }
       dateMap[k].agendas.push(sd);
     });
   });
 
-  // Convert to array and sort: future dates ascending first (up to 3 weeks), then past descending
+  // Convert to array and sort: all future ascending first, then all past descending
   const entries = Object.values(dateMap);
   const today = new Date().toISOString().split('T')[0];
-  const threeWeeks = new Date(Date.now() + 21 * 86400000).toISOString().split('T')[0];
 
   entries.sort((a, b) => {
-    const aFuture = a.date >= today && a.date <= threeWeeks;
-    const bFuture = b.date >= today && b.date <= threeWeeks;
+    const aFuture = a.date >= today;
+    const bFuture = b.date >= today;
     if (aFuture && !bFuture) return -1;
     if (!aFuture && bFuture) return 1;
     if (aFuture && bFuture) return a.date.localeCompare(b.date); // ascending
@@ -3697,12 +3776,14 @@ function renderBodySection(bodyLabel, dates, muniId) {
         const btnNId = 'agn_' + muniId + '_' + rowIdx + '_' + si;
         const status = window._agendaApprovalStatus[sd.id] || '';
         const cls = status === 'approved' ? ' ag-approved' : status === 'rejected' ? ' ag-rejected' : '';
+        const curType = (sd.meeting_type_override || sd.meeting_type || '').replace(/'/g,"\\'");
         let h = `<div class="ag-item${cls}" id="${agId}">`;
         h += sdUrl ? `<a href="${sdUrl}" target="_blank" class="hearing-link ag">↓ Agenda</a>` : `<span class="hearing-link ag" style="cursor:default;">↓ Agenda</span>`;
         if (!status) {
           h += `<button class="ag-correct-btn yes" id="${btnYId}" onclick="agApprove('${sd.id}','${(sd.meeting_type||'').replace(/'/g,"\\'")}','${muniId}','${btnYId}','${btnNId}','${agId}')">✓ Yes</button>`;
           h += `<button class="ag-correct-btn no" id="${btnNId}" onclick="agReject('${sd.id}','${(sd.meeting_type||'').replace(/'/g,"\\'")}','${muniId}','${btnYId}','${btnNId}','${agId}')">✗ No</button>`;
         }
+        h += `<button class="ag-correct-btn change-type" onclick="showChangeTypePopover(this,'${sd.id}','${muniId}','${curType}','${agId}')">⚙ Change Type</button>`;
         h += `</div>`;
         return h;
       }).join('');
@@ -3721,8 +3802,8 @@ function renderBodySection(bodyLabel, dates, muniId) {
     return `<tr class="${rowClass}">
       <td class="hearings-td hearings-td-date">${fmtHearingDate(entry.date)} ${statusBadge}</td>
       <td class="hearings-td hearings-td-type">${entry.meeting_type || bodyLabel}</td>
-      <td class="hearings-td hearings-td-yt">${ytCell}</td>
       <td class="hearings-td hearings-td-ag">${agCell}</td>
+      <td class="hearings-td hearings-td-yt">${ytCell}</td>
     </tr>`;
   }).join('');
 
@@ -3732,8 +3813,8 @@ function renderBodySection(bodyLabel, dates, muniId) {
       <tr>
         <th class="hearings-th">Date</th>
         <th class="hearings-th">Type</th>
-        <th class="hearings-th">YouTube Hearings</th>
         <th class="hearings-th">Agendas</th>
+        <th class="hearings-th">YouTube Hearings</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
@@ -4743,8 +4824,8 @@ function phRenderHearings() {
         <td class="hearings-td hearings-td-date">${fmtHearingDate(h.date)}</td>
         <td class="hearings-td" style="color:var(--accent-light);font-size:11px;">${juriLabel}</td>
         <td class="hearings-td hearings-td-type">${h.meeting_type || 'Meeting'}</td>
-        <td class="hearings-td hearings-td-yt">${ytCell}</td>
         <td class="hearings-td hearings-td-ag">${agCell}</td>
+        <td class="hearings-td hearings-td-yt">${ytCell}</td>
         <td class="hearings-td">${reviewBtn}</td>
       </tr>`;
     }).join('');
@@ -4755,8 +4836,8 @@ function phRenderHearings() {
           <th class="hearings-th">Date</th>
           <th class="hearings-th">Jurisdiction</th>
           <th class="hearings-th">Type</th>
-          <th class="hearings-th">YouTube Hearings</th>
           <th class="hearings-th">Agendas</th>
+          <th class="hearings-th">YouTube Hearings</th>
           <th class="hearings-th"></th>
         </tr>
       </thead>
