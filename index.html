@@ -2050,7 +2050,7 @@ const PROFILE_CACHE_KEY = 'mip_member_profiles';
 const PROFILE_CACHE_TS_KEY = 'mip_profiles_fetched_at';
 const PROFILE_CACHE_TTL_KEY = 'mip_profile_cache_ttl';
 const WEBAPP_URL_KEY = 'mip_webapp_url';
-const DEFAULT_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbyRh-y9phwErPpmjoDGTN7nJBCu2cI1bUvDIDhQuZYQ5Z5__3R3w_UkeRFfF6eVf9BA/exec';
+const DEFAULT_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbwNvq6mte27GxojKnX_MOm0__FXyV8Hpa6Yh5XAy8wEMtOHFq1tC76sQG87ckOnF-Xd/exec';
 const PROFILE_CACHE_TTL_DEFAULT = 24;
 
 function getWebAppUrl() {
@@ -2125,7 +2125,20 @@ async function callGeminiProxy(opts) {
   const data = await resp.json();
   if (data.error) {
     if (/server key missing/i.test(data.error)) promptGeminiKey('Server Gemini key not configured — paste a personal key to proceed.');
-    throw new Error(data.error);
+    // Surface the underlying Gemini status + message when available so users can see transient 503s,
+    // rate-limit messages, and quota errors instead of the opaque "Gemini API error" string.
+    let detail = '';
+    if (data.status) detail += ` [HTTP ${data.status}]`;
+    if (data.body) {
+      try {
+        const inner = JSON.parse(data.body);
+        if (inner && inner.error && inner.error.message) detail += ` ${inner.error.message}`;
+      } catch (e) {
+        detail += ` ${String(data.body).substring(0, 200)}`;
+      }
+    }
+    if (data.retry_after_sec) detail += ` (retry after ${data.retry_after_sec}s)`;
+    throw new Error(data.error + detail);
   }
   if (!data.candidates || !data.candidates[0]) throw new Error('Empty Gemini response.');
   return data.candidates[0].content.parts[0].text;
