@@ -4,6 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://docs.google.com; img-src 'self' data:; frame-src 'none';">
 <title>Municipal Resource Dashboard</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
@@ -2053,14 +2054,54 @@ const WEBAPP_URL_KEY = 'mip_webapp_url';
 const DEFAULT_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbwNvq6mte27GxojKnX_MOm0__FXyV8Hpa6Yh5XAy8wEMtOHFq1tC76sQG87ckOnF-Xd/exec';
 const PROFILE_CACHE_TTL_DEFAULT = 24;
 
+// P20: Auth token for Apps Script endpoint authentication.
+// This token must match the AUTH_TOKEN stored in Apps Script Script Properties.
+// Generate it by running setSecurityToken() in Apps Script, then paste the value here.
+const DEFAULT_AUTH_TOKEN = '457091386b65a26b4d11fb3b9fee7bd5233c952ceb5d4a41';
+
 function getWebAppUrl() {
-  return localStorage.getItem(WEBAPP_URL_KEY) || DEFAULT_WEBAPP_URL;
+  var base = localStorage.getItem(WEBAPP_URL_KEY) || DEFAULT_WEBAPP_URL;
+  if (!base) return '';
+  // P20: Always return a URL with '?' already present so all callers can use '&action='.
+  // When auth token is set, it rides as the first query parameter.
+  if (DEFAULT_AUTH_TOKEN) {
+    return base + '?token=' + encodeURIComponent(DEFAULT_AUTH_TOKEN);
+  }
+  return base + '?_v=20';
 }
 
 // ── MUNI DATA CACHE CONSTANTS ────────────────────────────────────────────────────────────────────────
 const MUNI_CACHE_KEY = 'mip_muni_data';
 const MUNI_CACHE_TS_KEY = 'mip_muni_data_ts';
 const MUNI_CACHE_TTL_HOURS = 4;
+
+// ── SECURITY: HTML/URL SANITIZERS (P20 Security Hardening) ─────────────────────────────────────
+// Escape HTML entities to prevent XSS when inserting server-derived strings via innerHTML.
+function esc(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+// Validate and escape URLs for href attributes. Returns '' for dangerous schemes.
+function escUrl(url) {
+  if (!url) return '';
+  var s = String(url).trim();
+  // Block javascript:, data:, vbscript: and any scheme that isn't http(s)
+  if (/^(javascript|data|vbscript)\s*:/i.test(s)) return '';
+  // If it looks like a relative path or has no scheme, allow it as-is (escaped)
+  // For absolute URLs, require http:// or https://
+  if (/^[a-z][a-z0-9+.-]*:/i.test(s) && !/^https?:\/\//i.test(s)) return '';
+  return esc(s);
+}
+// Escape a string for safe use inside an inline onclick='...' attribute (single-quoted JS string).
+function escAttr(s) {
+  if (s == null) return '';
+  return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '');
+}
 
 // ── GEMINI CLIENT (P13: all calls proxied through Apps Script backend) ────────────────────────────
 // Project key lives ONLY in Apps Script Script Properties. The Settings "Gemini API Key" field
@@ -2107,13 +2148,30 @@ function showExpiredKeyBanner(msg) {
   banner = document.createElement('div');
   banner.id = 'mrd-expired-key-banner';
   banner.style.cssText = 'position:fixed;top:50px;left:50%;transform:translateX(-50%);z-index:9999;background:#5a1a1a;color:#fff;padding:10px 14px;border:1px solid #b85c1a;border-radius:6px;font-size:12px;max-width:680px;box-shadow:0 4px 16px rgba(0,0,0,0.5);font-family:inherit;';
-  banner.innerHTML = '⚠ Your saved Gemini API key was rejected by Google: <em style="color:#ffd699;">' +
-    String(msg || 'expired or invalid').replace(/[<>]/g, '') +
-    '</em>. ' +
-    '<button onclick="localStorage.removeItem(\'mip_gemini_key\');document.getElementById(\'mrd-expired-key-banner\').remove();const i=document.getElementById(\'gemini-key-input\');if(i)i.value=\'\';const s=document.getElementById(\'gemini-key-status\');if(s)s.textContent=\'Using project default\';" ' +
-    'style="margin-left:8px;padding:4px 10px;background:#9a5f00;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600;">Clear saved key</button>' +
-    '<button onclick="document.getElementById(\'mrd-expired-key-banner\').remove();" ' +
-    'style="margin-left:6px;padding:4px 8px;background:transparent;color:#fff;border:1px solid #fff;border-radius:4px;cursor:pointer;">Dismiss</button>';
+  // Build banner content safely using DOM API to avoid XSS from error messages
+  var warnText = document.createTextNode('⚠ Your saved Gemini API key was rejected by Google: ');
+  var em = document.createElement('em');
+  em.style.color = '#ffd699';
+  em.textContent = String(msg || 'expired or invalid');
+  var dotText = document.createTextNode('. ');
+  var clearBtn = document.createElement('button');
+  clearBtn.textContent = 'Clear saved key';
+  clearBtn.style.cssText = 'margin-left:8px;padding:4px 10px;background:#9a5f00;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600;';
+  clearBtn.onclick = function() {
+    localStorage.removeItem('mip_gemini_key');
+    document.getElementById('mrd-expired-key-banner').remove();
+    var i = document.getElementById('gemini-key-input'); if (i) i.value = '';
+    var s = document.getElementById('gemini-key-status'); if (s) s.textContent = 'Using project default';
+  };
+  var dismissBtn = document.createElement('button');
+  dismissBtn.textContent = 'Dismiss';
+  dismissBtn.style.cssText = 'margin-left:6px;padding:4px 8px;background:transparent;color:#fff;border:1px solid #fff;border-radius:4px;cursor:pointer;';
+  dismissBtn.onclick = function() { document.getElementById('mrd-expired-key-banner').remove(); };
+  banner.appendChild(warnText);
+  banner.appendChild(em);
+  banner.appendChild(dotText);
+  banner.appendChild(clearBtn);
+  banner.appendChild(dismissBtn);
   document.body.appendChild(banner);
 }
 
@@ -2150,6 +2208,8 @@ async function callGeminiProxy(opts) {
   };
   const userKey = getUserGeminiKey();
   if (userKey) body.userKey = userKey;
+  // P20: Include auth token in POST body for server-side validation
+  if (DEFAULT_AUTH_TOKEN) body._token = DEFAULT_AUTH_TOKEN;
   const url = webappUrl + (webappUrl.indexOf('?') === -1 ? '?' : '&') + 'action=gemini_proxy';
   // Use text/plain Content-Type so the request is a CORS "simple request" (no preflight) — Apps Script
   // cannot respond to OPTIONS, so preflight would fail. JSON is still parsed server-side from postData.
@@ -2256,14 +2316,14 @@ async function updateMemberVoteHistory(memberId, memberName, muniName, muniId, b
       if (!result) { if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Update Vote History'; } return; }
       memberVoteCache[memberId] = { text: result, sources: docs, timestamp: new Date().toLocaleDateString() };
       if (containerEl) {
-        const sourceLinks = docs.map(d => `<a href="${d.url}" target="_blank">${d.date}</a>`).join(' · ');
+        const sourceLinks = docs.map(d => `<a href="${escUrl(d.url)}" target="_blank">${esc(d.date)}</a>`).join(' · ');
         containerEl.innerHTML = `
-          <div class="vote-history-title">Vote / Position History — ${memberName}</div>
-          <div class="vote-history-item" style="white-space:pre-wrap;">${result}</div>
-          <div style="margin-top:6px;font-size:9px;color:var(--text-dim);">Sources: ${sourceLinks} · Analyzed ${new Date().toLocaleDateString()}</div>`;
+          <div class="vote-history-title">Vote / Position History — ${esc(memberName)}</div>
+          <div class="vote-history-item" style="white-space:pre-wrap;">${esc(result)}</div>
+          <div style="margin-top:6px;font-size:9px;color:var(--text-dim);">Sources: ${sourceLinks} · Analyzed ${esc(new Date().toLocaleDateString())}</div>`;
       }
     } catch(e) {
-      if (containerEl) containerEl.innerHTML = `<div class="vote-history-empty">Error: ${e.message}</div>`;
+      if (containerEl) containerEl.innerHTML = `<div class="vote-history-empty">Error: ${esc(e.message)}</div>`;
     }
     if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Update Vote History'; }
     return;
@@ -2288,14 +2348,14 @@ async function updateMemberVoteHistory(memberId, memberName, muniName, muniId, b
 
     memberVoteCache[memberId] = { text: result, sources: ytHearings, timestamp: new Date().toLocaleDateString() };
     if (containerEl) {
-      const sourceLinks = ytHearings.map(h => `<a href="${h.youtube_url}" target="_blank">${h.date}</a>`).join(' · ');
+      const sourceLinks = ytHearings.map(h => `<a href="${escUrl(h.youtube_url)}" target="_blank">${esc(h.date)}</a>`).join(' · ');
       containerEl.innerHTML = `
-        <div class="vote-history-title">Vote / Position History — ${memberName}</div>
-        <div class="vote-history-item" style="white-space:pre-wrap;">${result}</div>
-        <div style="margin-top:6px;font-size:9px;color:var(--text-dim);">Sources (video): ${sourceLinks} · Analyzed ${new Date().toLocaleDateString()}</div>`;
+        <div class="vote-history-title">Vote / Position History — ${esc(memberName)}</div>
+        <div class="vote-history-item" style="white-space:pre-wrap;">${esc(result)}</div>
+        <div style="margin-top:6px;font-size:9px;color:var(--text-dim);">Sources (video): ${sourceLinks} · Analyzed ${esc(new Date().toLocaleDateString())}</div>`;
     }
   } catch(e) {
-    if (containerEl) containerEl.innerHTML = `<div class="vote-history-empty">Error: ${e.message}</div>`;
+    if (containerEl) containerEl.innerHTML = `<div class="vote-history-empty">Error: ${esc(e.message)}</div>`;
   }
   if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Update Vote History'; }
 }
@@ -2368,7 +2428,7 @@ NOTES: [Any other relevant background, controversies, notable positions, or cont
     if (containerEl) renderProfileResearch(containerEl, result, memberName);
 
   } catch(e) {
-    if (containerEl) containerEl.innerHTML = `<div style="color:#e05252;font-size:11px;">Error: ${e.message}</div>`;
+    if (containerEl) containerEl.innerHTML = `<div style="color:#e05252;font-size:11px;">Error: ${esc(e.message)}</div>`;
   }
   if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Update Profile'; }
 }
@@ -2397,24 +2457,24 @@ function renderProfileResearch(el, text, memberName) {
   const ts       = new Date().toLocaleDateString();
 
   const socialLink = (label, val) => {
-    if (!val || val === 'Not found.') return `<span style="color:var(--text-dim);">${label}: —</span>`;
+    if (!val || val === 'Not found.') return `<span style="color:var(--text-dim);">${esc(label)}: —</span>`;
     const isUrl = val.startsWith('http');
-    return isUrl ? `<a href="${val}" target="_blank" style="color:var(--accent);">${label}</a>` : `<span style="color:var(--text);">${label}: ${val}</span>`;
+    return isUrl ? `<a href="${escUrl(val)}" target="_blank" style="color:var(--accent);">${esc(label)}</a>` : `<span style="color:var(--text);">${esc(label)}: ${esc(val)}</span>`;
   };
 
   el.innerHTML = `
-    <div style="font-size:9px;color:var(--text-dim);font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">AI Research · ${ts}</div>
+    <div style="font-size:9px;color:var(--text-dim);font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">AI Research · ${esc(ts)}</div>
     <div style="margin-bottom:8px;">
       <div class="detail-section-label">Professional Background</div>
-      <div style="font-size:11px;color:var(--text);line-height:1.5;">${profBg}</div>
+      <div style="font-size:11px;color:var(--text);line-height:1.5;">${esc(profBg)}</div>
     </div>
     <div style="margin-bottom:8px;">
       <div class="detail-section-label">Employment History</div>
-      ${empHist.map(e=>`<div style="font-size:11px;color:var(--text);padding:2px 0;border-left:2px solid var(--border);padding-left:8px;margin-bottom:3px;">${e}</div>`).join('')}
+      ${empHist.map(e=>`<div style="font-size:11px;color:var(--text);padding:2px 0;border-left:2px solid var(--border);padding-left:8px;margin-bottom:3px;">${esc(e)}</div>`).join('')}
     </div>
     <div style="margin-bottom:8px;">
       <div class="detail-section-label">Political / Civic History</div>
-      ${polHist.map(e=>`<div style="font-size:11px;color:var(--text);padding:2px 0;border-left:2px solid var(--border);padding-left:8px;margin-bottom:3px;">${e}</div>`).join('')}
+      ${polHist.map(e=>`<div style="font-size:11px;color:var(--text);padding:2px 0;border-left:2px solid var(--border);padding-left:8px;margin-bottom:3px;">${esc(e)}</div>`).join('')}
     </div>
     <div style="margin-bottom:8px;">
       <div class="detail-section-label">Social Media</div>
@@ -2427,9 +2487,9 @@ function renderProfileResearch(el, text, memberName) {
     </div>
     <div style="margin-bottom:8px;">
       <div class="detail-section-label">Vote / Position History</div>
-      ${votes.map(v=>`<div style="font-size:11px;color:var(--text);padding:2px 0;border-left:2px solid var(--border-gold,#e8a020);padding-left:8px;margin-bottom:3px;">${v}</div>`).join('')}
+      ${votes.map(v=>`<div style="font-size:11px;color:var(--text);padding:2px 0;border-left:2px solid var(--border-gold,#e8a020);padding-left:8px;margin-bottom:3px;">${esc(v)}</div>`).join('')}
     </div>
-    ${notes && notes !== 'None.' ? `<div><div class="detail-section-label">Notes</div><div style="font-size:11px;color:var(--text-dim);line-height:1.5;">${notes}</div></div>` : ''}
+    ${notes && notes !== 'None.' ? `<div><div class="detail-section-label">Notes</div><div style="font-size:11px;color:var(--text-dim);line-height:1.5;">${esc(notes)}</div></div>` : ''}
   `;
 }
 
@@ -2489,8 +2549,11 @@ async function chatSend(chatId, encodedContext) {
   if (!chatHistories[chatId]) chatHistories[chatId] = [];
   chatHistories[chatId].push({ role: 'user', text: userMsg });
 
-  // Add user message to UI
-  msgsEl.innerHTML += `<div class="gchat-msg-user">${userMsg}</div>`;
+  // Add user message to UI (safe: use textContent via DOM creation)
+  var userDiv = document.createElement('div');
+  userDiv.className = 'gchat-msg-user';
+  userDiv.textContent = userMsg;
+  msgsEl.appendChild(userDiv);
   msgsEl.style.display = 'flex';
   msgsEl.scrollTop = msgsEl.scrollHeight;
 
@@ -2505,9 +2568,15 @@ async function chatSend(chatId, encodedContext) {
     const reply = await callGemini(fullPrompt, 1024);
     if (!reply) { sendBtn.disabled = false; return; }
     chatHistories[chatId].push({ role: 'assistant', text: reply });
-    msgsEl.innerHTML += `<div class="gchat-msg-ai">${reply.replace(/\n/g,'<br>')}</div>`;
+    var aiDiv = document.createElement('div');
+    aiDiv.className = 'gchat-msg-ai';
+    aiDiv.innerHTML = esc(reply).replace(/\n/g,'<br>');
+    msgsEl.appendChild(aiDiv);
   } catch(e) {
-    msgsEl.innerHTML += `<div class="gchat-msg-error">Error: ${e.message}</div>`;
+    var errDiv = document.createElement('div');
+    errDiv.className = 'gchat-msg-error';
+    errDiv.textContent = 'Error: ' + e.message;
+    msgsEl.appendChild(errDiv);
   }
 
   msgsEl.scrollTop = msgsEl.scrollHeight;
@@ -2726,9 +2795,9 @@ async function loadMuniData() {
 
   try {
     const [muniResp, hearResp, groupResp] = await Promise.all([
-      fetch(url + '?action=municipalities', { signal: AbortSignal.timeout(30000) }),
-      fetch(url + '?action=hearings',       { signal: AbortSignal.timeout(30000) }),
-      fetch(url + '?action=county_groups',  { signal: AbortSignal.timeout(30000) }),
+      fetch(url + '&action=municipalities', { signal: AbortSignal.timeout(30000) }),
+      fetch(url + '&action=hearings',       { signal: AbortSignal.timeout(30000) }),
+      fetch(url + '&action=county_groups',  { signal: AbortSignal.timeout(30000) }),
     ]);
     const [muniData, hearData, groupData] = await Promise.all([
       muniResp.json(), hearResp.json(), groupResp.json()
@@ -2773,7 +2842,7 @@ async function fetchScrapedDocuments() {
   const url = getWebAppUrl();
   if (!url) return;
   try {
-    const resp = await fetch(url + '?action=scraped_documents', { signal: AbortSignal.timeout(15000) });
+    const resp = await fetch(url + '&action=scraped_documents', { signal: AbortSignal.timeout(15000) });
     const data = await resp.json();
     if (Array.isArray(data) && data.length) {
       SCRAPED_DOCS = data;
@@ -2788,7 +2857,7 @@ async function fetchMeetingDates() {
   const url = getWebAppUrl();
   if (!url) return;
   try {
-    const resp = await fetch(url + '?action=meeting_dates', { signal: AbortSignal.timeout(15000) });
+    const resp = await fetch(url + '&action=meeting_dates', { signal: AbortSignal.timeout(15000) });
     const data = await resp.json();
     if (data && typeof data === 'object' && Object.keys(data).length > 0) {
       MEETING_DATES = data;
@@ -2803,7 +2872,7 @@ async function fetchLiveIntelFeed() {
   const url = getWebAppUrl();
   if (!url) return;
   try {
-    const resp = await fetch(url + '?action=intel_feed', { signal: AbortSignal.timeout(15000) });
+    const resp = await fetch(url + '&action=intel_feed', { signal: AbortSignal.timeout(15000) });
     const data = await resp.json();
     if (Array.isArray(data) && data.length) {
       // Merge live items — replace hardcoded fallback entirely if live data available
@@ -3019,28 +3088,29 @@ function renderMuniPanel() {
 
   // Prepare chat context up-front so it's available in the template
   const jurisChatId = 'juris-' + m.id;
-  const escapedMuniName = (m.name || '').replace(/'/g, "\\'");
+  const escapedMuniName = escAttr(m.name || '');
   const memberCount = (m.council||[]).length + (m.pc||[]).length;
   const shortMuniName = (m.name||'').replace('City of ','').replace('Town of ','');
   const jurisContext = `You are an AI assistant for the Municipal Resource Dashboard. You have detailed knowledge about ${m.name}, Indiana. The jurisdiction has ${memberCount} plan commission/council members. Focus: residential development, rezoning, planning commission activity, council votes, member positions. Be concise and cite meeting dates when possible.`;
+  const encodedContext = encodeURIComponent(jurisContext);
 
   panel.innerHTML = `
-    ${m.data_gap ? `<div class="warn-banner"><span class="warn-banner-icon">⚠</span><span>${m.gap_note}</span></div>` : ''}
+    ${m.data_gap ? `<div class="warn-banner"><span class="warn-banner-icon">⚠</span><span>${esc(m.gap_note)}</span></div>` : ''}
     <div class="muni-title-row" style="align-items:center;gap:16px;">
       <div style="flex:0 0 auto;">
-        <div class="muni-title">${m.name}</div>
-        <div class="muni-county">${m.county} County</div>
+        <div class="muni-title">${esc(m.name)}</div>
+        <div class="muni-county">${esc(m.county)} County</div>
       </div>
-      <div id="chat-panel-${jurisChatId}" style="flex:1;min-width:0;">
+      <div id="chat-panel-${esc(jurisChatId)}" style="flex:1;min-width:0;">
         <div class="gemini-chat-input-row" style="padding:0;border:none;">
-          <textarea class="gemini-chat-input" id="chat-input-${jurisChatId}" rows="1"
+          <textarea class="gemini-chat-input" id="chat-input-${esc(jurisChatId)}" rows="1"
             placeholder="Ask about this jurisdiction…"
-            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();chatSend('${jurisChatId}','${encodeURIComponent(jurisContext)}');}"></textarea>
-          <button class="gemini-chat-send" onclick="chatSend('${jurisChatId}','${encodeURIComponent(jurisContext)}')">Send</button>
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();chatSend('${escAttr(jurisChatId)}','${escAttr(encodedContext)}');}"></textarea>
+          <button class="gemini-chat-send" onclick="chatSend('${escAttr(jurisChatId)}','${escAttr(encodedContext)}')">Send</button>
         </div>
       </div>
     </div>
-    <div class="gemini-chat-messages" id="chat-msgs-${jurisChatId}" style="display:none;background:var(--intel-bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;max-height:200px;overflow-y:auto;flex-direction:column;gap:8px;font-size:12px;line-height:1.5;"></div>
+    <div class="gemini-chat-messages" id="chat-msgs-${esc(jurisChatId)}" style="display:none;background:var(--intel-bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;max-height:200px;overflow-y:auto;flex-direction:column;gap:8px;font-size:12px;line-height:1.5;"></div>
 
     <div class="muni-summary-box">
       <div class="section-label">Municipality Summary</div>
@@ -3055,15 +3125,15 @@ function renderMuniPanel() {
         </div>
         <div class="summary-item">
           <div class="summary-key">Political</div>
-          <div class="summary-val">${m.political || '—'}</div>
+          <div class="summary-val">${esc(m.political) || '—'}</div>
         </div>
         <div class="summary-item">
           <div class="summary-key">Receptivity</div>
-          <div class="summary-val"><span class="receptivity-dot ${recColors[m.receptivity]||'rec-med'}"></span>${m.receptivity_label || '—'}</div>
+          <div class="summary-val"><span class="receptivity-dot ${recColors[m.receptivity]||'rec-med'}"></span>${esc(m.receptivity_label) || '—'}</div>
         </div>
         <div class="summary-item" style="grid-column: 1 / -1;">
           <div class="summary-key">Strategic Notes</div>
-          <div class="summary-val" style="text-align:left;line-height:1.5;">${m.notes || '—'}</div>
+          <div class="summary-val" style="text-align:left;line-height:1.5;">${esc(m.notes) || '—'}</div>
         </div>
       </div>
     </div>
@@ -3100,16 +3170,16 @@ function renderMemberCards(members) {
     const partyTag = mem.party === 'R' ? '<span class="member-tag tag-rep">R</span>' :
                      mem.party === 'D' ? '<span class="member-tag tag-dem">D</span>' :
                      mem.party === 'I' ? '<span class="member-tag tag-ind">I</span>' : '';
-    const bodyTag = mem.body === 'Council' ? '<span class="member-tag tag-council">COUNCIL</span>' : 
+    const bodyTag = mem.body === 'Council' ? '<span class="member-tag tag-council">COUNCIL</span>' :
                     mem.body === 'PC' ? '<span class="member-tag tag-pc">PC</span>' : '';
     const warnTag = mem.warn ? '<span class="member-tag warn-tag">⚠ VERIFY</span>' : '';
-    const termTag = mem.term ? `<span class="member-tag tag-term">${mem.term}</span>` : '';
-    
+    const termTag = mem.term ? `<span class="member-tag tag-term">${esc(mem.term)}</span>` : '';
+
     return `
-      <div class="member-card ${selectedMember && selectedMember.name === mem.name ? 'selected' : ''}" 
+      <div class="member-card ${selectedMember && selectedMember.name === mem.name ? 'selected' : ''}"
            onclick="showMemberDetail(${idx})">
-        <div class="member-name">${mem.name}</div>
-        <div class="member-role">${mem.role}</div>
+        <div class="member-name">${esc(mem.name)}</div>
+        <div class="member-role">${esc(mem.role)}</div>
         <div class="member-tags">
           ${bodyTag}${partyTag}${warnTag}${termTag}
         </div>
@@ -3153,8 +3223,8 @@ function renderMemberDetail(mem) {
 
   panel.innerHTML = `
     <div>
-      <div class="detail-name">${mem.name}</div>
-      <div class="detail-role">${mem.role}</div>
+      <div class="detail-name">${esc(mem.name)}</div>
+      <div class="detail-role">${esc(mem.role)}</div>
       ${mem.warn && !isVerified ? `<div style="margin-top:6px;"><span class="member-tag warn-tag">⚠ Needs Verification</span></div>` : ''}
       ${isVerified ? `<div style="margin-top:6px;"><span class="member-tag" style="background:rgba(26,122,74,0.2);color:#6dc49a;border:1px solid rgba(26,122,74,0.35);">✓ Verified</span></div>` : ''}
     </div>
@@ -3163,28 +3233,28 @@ function renderMemberDetail(mem) {
       <div class="detail-section-label">Key Stats</div>
       <div class="detail-row">
         <span class="detail-key">Body</span>
-        <span class="detail-val" id="edit-body-display">${mem.body || '—'}</span>
+        <span class="detail-val" id="edit-body-display">${esc(mem.body) || '—'}</span>
       </div>
       <div class="detail-row">
         <span class="detail-key">Party</span>
-        <span class="detail-val" id="edit-party-display">${partyLabel}</span>
+        <span class="detail-val" id="edit-party-display">${esc(partyLabel)}</span>
       </div>
       <div class="detail-row">
         <span class="detail-key">Term</span>
-        <span class="detail-val" id="edit-term-display">${mem.term || 'Not listed'}</span>
+        <span class="detail-val" id="edit-term-display">${esc(mem.term) || 'Not listed'}</span>
       </div>
       <div class="detail-row">
         <span class="detail-key">Municipality</span>
-        <span class="detail-val">${currentMuni?.name || '—'}</span>
+        <span class="detail-val">${esc(currentMuni?.name) || '—'}</span>
       </div>
     </div>
 
     <div class="detail-section" id="edit-form-section" style="display:none;">
       <div class="detail-section-label">Edit Member Info</div>
       <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px;">
-        <input id="edit-name" class="settings-input" style="margin:0;" value="${mem.name}" placeholder="Full name">
-        <input id="edit-role" class="settings-input" style="margin:0;" value="${mem.role}" placeholder="Role / district">
-        <input id="edit-term" class="settings-input" style="margin:0;" value="${mem.term||''}" placeholder="Term (e.g. 2024–2027)">
+        <input id="edit-name" class="settings-input" style="margin:0;" value="${esc(mem.name)}" placeholder="Full name">
+        <input id="edit-role" class="settings-input" style="margin:0;" value="${esc(mem.role)}" placeholder="Role / district">
+        <input id="edit-term" class="settings-input" style="margin:0;" value="${esc(mem.term||'')}" placeholder="Term (e.g. 2024–2027)">
         <select id="edit-party" class="settings-select" style="width:100%;">
           <option value="R" ${mem.party==='R'?'selected':''}>Republican</option>
           <option value="D" ${mem.party==='D'?'selected':''}>Democrat</option>
@@ -3200,66 +3270,67 @@ function renderMemberDetail(mem) {
 
     <div class="detail-section">
       <div class="detail-section-label">Relationship Notes</div>
-      <textarea id="member-notes-input" style="width:100%;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:11px;padding:7px;resize:vertical;min-height:64px;outline:none;" placeholder="Add team notes, relationship context, past interactions...">${savedNotes}</textarea>
-      <button class="settings-add-btn" style="margin-top:4px;" onclick="saveMemberNotes('${notesKey}')">Save Notes</button>
+      <textarea id="member-notes-input" style="width:100%;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:11px;padding:7px;resize:vertical;min-height:64px;outline:none;" placeholder="Add team notes, relationship context, past interactions...">${esc(savedNotes)}</textarea>
+      <button class="settings-add-btn" style="margin-top:4px;" onclick="saveMemberNotes('${escAttr(notesKey)}')">Save Notes</button>
     </div>
 
     <div class="detail-section">
       <div class="detail-section-label">Civic Affiliations</div>
-      ${mem.notes ? `<div class="detail-note">${mem.notes}</div>` : `<div style="color:var(--text-dim);font-size:11px;">No affiliations recorded.</div>`}
+      ${mem.notes ? `<div class="detail-note">${esc(mem.notes)}</div>` : `<div style="color:var(--text-dim);font-size:11px;">No affiliations recorded.</div>`}
     </div>
 
     <div class="detail-section">
       <div class="detail-section-label">Professional Background</div>
-      <div style="color:var(--text-dim);font-size:11px;margin-bottom:6px;">${mem.professional_background || 'No professional background on record.'}</div>
+      <div style="color:var(--text-dim);font-size:11px;margin-bottom:6px;">${esc(mem.professional_background) || 'No professional background on record.'}</div>
       <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Employment History</div>
       ${mem.employment_history && mem.employment_history.length
-        ? `<div class="affiliation-list">${mem.employment_history.map(e=>`<div class="affiliation-item">${e}</div>`).join('')}</div>`
+        ? `<div class="affiliation-list">${mem.employment_history.map(e=>`<div class="affiliation-item">${esc(e)}</div>`).join('')}</div>`
         : `<div style="color:var(--text-dim);font-size:11px;">No employment history on record.</div>`}
     </div>
 
     <div class="detail-section">
       <div class="detail-section-label">Political / Civic History</div>
       ${mem.political_history && mem.political_history.length
-        ? `<div class="affiliation-list">${mem.political_history.map(e=>`<div class="affiliation-item">${e}</div>`).join('')}</div>`
+        ? `<div class="affiliation-list">${mem.political_history.map(e=>`<div class="affiliation-item">${esc(e)}</div>`).join('')}</div>`
         : `<div style="color:var(--text-dim);font-size:11px;">No political/civic history on record.</div>`}
     </div>
 
     <div class="detail-section">
       <div class="detail-section-label">Social Media</div>
       <div style="display:flex;flex-direction:column;gap:5px;margin-top:2px;">
-        ${mem.linkedin ? `<a href="${mem.linkedin}" target="_blank" rel="noopener" class="social-link social-linkedin"><span class="social-icon">in</span> LinkedIn</a>` : `<span class="social-link social-placeholder"><span class="social-icon">in</span> LinkedIn <span class="social-empty">—</span></span>`}
-        ${mem.facebook ? `<a href="${mem.facebook}" target="_blank" rel="noopener" class="social-link social-facebook"><span class="social-icon">f</span> Facebook</a>` : `<span class="social-link social-placeholder"><span class="social-icon">f</span> Facebook <span class="social-empty">—</span></span>`}
-        ${mem.twitter ? `<a href="${mem.twitter}" target="_blank" rel="noopener" class="social-link social-twitter"><span class="social-icon">X</span> Twitter / X</a>` : `<span class="social-link social-placeholder"><span class="social-icon">X</span> Twitter / X <span class="social-empty">—</span></span>`}
-        ${mem.campaign_site ? `<a href="${mem.campaign_site}" target="_blank" rel="noopener" class="social-link social-campaign"><span class="social-icon">&#9670;</span> Campaign Site</a>` : `<span class="social-link social-placeholder"><span class="social-icon">&#9670;</span> Campaign Site <span class="social-empty">—</span></span>`}
+        ${mem.linkedin ? `<a href="${escUrl(mem.linkedin)}" target="_blank" rel="noopener" class="social-link social-linkedin"><span class="social-icon">in</span> LinkedIn</a>` : `<span class="social-link social-placeholder"><span class="social-icon">in</span> LinkedIn <span class="social-empty">—</span></span>`}
+        ${mem.facebook ? `<a href="${escUrl(mem.facebook)}" target="_blank" rel="noopener" class="social-link social-facebook"><span class="social-icon">f</span> Facebook</a>` : `<span class="social-link social-placeholder"><span class="social-icon">f</span> Facebook <span class="social-empty">—</span></span>`}
+        ${mem.twitter ? `<a href="${escUrl(mem.twitter)}" target="_blank" rel="noopener" class="social-link social-twitter"><span class="social-icon">X</span> Twitter / X</a>` : `<span class="social-link social-placeholder"><span class="social-icon">X</span> Twitter / X <span class="social-empty">—</span></span>`}
+        ${mem.campaign_site ? `<a href="${escUrl(mem.campaign_site)}" target="_blank" rel="noopener" class="social-link social-campaign"><span class="social-icon">&#9670;</span> Campaign Site</a>` : `<span class="social-link social-placeholder"><span class="social-icon">&#9670;</span> Campaign Site <span class="social-empty">—</span></span>`}
       </div>
     </div>
 
     ${mem._last_researched ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">
       <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);letter-spacing:0.05em;">
-        PROFILE RESEARCHED: ${new Date(mem._last_researched).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}
-        <span style="opacity:0.6;margin-left:6px;">${mem._profile_confidence || ''} confidence</span>
+        PROFILE RESEARCHED: ${esc(new Date(mem._last_researched).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}))}
+        <span style="opacity:0.6;margin-left:6px;">${esc(mem._profile_confidence || '')} confidence</span>
       </div>
     </div>` : ''}
 
     <div style="border-top:1px solid var(--border);padding-top:10px;">
       <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);letter-spacing:0.05em;text-transform:uppercase;margin-bottom:6px;">Profile Archetype</div>
-      <span class="profile-badge badge-${(currentMuni?.profile||'a').toLowerCase()}">Profile ${currentMuni?.profile||'—'} · ${currentMuni?.archetype||''}</span>
+      <span class="profile-badge badge-${esc((currentMuni?.profile||'a').toLowerCase())}">Profile ${esc(currentMuni?.profile||'—')} · ${esc(currentMuni?.archetype||'')}</span>
     </div>
 
     <div style="border-top:1px solid var(--border);padding-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
       <button class="settings-add-btn" style="margin-top:0;" onclick="toggleMemberEditForm()">✎ Edit Info</button>
       ${mem.warn && !isVerified
-        ? `<button class="settings-save-btn" style="margin-top:0;" onclick="verifyMember('${verifyKey}')">✓ Mark Verified</button>`
+        ? `<button class="settings-save-btn" style="margin-top:0;" onclick="verifyMember('${escAttr(verifyKey)}')">✓ Mark Verified</button>`
         : isVerified
-          ? `<button class="settings-add-btn" style="margin-top:0;" onclick="unverifyMember('${verifyKey}')">↩ Unmark Verified</button>`
+          ? `<button class="settings-add-btn" style="margin-top:0;" onclick="unverifyMember('${escAttr(verifyKey)}')">↩ Unmark Verified</button>`
           : ''}
     </div>
 
     ${(function() {
       const memId = mem.id || mem.name.replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_]/g,'');
-      const escapedMemName = (mem.name || '').replace(/'/g, "\\'");
-      const escapedMuniName = (currentMuni ? (currentMuni.name || '') : '').replace(/'/g, "\\'");
+      const safeMemId = esc(memId);
+      const safeMemName = escAttr(mem.name || '');
+      const safeMuniName = escAttr(currentMuni ? (currentMuni.name || '') : '');
       const memChatId = 'mem-' + memId;
       const memContext = `You are an AI assistant for the Municipal Resource Dashboard. You are analyzing ${mem.name}, a ${mem.role || 'member'} of ${currentMuni ? currentMuni.name : 'this municipality'}, Indiana. Focus on their voting record on residential development, rezoning, annexation, and subdivision matters. Be specific and cite dates when possible.`;
       const muniId = currentMuni ? currentMuni.id : '';
@@ -3269,18 +3340,18 @@ function renderMemberDetail(mem) {
       if (cachedRaw) {
         try {
           const cached = JSON.parse(cachedRaw);
-          cachedHtml = `<div style="font-size:9px;color:var(--text-dim);">Cached ${cached.timestamp} — click Update Profile to refresh</div>`;
+          cachedHtml = `<div style="font-size:9px;color:var(--text-dim);">Cached ${esc(cached.timestamp)} — click Update Profile to refresh</div>`;
         } catch(e) {}
       }
       return `<div class="vote-history-section">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
     <div class="vote-history-title">AI Research Profile</div>
-    <button class="update-profile-btn" id="vbtn-${memId}"
-      onclick="researchMemberProfile('${memId}','${escapedMemName}','${muniId}','${escapedMuniName}',document.getElementById('profile-research-${memId}'),this)">
+    <button class="update-profile-btn" id="vbtn-${safeMemId}"
+      onclick="researchMemberProfile('${escAttr(memId)}','${safeMemName}','${escAttr(muniId)}','${safeMuniName}',document.getElementById('profile-research-${escAttr(memId)}'),this)">
       Update Profile
     </button>
   </div>
-  <div id="profile-research-${memId}">
+  <div id="profile-research-${safeMemId}">
     ${cachedHtml}
   </div>
 </div>
@@ -3321,27 +3392,28 @@ function renderFeed(items) {
     return;
   }
   feed.innerHTML = items.map(item => {
-    const headlineHtml = item.url
-      ? `<a href="${item.url}" target="_blank" rel="noopener">${item.headline}</a>`
-      : item.headline;
+    const safeUrl = escUrl(item.url);
+    const headlineHtml = safeUrl
+      ? `<a href="${safeUrl}" target="_blank" rel="noopener">${esc(item.headline)}</a>`
+      : esc(item.headline);
     const newBadge = item.isNew
       ? `<span class="intel-new-badge">NEW</span>`
       : '';
     const sourceLabel = item.source
-      ? (item.url
-          ? `<a href="${item.url}" target="_blank" rel="noopener" class="intel-source-link">${item.source}</a>`
-          : `<span class="intel-source-label">${item.source}</span>`)
+      ? (safeUrl
+          ? `<a href="${safeUrl}" target="_blank" rel="noopener" class="intel-source-link">${esc(item.source)}</a>`
+          : `<span class="intel-source-label">${esc(item.source)}</span>`)
       : '';
     return `
-    <div class="intel-item${item.isNew ? ' intel-item-new' : ''}${item.url ? ' intel-item-linked' : ''}" ${item.url ? `onclick="window.open('${item.url}','_blank')"` : ''}>
-      <div class="intel-type-dot type-${item.type}"></div>
+    <div class="intel-item${item.isNew ? ' intel-item-new' : ''}${safeUrl ? ' intel-item-linked' : ''}" ${safeUrl ? `onclick="window.open('${escAttr(safeUrl)}','_blank')"` : ''}>
+      <div class="intel-type-dot type-${esc(item.type)}"></div>
       <div class="intel-body">
         <div class="intel-headline">${headlineHtml} ${newBadge}</div>
         <div class="intel-meta">
-          <span class="intel-date">${item.date}</span>
-          <span class="intel-muni">${item.muni}</span>
-          <span class="intel-tag itag-${item.type}">${item.type.toUpperCase()}</span>
-          <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);">${item.county} Co.</span>
+          <span class="intel-date">${esc(item.date)}</span>
+          <span class="intel-muni">${esc(item.muni)}</span>
+          <span class="intel-tag itag-${esc(item.type)}">${esc((item.type||'').toUpperCase())}</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);">${esc(item.county)} Co.</span>
           ${sourceLabel}
         </div>
       </div>
@@ -3383,26 +3455,26 @@ function exportBriefing() {
   let content = '';
   if (muni) {
     const warnMembers = [...(muni.council||[]), ...(muni.pc||[])].filter(m => m.warn);
-    content = `<h1>MIP Briefing: ${muni.name}</h1>`;
+    content = `<h1>MIP Briefing: ${esc(muni.name)}</h1>`;
     content += `<table><tr><th>Field</th><th>Value</th></tr>`;
-    content += `<tr><td>County</td><td>${muni.county}</td></tr>`;
-    content += `<tr><td>Profile Archetype</td><td>Profile ${muni.profile} — ${muni.archetype}</td></tr>`;
-    content += `<tr><td>Political Composition</td><td>${muni.political || '—'}</td></tr>`;
-    content += `<tr><td>Development Receptivity</td><td>${muni.receptivity_label || '—'}</td></tr>`;
+    content += `<tr><td>County</td><td>${esc(muni.county)}</td></tr>`;
+    content += `<tr><td>Profile Archetype</td><td>Profile ${esc(muni.profile)} — ${esc(muni.archetype)}</td></tr>`;
+    content += `<tr><td>Political Composition</td><td>${esc(muni.political) || '—'}</td></tr>`;
+    content += `<tr><td>Development Receptivity</td><td>${esc(muni.receptivity_label) || '—'}</td></tr>`;
     content += `</table>`;
-    content += `<h2>Strategic Notes</h2><p>${muni.notes || '—'}</p>`;
-    if (muni.data_gap) content += `<p class="warn">⚠ Data Gap: ${muni.gap_note}</p>`;
+    content += `<h2>Strategic Notes</h2><p>${esc(muni.notes) || '—'}</p>`;
+    if (muni.data_gap) content += `<p class="warn">⚠ Data Gap: ${esc(muni.gap_note)}</p>`;
     if (warnMembers.length) content += `<p class="warn">⚠ ${warnMembers.length} member(s) flagged for verification — see roster below.</p>`;
     content += `<h2>Council Members (${(muni.council||[]).length})</h2>`;
     content += `<table><tr><th>Name</th><th>Role</th><th>Party</th><th>Term</th><th>Notes</th></tr>`;
     (muni.council||[]).forEach(m => {
-      content += `<tr><td>${m.warn?'<span class="warn">⚠ </span>':''}${m.name}</td><td>${m.role}</td><td>${m.party||'—'}</td><td>${m.term||'—'}</td><td>${m.notes||''}</td></tr>`;
+      content += `<tr><td>${m.warn?'<span class="warn">⚠ </span>':''}${esc(m.name)}</td><td>${esc(m.role)}</td><td>${esc(m.party)||'—'}</td><td>${esc(m.term)||'—'}</td><td>${esc(m.notes)||''}</td></tr>`;
     });
     content += `</table>`;
     content += `<h2>Plan Commission (${(muni.pc||[]).length})</h2>`;
     content += `<table><tr><th>Name</th><th>Role</th><th>Term</th><th>Notes</th></tr>`;
     (muni.pc||[]).forEach(m => {
-      content += `<tr><td>${m.warn?'<span class="warn">⚠ </span>':''}${m.name}</td><td>${m.role}</td><td>${m.term||'—'}</td><td>${m.notes||''}</td></tr>`;
+      content += `<tr><td>${m.warn?'<span class="warn">⚠ </span>':''}${esc(m.name)}</td><td>${esc(m.role)}</td><td>${esc(m.term)||'—'}</td><td>${esc(m.notes)||''}</td></tr>`;
     });
     content += `</table>`;
     // P13: intelligence feed export temporarily disabled.
@@ -3411,7 +3483,7 @@ function exportBriefing() {
     content += `<p>31 Municipalities · 9 Counties</p>`;
     content += `<table><tr><th>Municipality</th><th>County</th><th>Profile</th><th>Political</th><th>Receptivity</th></tr>`;
     MUNICIPALITIES.forEach(m => {
-      content += `<tr><td>${m.name}</td><td>${m.county}</td><td>Profile ${m.profile}</td><td>${m.political||'—'}</td><td>${m.receptivity_label||'—'}</td></tr>`;
+      content += `<tr><td>${esc(m.name)}</td><td>${esc(m.county)}</td><td>Profile ${esc(m.profile)}</td><td>${esc(m.political)||'—'}</td><td>${esc(m.receptivity_label)||'—'}</td></tr>`;
     });
     content += `</table>`;
   }
@@ -3484,7 +3556,7 @@ async function ytLoadSummary(summaryDocUrl, elId) {
   }
   el.textContent = 'Loading summary…';
   try {
-    const resp = await fetch(getWebAppUrl() + '?action=fetch_url&url=' + encodeURIComponent(summaryDocUrl));
+    const resp = await fetch(getWebAppUrl() + '&action=fetch_url&url=' + encodeURIComponent(summaryDocUrl));
     const data = await resp.json();
     const text = (data.content || data.text || 'Summary could not be loaded.').substring(0, 4000);
     window._ytSummaryCache[summaryDocUrl] = text;
@@ -3509,7 +3581,7 @@ async function ytResubmit(youtubeUrl, jurisdiction, meetingDate, btnId, summaryE
   const btn = document.getElementById(btnId);
   if (btn) { btn.disabled = true; btn.textContent = '↻ Processing…'; }
   try {
-    const url = getWebAppUrl() + '?action=resummarize_hearing'
+    const url = getWebAppUrl() + '&action=resummarize_hearing'
       + '&youtube_url=' + encodeURIComponent(youtubeUrl)
       + '&jurisdiction=' + encodeURIComponent(jurisdiction)
       + '&meeting_date=' + encodeURIComponent(meetingDate);
@@ -3519,7 +3591,7 @@ async function ytResubmit(youtubeUrl, jurisdiction, meetingDate, btnId, summaryE
       // Update the summary span with a new link to the generated doc
       const el = document.getElementById(summaryElId);
       if (el) {
-        el.innerHTML = `<a href="${data.summary_doc}" target="_blank" class="hearing-link doc">✦ Summary</a>`;
+        el.innerHTML = `<a href="${escUrl(data.summary_doc)}" target="_blank" class="hearing-link doc">✦ Summary</a>`;
       }
       if (btn) { btn.textContent = '✓ Done'; btn.style.borderColor = 'rgba(26,122,74,0.45)'; btn.style.color = '#6dc49a'; }
     } else {
@@ -3542,7 +3614,7 @@ async function agApprove(docId, meetingType, jurisdiction, btnYesId, btnNoId, ro
   if (btnY) { btnY.disabled = true; btnY.textContent = '…'; }
   if (btnN) btnN.disabled = true;
   try {
-    const url = getWebAppUrl() + '?action=approve_agenda'
+    const url = getWebAppUrl() + '&action=approve_agenda'
       + '&id=' + encodeURIComponent(docId)
       + '&meeting_type=' + encodeURIComponent(meetingType)
       + '&jurisdiction=' + encodeURIComponent(jurisdiction);
@@ -3564,7 +3636,7 @@ async function agReject(docId, meetingType, jurisdiction, btnYesId, btnNoId, row
   if (btnN) { btnN.disabled = true; btnN.textContent = '…'; }
   if (btnY) btnY.disabled = true;
   try {
-    const url = getWebAppUrl() + '?action=reject_agenda'
+    const url = getWebAppUrl() + '&action=reject_agenda'
       + '&id=' + encodeURIComponent(docId)
       + '&meeting_type=' + encodeURIComponent(meetingType)
       + '&jurisdiction=' + encodeURIComponent(jurisdiction);
@@ -3597,9 +3669,18 @@ function showChangeTypePopover(anchorEl, docId, muniId, currentType, agId) {
     const sel = (t === currentType) ? ' selected' : '';
     return `<option value="${t}"${sel}>${t}</option>`;
   }).join('');
-  pop.innerHTML = `<select class="url-popover-input" id="ct-select-${docId}" style="width:200px;">${options}</select>
-    <button class="add-url-btn" onclick="submitChangeType('${docId}','${muniId}','${agId}')">Save</button>
-    <button class="add-url-btn" style="border-color:rgba(255,255,255,0.1);" onclick="this.closest('.url-popover').remove()">Cancel</button>`;
+  pop.innerHTML = `<select class="url-popover-input" id="ct-select-${esc(docId)}" style="width:200px;">${options}</select>`;
+  var saveBtn = document.createElement('button');
+  saveBtn.className = 'add-url-btn';
+  saveBtn.textContent = 'Save';
+  saveBtn.onclick = function() { submitChangeType(docId, muniId, agId); };
+  var cancelBtn = document.createElement('button');
+  cancelBtn.className = 'add-url-btn';
+  cancelBtn.style.borderColor = 'rgba(255,255,255,0.1)';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.onclick = function() { this.closest('.url-popover').remove(); };
+  pop.appendChild(saveBtn);
+  pop.appendChild(cancelBtn);
   anchorEl.parentElement.appendChild(pop);
 }
 
@@ -3611,7 +3692,7 @@ async function submitChangeType(docId, muniId, agId) {
   const saveBtn = pop ? pop.querySelector('button') : null;
   if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '…'; }
   try {
-    const url = getWebAppUrl() + '?action=override_meeting_type'
+    const url = getWebAppUrl() + '&action=override_meeting_type'
       + '&id=' + encodeURIComponent(docId)
       + '&jurisdiction=' + encodeURIComponent(muniId)
       + '&new_type=' + encodeURIComponent(newType);
@@ -3790,9 +3871,9 @@ function renderScheduleBanner(muniId, unified, ref) {
 
   let html = `<div class="${bannerClass}"><span>${bannerText}</span>`;
   if (showUrlInput) {
-    html += `<div class="schedule-banner-url" id="sched-url-wrap-${muniId}">
-      <input type="text" class="url-popover-input" id="sched-url-input-${muniId}" placeholder="Paste schedule page URL...">
-      <button class="add-url-btn" onclick="submitScheduleUrl('${muniId}')">Add Schedule URL</button>
+    html += `<div class="schedule-banner-url" id="sched-url-wrap-${esc(muniId)}">
+      <input type="text" class="url-popover-input" id="sched-url-input-${esc(muniId)}" placeholder="Paste schedule page URL...">
+      <button class="add-url-btn" onclick="submitScheduleUrl('${escAttr(muniId)}')">Add Schedule URL</button>
     </div>`;
   }
   html += `</div>`;
@@ -3815,17 +3896,17 @@ function renderBodySection(bodyLabel, dates, muniId) {
       const summaryId = 'yts_' + muniId + '_' + bodyLabel.replace(/\s/g,'') + '_' + rowIdx;
       const btnId = 'ytrs_' + muniId + '_' + bodyLabel.replace(/\s/g,'') + '_' + rowIdx;
       ytCell = `<div class="yt-hearing-item">`;
-      ytCell += `<a href="${entry.youtube_url}" target="_blank" class="hearing-link yt">▶ YouTube</a>`;
-      ytCell += `<span id="${summaryId}">`;
+      ytCell += `<a href="${escUrl(entry.youtube_url)}" target="_blank" class="hearing-link yt">▶ YouTube</a>`;
+      ytCell += `<span id="${esc(summaryId)}">`;
       if (entry.summary_doc) {
-        ytCell += `<a href="${entry.summary_doc}" target="_blank" class="hearing-link doc">✦ Summary</a>`;
+        ytCell += `<a href="${escUrl(entry.summary_doc)}" target="_blank" class="hearing-link doc">✦ Summary</a>`;
       }
       ytCell += `</span>`;
-      ytCell += `<button class="yt-resubmit-btn" id="${btnId}" onclick="ytResubmit('${entry.youtube_url}','${muniId}','${entry.date}','${btnId}','${summaryId}')">↻ ${entry.summary_doc ? 'Resubmit' : 'Generate Summary'}</button>`;
+      ytCell += `<button class="yt-resubmit-btn" id="${esc(btnId)}" onclick="ytResubmit('${escAttr(entry.youtube_url)}','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(btnId)}','${escAttr(summaryId)}')">↻ ${entry.summary_doc ? 'Resubmit' : 'Generate Summary'}</button>`;
       ytCell += `</div>`;
     } else if (isPast) {
       const addYtId = 'addyt_' + muniId + '_' + rowIdx;
-      ytCell = `<button class="add-url-btn" id="${addYtId}" onclick="showAddUrlPopover(this,'youtube','${muniId}','${entry.date}')">+ Add YouTube</button>`;
+      ytCell = `<button class="add-url-btn" id="${esc(addYtId)}" onclick="showAddUrlPopover(this,'youtube','${escAttr(muniId)}','${escAttr(entry.date)}')">+ Add YouTube</button>`;
     } else {
       ytCell = `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
     }
@@ -3840,20 +3921,20 @@ function renderBodySection(bodyLabel, dates, muniId) {
         const btnNId = 'agn_' + muniId + '_' + rowIdx + '_' + si;
         const status = window._agendaApprovalStatus[sd.id] || '';
         const cls = status === 'approved' ? ' ag-approved' : status === 'rejected' ? ' ag-rejected' : '';
-        const curType = (sd.meeting_type_override || sd.meeting_type || '').replace(/'/g,"\\'");
-        let h = `<div class="ag-item${cls}" id="${agId}">`;
-        h += sdUrl ? `<a href="${sdUrl}" target="_blank" class="hearing-link ag">↓ Agenda</a>` : `<span class="hearing-link ag" style="cursor:default;">↓ Agenda</span>`;
+        const curType = sd.meeting_type_override || sd.meeting_type || '';
+        let h = `<div class="ag-item${cls}" id="${esc(agId)}">`;
+        h += sdUrl ? `<a href="${escUrl(sdUrl)}" target="_blank" class="hearing-link ag">↓ Agenda</a>` : `<span class="hearing-link ag" style="cursor:default;">↓ Agenda</span>`;
         if (!status) {
-          h += `<button class="ag-correct-btn yes" id="${btnYId}" onclick="agApprove('${sd.id}','${(sd.meeting_type||'').replace(/'/g,"\\'")}','${muniId}','${btnYId}','${btnNId}','${agId}')">✓ Yes</button>`;
-          h += `<button class="ag-correct-btn no" id="${btnNId}" onclick="agReject('${sd.id}','${(sd.meeting_type||'').replace(/'/g,"\\'")}','${muniId}','${btnYId}','${btnNId}','${agId}')">✗ No</button>`;
+          h += `<button class="ag-correct-btn yes" id="${esc(btnYId)}" onclick="agApprove('${escAttr(sd.id)}','${escAttr(sd.meeting_type||'')}','${escAttr(muniId)}','${escAttr(btnYId)}','${escAttr(btnNId)}','${escAttr(agId)}')">✓ Yes</button>`;
+          h += `<button class="ag-correct-btn no" id="${esc(btnNId)}" onclick="agReject('${escAttr(sd.id)}','${escAttr(sd.meeting_type||'')}','${escAttr(muniId)}','${escAttr(btnYId)}','${escAttr(btnNId)}','${escAttr(agId)}')">✗ No</button>`;
         }
-        h += `<button class="ag-correct-btn change-type" onclick="showChangeTypePopover(this,'${sd.id}','${muniId}','${curType}','${agId}')">⚙ Change Type</button>`;
+        h += `<button class="ag-correct-btn change-type" onclick="showChangeTypePopover(this,'${escAttr(sd.id)}','${escAttr(muniId)}','${escAttr(curType)}','${escAttr(agId)}')">⚙ Change Type</button>`;
         h += `</div>`;
         return h;
       }).join('');
     } else if (isPast) {
       const addAgId = 'addag_' + muniId + '_' + rowIdx;
-      agCell = `<button class="add-url-btn" id="${addAgId}" onclick="showAddUrlPopover(this,'agenda','${muniId}','${entry.date}')">+ Add Agenda</button>`;
+      agCell = `<button class="add-url-btn" id="${esc(addAgId)}" onclick="showAddUrlPopover(this,'agenda','${escAttr(muniId)}','${escAttr(entry.date)}')">+ Add Agenda</button>`;
     } else {
       agCell = `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
     }
@@ -3865,7 +3946,7 @@ function renderBodySection(bodyLabel, dates, muniId) {
     rowIdx++;
     return `<tr class="${rowClass}">
       <td class="hearings-td hearings-td-date">${fmtHearingDate(entry.date)} ${statusBadge}</td>
-      <td class="hearings-td hearings-td-type">${entry.meeting_type || bodyLabel}</td>
+      <td class="hearings-td hearings-td-type">${esc(entry.meeting_type || bodyLabel)}</td>
       <td class="hearings-td hearings-td-ag">${agCell}</td>
       <td class="hearings-td hearings-td-yt">${ytCell}</td>
     </tr>`;
@@ -3891,9 +3972,18 @@ function showAddUrlPopover(anchorEl, urlType, muniId, date) {
   document.querySelectorAll('.url-popover').forEach(p => p.remove());
   const pop = document.createElement('div');
   pop.className = 'url-popover';
-  pop.innerHTML = `<input type="text" class="url-popover-input" id="pop-url-input" placeholder="Paste ${urlType === 'youtube' ? 'YouTube' : 'agenda'} URL...">
-    <button class="add-url-btn" onclick="submitAddUrl('${urlType}','${muniId}','${date}')">Add</button>
-    <button class="add-url-btn" style="border-color:rgba(255,255,255,0.1);" onclick="this.closest('.url-popover').remove()">Cancel</button>`;
+  pop.innerHTML = `<input type="text" class="url-popover-input" id="pop-url-input" placeholder="Paste ${urlType === 'youtube' ? 'YouTube' : 'agenda'} URL...">`;
+  var addBtn = document.createElement('button');
+  addBtn.className = 'add-url-btn';
+  addBtn.textContent = 'Add';
+  addBtn.onclick = function() { submitAddUrl(urlType, muniId, date); };
+  var cancelBtn2 = document.createElement('button');
+  cancelBtn2.className = 'add-url-btn';
+  cancelBtn2.style.borderColor = 'rgba(255,255,255,0.1)';
+  cancelBtn2.textContent = 'Cancel';
+  cancelBtn2.onclick = function() { this.closest('.url-popover').remove(); };
+  pop.appendChild(addBtn);
+  pop.appendChild(cancelBtn2);
   anchorEl.parentElement.appendChild(pop);
   pop.querySelector('input').focus();
 }
@@ -3906,7 +3996,7 @@ async function submitAddUrl(urlType, muniId, date) {
   const pop = input.closest('.url-popover');
 
   try {
-    const endpoint = getWebAppUrl() + '?action=add_hearing_url'
+    const endpoint = getWebAppUrl() + '&action=add_hearing_url'
       + '&jurisdiction_id=' + encodeURIComponent(muniId)
       + '&date=' + encodeURIComponent(date)
       + '&url_type=' + encodeURIComponent(urlType)
@@ -3920,10 +4010,10 @@ async function submitAddUrl(urlType, muniId, date) {
       if (pop) pop.innerHTML = `<span style="color:#6dc49a;font-size:11px;">Added</span>`;
       setTimeout(() => { if (pop) pop.remove(); renderMuniPanel(); }, 1200);
     } else {
-      if (pop) pop.innerHTML = `<span style="color:#e08888;font-size:11px;">Error: ${data.error}</span>`;
+      if (pop) pop.innerHTML = `<span style="color:#e08888;font-size:11px;">Error: ${esc(data.error)}</span>`;
     }
   } catch(e) {
-    if (pop) pop.innerHTML = `<span style="color:#e08888;font-size:11px;">Error: ${e.message}</span>`;
+    if (pop) pop.innerHTML = `<span style="color:#e08888;font-size:11px;">Error: ${esc(e.message)}</span>`;
   }
 }
 
@@ -3935,7 +4025,7 @@ async function submitScheduleUrl(muniId) {
   const wrap = document.getElementById('sched-url-wrap-' + muniId);
 
   try {
-    const endpoint = getWebAppUrl() + '?action=update_schedule_url'
+    const endpoint = getWebAppUrl() + '&action=update_schedule_url'
       + '&jurisdiction_id=' + encodeURIComponent(muniId)
       + '&url_type=council'
       + '&url=' + encodeURIComponent(url);
@@ -3949,10 +4039,10 @@ async function submitScheduleUrl(muniId) {
       if (JURISDICTION_REFS[muniId]) JURISDICTION_REFS[muniId].councilScheduleUrl = url;
       if (wrap) wrap.innerHTML = `<span style="color:#6dc49a;font-size:11px;">URL saved — run Schedule Scrape from Settings to populate dates.</span>`;
     } else {
-      if (wrap) wrap.innerHTML = `<span style="color:#e08888;font-size:11px;">Error: ${data.error || 'Unknown'}</span>`;
+      if (wrap) wrap.innerHTML = `<span style="color:#e08888;font-size:11px;">Error: ${esc(data.error || 'Unknown')}</span>`;
     }
   } catch(e) {
-    if (wrap) wrap.innerHTML = `<span style="color:#e08888;font-size:11px;">Error: ${e.message}</span>`;
+    if (wrap) wrap.innerHTML = `<span style="color:#e08888;font-size:11px;">Error: ${esc(e.message)}</span>`;
   }
 }
 
@@ -4136,7 +4226,7 @@ async function fetchAndMergeMemberProfiles() {
   }
 
   try {
-    const resp = await fetch(url + '?action=member_profiles', { signal: AbortSignal.timeout(30000) });
+    const resp = await fetch(url + '&action=member_profiles', { signal: AbortSignal.timeout(30000) });
     const data = await resp.json();
     localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(data));
     localStorage.setItem(PROFILE_CACHE_TS_KEY, new Date().toISOString());
@@ -4273,7 +4363,7 @@ async function runScheduleScrapeAll() {
   if (btn) { btn.disabled = true; btn.textContent = 'Scraping...'; }
   if (statusEl) statusEl.textContent = 'Running schedule scrape across all jurisdictions. This may take several minutes...';
   try {
-    const resp = await fetch(getWebAppUrl() + '?action=scrape_all_schedules', { signal: AbortSignal.timeout(360000) });
+    const resp = await fetch(getWebAppUrl() + '&action=scrape_all_schedules', { signal: AbortSignal.timeout(360000) });
     const data = await resp.json();
     if (data.error) {
       if (statusEl) statusEl.textContent = 'Error: ' + data.error;
@@ -4719,7 +4809,7 @@ function phAddProject() {
   if (dupOrd || dupName) {
     const dup = dupOrd || dupName;
     msgEl.className = 'ph-form-msg duplicate';
-    msgEl.innerHTML = `Already tracked — add as alias? <button class="ph-confirm-btn" onclick="phAddAlias('${dup.id}','${name.replace(/'/g,"\\'")}','${ord.replace(/'/g,"\\'")}')">Confirm Alias</button>`;
+    msgEl.innerHTML = `Already tracked — add as alias? <button class="ph-confirm-btn" onclick="phAddAlias('${escAttr(dup.id)}','${escAttr(name)}','${escAttr(ord)}')">Confirm Alias</button>`;
     msgEl.style.display = 'flex';
     return;
   }
@@ -4991,7 +5081,7 @@ async function fetchLiveJurisdictionRefs() {
   const url = getWebAppUrl();
   if (!url) return;
   try {
-    const resp = await fetch(url + '?action=jurisdiction_references');
+    const resp = await fetch(url + '&action=jurisdiction_references');
     if (!resp.ok) return;
     const data = await resp.json();
     if (data && typeof data === 'object' && Object.keys(data).length > 0) {
@@ -5008,7 +5098,7 @@ async function fetchLiveUrlContent(targetUrl) {
   const webappUrl = getWebAppUrl();
   if (!webappUrl || !targetUrl) return null;
   try {
-    const resp = await fetch(webappUrl + '?action=fetch_url&url=' + encodeURIComponent(targetUrl));
+    const resp = await fetch(webappUrl + '&action=fetch_url&url=' + encodeURIComponent(targetUrl));
     if (!resp.ok) return null;
     const data = await resp.json();
     if (data.error) { console.warn('[MIP] URL fetch error:', data.error); return null; }
