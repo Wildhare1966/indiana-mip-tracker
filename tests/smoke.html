@@ -100,6 +100,47 @@ const suites = {
         assert(typeof d.version === 'string' && d.version.length > 0, 'Expected version string');
       }},
   ],
+  'Production CSP integrity (regression catch)': [
+    { name: 'MIP_Platform.html CSP allows script.googleusercontent.com (Apps Script redirect target)',
+      run: async () => {
+        const r = await fetch('../MIP_Platform.html', { cache: 'no-cache' });
+        assert(r.ok, 'MIP_Platform.html fetch returned ' + r.status);
+        const t = await r.text();
+        const m = t.match(/Content-Security-Policy"\s+content="([^"]+)"/);
+        assert(m, 'No CSP meta tag found in MIP_Platform.html');
+        const connectMatch = m[1].match(/connect-src[^;]+/);
+        assert(connectMatch, 'CSP has no connect-src directive');
+        assert(/script\.googleusercontent\.com/.test(connectMatch[0]),
+          'CSP connect-src missing script.googleusercontent.com - Apps Script 302 redirects will be blocked, fetches return TypeError: Failed to fetch. Found: ' + connectMatch[0]);
+      }},
+  ],
+  'Backend POST (gemini_proxy round-trip)': [
+    { name: 'POST gemini_proxy with small prompt returns candidates',
+      run: async () => {
+        const body = { _token: TOKEN, model: 'gemini-2.5-flash', prompt: 'Reply with the single word HELLO and nothing else.', maxTokens: 16 };
+        const r = await fetch(WEBAPP + '?token=' + TOKEN + '&action=gemini_proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+          body: JSON.stringify(body)
+        });
+        const d = await r.json();
+        // Tolerate rate_limited as success - proves network/auth path works
+        if (d.error === 'rate_limited') return;
+        assert(d.candidates && d.candidates[0] && d.candidates[0].content,
+          'Expected candidates, got: ' + JSON.stringify(d).substring(0, 300));
+      }},
+    { name: 'POST gemini_proxy without _token returns 403',
+      run: async () => {
+        const body = { model: 'gemini-2.5-flash', prompt: 'x', maxTokens: 16 };
+        const r = await fetch(WEBAPP + '?action=gemini_proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+          body: JSON.stringify(body)
+        });
+        const d = await r.json();
+        assert(d.error === 'Unauthorized', 'Expected Unauthorized, got: ' + JSON.stringify(d));
+      }},
+  ],
   'Backend SSRF protection': [
     { name: 'Blocks localhost',
       run: async () => {
