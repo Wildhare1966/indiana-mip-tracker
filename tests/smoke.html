@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>MRD Smoke Tests</title>
+<style>
+  body { font-family: -apple-system, Segoe UI, sans-serif; max-width: 900px; margin: 20px auto; padding: 0 20px; background: #1a1f2e; color: #d8dde6; }
+  h1 { color: #e8a020; }
+  .suite { border: 1px solid #3d6494; border-radius: 6px; padding: 12px 16px; margin: 12px 0; background: #243447; }
+  .suite h2 { margin: 0 0 8px; font-size: 15px; color: #7aacdf; }
+  .test { padding: 4px 0; font-family: Menlo, monospace; font-size: 12px; }
+  .pass { color: #6dc49a; }
+  .fail { color: #e05252; }
+  .pending { color: #e8a020; }
+  .summary { padding: 12px; margin-top: 16px; background: #0f1824; border-radius: 6px; font-size: 14px; }
+  button { background: #e8a020; color: #1a1f2e; border: none; padding: 8px 14px; border-radius: 4px; cursor: pointer; font-weight: 600; }
+  pre.err { color: #e05252; background: #0a0f15; padding: 8px; font-size: 10px; overflow: auto; }
+</style>
+</head>
+<body>
+<h1>◈ MRD Integration Smoke Tests</h1>
+<p style="color:#9ba8bc;">Minimal integration tests for security-critical paths. Run before shipping changes to MIP_Platform.html.</p>
+<button onclick="runAll()">Run all tests</button>
+<div id="results"></div>
+<div id="summary" class="summary" style="display:none;"></div>
+
+<script>
+// ============================================================
+// Minimal test runner — no dependencies. Each suite is a set of
+// async tests that return {name, pass, error}.
+// ============================================================
+const WEBAPP = 'https://script.google.com/macros/s/AKfycbxvtkp5OZVq4sbEELnq5nN7KSXa5DCG8lYEgzL_awPbfunUsBTyr1r6CbOH1pIbgPUk/exec';
+const TOKEN = '457091386b65a26b4d11fb3b9fee7bd5233c952ceb5d4a41';
+
+// Import the sanitizers from MIP_Platform by inline copy (keep in sync with the live file)
+function esc(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+function escUrl(url) {
+  if (!url) return '';
+  var s = String(url).trim();
+  if (/^(javascript|data|vbscript)\s*:/i.test(s)) return '';
+  if (/^[a-z][a-z0-9+.-]*:/i.test(s) && !/^https?:\/\//i.test(s)) return '';
+  return esc(s);
+}
+function escAttr(s) {
+  if (s == null) return '';
+  return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '');
+}
+
+function assert(cond, msg) { if (!cond) throw new Error('Assertion failed: ' + msg); }
+
+// ============================================================
+// SUITES
+// ============================================================
+const suites = {
+  'Sanitizer unit tests': [
+    { name: 'esc escapes <script>',
+      run: () => assert(esc('<script>') === '&lt;script&gt;', 'esc<') },
+    { name: 'esc escapes quotes',
+      run: () => assert(esc('a"b\'c') === 'a&quot;b&#39;c', 'esc quotes') },
+    { name: 'esc handles null',
+      run: () => assert(esc(null) === '', 'esc null') },
+    { name: 'escUrl blocks javascript: scheme',
+      run: () => assert(escUrl('javascript:alert(1)') === '', 'escUrl js:') },
+    { name: 'escUrl blocks data: scheme',
+      run: () => assert(escUrl('data:text/html,<script>') === '', 'escUrl data:') },
+    { name: 'escUrl blocks vbscript: scheme',
+      run: () => assert(escUrl('vbscript:foo') === '', 'escUrl vbs:') },
+    { name: 'escUrl allows https://',
+      run: () => assert(escUrl('https://example.com').startsWith('https://'), 'escUrl https') },
+    { name: 'escUrl allows http:// (but escaped)',
+      run: () => assert(escUrl('http://example.com/?x=<b>') === 'http://example.com/?x=&lt;b&gt;', 'escUrl http escapes') },
+    { name: 'escAttr escapes single quotes',
+      run: () => assert(escAttr("a'b") === "a\\'b", 'escAttr quote') },
+    { name: 'escAttr escapes backslash',
+      run: () => assert(escAttr('a\\b') === 'a\\\\b', 'escAttr backslash') },
+  ],
+  'Backend auth (live calls)': [
+    { name: 'Unauthenticated call returns 403',
+      run: async () => {
+        const r = await fetch(WEBAPP + '?action=municipalities');
+        const d = await r.json();
+        assert(d.error === 'Unauthorized', 'Expected Unauthorized, got: ' + JSON.stringify(d));
+      }},
+    { name: 'Authenticated call returns data',
+      run: async () => {
+        const r = await fetch(WEBAPP + '?token=' + TOKEN + '&action=municipalities');
+        const d = await r.json();
+        assert(Array.isArray(d) && d.length > 0, 'Expected array, got: ' + typeof d);
+        assert(d[0].id && d[0].name, 'First muni missing id/name');
+      }},
+    { name: 'data_version endpoint returns version string',
+      run: async () => {
+        const r = await fetch(WEBAPP + '?token=' + TOKEN + '&action=data_version');
+        const d = await r.json();
+        assert(typeof d.version === 'string' && d.version.length > 0, 'Expected version string');
+      }},
+  ],
+  'Backend SSRF protection': [
+    { name: 'Blocks localhost',
+      run: async () => {
+        const r = await fetch(WEBAPP + '?token=' + TOKEN + '&action=fetch_url&url=' + encodeURIComponent('http://localhost/admin'));
+        const d = await r.json();
+        assert(/blocked|not in allowlist/i.test(d.error || ''), 'Expected block error, got: ' + JSON.stringify(d));
+      }},
+    { name: 'Blocks private IP range',
+      run: async () => {
+        const r = await fetch(WEBAPP + '?token=' + TOKEN + '&action=fetch_url&url=' + encodeURIComponent('http://192.168.1.1'));
+        const d = await r.json();
+        assert(/blocked/i.test(d.error || ''), 'Expected block error, got: ' + JSON.stringify(d));
+      }},
+    { name: 'Blocks metadata IP',
+      run: async () => {
+        const r = await fetch(WEBAPP + '?token=' + TOKEN + '&action=fetch_url&url=' + encodeURIComponent('http://169.254.169.254/'));
+        const d = await r.json();
+        assert(/blocked/i.test(d.error || ''), 'Expected block error, got: ' + JSON.stringify(d));
+      }},
+    { name: 'Blocks arbitrary domain not in allowlist',
+      run: async () => {
+        const r = await fetch(WEBAPP + '?token=' + TOKEN + '&action=fetch_url&url=' + encodeURIComponent('https://github.com/'));
+        const d = await r.json();
+        assert(/not in allowlist/i.test(d.error || ''), 'Expected allowlist error, got: ' + JSON.stringify(d));
+      }},
+  ],
+};
+
+// ============================================================
+// RUNNER
+// ============================================================
+async function runAll() {
+  document.getElementById('results').innerHTML = '';
+  document.getElementById('summary').style.display = 'none';
+  let passed = 0, failed = 0, total = 0;
+  for (const [suiteName, tests] of Object.entries(suites)) {
+    const suiteEl = document.createElement('div');
+    suiteEl.className = 'suite';
+    const h = document.createElement('h2');
+    h.textContent = suiteName;
+    suiteEl.appendChild(h);
+    document.getElementById('results').appendChild(suiteEl);
+    for (const test of tests) {
+      total++;
+      const row = document.createElement('div');
+      row.className = 'test pending';
+      row.textContent = '… ' + test.name;
+      suiteEl.appendChild(row);
+      try {
+        await test.run();
+        row.className = 'test pass';
+        row.textContent = '✓ ' + test.name;
+        passed++;
+      } catch (e) {
+        row.className = 'test fail';
+        row.textContent = '✗ ' + test.name;
+        const pre = document.createElement('pre');
+        pre.className = 'err';
+        pre.textContent = e.message || String(e);
+        row.appendChild(pre);
+        failed++;
+      }
+    }
+  }
+  const sum = document.getElementById('summary');
+  sum.style.display = 'block';
+  sum.innerHTML = `<strong>${passed}/${total} passed</strong> — ${failed} failed`;
+  if (failed === 0) sum.style.color = '#6dc49a';
+  else sum.style.color = '#e05252';
+}
+</script>
+</body>
+</html>
