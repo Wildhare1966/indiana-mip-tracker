@@ -1669,12 +1669,12 @@
       <div class="stat-row">
         <div class="stat-card">
           <div class="stat-label">Municipalities</div>
-          <div class="stat-value">31</div>
+          <div class="stat-value" id="stat-munis">—</div>
           <div class="stat-sub">Council + PC coverage</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Counties</div>
-          <div class="stat-value">9</div>
+          <div class="stat-value" id="stat-counties">—</div>
           <div class="stat-sub">+ county APC bodies</div>
         </div>
         <div class="stat-card">
@@ -1684,12 +1684,12 @@
         </div>
         <div class="stat-card">
           <div class="stat-label">Data Gaps</div>
-          <div class="stat-value" style="color: #e8a060;">11</div>
+          <div class="stat-value" id="stat-gaps" style="color: #e8a060;">—</div>
           <div class="stat-sub">Bodies need verification</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Profile A Munis</div>
-          <div class="stat-value" style="color: #7aacdf;">14</div>
+          <div class="stat-value" id="stat-profile-a" style="color: #7aacdf;">—</div>
           <div class="stat-sub">Suburban growth belt</div>
         </div>
       </div>
@@ -2060,7 +2060,21 @@ const PROFILE_CACHE_TTL_DEFAULT = 24;
 const DEFAULT_AUTH_TOKEN = '457091386b65a26b4d11fb3b9fee7bd5233c952ceb5d4a41';
 
 function getWebAppUrl() {
-  var base = localStorage.getItem(WEBAPP_URL_KEY) || DEFAULT_WEBAPP_URL;
+  // P21-H1: webapp URL override must point to the Google Apps Script domain.
+  // If a user or attacker writes a non-Apps-Script URL to localStorage, we ignore it
+  // and fall back to DEFAULT_WEBAPP_URL. This closes the "XSS can redirect API calls
+  // to an attacker-controlled server" hole.
+  var override = localStorage.getItem(WEBAPP_URL_KEY) || '';
+  var base;
+  if (override && /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec/.test(override)) {
+    base = override;
+  } else {
+    if (override) {
+      console.warn('[mrd] Ignoring invalid webapp URL override in localStorage (must be Apps Script URL).');
+      localStorage.removeItem(WEBAPP_URL_KEY);
+    }
+    base = DEFAULT_WEBAPP_URL;
+  }
   if (!base) return '';
   // P20: Always return a URL with '?' already present so all callers can use '&action='.
   // When auth token is set, it rides as the first query parameter.
@@ -2074,6 +2088,47 @@ function getWebAppUrl() {
 const MUNI_CACHE_KEY = 'mip_muni_data';
 const MUNI_CACHE_TS_KEY = 'mip_muni_data_ts';
 const MUNI_CACHE_TTL_HOURS = 4;
+
+// ── P21-M5: GLOBAL ERROR HANDLER ───────────────────────────────────────────────
+// Surfaces uncaught exceptions to the user as a dismissible toast so the app
+// never silently breaks. Also logs to console for debugging.
+(function _installErrorHandler() {
+  function showToast(msg) {
+    var existing = document.getElementById('mrd-error-toast');
+    if (existing) existing.remove();
+    var toast = document.createElement('div');
+    toast.id = 'mrd-error-toast';
+    toast.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:10000;background:#5a1a1a;color:#fff;padding:10px 14px;border:1px solid #b85c1a;border-radius:6px;font-size:12px;max-width:440px;box-shadow:0 4px 16px rgba(0,0,0,0.5);font-family:inherit;';
+    var label = document.createElement('span');
+    label.textContent = '⚠ ' + (msg || 'An error occurred. Check console for details.');
+    var closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = 'margin-left:10px;background:transparent;color:#fff;border:1px solid #fff;border-radius:3px;padding:1px 6px;cursor:pointer;font-size:11px;';
+    closeBtn.onclick = function() { toast.remove(); };
+    toast.appendChild(label);
+    toast.appendChild(closeBtn);
+    document.body.appendChild(toast);
+    // Auto-dismiss after 12 seconds
+    setTimeout(function() { if (toast.parentNode) toast.remove(); }, 12000);
+  }
+  window.addEventListener('error', function(ev) {
+    try {
+      var msg = (ev.message || 'Script error') + (ev.filename ? ' @ ' + ev.filename.split('/').pop() : '') + (ev.lineno ? ':' + ev.lineno : '');
+      if (document.body) showToast(msg);
+      console.error('[mrd] Uncaught error:', ev.error || ev.message);
+    } catch(e) {}
+  });
+  window.addEventListener('unhandledrejection', function(ev) {
+    try {
+      var r = ev.reason;
+      var msg = (r && r.message) ? r.message : String(r);
+      if (document.body) showToast('Promise rejected: ' + msg);
+      console.error('[mrd] Unhandled promise rejection:', r);
+    } catch(e) {}
+  });
+  // Expose for manual use in try/catch blocks that want to surface errors
+  window.mrdShowError = showToast;
+})();
 
 // ── SECURITY: HTML/URL SANITIZERS (P20 Security Hardening) ─────────────────────────────────────
 // Escape HTML entities to prevent XSS when inserting server-derived strings via innerHTML.
@@ -2123,6 +2178,17 @@ function escAttr(s) {
     }
   }
 })();
+// P21-L1: Remove legacy unused Anthropic API key from localStorage. Feature was
+// never shipped; any value there is dead weight and a potential XSS exfil target.
+(function _scrubLegacyApiKey() {
+  try {
+    if (localStorage.getItem('mip_api_key')) {
+      localStorage.removeItem('mip_api_key');
+      console.info('[mrd] Removed unused legacy mip_api_key from localStorage.');
+    }
+  } catch(e) {}
+})();
+
 function getUserGeminiKey() { return (localStorage.getItem('mip_gemini_key') || '').trim(); }
 function getGeminiKey() { return getUserGeminiKey(); } // legacy shim — returns '' when user has no override
 function saveGeminiKey(val) {
@@ -2773,16 +2839,35 @@ window.exportBriefing = exportBriefing;
 // Fetches MUNICIPALITIES, PUBLIC_HEARINGS, COUNTY_GROUPS in parallel
 // Falls back to empty stubs if Web App URL not configured or fetch fails
 // ═══════════════════════════════════════════════════════
+// P21-M6: Lightweight cache version check. Fetches a single-cell timestamp
+// from the backend; if it matches the cached version, the cache is fresh
+// regardless of TTL. If no version endpoint exists (pre-v24 backend), falls
+// back to TTL-only behavior.
+const MUNI_CACHE_VER_KEY = 'mip_muni_data_ver';
+async function checkDataVersion() {
+  try {
+    const resp = await fetch(getWebAppUrl() + '&action=data_version', { signal: AbortSignal.timeout(8000) });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return (data && data.version) ? String(data.version) : null;
+  } catch(e) { return null; }
+}
+
 async function loadMuniData() {
   const url = getWebAppUrl();
   if (!url) return;
 
-  // Check localStorage cache first
+  // P21-M6: If server version matches cache version, reuse cache regardless of TTL.
+  // If server version differs, invalidate cache.
   const cached = localStorage.getItem(MUNI_CACHE_KEY);
   const cachedTs = localStorage.getItem(MUNI_CACHE_TS_KEY);
+  const cachedVer = localStorage.getItem(MUNI_CACHE_VER_KEY);
   if (cached && cachedTs) {
     const ageHours = (Date.now() - new Date(cachedTs).getTime()) / (1000 * 60 * 60);
-    if (ageHours < MUNI_CACHE_TTL_HOURS) {
+    const serverVer = await checkDataVersion();
+    var versionMatches = serverVer && cachedVer && serverVer === cachedVer;
+    var withinTTL = ageHours < MUNI_CACHE_TTL_HOURS;
+    if (versionMatches || (!serverVer && withinTTL)) {
       try {
         const data = JSON.parse(cached);
         if (data.municipalities && data.municipalities.length) MUNICIPALITIES = data.municipalities;
@@ -2790,6 +2875,11 @@ async function loadMuniData() {
         if (data.county_groups && data.county_groups.length) COUNTY_GROUPS = data.county_groups;
         return;
       } catch(e) { /* cache corrupt, refetch */ }
+    }
+    // Cache is stale by version — forcibly clear it before refetching
+    if (serverVer && !versionMatches) {
+      localStorage.removeItem(MUNI_CACHE_KEY);
+      localStorage.removeItem(MUNI_CACHE_TS_KEY);
     }
   }
 
@@ -2821,6 +2911,11 @@ async function loadMuniData() {
       county_groups: COUNTY_GROUPS
     }));
     localStorage.setItem(MUNI_CACHE_TS_KEY, new Date().toISOString());
+    // P21-M6: Store server version with cache for freshness checks on next load.
+    try {
+      var serverVer = await checkDataVersion();
+      if (serverVer) localStorage.setItem(MUNI_CACHE_VER_KEY, serverVer);
+    } catch(e) {}
   } catch(e) {
     console.warn('Muni data fetch failed, using fallback:', e.message);
     // Try stale cache as last resort
@@ -2966,7 +3061,37 @@ function updateTotalMembers() {
   MUNICIPALITIES.forEach(m => {
     total += (m.council||[]).length + (m.pc||[]).filter(p=>!p.name.startsWith('(') && !p.name.startsWith('TCAPC')).length;
   });
-  document.getElementById('total-members').textContent = total + '+';
+  var el = document.getElementById('total-members');
+  if (el) el.textContent = total + '+';
+  updateOverviewStats(total);
+}
+
+// P21-L2: Compute and populate all Overview stat cards from live data
+// instead of hardcoded HTML constants.
+function updateOverviewStats(totalMembers) {
+  if (!MUNICIPALITIES || !MUNICIPALITIES.length) return;
+  var munisEl = document.getElementById('stat-munis');
+  if (munisEl) munisEl.textContent = MUNICIPALITIES.length;
+
+  var counties = COUNTY_GROUPS && COUNTY_GROUPS.length
+    ? COUNTY_GROUPS.length
+    : [...new Set(MUNICIPALITIES.map(m => m.county))].length;
+  var countiesEl = document.getElementById('stat-counties');
+  if (countiesEl) countiesEl.textContent = counties;
+
+  // Data gaps: jurisdictions with data_gap flag OR with any member flagged warn
+  var gapCount = MUNICIPALITIES.filter(m => {
+    if (m.data_gap) return true;
+    var allMembers = [...(m.council||[]), ...(m.pc||[])];
+    return allMembers.some(mem => mem.warn);
+  }).length;
+  var gapsEl = document.getElementById('stat-gaps');
+  if (gapsEl) gapsEl.textContent = gapCount;
+
+  // Profile A count (Suburban growth belt)
+  var profileA = MUNICIPALITIES.filter(m => (m.profile || '').toUpperCase() === 'A').length;
+  var profAEl = document.getElementById('stat-profile-a');
+  if (profAEl) profAEl.textContent = profileA;
 }
 
 // ═══════════════════════════════════════════════════════
@@ -3026,12 +3151,29 @@ function filterSidebar(val) {
 // ═══════════════════════════════════════════════════════
 // NAVIGATION
 // ═══════════════════════════════════════════════════════
+// P21-M3: View initialization registry. Replaces two monkey-patches of switchView
+// (previously applied in the PH and Schedule modules). Each view can register
+// a one-shot init function that runs the first time the view is opened.
+var _viewInitRegistry = {};
+var _viewInited = {};
+function registerViewInit(name, fn) {
+  _viewInitRegistry[name] = fn;
+}
 function switchView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.topbar-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('view-' + name).classList.add('active');
-  document.getElementById('nav-' + name).classList.add('active');
+  var viewEl = document.getElementById('view-' + name);
+  var navEl = document.getElementById('nav-' + name);
+  if (viewEl) viewEl.classList.add('active');
+  if (navEl) navEl.classList.add('active');
+  // Always-run per-open init for settings (reads fresh state)
   if (name === 'settings') initSettings();
+  // One-shot init for lazy-initialized views (PH, Schedule)
+  var initFn = _viewInitRegistry[name];
+  if (initFn && !_viewInited[name]) {
+    _viewInited[name] = true;
+    try { initFn(); } catch(e) { console.error('[mrd] init failed for view ' + name, e); _viewInited[name] = false; }
+  }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -4501,12 +4643,11 @@ function addTagFilterButton(tag) {
   container.appendChild(btn);
 }
 
+// P21-L1: Dead stub. Legacy Anthropic key was never used for anything.
+// Left as a no-op so any stale button onclick doesn't error.
 function saveApiKey() {
-  const val = document.getElementById('api-key-input')?.value.trim();
-  if (val) {
-    localStorage.setItem('mip_api_key', val);
-    document.getElementById('api-key-status').textContent = '✓ Key saved';
-  }
+  var st = document.getElementById('api-key-status');
+  if (st) st.textContent = 'This field is unused; Gemini is the only AI provider.';
 }
 
 function saveSchedule() {
@@ -4908,6 +5049,11 @@ function phGetAllHearings() {
   return all;
 }
 
+// P21-M4: Pagination state for PH table (50 rows per page).
+var PH_PAGE_SIZE = 50;
+var phCurrentPage = 1;
+window.phGotoPage = function(p) { phCurrentPage = Math.max(1, p); phRenderHearings(); };
+
 function phRenderHearings() {
   const container = document.getElementById('ph-hearings-list');
   const reviewedContainer = document.getElementById('ph-reviewed-list');
@@ -4926,26 +5072,25 @@ function phRenderHearings() {
     if (rows.length === 0) return '';
     let rIdx = 0;
     const tableRows = rows.map(h => {
-      const key = (h.muniId + '_' + h.date + '_' + (h.youtube_url||h.agenda_url||'')).replace(/'/g,"\\'");
+      const key = h.muniId + '_' + h.date + '_' + (h.youtube_url||h.agenda_url||'');
       const juriLabel = h.muniName.replace('City of ','').replace('Town of ','');
       const reviewBtn = isReviewed
-        ? `<button class="ph-review-btn done" onclick="phUnreview('${key}')">✓ Reviewed</button>`
-        : `<button class="ph-review-btn" onclick="phMarkReviewed('${key}')">✓ Mark Reviewed</button>`;
+        ? `<button class="ph-review-btn done" onclick="phUnreview('${escAttr(key)}')">✓ Reviewed</button>`
+        : `<button class="ph-review-btn" onclick="phMarkReviewed('${escAttr(key)}')">✓ Mark Reviewed</button>`;
 
       // YouTube Hearings column
       let ytCell = `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
       if (h.youtube_url) {
-        const uid = 'phyt_' + rIdx;
         const summaryId = 'phyts_' + rIdx;
         const btnId = 'phytrs_' + rIdx;
         let ytHtml = `<div class="yt-hearing-item">`;
-        ytHtml += `<a href="${h.youtube_url}" target="_blank" class="hearing-link yt">▶ YouTube</a>`;
-        ytHtml += `<span id="${summaryId}">`;
+        ytHtml += `<a href="${escUrl(h.youtube_url)}" target="_blank" class="hearing-link yt">▶ YouTube</a>`;
+        ytHtml += `<span id="${esc(summaryId)}">`;
         if (h.summary_doc) {
-          ytHtml += `<a href="${h.summary_doc}" target="_blank" class="hearing-link doc">✦ Summary</a>`;
+          ytHtml += `<a href="${escUrl(h.summary_doc)}" target="_blank" class="hearing-link doc">✦ Summary</a>`;
         }
         ytHtml += `</span>`;
-        ytHtml += `<button class="yt-resubmit-btn" id="${btnId}" onclick="ytResubmit('${h.youtube_url}','${h.muniId}','${h.date}','${btnId}','${summaryId}')">↻ ${h.summary_doc ? 'Resubmit' : 'Generate Summary'}</button>`;
+        ytHtml += `<button class="yt-resubmit-btn" id="${esc(btnId)}" onclick="ytResubmit('${escAttr(h.youtube_url)}','${escAttr(h.muniId)}','${escAttr(h.date)}','${escAttr(btnId)}','${escAttr(summaryId)}')">↻ ${h.summary_doc ? 'Resubmit' : 'Generate Summary'}</button>`;
         ytHtml += `</div>`;
         ytCell = ytHtml;
       }
@@ -4962,11 +5107,11 @@ function phRenderHearings() {
           const btnNId = 'phagn_' + rIdx + '_' + si;
           const status = window._agendaApprovalStatus[sd.id] || '';
           const cls = status === 'approved' ? ' ag-approved' : status === 'rejected' ? ' ag-rejected' : '';
-          let html = `<div class="ag-item${cls}" id="${agId}">`;
-          html += sdUrl ? `<a href="${sdUrl}" target="_blank" class="hearing-link ag">↓ Agenda</a>` : `<span class="hearing-link ag" style="cursor:default;">↓ Agenda</span>`;
+          let html = `<div class="ag-item${cls}" id="${esc(agId)}">`;
+          html += sdUrl ? `<a href="${escUrl(sdUrl)}" target="_blank" class="hearing-link ag">↓ Agenda</a>` : `<span class="hearing-link ag" style="cursor:default;">↓ Agenda</span>`;
           if (!status) {
-            html += `<button class="ag-correct-btn yes" id="${btnYId}" onclick="agApprove('${sd.id}','${(sd.meeting_type||'').replace(/'/g,"\\'")}','${h.muniId}','${btnYId}','${btnNId}','${agId}')">✓ Yes</button>`;
-            html += `<button class="ag-correct-btn no" id="${btnNId}" onclick="agReject('${sd.id}','${(sd.meeting_type||'').replace(/'/g,"\\'")}','${h.muniId}','${btnYId}','${btnNId}','${agId}')">✗ No</button>`;
+            html += `<button class="ag-correct-btn yes" id="${esc(btnYId)}" onclick="agApprove('${escAttr(sd.id)}','${escAttr(sd.meeting_type||'')}','${escAttr(h.muniId)}','${escAttr(btnYId)}','${escAttr(btnNId)}','${escAttr(agId)}')">✓ Yes</button>`;
+            html += `<button class="ag-correct-btn no" id="${esc(btnNId)}" onclick="agReject('${escAttr(sd.id)}','${escAttr(sd.meeting_type||'')}','${escAttr(h.muniId)}','${escAttr(btnYId)}','${escAttr(btnNId)}','${escAttr(agId)}')">✗ No</button>`;
           }
           html += `</div>`;
           return html;
@@ -4976,8 +5121,8 @@ function phRenderHearings() {
       rIdx++;
       return `<tr class="hearings-table-row">
         <td class="hearings-td hearings-td-date">${fmtHearingDate(h.date)}</td>
-        <td class="hearings-td" style="color:var(--accent-light);font-size:11px;">${juriLabel}</td>
-        <td class="hearings-td hearings-td-type">${h.meeting_type || 'Meeting'}</td>
+        <td class="hearings-td" style="color:var(--accent-light);font-size:11px;">${esc(juriLabel)}</td>
+        <td class="hearings-td hearings-td-type">${esc(h.meeting_type || 'Meeting')}</td>
         <td class="hearings-td hearings-td-ag">${agCell}</td>
         <td class="hearings-td hearings-td-yt">${ytCell}</td>
         <td class="hearings-td">${reviewBtn}</td>
@@ -4999,8 +5144,34 @@ function phRenderHearings() {
     </table>`;
   }
 
+  // P21-M4: Paginate unreviewed only (reviewed section stays fully rendered since it's hidden by default)
+  const totalPages = Math.max(1, Math.ceil(unreviewed.length / PH_PAGE_SIZE));
+  if (phCurrentPage > totalPages) phCurrentPage = totalPages;
+  const start = (phCurrentPage - 1) * PH_PAGE_SIZE;
+  const pagedUnreviewed = unreviewed.slice(start, start + PH_PAGE_SIZE);
+
+  function buildPaginator(total) {
+    if (total <= PH_PAGE_SIZE) return '';
+    var btn = function(page, label, disabled) {
+      if (disabled) return `<span style="padding:3px 8px;color:var(--text-dim);font-size:11px;">${esc(label)}</span>`;
+      return `<button class="add-url-btn" style="padding:3px 8px;font-size:11px;" onclick="phGotoPage(${page})">${esc(label)}</button>`;
+    };
+    var parts = [
+      `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:11px;">`,
+      `<span style="color:var(--text-dim);">Showing ${start+1}-${Math.min(start+PH_PAGE_SIZE,total)} of ${total}</span>`,
+      `<div style="display:flex;gap:4px;margin-left:auto;">`,
+      btn(1, '« First', phCurrentPage === 1),
+      btn(phCurrentPage-1, '‹ Prev', phCurrentPage === 1),
+      `<span style="padding:3px 8px;">Page ${phCurrentPage} of ${totalPages}</span>`,
+      btn(phCurrentPage+1, 'Next ›', phCurrentPage === totalPages),
+      btn(totalPages, 'Last »', phCurrentPage === totalPages),
+      `</div></div>`
+    ];
+    return parts.join('');
+  }
+
   container.innerHTML = unreviewed.length
-    ? buildTable(unreviewed, false)
+    ? buildPaginator(unreviewed.length) + buildTable(pagedUnreviewed, false) + buildPaginator(unreviewed.length)
     : '<div style="color:var(--text-dim);font-size:11px;padding:8px 0;">All hearings reviewed.</div>';
 
   if (reviewed.length > 0) {
@@ -5058,12 +5229,8 @@ function initPublicHearingsView() {
   phRenderHearings();
 }
 
-// Patch switchView to init PH view on first open
-const _origSwitchView = switchView;
-window.switchView = function(name) {
-  _origSwitchView(name);
-  if (name === 'publichearings') initPublicHearingsView();
-};
+// P21-M3: Register lazy init for PH view (replaces monkey-patch)
+registerViewInit('publichearings', initPublicHearingsView);
 
 window.phAddProject = phAddProject;
 window.phAddAlias = phAddAlias;
@@ -6020,12 +6187,8 @@ function copyScheduleToClipboard() {
   });
 }
 
-// ── Patch switchView for schedule tab init ──
-const _origSwitchView2 = window.switchView;
-window.switchView = function(name) {
-  _origSwitchView2(name);
-  if (name === 'schedule') initScheduleView();
-};
+// P21-M3: Register lazy init for Schedule view (replaces monkey-patch)
+registerViewInit('schedule', initScheduleView);
 
 window.runScheduleGeneration = runScheduleGeneration;
 window.exportScheduleDoc = exportScheduleDoc;
