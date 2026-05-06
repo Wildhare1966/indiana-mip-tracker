@@ -2326,7 +2326,7 @@ function buildUnifiedDateSet(muniId) {
   meetingDates.forEach(md => {
     const k = key(md.date, md.body_type);
     if (!dateMap[k]) {
-      dateMap[k] = { date: md.date, body_type: md.body_type || 'Meeting', status: md.status || 'confirmed', youtube_url: '', summary_doc: '', agendas: [], meeting_type: md.body_type || 'Meeting' };
+      dateMap[k] = { date: md.date, body_type: md.body_type || 'Meeting', status: md.status || 'confirmed', youtube_url: '', summary_doc: '', minutes_url: '', agendas: [], meeting_type: md.body_type || 'Meeting' };
     } else {
       if (md.status === 'confirmed') dateMap[k].status = 'confirmed';
     }
@@ -2338,10 +2338,11 @@ function buildUnifiedDateSet(muniId) {
     const bt = classifyBodyType(h.meeting_type);
     const k = key(h.date, bt);
     if (!dateMap[k]) {
-      dateMap[k] = { date: h.date, body_type: bt, status: '', youtube_url: '', summary_doc: '', agendas: [], meeting_type: h.meeting_type || bt };
+      dateMap[k] = { date: h.date, body_type: bt, status: '', youtube_url: '', summary_doc: '', minutes_url: '', agendas: [], meeting_type: h.meeting_type || bt };
     }
     if (h.youtube_url) dateMap[k].youtube_url = h.youtube_url;
     if (h.summary_doc) dateMap[k].summary_doc = h.summary_doc;
+    if (h.minutes_url) dateMap[k].minutes_url = h.minutes_url;
     if (h.meeting_type) dateMap[k].meeting_type = h.meeting_type;
   });
 
@@ -2353,7 +2354,7 @@ function buildUnifiedDateSet(muniId) {
       const bt = classifyBodyType(effectiveType);
       const k = key(date, bt);
       if (!dateMap[k]) {
-        dateMap[k] = { date, body_type: bt, status: '', youtube_url: '', summary_doc: '', agendas: [], meeting_type: effectiveType || bt };
+        dateMap[k] = { date, body_type: bt, status: '', youtube_url: '', summary_doc: '', minutes_url: '', agendas: [], meeting_type: effectiveType || bt };
       } else if (sd.meeting_type_override) {
         // Override takes display precedence over any previously-set meeting_type
         dateMap[k].meeting_type = effectiveType;
@@ -2362,22 +2363,24 @@ function buildUnifiedDateSet(muniId) {
     });
   });
 
-  // 4. Fuzzy match: if an entry has youtube/summary but no agenda, and another entry
-  // of the same body_type is within ±1 day and has agendas, merge the youtube/summary
-  // into the agenda entry (the agenda date wins). Drop the orphan hearing entry.
-  // Issue: YouTube/Summary recording dates are often a day off from the agenda's meeting date.
+  // 4. Fuzzy match: if an entry has youtube/summary/minutes but no agenda, find a
+  // nearby (±1 day) agenda entry to fold into.
+  // Match rule: same body_type, OR untyped hearing (body_type "Meeting" — meeting_type
+  // was blank in source data) matches any body_type. Fixes the recurring case where
+  // PUBLIC_HEARINGS rows omit meeting_type and ended up under "Other Meetings".
   const allKeys = Object.keys(dateMap);
   const toDelete = [];
   allKeys.forEach(k => {
     const e = dateMap[k];
     if (!e) return;
     if (e.agendas.length > 0) return;
-    if (!e.youtube_url && !e.summary_doc) return;
-    // Look for an agenda entry within ±1 day, same body_type
-    const target = findFuzzyAgendaMatch(dateMap, e.date, e.body_type, 1, k);
+    if (!e.youtube_url && !e.summary_doc && !e.minutes_url) return;
+    const acceptAnyBody = (e.body_type === 'Meeting');
+    const target = findFuzzyAgendaMatch(dateMap, e.date, e.body_type, 1, k, acceptAnyBody);
     if (target) {
       if (!target.youtube_url && e.youtube_url) target.youtube_url = e.youtube_url;
       if (!target.summary_doc && e.summary_doc) target.summary_doc = e.summary_doc;
+      if (!target.minutes_url && e.minutes_url) target.minutes_url = e.minutes_url;
       toDelete.push(k);
     }
   });
@@ -2415,20 +2418,27 @@ function dayDelta(a, b) {
   return Math.round((db - da) / 86400000);
 }
 
-// Find an entry in dateMap with agendas, same body_type, within ±maxDays of `date`.
-// Used to fold orphan YouTube/Summary records into their matching agenda entry.
-function findFuzzyAgendaMatch(dateMap, date, bodyType, maxDays, excludeKey) {
+// Find an entry in dateMap with agendas, same body_type (or any when `acceptAnyBody`),
+// within ±maxDays of `date`. Folds orphan YouTube/Summary/Minutes into agenda entries.
+function findFuzzyAgendaMatch(dateMap, date, bodyType, maxDays, excludeKey, acceptAnyBody) {
   let best = null;
   let bestDist = Infinity;
+  let bestSameBody = false;
   Object.keys(dateMap).forEach(k => {
     if (k === excludeKey) return;
     const c = dateMap[k];
     if (!c || c.agendas.length === 0) return;
-    if (c.body_type !== bodyType) return;
+    const sameBody = (c.body_type === bodyType);
+    if (!sameBody && !acceptAnyBody) return;
     const dist = Math.abs(dayDelta(c.date, date));
-    if (dist <= maxDays && dist < bestDist) {
+    if (dist > maxDays) return;
+    // Prefer same-body matches over any-body matches; then nearest distance.
+    if (best === null
+      || (sameBody && !bestSameBody)
+      || (sameBody === bestSameBody && dist < bestDist)) {
       best = c;
       bestDist = dist;
+      bestSameBody = sameBody;
     }
   });
   return best;
@@ -2527,6 +2537,17 @@ function renderBodySection(bodyLabel, dates, muniId) {
       agCell = `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
     }
 
+    // Minutes cell (matched per-entry by buildUnifiedDateSet — exact date or fuzzy ±1d)
+    let mnCell;
+    if (entry.minutes_url) {
+      mnCell = `<a href="${escUrl(entry.minutes_url)}" target="_blank" class="hearing-link doc">↓ Minutes</a>`;
+    } else if (isPast) {
+      const addMnId = 'addmn_' + muniId + '_' + rowIdx;
+      mnCell = `<button class="add-url-btn" id="${esc(addMnId)}" onclick="showAddUrlPopover(this,'minutes','${escAttr(muniId)}','${escAttr(entry.date)}')">+ Add Minutes</button>`;
+    } else {
+      mnCell = `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
+    }
+
     // Missing content highlight
     const missingBoth = isPast && !entry.youtube_url && entry.agendas.length === 0;
     const rowClass = 'hearings-table-row' + (missingBoth ? ' hearings-row-missing' : '');
@@ -2537,6 +2558,7 @@ function renderBodySection(bodyLabel, dates, muniId) {
       <td class="hearings-td hearings-td-type">${esc(entry.meeting_type || bodyLabel)}</td>
       <td class="hearings-td hearings-td-ag">${agCell}</td>
       <td class="hearings-td hearings-td-yt">${ytCell}</td>
+      <td class="hearings-td hearings-td-mn">${mnCell}</td>
     </tr>`;
   }).join('');
 
@@ -2548,6 +2570,7 @@ function renderBodySection(bodyLabel, dates, muniId) {
         <th class="hearings-th">Type</th>
         <th class="hearings-th">Agendas</th>
         <th class="hearings-th">YouTube Hearings</th>
+        <th class="hearings-th">Minutes</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
@@ -3491,24 +3514,11 @@ function phCollectAllCouncilPcEntries() {
         agendas: e.agendas || [],
         youtube_url: e.youtube_url || '',
         summary_doc: e.summary_doc || '',
-        // PUBLIC_HEARINGS rows may carry minutes_url; pull the closest match.
-        minutes_url: phResolveMinutesUrl(m.id, e.date)
+        minutes_url: e.minutes_url || ''
       });
     });
   });
   return out;
-}
-
-function phResolveMinutesUrl(muniId, date) {
-  var hearings = (typeof PUBLIC_HEARINGS !== 'undefined' && PUBLIC_HEARINGS[muniId]) || [];
-  // exact match first, then ±1 day
-  var exact = hearings.find(function(h) { return h.date === date && h.minutes_url; });
-  if (exact) return exact.minutes_url;
-  var fuzzy = hearings.find(function(h) {
-    if (!h.minutes_url) return false;
-    return Math.abs(dayDelta(h.date, date)) <= 1;
-  });
-  return fuzzy ? fuzzy.minutes_url : '';
 }
 
 function phRenderWeeklyHearings() {
@@ -3580,9 +3590,9 @@ function phRenderWeeklyHearings() {
         var agLink = agUrl
           ? '<a href="' + escUrl(agUrl) + '" target="_blank" class="ph-meeting-link ag" title="Agenda">Agenda</a>'
           : '<span class="ph-meeting-link ag disabled" title="No agenda">Agenda</span>';
-        var ytLink = e.youtube_url
-          ? '<a href="' + escUrl(e.youtube_url) + '" target="_blank" class="ph-meeting-link yt" title="YouTube video">YouTube</a>'
-          : '<span class="ph-meeting-link yt disabled" title="No video">YouTube</span>';
+        var sumLink = e.summary_doc
+          ? '<a href="' + escUrl(e.summary_doc) + '" target="_blank" class="ph-meeting-link yt" title="YouTube summary">Summary</a>'
+          : '<span class="ph-meeting-link yt disabled" title="No summary">Summary</span>';
         var mnLink = e.minutes_url
           ? '<a href="' + escUrl(e.minutes_url) + '" target="_blank" class="ph-meeting-link mn" title="Minutes">Minutes</a>'
           : '<span class="ph-meeting-link mn disabled" title="No minutes">Minutes</span>';
@@ -3592,7 +3602,7 @@ function phRenderWeeklyHearings() {
           + '<div class="ph-meeting-muni">' + esc(shortName) + '</div>'
           + '<div class="ph-meeting-type">' + esc(bodyLabel) + '</div>'
           + '</div>'
-          + '<div class="ph-meeting-links">' + agLink + ytLink + mnLink + '</div>'
+          + '<div class="ph-meeting-links">' + agLink + sumLink + mnLink + '</div>'
           + '</div>';
       }).join('');
     }
