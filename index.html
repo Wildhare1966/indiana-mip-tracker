@@ -158,23 +158,16 @@
           </div>
         </div>
 
-        <!-- RECENT HEARINGS LIST -->
+        <!-- WEEKLY CALENDAR — Council + Plan Commission hearings, Mon-Thu -->
         <div class="ph-hearings-section">
-          <div class="ph-section-header">
-            <div class="ph-section-label">Recent Public Hearings</div>
-            <select class="filter-select" id="ph-filter-muni" onchange="phFilterHearings()" style="font-size:11px;">
-              <option value="">All Jurisdictions</option>
-            </select>
+          <div class="ph-week-nav">
+            <button class="ph-week-btn" onclick="phWeekShift(-1)">‹ Previous Week</button>
+            <div class="ph-week-label" id="ph-week-label"></div>
+            <button class="ph-week-btn" onclick="phWeekShift(1)">Next Week ›</button>
+            <button class="ph-week-btn" onclick="phWeekShift(0)" style="margin-left:auto;">This Week</button>
           </div>
-          <div id="ph-hearings-list" class="ph-hearings-list">
+          <div id="ph-week-grid" class="ph-week-grid">
             <!-- populated by JS -->
-          </div>
-          <!-- Reviewed section (collapsed) -->
-          <div id="ph-reviewed-wrap" style="margin-top:12px;display:none;">
-            <button class="ph-reviewed-toggle" onclick="phToggleReviewed()">
-              <span id="ph-reviewed-toggle-label">▶ Show Reviewed</span>
-            </button>
-            <div id="ph-reviewed-list" style="display:none;margin-top:8px;"></div>
           </div>
         </div>
       </div>
@@ -2278,18 +2271,25 @@ function renderHearingsContent(muniId) {
     return true; // non-Council/PC future passes through
   });
 
-  // Split by body type
-  const councilDates = filtered.filter(d => isCouncilType(d.body_type));
-  const pcDates = filtered.filter(d => isPlanCommissionType(d.body_type));
+  // Council and Plan Commission combined, sorted chronologically (future asc, then past desc).
+  // Other meeting types still segregated below.
+  const today2 = new Date().toISOString().split('T')[0];
+  const councilPcDates = filtered
+    .filter(d => isCouncilType(d.body_type) || isPlanCommissionType(d.body_type))
+    .sort((a, b) => {
+      const aFuture = a.date >= today2;
+      const bFuture = b.date >= today2;
+      if (aFuture && !bFuture) return -1;
+      if (!aFuture && bFuture) return 1;
+      if (aFuture && bFuture) return a.date.localeCompare(b.date);
+      return b.date.localeCompare(a.date);
+    });
   const otherDates = filtered.filter(d => !isCouncilType(d.body_type) && !isPlanCommissionType(d.body_type));
 
   let html = renderScheduleBanner(muniId, unified, ref);
 
-  if (councilDates.length > 0) {
-    html += renderBodySection('Council', councilDates, muniId);
-  }
-  if (pcDates.length > 0) {
-    html += renderBodySection('Plan Commission', pcDates, muniId);
+  if (councilPcDates.length > 0) {
+    html += renderBodySection('Council & Plan Commission', councilPcDates, muniId);
   }
   if (otherDates.length > 0) {
     html += renderBodySection('Other Meetings', otherDates, muniId);
@@ -2362,6 +2362,27 @@ function buildUnifiedDateSet(muniId) {
     });
   });
 
+  // 4. Fuzzy match: if an entry has youtube/summary but no agenda, and another entry
+  // of the same body_type is within ±1 day and has agendas, merge the youtube/summary
+  // into the agenda entry (the agenda date wins). Drop the orphan hearing entry.
+  // Issue: YouTube/Summary recording dates are often a day off from the agenda's meeting date.
+  const allKeys = Object.keys(dateMap);
+  const toDelete = [];
+  allKeys.forEach(k => {
+    const e = dateMap[k];
+    if (!e) return;
+    if (e.agendas.length > 0) return;
+    if (!e.youtube_url && !e.summary_doc) return;
+    // Look for an agenda entry within ±1 day, same body_type
+    const target = findFuzzyAgendaMatch(dateMap, e.date, e.body_type, 1, k);
+    if (target) {
+      if (!target.youtube_url && e.youtube_url) target.youtube_url = e.youtube_url;
+      if (!target.summary_doc && e.summary_doc) target.summary_doc = e.summary_doc;
+      toDelete.push(k);
+    }
+  });
+  toDelete.forEach(k => { delete dateMap[k]; });
+
   // Convert to array and sort: all future ascending first, then all past descending
   const entries = Object.values(dateMap);
   const today = new Date().toISOString().split('T')[0];
@@ -2383,6 +2404,34 @@ function classifyBodyType(meetingType) {
   if (isCouncilType(meetingType)) return 'Council';
   if (isPlanCommissionType(meetingType)) return 'Plan Commission';
   return meetingType;
+}
+
+// Returns the day delta between two YYYY-MM-DD strings (b - a).
+function dayDelta(a, b) {
+  if (!a || !b) return Infinity;
+  const da = new Date(a + 'T12:00:00');
+  const db = new Date(b + 'T12:00:00');
+  if (isNaN(da) || isNaN(db)) return Infinity;
+  return Math.round((db - da) / 86400000);
+}
+
+// Find an entry in dateMap with agendas, same body_type, within ±maxDays of `date`.
+// Used to fold orphan YouTube/Summary records into their matching agenda entry.
+function findFuzzyAgendaMatch(dateMap, date, bodyType, maxDays, excludeKey) {
+  let best = null;
+  let bestDist = Infinity;
+  Object.keys(dateMap).forEach(k => {
+    if (k === excludeKey) return;
+    const c = dateMap[k];
+    if (!c || c.agendas.length === 0) return;
+    if (c.body_type !== bodyType) return;
+    const dist = Math.abs(dayDelta(c.date, date));
+    if (dist <= maxDays && dist < bestDist) {
+      best = c;
+      bestDist = dist;
+    }
+  });
+  return best;
 }
 
 // ── Schedule Banner ──
@@ -3398,232 +3447,175 @@ function phRenderTracked() {
   }).join('');
 }
 
-function phGetAllHearings() {
-  // Flatten all PUBLIC_HEARINGS entries into a list with muni id+name
-  const all = [];
-  const muniIdToName = {};
-  MUNICIPALITIES.forEach(m => { muniIdToName[m.id] = m.name; });
-  // Also add county entries
-  ['hamilton-county','hancock-county','johnson-county'].forEach(id => {
-    muniIdToName[id] = id.replace('-county','').charAt(0).toUpperCase() + id.replace('-county','').slice(1) + ' County';
-  });
+// ── Weekly calendar state and helpers ──
+var phWeekOffset = 0; // 0 = current week, -1 = previous, +1 = next
 
-  // Track which muniId+date combos have hearing records
-  const hearingKeys = new Set();
-
-  Object.keys(PUBLIC_HEARINGS).forEach(muniId => {
-    const hearings = PUBLIC_HEARINGS[muniId];
-    if (!hearings) return;
-    const muni = MUNICIPALITIES.find(m => m.id === muniId);
-    const muniName = muni ? muni.name : muniIdToName[muniId] || muniId;
-    hearings.forEach(h => {
-      all.push({ ...h, muniId, muniName });
-      hearingKeys.add(muniId + '|' + h.date);
-    });
-  });
-
-  // Add agenda-only rows: scraped agendas whose date+jurisdiction don't match any hearing
-  if (SCRAPED_DOCS.length) {
-    const agendaDocs = SCRAPED_DOCS.filter(d => (d.document_type||'').toLowerCase().includes('agenda'));
-    // Group by muniId + date to avoid duplicate rows
-    const agendaOnly = {};
-    agendaDocs.forEach(d => {
-      const muni = MUNICIPALITIES.find(m => {
-        const dj = (d.jurisdiction||'').toLowerCase();
-        const dc = (d.code||'').toLowerCase();
-        return dc === m.id || dj === m.id || dj === m.name.toLowerCase() || dj === m.name.replace('City of ','').replace('Town of ','').toLowerCase();
-      });
-      if (!muni) return;
-      const key = muni.id + '|' + (d.meeting_date||'');
-      if (hearingKeys.has(key) || agendaOnly[key]) return;
-      agendaOnly[key] = { date: d.meeting_date||'', meeting_type: d.meeting_type||'Meeting', muniId: muni.id, muniName: muni.name };
-    });
-    Object.values(agendaOnly).forEach(row => all.push(row));
-  }
-
-  // Sort newest first
-  all.sort((a,b) => (b.date||'').localeCompare(a.date||''));
-  return all;
+// Returns the Monday (00:00 local) of the week containing `d`.
+function phMondayOf(d) {
+  var x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  var dow = x.getDay(); // 0=Sun..6=Sat
+  var diff = dow === 0 ? -6 : 1 - dow;
+  x.setDate(x.getDate() + diff);
+  return x;
 }
 
-// P21-M4: Pagination state for PH table (50 rows per page).
-var PH_PAGE_SIZE = 50;
-var phCurrentPage = 1;
-window.phGotoPage = function(p) { phCurrentPage = Math.max(1, p); phRenderHearings(); };
+function phYmd(d) {
+  var y = d.getFullYear();
+  var m = ('' + (d.getMonth() + 1)).padStart(2, '0');
+  var dd = ('' + d.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + dd;
+}
+
+window.phWeekShift = function(delta) {
+  if (delta === 0) phWeekOffset = 0;
+  else phWeekOffset += delta;
+  phRenderWeeklyHearings();
+};
+
+// Aggregate Council + Plan Commission entries from all jurisdictions, applying
+// the ±1-day fuzzy matching defined in buildUnifiedDateSet().
+function phCollectAllCouncilPcEntries() {
+  var out = [];
+  if (typeof MUNICIPALITIES === 'undefined' || !MUNICIPALITIES) return out;
+  MUNICIPALITIES.forEach(function(m) {
+    var unified = buildUnifiedDateSet(m.id);
+    unified.forEach(function(e) {
+      if (!e.date) return;
+      if (!isCouncilType(e.body_type) && !isPlanCommissionType(e.body_type)) return;
+      out.push({
+        date: e.date,
+        muniId: m.id,
+        muniName: m.name,
+        body_type: e.body_type,
+        meeting_type: e.meeting_type || e.body_type,
+        agendas: e.agendas || [],
+        youtube_url: e.youtube_url || '',
+        summary_doc: e.summary_doc || '',
+        // PUBLIC_HEARINGS rows may carry minutes_url; pull the closest match.
+        minutes_url: phResolveMinutesUrl(m.id, e.date)
+      });
+    });
+  });
+  return out;
+}
+
+function phResolveMinutesUrl(muniId, date) {
+  var hearings = (typeof PUBLIC_HEARINGS !== 'undefined' && PUBLIC_HEARINGS[muniId]) || [];
+  // exact match first, then ±1 day
+  var exact = hearings.find(function(h) { return h.date === date && h.minutes_url; });
+  if (exact) return exact.minutes_url;
+  var fuzzy = hearings.find(function(h) {
+    if (!h.minutes_url) return false;
+    return Math.abs(dayDelta(h.date, date)) <= 1;
+  });
+  return fuzzy ? fuzzy.minutes_url : '';
+}
+
+function phRenderWeeklyHearings() {
+  var grid = document.getElementById('ph-week-grid');
+  var label = document.getElementById('ph-week-label');
+  if (!grid) return;
+
+  var today = new Date();
+  var monday = phMondayOf(today);
+  monday.setDate(monday.getDate() + phWeekOffset * 7);
+
+  var days = [];
+  for (var i = 0; i < 4; i++) {
+    var d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    days.push(d);
+  }
+
+  var ymdToday = phYmd(today);
+  var dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday'];
+
+  if (label) {
+    var first = days[0], last = days[3];
+    var fmt = function(d) {
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    };
+    label.textContent = fmt(first) + ' – ' + fmt(last) + ', ' + last.getFullYear();
+  }
+
+  // Bucket entries by ymd
+  var entries = phCollectAllCouncilPcEntries();
+  var byDay = {};
+  days.forEach(function(d) { byDay[phYmd(d)] = []; });
+  entries.forEach(function(e) {
+    if (byDay.hasOwnProperty(e.date)) byDay[e.date].push(e);
+  });
+
+  // Sort each day's entries: PC before Council? Just alpha by muni then type.
+  Object.keys(byDay).forEach(function(k) {
+    byDay[k].sort(function(a, b) {
+      var an = (a.muniName || '').replace(/^City of |^Town of /, '');
+      var bn = (b.muniName || '').replace(/^City of |^Town of /, '');
+      if (an !== bn) return an.localeCompare(bn);
+      return (a.body_type || '').localeCompare(b.body_type || '');
+    });
+  });
+
+  grid.innerHTML = days.map(function(d) {
+    var ymd = phYmd(d);
+    var isToday = ymd === ymdToday;
+    var dayEntries = byDay[ymd];
+    var dayName = dayNames[(d.getDay() + 6) % 7]; // Mon=0
+    var dayLabel = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+    var bodyHtml;
+    if (dayEntries.length === 0) {
+      bodyHtml = '<div class="ph-day-empty">No scheduled hearings</div>';
+    } else {
+      bodyHtml = dayEntries.map(function(e) {
+        var shortName = (e.muniName || '').replace(/^City of |^Town of /, '');
+        var bodyLabel = isCouncilType(e.body_type) ? 'Council' : 'Planning Commission';
+        // Pick a single representative agenda URL (prefer view_url, then pdf_url).
+        var agUrl = '';
+        for (var i = 0; i < e.agendas.length; i++) {
+          var sd = e.agendas[i];
+          var u = sd.view_url || sd.pdf_url || '';
+          if (u) { agUrl = u; break; }
+        }
+        var agLink = agUrl
+          ? '<a href="' + escUrl(agUrl) + '" target="_blank" class="ph-meeting-link ag" title="Agenda">Agenda</a>'
+          : '<span class="ph-meeting-link ag disabled" title="No agenda">Agenda</span>';
+        var ytLink = e.youtube_url
+          ? '<a href="' + escUrl(e.youtube_url) + '" target="_blank" class="ph-meeting-link yt" title="YouTube video">YouTube</a>'
+          : '<span class="ph-meeting-link yt disabled" title="No video">YouTube</span>';
+        var mnLink = e.minutes_url
+          ? '<a href="' + escUrl(e.minutes_url) + '" target="_blank" class="ph-meeting-link mn" title="Minutes">Minutes</a>'
+          : '<span class="ph-meeting-link mn disabled" title="No minutes">Minutes</span>';
+
+        return '<div class="ph-meeting-item">'
+          + '<div class="ph-meeting-info">'
+          + '<div class="ph-meeting-muni">' + esc(shortName) + '</div>'
+          + '<div class="ph-meeting-type">' + esc(bodyLabel) + '</div>'
+          + '</div>'
+          + '<div class="ph-meeting-links">' + agLink + ytLink + mnLink + '</div>'
+          + '</div>';
+      }).join('');
+    }
+
+    return '<div class="ph-day-col' + (isToday ? ' ph-day-today' : '') + '">'
+      + '<div class="ph-day-header">'
+      + '<div class="ph-day-name">' + esc(dayName) + '</div>'
+      + '<div class="ph-day-date">' + esc(dayLabel) + '</div>'
+      + '</div>'
+      + '<div class="ph-day-body">' + bodyHtml + '</div>'
+      + '</div>';
+  }).join('');
+}
 
 function phRenderHearings() {
-  const container = document.getElementById('ph-hearings-list');
-  const reviewedContainer = document.getElementById('ph-reviewed-list');
-  const reviewedWrap = document.getElementById('ph-reviewed-wrap');
-  if (!container) return;
-
-  let all = phGetAllHearings();
-  if (phFilterMuniVal) {
-    all = all.filter(h => h.muniId === phFilterMuniVal || h.muniName === phFilterMuniVal);
-  }
-
-  const unreviewed = all.filter(h => !phReviewedKeys.has(h.muniId + '_' + h.date + '_' + (h.youtube_url||h.agenda_url||'')));
-  const reviewed   = all.filter(h =>  phReviewedKeys.has(h.muniId + '_' + h.date + '_' + (h.youtube_url||h.agenda_url||'')));
-
-  function buildTable(rows, isReviewed) {
-    if (rows.length === 0) return '';
-    let rIdx = 0;
-    const tableRows = rows.map(h => {
-      const key = h.muniId + '_' + h.date + '_' + (h.youtube_url||h.agenda_url||'');
-      const juriLabel = h.muniName.replace('City of ','').replace('Town of ','');
-      const reviewBtn = isReviewed
-        ? `<button class="ph-review-btn done" onclick="phUnreview('${escAttr(key)}')">✓ Reviewed</button>`
-        : `<button class="ph-review-btn" onclick="phMarkReviewed('${escAttr(key)}')">✓ Mark Reviewed</button>`;
-
-      // YouTube Hearings column
-      let ytCell = `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
-      if (h.youtube_url) {
-        const summaryId = 'phyts_' + rIdx;
-        const btnId = 'phytrs_' + rIdx;
-        let ytHtml = `<div class="yt-hearing-item">`;
-        ytHtml += `<a href="${escUrl(h.youtube_url)}" target="_blank" class="hearing-link yt">▶ YouTube</a>`;
-        ytHtml += `<span id="${esc(summaryId)}">`;
-        if (h.summary_doc) {
-          ytHtml += `<a href="${escUrl(h.summary_doc)}" target="_blank" class="hearing-link doc">✦ Summary</a>`;
-        }
-        ytHtml += `</span>`;
-        ytHtml += `<button class="yt-resubmit-btn" id="${esc(btnId)}" onclick="ytResubmit('${escAttr(h.youtube_url)}','${escAttr(h.muniId)}','${escAttr(h.date)}','${escAttr(btnId)}','${escAttr(summaryId)}')">↻ ${h.summary_doc ? 'Resubmit' : 'Generate Summary'}</button>`;
-        ytHtml += `</div>`;
-        ytCell = ytHtml;
-      }
-
-      // Agendas column
-      const scrapedByDate = getScrapedDocsForMuni(h.muniId);
-      const scraped = (scrapedByDate[h.date] || []).filter(sd => (sd.document_type||'').toLowerCase().includes('agenda'));
-      let agCell = `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
-      if (scraped.length > 0) {
-        agCell = scraped.map((sd, si) => {
-          const sdUrl = sd.view_url || sd.pdf_url || '';
-          const agId = 'phag_' + rIdx + '_' + si;
-          const btnYId = 'phagy_' + rIdx + '_' + si;
-          const btnNId = 'phagn_' + rIdx + '_' + si;
-          const status = window._agendaApprovalStatus[sd.id] || '';
-          const cls = status === 'approved' ? ' ag-approved' : status === 'rejected' ? ' ag-rejected' : '';
-          let html = `<div class="ag-item${cls}" id="${esc(agId)}">`;
-          html += sdUrl ? `<a href="${escUrl(sdUrl)}" target="_blank" class="hearing-link ag">↓ Agenda</a>` : `<span class="hearing-link ag" style="cursor:default;">↓ Agenda</span>`;
-          if (!status) {
-            html += `<button class="ag-correct-btn yes" id="${esc(btnYId)}" onclick="agApprove('${escAttr(sd.id)}','${escAttr(sd.meeting_type||'')}','${escAttr(h.muniId)}','${escAttr(btnYId)}','${escAttr(btnNId)}','${escAttr(agId)}')">✓ Yes</button>`;
-            html += `<button class="ag-correct-btn no" id="${esc(btnNId)}" onclick="agReject('${escAttr(sd.id)}','${escAttr(sd.meeting_type||'')}','${escAttr(h.muniId)}','${escAttr(btnYId)}','${escAttr(btnNId)}','${escAttr(agId)}')">✗ No</button>`;
-          }
-          html += `</div>`;
-          return html;
-        }).join('');
-      }
-
-      rIdx++;
-      return `<tr class="hearings-table-row">
-        <td class="hearings-td hearings-td-date">${fmtHearingDate(h.date)}</td>
-        <td class="hearings-td" style="color:var(--accent-light);font-size:11px;">${esc(juriLabel)}</td>
-        <td class="hearings-td hearings-td-type">${esc(h.meeting_type || 'Meeting')}</td>
-        <td class="hearings-td hearings-td-ag">${agCell}</td>
-        <td class="hearings-td hearings-td-yt">${ytCell}</td>
-        <td class="hearings-td">${reviewBtn}</td>
-      </tr>`;
-    }).join('');
-
-    return `<table class="hearings-table" style="width:100%;">
-      <thead>
-        <tr>
-          <th class="hearings-th">Date</th>
-          <th class="hearings-th">Jurisdiction</th>
-          <th class="hearings-th">Type</th>
-          <th class="hearings-th">Agendas</th>
-          <th class="hearings-th">YouTube Hearings</th>
-          <th class="hearings-th"></th>
-        </tr>
-      </thead>
-      <tbody>${tableRows}</tbody>
-    </table>`;
-  }
-
-  // P21-M4: Paginate unreviewed only (reviewed section stays fully rendered since it's hidden by default)
-  const totalPages = Math.max(1, Math.ceil(unreviewed.length / PH_PAGE_SIZE));
-  if (phCurrentPage > totalPages) phCurrentPage = totalPages;
-  const start = (phCurrentPage - 1) * PH_PAGE_SIZE;
-  const pagedUnreviewed = unreviewed.slice(start, start + PH_PAGE_SIZE);
-
-  function buildPaginator(total) {
-    if (total <= PH_PAGE_SIZE) return '';
-    var btn = function(page, label, disabled) {
-      if (disabled) return `<span style="padding:3px 8px;color:var(--text-dim);font-size:11px;">${esc(label)}</span>`;
-      return `<button class="add-url-btn" style="padding:3px 8px;font-size:11px;" onclick="phGotoPage(${page})">${esc(label)}</button>`;
-    };
-    var parts = [
-      `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:11px;">`,
-      `<span style="color:var(--text-dim);">Showing ${start+1}-${Math.min(start+PH_PAGE_SIZE,total)} of ${total}</span>`,
-      `<div style="display:flex;gap:4px;margin-left:auto;">`,
-      btn(1, '« First', phCurrentPage === 1),
-      btn(phCurrentPage-1, '‹ Prev', phCurrentPage === 1),
-      `<span style="padding:3px 8px;">Page ${phCurrentPage} of ${totalPages}</span>`,
-      btn(phCurrentPage+1, 'Next ›', phCurrentPage === totalPages),
-      btn(totalPages, 'Last »', phCurrentPage === totalPages),
-      `</div></div>`
-    ];
-    return parts.join('');
-  }
-
-  container.innerHTML = unreviewed.length
-    ? buildPaginator(unreviewed.length) + buildTable(pagedUnreviewed, false) + buildPaginator(unreviewed.length)
-    : '<div style="color:var(--text-dim);font-size:11px;padding:8px 0;">All hearings reviewed.</div>';
-
-  if (reviewed.length > 0) {
-    reviewedWrap.style.display = 'block';
-    reviewedContainer.innerHTML = buildTable(reviewed, true);
-  } else {
-    reviewedWrap.style.display = 'none';
-  }
-}
-
-function phMarkReviewed(key) {
-  phReviewedKeys.add(key);
-  phSaveReviewed();
-  phRenderHearings();
-}
-
-function phUnreview(key) {
-  phReviewedKeys.delete(key);
-  phSaveReviewed();
-  phRenderHearings();
-}
-
-function phToggleReviewed() {
-  phReviewedVisible = !phReviewedVisible;
-  const list = document.getElementById('ph-reviewed-list');
-  const label = document.getElementById('ph-reviewed-toggle-label');
-  if (list) list.style.display = phReviewedVisible ? 'flex' : 'none';
-  if (list && phReviewedVisible) list.style.flexDirection = 'column';
-  if (list && phReviewedVisible) list.style.gap = '6px';
-  if (label) label.textContent = phReviewedVisible ? '▼ Hide Reviewed' : '▶ Show Reviewed';
-}
-
-function phFilterHearings() {
-  const sel = document.getElementById('ph-filter-muni');
-  phFilterMuniVal = sel ? sel.value : '';
-  phRenderHearings();
-}
-
-function phBuildMuniFilter() {
-  const sel = document.getElementById('ph-filter-muni');
-  if (!sel) return;
-  const muniIds = Object.keys(PUBLIC_HEARINGS).sort();
-  muniIds.forEach(id => {
-    const muni = MUNICIPALITIES.find(m => m.id === id);
-    const name = muni ? muni.name.replace('City of ','').replace('Town of ','') : id;
-    const opt = document.createElement('option');
-    opt.value = id; opt.textContent = name;
-    sel.appendChild(opt);
-  });
+  // Replaced by weekly Mon-Thu calendar of Council/PC hearings.
+  phRenderWeeklyHearings();
 }
 
 function initPublicHearingsView() {
-  phBuildMuniFilter();
   phRenderTracked();
-  phRenderHearings();
+  phWeekOffset = 0;
+  phRenderWeeklyHearings();
 }
 
 // P21-M3: Register lazy init for PH view (replaces monkey-patch)
@@ -3631,10 +3623,6 @@ registerViewInit('publichearings', initPublicHearingsView);
 
 window.phAddProject = phAddProject;
 window.phAddAlias = phAddAlias;
-window.phMarkReviewed = phMarkReviewed;
-window.phUnreview = phUnreview;
-window.phToggleReviewed = phToggleReviewed;
-window.phFilterHearings = phFilterHearings;
 
 // ═══════════════════════════════════════════════════════
 // SCHEDULE & REQUIREMENTS MODULE

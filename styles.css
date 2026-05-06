@@ -1607,3 +1607,135 @@
 [data-theme="light"] .add-url-btn:hover { border-color:#9a5f00; color:#9a5f00; background:rgba(154,95,0,0.04); }
 [data-theme="light"] .url-popover-input { background:#fff; border-color:rgba(0,0,0,0.12); color:#111820; }
 [data-theme="light"] .url-popover-input:focus { border-color:#9a5f00; }
+
+/* ── Public Hearings weekly calendar ── */
+.ph-week-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.ph-week-btn {
+  background: rgba(232,160,32,0.1);
+  border: 1px solid rgba(232,160,32,0.35);
+  color: var(--accent);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  padding: 5px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.ph-week-btn:hover { background: rgba(232,160,32,0.2); border-color: var(--accent); }
+.ph-week-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--text);
+  letter-spacing: 0.05em;
+  margin: 0 6px;
+}
+.ph-week-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.ph-day-col {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
+}
+.ph-day-col.ph-day-today { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(232,160,32,0.2) inset; }
+.ph-day-header {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  font-family: 'IBM Plex Mono', monospace;
+}
+.ph-day-name {
+  font-size: 10px;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.ph-day-date {
+  font-size: 13px;
+  color: var(--text);
+  margin-top: 2px;
+}
+.ph-day-body {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+.ph-meeting-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 6px 8px;
+}
+.ph-meeting-info { flex: 1; min-width: 0; }
+.ph-meeting-muni {
+  font-size: 11px;
+  color: var(--text);
+  font-weight: 600;
+  line-height: 1.2;
+  word-break: break-word;
+}
+.ph-meeting-type {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 2px;
+}
+.ph-meeting-links {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+.ph-meeting-link {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  text-decoration: none;
+  padding: 2px 6px;
+  border-radius: 2px;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+.ph-meeting-link.ag { color: #e8a020; border-color: rgba(232,160,32,0.3); }
+.ph-meeting-link.yt { color: #e08888; border-color: rgba(224,136,136,0.3); }
+.ph-meeting-link.mn { color: #7aacdf; border-color: rgba(122,172,223,0.3); }
+.ph-meeting-link:hover { background: rgba(255,255,255,0.04); }
+.ph-meeting-link.disabled { opacity: 0.3; pointer-events: none; }
+.ph-day-empty {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-style: italic;
+  padding: 6px 4px;
+}
+@media (max-width: 900px) {
+  .ph-week-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 540px) {
+  .ph-week-grid { grid-template-columns: 1fr; }
+}
+[data-theme="light"] .ph-week-btn { background: rgba(154,95,0,0.08); border-color: rgba(154,95,0,0.3); color: #9a5f00; }
+[data-theme="light"] .ph-week-btn:hover { background: rgba(154,95,0,0.16); border-color: #9a5f00; }
+[data-theme="light"] .ph-meeting-item { background: rgba(0,0,0,0.02); }
+[data-theme="light"] .ph-meeting-link.ag { color: #9a5f00; border-color: rgba(154,95,0,0.3); }
+[data-theme="light"] .ph-meeting-link.yt { color: #b04848; border-color: rgba(176,72,72,0.3); }
+[data-theme="light"] .ph-meeting-link.mn { color: #2d6cb6; border-color: rgba(45,108,182,0.3); }
