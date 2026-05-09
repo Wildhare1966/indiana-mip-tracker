@@ -1205,7 +1205,7 @@ let COUNTY_GROUPS = [];
 // APP STATE
 // ═══════════════════════════════════════════════════════
 let currentMuni = null;
-let currentTab = 'council';
+let currentTab = 'hearings';
 let selectedMember = null;
 let activeTagFilters = new Set();
 let memberLookup = {}; // index -> member object
@@ -1243,81 +1243,91 @@ async function checkDataVersion() {
   } catch(e) { return null; }
 }
 
-async function loadMuniData() {
-  const url = getWebAppUrl();
-  if (!url) return;
+// P25: Stale-while-revalidate. Sync cache read populates globals immediately;
+// caller renders UI without waiting for the version check.
+function loadMuniDataFromCache() {
+  const cached = localStorage.getItem(MUNI_CACHE_KEY);
+  if (!cached) return false;
+  try {
+    const data = JSON.parse(cached);
+    if (data.municipalities && data.municipalities.length) MUNICIPALITIES = data.municipalities;
+    if (data.hearings && Object.keys(data.hearings).length) PUBLIC_HEARINGS = data.hearings;
+    if (data.county_groups && data.county_groups.length) COUNTY_GROUPS = data.county_groups;
+    return MUNICIPALITIES.length > 0;
+  } catch(e) { return false; }
+}
 
-  // P21-M6: If server version matches cache version, reuse cache regardless of TTL.
-  // If server version differs, invalidate cache.
+// P25: Background revalidate. Returns true iff in-memory data was replaced
+// (caller should re-render). Uses ?action=bootstrap to fetch municipalities +
+// hearings + county_groups + version in a single round-trip.
+async function refreshMuniDataIfStale() {
+  const url = getWebAppUrl();
+  if (!url) return false;
+
   const cached = localStorage.getItem(MUNI_CACHE_KEY);
   const cachedTs = localStorage.getItem(MUNI_CACHE_TS_KEY);
   const cachedVer = localStorage.getItem(MUNI_CACHE_VER_KEY);
+
+  let shouldRefetch = !cached || !cachedTs;
   if (cached && cachedTs) {
     const ageHours = (Date.now() - new Date(cachedTs).getTime()) / (1000 * 60 * 60);
     const serverVer = await checkDataVersion();
-    var versionMatches = serverVer && cachedVer && serverVer === cachedVer;
-    var withinTTL = ageHours < MUNI_CACHE_TTL_HOURS;
-    if (versionMatches || (!serverVer && withinTTL)) {
-      try {
-        const data = JSON.parse(cached);
-        if (data.municipalities && data.municipalities.length) MUNICIPALITIES = data.municipalities;
-        if (data.hearings && Object.keys(data.hearings).length) PUBLIC_HEARINGS = data.hearings;
-        if (data.county_groups && data.county_groups.length) COUNTY_GROUPS = data.county_groups;
-        return;
-      } catch(e) { /* cache corrupt, refetch */ }
-    }
-    // Cache is stale by version — forcibly clear it before refetching
-    if (serverVer && !versionMatches) {
-      localStorage.removeItem(MUNI_CACHE_KEY);
-      localStorage.removeItem(MUNI_CACHE_TS_KEY);
+    const versionMatches = serverVer && cachedVer && serverVer === cachedVer;
+    const withinTTL = ageHours < MUNI_CACHE_TTL_HOURS;
+    if (!(versionMatches || (!serverVer && withinTTL))) {
+      shouldRefetch = true;
+      if (serverVer && !versionMatches) {
+        localStorage.removeItem(MUNI_CACHE_KEY);
+        localStorage.removeItem(MUNI_CACHE_TS_KEY);
+      }
     }
   }
+  if (!shouldRefetch) return false;
 
   try {
-    const [muniResp, hearResp, groupResp] = await Promise.all([
-      fetch(url + '&action=municipalities', { signal: AbortSignal.timeout(30000) }),
-      fetch(url + '&action=hearings',       { signal: AbortSignal.timeout(30000) }),
-      fetch(url + '&action=county_groups',  { signal: AbortSignal.timeout(30000) }),
-    ]);
-    const [muniData, hearData, groupData] = await Promise.all([
-      muniResp.json(), hearResp.json(), groupResp.json()
-    ]);
+    const resp = await fetch(url + '&action=bootstrap', { signal: AbortSignal.timeout(45000) });
+    const data = await resp.json();
 
-    // Validate shapes before accepting
-    if (Array.isArray(muniData) && muniData.length && muniData[0].id && muniData[0].name) {
-      MUNICIPALITIES = muniData;
+    let changed = false;
+    if (data && Array.isArray(data.municipalities) && data.municipalities.length && data.municipalities[0].id && data.municipalities[0].name) {
+      MUNICIPALITIES = data.municipalities; changed = true;
     }
-    if (hearData && typeof hearData === 'object' && !Array.isArray(hearData)) {
-      PUBLIC_HEARINGS = hearData;
+    if (data && data.hearings && typeof data.hearings === 'object' && !Array.isArray(data.hearings)) {
+      PUBLIC_HEARINGS = data.hearings; changed = true;
     }
-    if (Array.isArray(groupData) && groupData.length && groupData[0].name && groupData[0].munis) {
-      COUNTY_GROUPS = groupData;
+    if (data && Array.isArray(data.county_groups) && data.county_groups.length && data.county_groups[0].name && data.county_groups[0].munis) {
+      COUNTY_GROUPS = data.county_groups; changed = true;
     }
 
-    // Cache for repeat visits
     localStorage.setItem(MUNI_CACHE_KEY, JSON.stringify({
       municipalities: MUNICIPALITIES,
       hearings: PUBLIC_HEARINGS,
       county_groups: COUNTY_GROUPS
     }));
     localStorage.setItem(MUNI_CACHE_TS_KEY, new Date().toISOString());
-    // P21-M6: Store server version with cache for freshness checks on next load.
-    try {
-      var serverVer = await checkDataVersion();
-      if (serverVer) localStorage.setItem(MUNI_CACHE_VER_KEY, serverVer);
-    } catch(e) {}
+    if (data && data.version) {
+      localStorage.setItem(MUNI_CACHE_VER_KEY, String(data.version));
+    }
+    return changed;
   } catch(e) {
-    console.warn('Muni data fetch failed, using fallback:', e.message);
-    // Try stale cache as last resort
+    console.warn('Bootstrap fetch failed:', e.message);
     if (cached) {
       try {
         const data = JSON.parse(cached);
         if (data.municipalities && data.municipalities.length) MUNICIPALITIES = data.municipalities;
         if (data.hearings && Object.keys(data.hearings).length) PUBLIC_HEARINGS = data.hearings;
         if (data.county_groups && data.county_groups.length) COUNTY_GROUPS = data.county_groups;
-      } catch(ex) { /* give up, use empty stubs */ }
+      } catch(ex) {}
     }
+    return false;
   }
+}
+
+// Backwards-compat: callers other than DOMContentLoaded still expect a single
+// async loader. Refresh button + manual re-loads use this path.
+async function loadMuniData() {
+  if (loadMuniDataFromCache()) return;
+  await refreshMuniDataIfStale();
 }
 
 let SCRAPED_DOCS = []; // populated from ?action=scraped_documents if available
@@ -1437,15 +1447,34 @@ document.addEventListener('DOMContentLoaded', async () => {
   const oldSearch = document.getElementById('sidebar-search');
   if (oldSearch) { const n = oldSearch.cloneNode(true); oldSearch.parentNode.replaceChild(n, oldSearch); }
 
-  // Progressive rendering: start all fetches in parallel, render UI after core data
+  // P25: Stale-while-revalidate. Render from localStorage cache immediately;
+  // version check + refresh run in the background and re-render only on diff.
   const intelPromise = fetchLiveIntelFeed();
   const scrapedPromise = fetchScrapedDocuments();
-  await loadMuniData(); // core: municipalities + hearings + county_groups (~3s)
-  buildSidebar();
-  buildCountyGrid();
-  updateTotalMembers();
-  checkGeminiKeyBanner();
-  checkMuniDataBanner();
+  const renderCore = () => {
+    buildSidebar();
+    buildCountyGrid();
+    updateTotalMembers();
+  };
+  const hadCache = loadMuniDataFromCache();
+  if (hadCache) {
+    renderCore();
+    checkGeminiKeyBanner();
+    checkMuniDataBanner();
+    refreshMuniDataIfStale().then(changed => {
+      if (!changed) return;
+      renderCore();
+      if (typeof currentMuni !== 'undefined' && currentMuni) {
+        const m = MUNICIPALITIES.find(x => x.id === currentMuni.id);
+        if (m && typeof renderMuniPanel === 'function') { currentMuni = m; renderMuniPanel(); }
+      }
+    });
+  } else {
+    await refreshMuniDataIfStale();
+    renderCore();
+    checkGeminiKeyBanner();
+    checkMuniDataBanner();
+  }
 
   // Non-critical: intel + scraped docs render when ready (don't block UI)
   Promise.all([intelPromise, scrapedPromise]).then(() => { buildIntelFeed(); });
@@ -1623,7 +1652,7 @@ function selectMuni(id) {
   const muni = MUNICIPALITIES.find(m => m.id === id);
   if (!muni) return;
   currentMuni = muni;
-  currentTab = 'council';
+  currentTab = 'hearings';
   selectedMember = null;
   
   // Update sidebar active state
@@ -1702,10 +1731,10 @@ function renderMuniPanel() {
     <div class="members-section">
       <div class="members-tabs">
         <button class="members-tab ${currentTab==='council'?'active':''}" onclick="switchTab('council')">
-          Council (${(m.council||[]).length})
+          Council Members (${(m.council||[]).length})
         </button>
         <button class="members-tab ${currentTab==='pc'?'active':''}" onclick="switchTab('pc')">
-          Plan Commission (${(m.pc||[]).length})
+          Plan Commission Members (${(m.pc||[]).length})
         </button>
         <button class="members-tab ${currentTab==='hearings'?'active':''}" onclick="switchTab('hearings')">
           Public Hearings (${(PUBLIC_HEARINGS[m.id]||[]).length})
@@ -2028,7 +2057,7 @@ function exportBriefing() {
       content += `<tr><td>${m.warn?'<span class="warn">⚠ </span>':''}${esc(m.name)}</td><td>${esc(m.role)}</td><td>${esc(m.party)||'—'}</td><td>${esc(m.term)||'—'}</td><td>${esc(m.notes)||''}</td></tr>`;
     });
     content += `</table>`;
-    content += `<h2>Plan Commission (${(muni.pc||[]).length})</h2>`;
+    content += `<h2>Plan Commission Members (${(muni.pc||[]).length})</h2>`;
     content += `<table><tr><th>Name</th><th>Role</th><th>Term</th><th>Notes</th></tr>`;
     (muni.pc||[]).forEach(m => {
       content += `<tr><td>${m.warn?'<span class="warn">⚠ </span>':''}${esc(m.name)}</td><td>${esc(m.role)}</td><td>${esc(m.term)||'—'}</td><td>${esc(m.notes)||''}</td></tr>`;
