@@ -2417,6 +2417,33 @@ function buildUnifiedDateSet(muniId) {
     });
   });
 
+  // 3b. Scraped docs overlay (minutes) — fold onto matching bucket; fall back to
+  // ±1d fuzzy match on same body_type so minutes published a day off from the
+  // agenda still attach. minutes_url from Meetings tab (set in step 2) wins if
+  // already set; otherwise take view_url/pdf_url from the scraped minutes doc.
+  Object.keys(scrapedByDate).forEach(date => {
+    const minDocs = scrapedByDate[date].filter(sd => (sd.document_type||'').toLowerCase().includes('minutes'));
+    minDocs.forEach(sd => {
+      const effectiveType = sd.meeting_type_override || sd.meeting_type;
+      const bt = classifyBodyType(effectiveType);
+      const k = key(date, bt);
+      const url = sd.view_url || sd.pdf_url || '';
+      if (!url) return;
+      let bucket = dateMap[k];
+      if (!bucket) {
+        // No exact match — try ±1d same-body fuzzy on existing buckets that
+        // already have an agenda or hearing record.
+        bucket = findFuzzyAgendaMatch(dateMap, date, bt, 1, null, bt === 'Meeting');
+      }
+      if (bucket) {
+        if (!bucket.minutes_url) bucket.minutes_url = url;
+      } else {
+        // Surface as its own row so users can still see the minutes exist.
+        dateMap[k] = { date, body_type: bt, status: '', youtube_url: '', summary_doc: '', minutes_url: url, agendas: [], meeting_type: effectiveType || bt };
+      }
+    });
+  });
+
   // 4. Fuzzy match: if an entry has youtube/summary/minutes but no agenda, find a
   // nearby (±1 day) agenda entry to fold into.
   // Match rule: same body_type, OR untyped hearing (body_type "Meeting" — meeting_type
