@@ -1327,11 +1327,12 @@ async function fetchScrapedDocuments() {
   const url = getWebAppUrl();
   if (!url) return;
   try {
-    const resp = await fetch(url + '&action=scraped_documents', { signal: AbortSignal.timeout(15000) });
+    const resp = await fetch(url + '&action=scraped_documents', { signal: AbortSignal.timeout(45000) });
     const data = await resp.json();
     if (Array.isArray(data) && data.length) {
       SCRAPED_DOCS = data;
       console.log('[MIP] Scraped documents: ' + data.length + ' items loaded');
+      rerenderHearingsIfActive();
     }
   } catch(e) {
     console.warn('[MIP] Scraped documents fetch not available:', e.message);
@@ -1342,14 +1343,38 @@ async function fetchMeetingDates() {
   const url = getWebAppUrl();
   if (!url) return;
   try {
-    const resp = await fetch(url + '&action=meeting_dates', { signal: AbortSignal.timeout(15000) });
+    const resp = await fetch(url + '&action=meeting_dates', { signal: AbortSignal.timeout(45000) });
     const data = await resp.json();
     if (data && typeof data === 'object' && Object.keys(data).length > 0) {
       MEETING_DATES = data;
       console.log('[MRD] Meeting dates: ' + Object.keys(data).length + ' jurisdictions loaded');
+      rerenderHearingsIfActive();
     }
   } catch(e) {
     console.warn('[MRD] Meeting dates fetch not available:', e.message);
+  }
+}
+
+// Re-render any hearings-dependent view that's currently visible. Called when
+// SCRAPED_DOCS or MEETING_DATES finish loading after the user has already
+// opened a hearings view — without this, agendas/dates that arrive after the
+// initial render never appear because no view re-render is triggered.
+function rerenderHearingsIfActive() {
+  try {
+    var phView = document.getElementById('view-publichearings');
+    if (phView && phView.classList.contains('active') && typeof phRenderWeeklyHearings === 'function') {
+      phRenderWeeklyHearings();
+    }
+    var muniView = document.getElementById('view-muni');
+    if (muniView && muniView.classList.contains('active')
+        && typeof currentMuni !== 'undefined' && currentMuni
+        && typeof currentTab !== 'undefined' && currentTab === 'hearings'
+        && typeof renderHearingsContent === 'function') {
+      var grid = document.getElementById('members-grid');
+      if (grid) grid.innerHTML = renderHearingsContent(currentMuni.id);
+    }
+  } catch(e) {
+    console.warn('[MIP] rerenderHearingsIfActive error:', e.message);
   }
 }
 
