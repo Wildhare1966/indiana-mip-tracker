@@ -2557,8 +2557,9 @@ function buildUnifiedDateSet(muniId) {
 
   // 3b. Scraped docs overlay (minutes) — fold onto matching bucket; fall back to
   // ±1d fuzzy match on same body_type so minutes published a day off from the
-  // agenda still attach. minutes_url from Meetings tab (set in step 2) wins if
-  // already set; otherwise take view_url/pdf_url from the scraped minutes doc.
+  // agenda still attach. P30: collect every scraped-minutes URL into a
+  // candidates array so we can pick the highest-version revision later. The
+  // Meetings-tab-sourced minutes_url (set in step 2) still wins if present.
   Object.keys(scrapedByDate).forEach(date => {
     const minDocs = scrapedByDate[date].filter(sd => (sd.document_type||'').toLowerCase().includes('minutes'));
     minDocs.forEach(sd => {
@@ -2569,15 +2570,13 @@ function buildUnifiedDateSet(muniId) {
       if (!url) return;
       let bucket = dateMap[k];
       if (!bucket) {
-        // No exact match — try ±1d same-body fuzzy on existing buckets that
-        // already have an agenda or hearing record.
         bucket = findFuzzyAgendaMatch(dateMap, date, bt, 1, null, bt === 'Meeting');
       }
       if (bucket) {
-        if (!bucket.minutes_url) bucket.minutes_url = url;
+        if (!bucket._minutes_candidates) bucket._minutes_candidates = [];
+        bucket._minutes_candidates.push(url);
       } else {
-        // Surface as its own row so users can still see the minutes exist.
-        dateMap[k] = { date, body_type: bt, status: '', youtube_url: '', summary_doc: '', minutes_url: url, agendas: [], meeting_type: effectiveType || bt };
+        dateMap[k] = { date, body_type: bt, status: '', youtube_url: '', summary_doc: '', minutes_url: '', agendas: [], meeting_type: effectiveType || bt, _minutes_candidates: [url] };
       }
     });
   });
@@ -2605,6 +2604,23 @@ function buildUnifiedDateSet(muniId) {
   });
   toDelete.forEach(k => { delete dateMap[k]; });
 
+  // P30: For each entry, dedupe agendas to the highest-versioned revision per
+  // base URL, and resolve minutes_url to the highest-versioned scraped minutes
+  // (only when no Meetings-tab-sourced minutes_url is present). WordPress
+  // appends -1, -2, ... when filenames collide; the latest upload is the
+  // last revision the muni intends users to read.
+  Object.values(dateMap).forEach(e => {
+    if (e.agendas && e.agendas.length > 1) {
+      e.agendas = pickLatestUrlVersionsFromList(e.agendas, sd => sd.view_url || sd.pdf_url || '');
+    }
+    if (!e.minutes_url && e._minutes_candidates && e._minutes_candidates.length) {
+      const wrapped = e._minutes_candidates.map(u => ({ url: u }));
+      const winners = pickLatestUrlVersionsFromList(wrapped, w => w.url);
+      e.minutes_url = winners.length ? winners[0].url : '';
+    }
+    delete e._minutes_candidates;
+  });
+
   // Convert to array and sort: all future ascending first, then all past descending
   const entries = Object.values(dateMap);
   const today = new Date().toISOString().split('T')[0];
@@ -2626,6 +2642,40 @@ function classifyBodyType(meetingType) {
   if (isCouncilType(meetingType)) return 'Council';
   if (isPlanCommissionType(meetingType)) return 'Plan Commission';
   return meetingType;
+}
+
+// P30: WordPress auto-appends "-1", "-2", … when a filename collides on
+// reupload. The highest-numbered version is the muni's latest revision.
+// Returns the parsed { base, version } where base = url with the trailing
+// version suffix removed, and version = N (0 if no suffix).
+function _parseUrlVersion(url) {
+  if (!url) return { base: '', version: 0 };
+  // 1-2 digit version only — WordPress collision suffix is small (-1, -2, …);
+  // 4-digit numbers are years (e.g. "2026") and must NOT be captured as version.
+  const m = String(url).match(/^(.+)[-_](\d{1,2})(\.[^.\/]+)$/);
+  if (m) return { base: m[1] + m[3], version: parseInt(m[2], 10) };
+  return { base: String(url), version: 0 };
+}
+
+// Group items by their (base url) and keep only the highest-version item per
+// group. `getUrl` extracts the comparable URL from each item. Items without a
+// URL are kept as-is (key = unique sentinel) so they don't drop silently.
+function pickLatestUrlVersionsFromList(items, getUrl) {
+  if (!Array.isArray(items) || items.length <= 1) return items || [];
+  const groups = {};
+  let seq = 0;
+  items.forEach(item => {
+    const url = getUrl(item) || '';
+    if (!url) {
+      groups['__noUrl_' + (seq++)] = { item: item, version: -1 };
+      return;
+    }
+    const pv = _parseUrlVersion(url);
+    if (!groups[pv.base] || pv.version > groups[pv.base].version) {
+      groups[pv.base] = { item: item, version: pv.version };
+    }
+  });
+  return Object.values(groups).map(g => g.item);
 }
 
 // Returns the day delta between two YYYY-MM-DD strings (b - a).
