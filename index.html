@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p31r5 -->
+<!-- MIP build p31r6 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com; img-src 'self' data:; frame-src 'none';">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p31r5">
+<link rel="stylesheet" href="styles.css?v=p31r6">
 </head>
 <body>
 
@@ -2793,8 +2793,7 @@ function renderBodySection(bodyLabel, dates, muniId) {
       const summaryId = 'yts_' + muniId + '_' + bodyLabel.replace(/\s/g,'') + '_' + rowIdx;
       const btnId = 'ytrs_' + muniId + '_' + bodyLabel.replace(/\s/g,'') + '_' + rowIdx;
       ytCell = `<div class="yt-hearing-item">`;
-      const ytTitle = entry.video_title ? esc(entry.video_title) : 'YouTube video';
-      ytCell += `<a href="${escUrl(entry.youtube_url)}" target="_blank" class="hearing-link yt" title="${ytTitle}">▶ YouTube</a>`;
+      ytCell += `<a href="${escUrl(entry.youtube_url)}" target="_blank" class="hearing-link yt">▶ YouTube</a>`;
       ytCell += `<span id="${esc(summaryId)}">`;
       if (entry.summary_doc) {
         ytCell += `<a href="${escUrl(entry.summary_doc)}" target="_blank" class="hearing-link doc">✦ Summary</a>`;
@@ -2814,6 +2813,11 @@ function renderBodySection(bodyLabel, dates, muniId) {
       }
       if (entry.meeting_id) {
         ytCell += `<button class="ag-correct-btn no" title="Remove this YouTube URL" onclick="showRemoveUrlPopover(this,'youtube_url','Meetings','${escAttr(entry.meeting_id)}','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(entry.meeting_type || '')}')">✕</button>`;
+      }
+      // P31 R6: visible truncated YouTube title on its own line. Click to toggle full text.
+      // Replaces the unreliable `title=` hover (didn't render in some browsers / on touch).
+      if (entry.video_title) {
+        ytCell += `<div class="yt-title-inline" onclick="toggleYtTitle(this)" title="Click to expand / collapse">${esc(entry.video_title)}</div>`;
       }
       ytCell += `</div>`;
     } else if (isPast) {
@@ -3190,6 +3194,10 @@ async function submitFlagSummary(meetingId, muniId, date, meetingType) {
 }
 window.showFlagSummaryPopover = showFlagSummaryPopover;
 window.submitFlagSummary = submitFlagSummary;
+
+// P31 R6 — toggle truncated/expanded state on the inline YouTube title.
+function toggleYtTitle(el) { if (el) el.classList.toggle('expanded'); }
+window.toggleYtTitle = toggleYtTitle;
 
 // ── Submit Schedule URL (from banner) ──
 async function submitScheduleUrl(muniId) {
