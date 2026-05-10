@@ -328,6 +328,23 @@
             </div>
             <button class="settings-save-btn" onclick="saveSchedule()">Save Schedule</button>
           </div>
+
+          <!-- RECENT CHANGES (P31) -->
+          <div class="settings-card" style="margin-top:12px;">
+            <div class="settings-card-title" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;" onclick="toggleSettingsSection('recent-changes-body');refreshRecentChanges();">
+              Recent Manual Changes
+              <span id="recent-changes-body-toggle" style="font-size:10px;color:var(--text-dim);transition:transform 0.2s;">▶</span>
+            </div>
+            <div class="settings-card-sub">Audit trail of user-submitted URL adds, edits, and deletes. Operator can roll back any active entry.</div>
+            <div id="recent-changes-body" style="display:none;margin-top:10px;">
+              <div style="display:flex;gap:8px;margin-bottom:8px;">
+                <button class="settings-save-btn" style="flex:1;margin-top:0;" onclick="refreshRecentChanges()">Refresh</button>
+              </div>
+              <div id="recent-changes-list" style="font-size:11px;color:var(--text-dim);font-family:'IBM Plex Mono',monospace;max-height:480px;overflow-y:auto;">
+                Click Refresh to load.
+              </div>
+            </div>
+          </div>
         </div>
 
       </div>
@@ -2533,9 +2550,12 @@ function buildUnifiedDateSet(muniId) {
       dateMap[k] = { date: h.date, body_type: bt, status: '', youtube_url: '', summary_doc: '', minutes_url: '', agendas: [], meeting_type: h.meeting_type || bt };
     }
     if (h.youtube_url) dateMap[k].youtube_url = h.youtube_url;
+    if (h.video_title) dateMap[k].video_title = h.video_title;
     if (h.summary_doc) dateMap[k].summary_doc = h.summary_doc;
     if (h.minutes_url) dateMap[k].minutes_url = h.minutes_url;
+    if (h.meeting_id) dateMap[k].meeting_id = h.meeting_id;
     if (h.meeting_type) dateMap[k].meeting_type = h.meeting_type;
+    if (h._manual_entry_id) dateMap[k]._manual_entry_id = h._manual_entry_id;
   });
 
   // 3. Scraped docs overlay (agendas) — honor meeting_type_override if set (P18)
@@ -2597,6 +2617,7 @@ function buildUnifiedDateSet(muniId) {
     const target = findFuzzyAgendaMatch(dateMap, e.date, e.body_type, 1, k, acceptAnyBody);
     if (target) {
       if (!target.youtube_url && e.youtube_url) target.youtube_url = e.youtube_url;
+      if (!target.video_title && e.video_title) target.video_title = e.video_title;
       if (!target.summary_doc && e.summary_doc) target.summary_doc = e.summary_doc;
       if (!target.minutes_url && e.minutes_url) target.minutes_url = e.minutes_url;
       toDelete.push(k);
@@ -2763,17 +2784,21 @@ function renderBodySection(bodyLabel, dates, muniId) {
       const summaryId = 'yts_' + muniId + '_' + bodyLabel.replace(/\s/g,'') + '_' + rowIdx;
       const btnId = 'ytrs_' + muniId + '_' + bodyLabel.replace(/\s/g,'') + '_' + rowIdx;
       ytCell = `<div class="yt-hearing-item">`;
-      ytCell += `<a href="${escUrl(entry.youtube_url)}" target="_blank" class="hearing-link yt">▶ YouTube</a>`;
+      const ytTitle = entry.video_title ? esc(entry.video_title) : 'YouTube video';
+      ytCell += `<a href="${escUrl(entry.youtube_url)}" target="_blank" class="hearing-link yt" title="${ytTitle}">▶ YouTube</a>`;
       ytCell += `<span id="${esc(summaryId)}">`;
       if (entry.summary_doc) {
         ytCell += `<a href="${escUrl(entry.summary_doc)}" target="_blank" class="hearing-link doc">✦ Summary</a>`;
       }
       ytCell += `</span>`;
       ytCell += `<button class="yt-resubmit-btn" id="${esc(btnId)}" onclick="ytResubmit('${escAttr(entry.youtube_url)}','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(btnId)}','${escAttr(summaryId)}')">↻ ${entry.summary_doc ? 'Resubmit' : 'Generate Summary'}</button>`;
+      if (entry.meeting_id) {
+        ytCell += `<button class="ag-correct-btn no" title="Remove this YouTube URL" onclick="showRemoveUrlPopover(this,'youtube_url','Meetings','${escAttr(entry.meeting_id)}','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(entry.meeting_type || '')}')">✕</button>`;
+      }
       ytCell += `</div>`;
     } else if (isPast) {
       const addYtId = 'addyt_' + muniId + '_' + rowIdx;
-      ytCell = `<button class="add-url-btn" id="${esc(addYtId)}" onclick="showAddUrlPopover(this,'youtube','${escAttr(muniId)}','${escAttr(entry.date)}')">+ Add YouTube</button>`;
+      ytCell = `<button class="add-url-btn" id="${esc(addYtId)}" onclick="showAddUrlPopover(this,'youtube','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(entry.meeting_type || entry.body_type || '')}')">+ Add YouTube</button>`;
     } else {
       ytCell = `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
     }
@@ -2796,12 +2821,13 @@ function renderBodySection(bodyLabel, dates, muniId) {
           h += `<button class="ag-correct-btn no" id="${esc(btnNId)}" onclick="agReject('${escAttr(sd.id)}','${escAttr(sd.meeting_type||'')}','${escAttr(muniId)}','${escAttr(btnYId)}','${escAttr(btnNId)}','${escAttr(agId)}')">✗ No</button>`;
         }
         h += `<button class="ag-correct-btn change-type" onclick="showChangeTypePopover(this,'${escAttr(sd.id)}','${escAttr(muniId)}','${escAttr(curType)}','${escAttr(agId)}')">⚙ Change Type</button>`;
+        h += `<button class="ag-correct-btn no" title="Remove this agenda" onclick="showRemoveUrlPopover(this,'agenda','Scraped_Documents','${escAttr(sd.id)}','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(curType)}')">✕</button>`;
         h += `</div>`;
         return h;
       }).join('');
     } else if (isPast) {
       const addAgId = 'addag_' + muniId + '_' + rowIdx;
-      agCell = `<button class="add-url-btn" id="${esc(addAgId)}" onclick="showAddUrlPopover(this,'agenda','${escAttr(muniId)}','${escAttr(entry.date)}')">+ Add Agenda</button>`;
+      agCell = `<button class="add-url-btn" id="${esc(addAgId)}" onclick="showAddUrlPopover(this,'agenda','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(entry.meeting_type || entry.body_type || '')}')">+ Add Agenda</button>`;
     } else {
       agCell = `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
     }
@@ -2810,9 +2836,12 @@ function renderBodySection(bodyLabel, dates, muniId) {
     let mnCell;
     if (entry.minutes_url) {
       mnCell = `<a href="${escUrl(entry.minutes_url)}" target="_blank" class="hearing-link doc">↓ Minutes</a>`;
+      if (entry.meeting_id) {
+        mnCell += ` <button class="ag-correct-btn no" title="Remove this minutes URL" onclick="showRemoveUrlPopover(this,'minutes_url','Meetings','${escAttr(entry.meeting_id)}','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(entry.meeting_type || '')}')">✕</button>`;
+      }
     } else if (isPast) {
       const addMnId = 'addmn_' + muniId + '_' + rowIdx;
-      mnCell = `<button class="add-url-btn" id="${esc(addMnId)}" onclick="showAddUrlPopover(this,'minutes','${escAttr(muniId)}','${escAttr(entry.date)}')">+ Add Minutes</button>`;
+      mnCell = `<button class="add-url-btn" id="${esc(addMnId)}" onclick="showAddUrlPopover(this,'minutes','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(entry.meeting_type || entry.body_type || '')}')">+ Add Minutes</button>`;
     } else {
       mnCell = `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
     }
@@ -2847,16 +2876,21 @@ function renderBodySection(bodyLabel, dates, muniId) {
 }
 
 // ── Add URL Popover ──
-function showAddUrlPopover(anchorEl, urlType, muniId, date) {
+function showAddUrlPopover(anchorEl, urlType, muniId, date, meetingType) {
   // Remove any existing popover
   document.querySelectorAll('.url-popover').forEach(p => p.remove());
   const pop = document.createElement('div');
   pop.className = 'url-popover';
-  pop.innerHTML = `<input type="text" class="url-popover-input" id="pop-url-input" placeholder="Paste ${urlType === 'youtube' ? 'YouTube' : 'agenda'} URL...">`;
+  const labelMap = { youtube: 'YouTube', agenda: 'agenda', minutes: 'minutes' };
+  const lbl = labelMap[urlType] || 'document';
+  pop.innerHTML = `
+    <input type="text" class="url-popover-input" id="pop-url-input" placeholder="Paste ${lbl} URL...">
+    <input type="text" class="url-popover-input" id="pop-note-input" placeholder="Optional note (helps improve scraping)" style="margin-top:4px;font-size:10px;">
+  `;
   var addBtn = document.createElement('button');
   addBtn.className = 'add-url-btn';
   addBtn.textContent = 'Add';
-  addBtn.onclick = function() { submitAddUrl(urlType, muniId, date); };
+  addBtn.onclick = function() { submitManualUrlAdd(urlType, muniId, date, meetingType || ''); };
   var cancelBtn2 = document.createElement('button');
   cancelBtn2.className = 'add-url-btn';
   cancelBtn2.style.borderColor = 'rgba(255,255,255,0.1)';
@@ -2868,34 +2902,207 @@ function showAddUrlPopover(anchorEl, urlType, muniId, date) {
   pop.querySelector('input').focus();
 }
 
-// ── Submit Add URL ──
-async function submitAddUrl(urlType, muniId, date) {
+// P31 — stable client identifier persisted in localStorage. Used as the rate-limit
+// key (best-effort; not authentication). IP address is not available to Apps Script.
+function getOrCreateClientId() {
+  try {
+    var k = 'mrd_client_id';
+    var v = localStorage.getItem(k);
+    if (!v) {
+      v = 'c_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+      localStorage.setItem(k, v);
+    }
+    return v;
+  } catch(e) { return 'c_anon'; }
+}
+
+// ── Submit Add URL — P31 routes through submit_manual_entry ──
+async function submitManualUrlAdd(urlType, muniId, date, meetingType) {
   const input = document.getElementById('pop-url-input');
+  const noteInput = document.getElementById('pop-note-input');
   if (!input || !input.value.trim()) return;
   const url = input.value.trim();
+  const note = noteInput ? noteInput.value.trim() : '';
   const pop = input.closest('.url-popover');
 
+  const actionMap = { youtube: 'add_youtube', agenda: 'add_agenda', minutes: 'add_minutes' };
+  const entryAction = actionMap[urlType];
+  if (!entryAction) {
+    if (pop) pop.innerHTML = `<span style="color:#e08888;font-size:11px;">Unknown url type: ${esc(urlType)}</span>`;
+    return;
+  }
+
   try {
-    const endpoint = getWebAppUrl() + '&action=add_hearing_url'
-      + '&jurisdiction_id=' + encodeURIComponent(muniId)
-      + '&date=' + encodeURIComponent(date)
-      + '&url_type=' + encodeURIComponent(urlType)
-      + '&url=' + encodeURIComponent(url);
+    const params = new URLSearchParams({
+      action: 'submit_manual_entry',
+      entry_action: entryAction,
+      jurisdiction: muniId,
+      meeting_date: date,
+      meeting_type: meetingType || '',
+      url: url,
+      user_note: note,
+      client_id: getOrCreateClientId()
+    });
+    const endpoint = getWebAppUrl() + '&' + params.toString();
 
     if (pop) pop.innerHTML = `<span style="color:var(--accent);font-size:11px;">${urlType === 'youtube' ? 'Adding & generating summary...' : 'Adding...'}</span>`;
     const resp = await fetch(endpoint);
     const data = await resp.json();
 
-    if (data.success || !data.error) {
-      if (pop) pop.innerHTML = `<span style="color:#6dc49a;font-size:11px;">Added</span>`;
-      setTimeout(() => { if (pop) pop.remove(); renderMuniPanel(); }, 1200);
+    if (data.ok) {
+      if (pop) pop.innerHTML = `<span style="color:#6dc49a;font-size:11px;">Added · entry ${esc(data.entry_id.slice(0,8))}</span>`;
+      setTimeout(() => { if (pop) pop.remove(); refreshHearings(); }, 1500);
     } else {
-      if (pop) pop.innerHTML = `<span style="color:#e08888;font-size:11px;">Error: ${esc(data.error)}</span>`;
+      if (pop) pop.innerHTML = `<span style="color:#e08888;font-size:11px;">Error: ${esc(data.error || 'Unknown')}</span>`;
     }
   } catch(e) {
     if (pop) pop.innerHTML = `<span style="color:#e08888;font-size:11px;">Error: ${esc(e.message)}</span>`;
   }
 }
+
+// Backward-compatible alias retained in case any old call sites remain.
+window.submitAddUrl = submitManualUrlAdd;
+
+// P31 — confirmation popover for removing/replacing a URL.
+// `field` for Meetings: 'youtube_url' | 'minutes_url'. For agenda: pass 'agenda'
+// (this targets the Scraped_Documents row directly via delete).
+function showRemoveUrlPopover(anchorEl, field, table, rowId, muniId, date, meetingType) {
+  document.querySelectorAll('.url-popover').forEach(p => p.remove());
+  const pop = document.createElement('div');
+  pop.className = 'url-popover';
+  pop.innerHTML = `
+    <div style="font-size:11px;margin-bottom:4px;color:var(--text-dim);">Remove this ${esc(field === 'agenda' ? 'agenda' : field.replace('_url',''))}?</div>
+    <input type="text" class="url-popover-input" id="pop-rm-note" placeholder="Why? (helps improve scraping)" style="font-size:10px;">
+  `;
+  const yesBtn = document.createElement('button');
+  yesBtn.className = 'add-url-btn';
+  yesBtn.textContent = 'Remove';
+  yesBtn.onclick = function() { submitRemoveUrl(field, table, rowId, muniId, date, meetingType); };
+  const cBtn = document.createElement('button');
+  cBtn.className = 'add-url-btn';
+  cBtn.style.borderColor = 'rgba(255,255,255,0.1)';
+  cBtn.textContent = 'Cancel';
+  cBtn.onclick = function() { this.closest('.url-popover').remove(); };
+  pop.appendChild(yesBtn);
+  pop.appendChild(cBtn);
+  anchorEl.parentElement.appendChild(pop);
+  pop.querySelector('input').focus();
+}
+
+async function submitRemoveUrl(field, table, rowId, muniId, date, meetingType) {
+  const noteInput = document.getElementById('pop-rm-note');
+  const note = noteInput ? noteInput.value.trim() : '';
+  const pop = noteInput ? noteInput.closest('.url-popover') : null;
+
+  let entryAction, changes;
+  if (field === 'agenda') {
+    entryAction = 'delete';
+    changes = '';
+  } else {
+    entryAction = 'edit';
+    const obj = {};
+    obj[field] = '';
+    changes = JSON.stringify(obj);
+  }
+
+  try {
+    const params = new URLSearchParams({
+      action: 'submit_manual_entry',
+      entry_action: entryAction,
+      jurisdiction: muniId,
+      meeting_date: date,
+      meeting_type: meetingType || '',
+      target_table: table,
+      target_row_id: rowId,
+      changes: changes,
+      user_note: note,
+      client_id: getOrCreateClientId()
+    });
+    const endpoint = getWebAppUrl() + '&' + params.toString();
+    if (pop) pop.innerHTML = `<span style="color:var(--accent);font-size:11px;">Removing...</span>`;
+    const resp = await fetch(endpoint);
+    const data = await resp.json();
+    if (data.ok) {
+      if (pop) pop.innerHTML = `<span style="color:#6dc49a;font-size:11px;">Removed · ${esc(data.entry_id.slice(0,8))}</span>`;
+      setTimeout(() => { if (pop) pop.remove(); refreshHearings(); }, 1500);
+    } else {
+      if (pop) pop.innerHTML = `<span style="color:#e08888;font-size:11px;">Error: ${esc(data.error || 'Unknown')}</span>`;
+    }
+  } catch(e) {
+    if (pop) pop.innerHTML = `<span style="color:#e08888;font-size:11px;">Error: ${esc(e.message)}</span>`;
+  }
+}
+window.showRemoveUrlPopover = showRemoveUrlPopover;
+window.submitRemoveUrl = submitRemoveUrl;
+
+// P31 — Recent Changes panel (Settings → Recent Manual Changes).
+async function refreshRecentChanges() {
+  const target = document.getElementById('recent-changes-list');
+  if (!target) return;
+  target.textContent = 'Loading...';
+  try {
+    const endpoint = getWebAppUrl() + '&action=recent_changes&limit=50';
+    const resp = await fetch(endpoint);
+    const data = await resp.json();
+    if (!data.entries || !data.entries.length) {
+      target.innerHTML = '<div style="padding:8px;color:var(--text-dim);">No manual entries yet.</div>';
+      return;
+    }
+    const rows = data.entries.map(function(e) {
+      const t = String(e.timestamp || '').replace('T',' ').slice(0, 16);
+      const isActive = e.status === 'active';
+      const isRollback = e.action === 'rollback';
+      const note = e.user_note ? ' · "' + esc(e.user_note) + '"' : '';
+      const target_str = e.target_table
+        ? esc(e.target_table) + ':' + esc(String(e.target_row_id || '').slice(0,8))
+        : '';
+      const after = e.after_json ? esc(e.after_json.slice(0, 80)) : '';
+      const rollbackBtn = (isActive && !isRollback)
+        ? '<button class="add-url-btn" style="margin-left:6px;font-size:10px;padding:2px 6px;" onclick="rollbackManualEntry(\'' + escAttr(e.entry_id) + '\')">↶ rollback</button>'
+        : '';
+      const statusColor = e.status === 'rolled_back' ? '#888' : (isRollback ? '#e8a020' : '#6dc49a');
+      return '<div style="border-bottom:1px solid var(--border);padding:6px 4px;">'
+        + '<div><span style="color:' + statusColor + ';">●</span> '
+        + '<span style="color:var(--text);">' + esc(e.action) + '</span> · '
+        + esc(e.jurisdiction) + ' · ' + esc(String(e.meeting_date || '').slice(0,10)) + ' · '
+        + esc(e.actor) + rollbackBtn
+        + '</div>'
+        + '<div style="color:var(--text-dim);font-size:10px;margin-top:2px;">'
+        + esc(t) + (target_str ? ' → ' + target_str : '')
+        + (after ? ' · after: ' + after : '')
+        + esc(note)
+        + '</div>'
+        + '</div>';
+    }).join('');
+    target.innerHTML = rows;
+  } catch(e) {
+    target.innerHTML = '<div style="color:#e08888;">Error: ' + esc(e.message) + '</div>';
+  }
+}
+
+async function rollbackManualEntry(entryId) {
+  if (!confirm('Roll back entry ' + entryId.slice(0,8) + '? This will undo the change.')) return;
+  try {
+    const params = new URLSearchParams({
+      action: 'rollback_manual_entry',
+      entry_id: entryId
+    });
+    const endpoint = getWebAppUrl() + '&' + params.toString();
+    const resp = await fetch(endpoint);
+    const data = await resp.json();
+    if (data.ok) {
+      alert('Rolled back. Refreshing...');
+      refreshRecentChanges();
+      refreshHearings();
+    } else {
+      alert('Error: ' + (data.error || 'Unknown'));
+    }
+  } catch(e) {
+    alert('Error: ' + e.message);
+  }
+}
+window.refreshRecentChanges = refreshRecentChanges;
+window.rollbackManualEntry = rollbackManualEntry;
 
 // ── Submit Schedule URL (from banner) ──
 async function submitScheduleUrl(muniId) {
@@ -3782,8 +3989,10 @@ function phCollectAllCouncilPcEntries() {
         meeting_type: e.meeting_type || e.body_type,
         agendas: e.agendas || [],
         youtube_url: e.youtube_url || '',
+        video_title: e.video_title || '',
         summary_doc: e.summary_doc || '',
-        minutes_url: e.minutes_url || ''
+        minutes_url: e.minutes_url || '',
+        meeting_id: e.meeting_id || ''
       });
     });
   });
