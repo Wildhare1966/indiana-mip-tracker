@@ -1,12 +1,17 @@
 <!DOCTYPE html>
-<!-- MIP build 2026-04-12T12:40:00Z -->
+<!-- MIP build p31r5 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- P31 R5: force browser to revalidate HTML against server on every load so
+     newly-deployed FE reaches users without manual hard-reload. -->
+<meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com; img-src 'self' data:; frame-src 'none';">
 <title>Municipal Resource Dashboard</title>
-<link rel="stylesheet" href="styles.css">
+<!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
+<link rel="stylesheet" href="styles.css?v=p31r5">
 </head>
 <body>
 
