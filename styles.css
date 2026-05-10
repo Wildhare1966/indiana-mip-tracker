@@ -1343,6 +1343,29 @@
   .hearings-td.hearings-td-date.cadence-confirmed { color: #e8a020 !important; font-weight: 600; }
   [data-theme="light"] .hearings-td.hearings-td-date.cadence-confirmed { color: #b06d00 !important; }
 
+  /* P31 R6: visible truncated YouTube title — click to expand/collapse. */
+  .yt-title-inline {
+    display: block;
+    font-size: 10px;
+    line-height: 1.25;
+    color: var(--text-dim);
+    max-width: 240px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    margin-top: 3px;
+    padding: 1px 0;
+    user-select: none;
+  }
+  .yt-title-inline:hover { color: var(--text); }
+  .yt-title-inline.expanded {
+    white-space: normal;
+    overflow: visible;
+    max-width: none;
+    color: var(--text);
+  }
+
   /* COUNTY VIEW */
   #view-county {
     padding: 20px;
