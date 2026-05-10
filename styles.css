@@ -1339,6 +1339,9 @@
     white-space: nowrap;
   }
   .hearings-td-type { font-size: 10px; color: var(--text); white-space: nowrap; }
+  /* P31 R2: cadence-confirmed date highlight (overrides both .hearings-td-date defs) */
+  .hearings-td.hearings-td-date.cadence-confirmed { color: #e8a020 !important; font-weight: 600; }
+  [data-theme="light"] .hearings-td.hearings-td-date.cadence-confirmed { color: #b06d00 !important; }
 
   /* COUNTY VIEW */
   #view-county {
