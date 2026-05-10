@@ -2556,6 +2556,10 @@ function buildUnifiedDateSet(muniId) {
     if (h.meeting_id) dateMap[k].meeting_id = h.meeting_id;
     if (h.meeting_type) dateMap[k].meeting_type = h.meeting_type;
     if (h._manual_entry_id) dateMap[k]._manual_entry_id = h._manual_entry_id;
+    if (h._summary_flagged) {
+      dateMap[k]._summary_flagged = true;
+      dateMap[k]._summary_flag_entry_id = h._summary_flag_entry_id || '';
+    }
   });
 
   // 3. Scraped docs overlay (agendas) — honor meeting_type_override if set (P18)
@@ -2791,7 +2795,18 @@ function renderBodySection(bodyLabel, dates, muniId) {
         ytCell += `<a href="${escUrl(entry.summary_doc)}" target="_blank" class="hearing-link doc">✦ Summary</a>`;
       }
       ytCell += `</span>`;
-      ytCell += `<button class="yt-resubmit-btn" id="${esc(btnId)}" onclick="ytResubmit('${escAttr(entry.youtube_url)}','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(btnId)}','${escAttr(summaryId)}')">↻ ${entry.summary_doc ? 'Resubmit' : 'Generate Summary'}</button>`;
+      if (entry.summary_doc) {
+        // P31 R3: Replace "↻ Resubmit" with "⚑ Flag" for visitor reporting.
+        // Operator runs batch resummarize against flagged meetings.
+        if (entry._summary_flagged) {
+          ytCell += `<button class="yt-resubmit-btn" disabled title="Summary already flagged" style="opacity:0.6;cursor:default;">⚑ Flagged</button>`;
+        } else {
+          ytCell += `<button class="yt-resubmit-btn" id="${esc(btnId)}" onclick="showFlagSummaryPopover(this,'${escAttr(entry.meeting_id || '')}','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(entry.meeting_type || '')}')">⚑ Flag</button>`;
+        }
+      } else {
+        // No summary yet — keep the existing Generate path (operator-facing).
+        ytCell += `<button class="yt-resubmit-btn" id="${esc(btnId)}" onclick="ytResubmit('${escAttr(entry.youtube_url)}','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(btnId)}','${escAttr(summaryId)}')">↻ Generate Summary</button>`;
+      }
       if (entry.meeting_id) {
         ytCell += `<button class="ag-correct-btn no" title="Remove this YouTube URL" onclick="showRemoveUrlPopover(this,'youtube_url','Meetings','${escAttr(entry.meeting_id)}','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(entry.meeting_type || '')}')">✕</button>`;
       }
@@ -2821,7 +2836,6 @@ function renderBodySection(bodyLabel, dates, muniId) {
           h += `<button class="ag-correct-btn no" id="${esc(btnNId)}" onclick="agReject('${escAttr(sd.id)}','${escAttr(sd.meeting_type||'')}','${escAttr(muniId)}','${escAttr(btnYId)}','${escAttr(btnNId)}','${escAttr(agId)}')">✗ No</button>`;
         }
         h += `<button class="ag-correct-btn change-type" onclick="showChangeTypePopover(this,'${escAttr(sd.id)}','${escAttr(muniId)}','${escAttr(curType)}','${escAttr(agId)}')">⚙ Change Type</button>`;
-        h += `<button class="ag-correct-btn no" title="Remove this agenda" onclick="showRemoveUrlPopover(this,'agenda','Scraped_Documents','${escAttr(sd.id)}','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(curType)}')">✕</button>`;
         h += `</div>`;
         return h;
       }).join('');
@@ -2851,8 +2865,14 @@ function renderBodySection(bodyLabel, dates, muniId) {
     const rowClass = 'hearings-table-row' + (missingBoth ? ' hearings-row-missing' : '');
 
     rowIdx++;
+    // P31 R2: highlight in yellow if muni has confirmed cadence AND this date
+    // matches the cadence pattern. Signals "this is the actual meeting date" and
+    // helps spot misaligned YT/agenda/minutes.
+    const cadenceConfirmed = _muniHasCadence(muniId) && _dateMatchesCadence(entry.date, muniId, entry.body_type);
+    const dateClass = cadenceConfirmed ? 'hearings-td hearings-td-date cadence-confirmed' : 'hearings-td hearings-td-date';
+    const cadenceTitle = cadenceConfirmed ? ' title="Date confirmed against published cadence"' : '';
     return `<tr class="${rowClass}">
-      <td class="hearings-td hearings-td-date">${fmtHearingDate(entry.date)} ${statusBadge}</td>
+      <td class="${dateClass}"${cadenceTitle}>${fmtHearingDate(entry.date)} ${statusBadge}</td>
       <td class="hearings-td hearings-td-type">${esc(entry.meeting_type || bodyLabel)}</td>
       <td class="hearings-td hearings-td-ag">${agCell}</td>
       <td class="hearings-td hearings-td-yt">${ytCell}</td>
@@ -3103,6 +3123,68 @@ async function rollbackManualEntry(entryId) {
 }
 window.refreshRecentChanges = refreshRecentChanges;
 window.rollbackManualEntry = rollbackManualEntry;
+
+// P31 R3 — Flag a YouTube summary as incomplete/inaccurate.
+// Submits action='flag_summary' to Manual_Entries; operator batches resummarize.
+function showFlagSummaryPopover(anchorEl, meetingId, muniId, date, meetingType) {
+  document.querySelectorAll('.url-popover').forEach(p => p.remove());
+  if (!meetingId) {
+    alert('Cannot flag: meeting_id missing. Refresh and try again.');
+    return;
+  }
+  const pop = document.createElement('div');
+  pop.className = 'url-popover';
+  pop.innerHTML = `
+    <div style="font-size:11px;margin-bottom:4px;color:var(--text-dim);">Flag this summary as incomplete or inaccurate?</div>
+    <input type="text" class="url-popover-input" id="pop-flag-reason" placeholder="What's wrong? (optional, helps operator review)" style="font-size:10px;">
+  `;
+  const yesBtn = document.createElement('button');
+  yesBtn.className = 'add-url-btn';
+  yesBtn.textContent = '⚑ Flag';
+  yesBtn.onclick = function() { submitFlagSummary(meetingId, muniId, date, meetingType); };
+  const cBtn = document.createElement('button');
+  cBtn.className = 'add-url-btn';
+  cBtn.style.borderColor = 'rgba(255,255,255,0.1)';
+  cBtn.textContent = 'Cancel';
+  cBtn.onclick = function() { this.closest('.url-popover').remove(); };
+  pop.appendChild(yesBtn);
+  pop.appendChild(cBtn);
+  anchorEl.parentElement.appendChild(pop);
+  pop.querySelector('input').focus();
+}
+
+async function submitFlagSummary(meetingId, muniId, date, meetingType) {
+  const reasonInput = document.getElementById('pop-flag-reason');
+  const reason = reasonInput ? reasonInput.value.trim() : '';
+  const pop = reasonInput ? reasonInput.closest('.url-popover') : null;
+  try {
+    const params = new URLSearchParams({
+      action: 'submit_manual_entry',
+      entry_action: 'flag_summary',
+      jurisdiction: muniId,
+      meeting_date: date,
+      meeting_type: meetingType || '',
+      target_table: 'Meetings',
+      target_row_id: meetingId,
+      user_note: reason,
+      client_id: getOrCreateClientId()
+    });
+    const endpoint = getWebAppUrl() + '&' + params.toString();
+    if (pop) pop.innerHTML = `<span style="color:var(--accent);font-size:11px;">Flagging...</span>`;
+    const resp = await fetch(endpoint);
+    const data = await resp.json();
+    if (data.ok) {
+      if (pop) pop.innerHTML = `<span style="color:#e8a020;font-size:11px;">⚑ Flagged for review</span>`;
+      setTimeout(() => { if (pop) pop.remove(); refreshHearings(); }, 1500);
+    } else {
+      if (pop) pop.innerHTML = `<span style="color:#e08888;font-size:11px;">Error: ${esc(data.error || 'Unknown')}</span>`;
+    }
+  } catch(e) {
+    if (pop) pop.innerHTML = `<span style="color:#e08888;font-size:11px;">Error: ${esc(e.message)}</span>`;
+  }
+}
+window.showFlagSummaryPopover = showFlagSummaryPopover;
+window.submitFlagSummary = submitFlagSummary;
 
 // ── Submit Schedule URL (from banner) ──
 async function submitScheduleUrl(muniId) {
