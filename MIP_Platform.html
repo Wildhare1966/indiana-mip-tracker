@@ -1253,6 +1253,7 @@ function loadMuniDataFromCache() {
     if (data.municipalities && data.municipalities.length) MUNICIPALITIES = data.municipalities;
     if (data.hearings && Object.keys(data.hearings).length) PUBLIC_HEARINGS = data.hearings;
     if (data.county_groups && data.county_groups.length) COUNTY_GROUPS = data.county_groups;
+    if (data.cadence && typeof data.cadence === 'object') MUNI_CADENCE = data.cadence;
     return MUNICIPALITIES.length > 0;
   } catch(e) { return false; }
 }
@@ -1298,11 +1299,15 @@ async function refreshMuniDataIfStale() {
     if (data && Array.isArray(data.county_groups) && data.county_groups.length && data.county_groups[0].name && data.county_groups[0].munis) {
       COUNTY_GROUPS = data.county_groups; changed = true;
     }
+    if (data && data.cadence && typeof data.cadence === 'object') {
+      MUNI_CADENCE = data.cadence; changed = true;
+    }
 
     localStorage.setItem(MUNI_CACHE_KEY, JSON.stringify({
       municipalities: MUNICIPALITIES,
       hearings: PUBLIC_HEARINGS,
-      county_groups: COUNTY_GROUPS
+      county_groups: COUNTY_GROUPS,
+      cadence: MUNI_CADENCE
     }));
     localStorage.setItem(MUNI_CACHE_TS_KEY, new Date().toISOString());
     if (data && data.version) {
@@ -1317,6 +1322,7 @@ async function refreshMuniDataIfStale() {
         if (data.municipalities && data.municipalities.length) MUNICIPALITIES = data.municipalities;
         if (data.hearings && Object.keys(data.hearings).length) PUBLIC_HEARINGS = data.hearings;
         if (data.county_groups && data.county_groups.length) COUNTY_GROUPS = data.county_groups;
+        if (data.cadence && typeof data.cadence === 'object') MUNI_CADENCE = data.cadence;
       } catch(ex) {}
     }
     return false;
@@ -1332,6 +1338,7 @@ async function loadMuniData() {
 
 let SCRAPED_DOCS = []; // populated from ?action=scraped_documents if available
 let MEETING_DATES = {}; // populated from ?action=meeting_dates if available
+let MUNI_CADENCE = {}; // populated from ?action=bootstrap; {muniId: {Council|Plan Commission: {rules, exceptions_*}}}
 
 async function fetchScrapedDocuments() {
   const url = getWebAppUrl();
@@ -2307,8 +2314,39 @@ window.showChangeTypePopover = showChangeTypePopover;
 window.submitChangeType = submitChangeType;
 
 function renderHearingsContent(muniId) {
-  const unified = buildUnifiedDateSet(muniId);
+  let unified = buildUnifiedDateSet(muniId);
   const ref = JURISDICTION_REFS[muniId] || {};
+
+  // P29: Cadence filter. For munis with rules in MUNI_CADENCE, drop Council/PC
+  // entries that fall off cadence (±1d) and merge in projected future dates so
+  // the forward window always shows scheduled meetings even when nothing has
+  // been scraped yet. Munis without rules pass through unchanged.
+  if (_muniHasCadence(muniId)) {
+    unified = unified.filter(d => {
+      const isCouncil = isCouncilType(d.body_type);
+      const isPC = isPlanCommissionType(d.body_type);
+      if (!isCouncil && !isPC) return true;
+      const bodyKey = isCouncil ? 'Council' : 'Plan Commission';
+      return _dateMatchesCadence(d.date, muniId, bodyKey);
+    });
+    // Merge projected future cadence dates that aren't already represented.
+    const existingKeys = new Set(unified.map(d => d.date + '|' + d.body_type));
+    projectFutureCadenceDates(muniId, 6).forEach(p => {
+      const k = p.date + '|' + p.body_type;
+      if (!existingKeys.has(k)) {
+        unified.push({
+          date: p.date,
+          body_type: p.body_type,
+          status: 'projected',
+          youtube_url: '',
+          summary_doc: '',
+          minutes_url: '',
+          agendas: [],
+          meeting_type: p.body_type
+        });
+      }
+    });
+  }
 
   // P18: Cap Council+PC future dates at the next 3 combined; past dates always shown in full.
   const today = new Date().toISOString().split('T')[0];
@@ -2364,6 +2402,106 @@ function isCouncilType(type) {
 function isPlanCommissionType(type) {
   if (!type) return false;
   return /\b(plan\s*commission|planning\s*commission|area\s*plan|advisory\s*plan)\b/i.test(type);
+}
+
+// ── Cadence helpers (P29) ──────────────────────────────────────────────
+// Off-cadence Council/PC scraper rows (mis-dated PDFs etc.) are hidden from
+// Public Hearings; future projected dates from the rules are added so the
+// "next 3" forward window always has scheduled dates even if nothing has
+// been scraped yet.
+//
+// Returns the YYYY-MM-DD of the nth occurrence of weekday `dow` (0-6) in
+// `year`/`month` (month 0-11), or null if that occurrence doesn't exist.
+function _nthWeekdayOfMonth(year, month, week, dow) {
+  const first = new Date(year, month, 1);
+  const firstDow = first.getDay();
+  const day = 1 + ((dow - firstDow + 7) % 7) + (week - 1) * 7;
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  if (day > lastDay) return null;
+  const m = String(month + 1).padStart(2, '0');
+  const d = String(day).padStart(2, '0');
+  return year + '-' + m + '-' + d;
+}
+
+// Resolves "Council" | "Plan Commission" body_type to the cadence cfg for muni.
+function _cadenceForBody(muniId, bodyType) {
+  const muni = MUNI_CADENCE && MUNI_CADENCE[muniId];
+  if (!muni) return null;
+  return muni[bodyType] || null;
+}
+
+// True iff this muni has any cadence rules (gates whether to filter at all).
+function _muniHasCadence(muniId) {
+  const muni = MUNI_CADENCE && MUNI_CADENCE[muniId];
+  if (!muni) return false;
+  return Object.keys(muni).some(k => muni[k] && Array.isArray(muni[k].rules) && muni[k].rules.length > 0);
+}
+
+// True iff `date` (YYYY-MM-DD) is on cadence (±1 day) for this muni+body.
+// No rules = pass through (we don't filter what we don't know).
+function _dateMatchesCadence(date, muniId, bodyType) {
+  const cfg = _cadenceForBody(muniId, bodyType);
+  if (!cfg) return true;
+  const d = new Date(date + 'T12:00:00');
+  if (isNaN(d)) return true;
+  return _hasCadenceWithinOneDay(date, cfg, d.getFullYear(), d.getMonth());
+}
+
+// Builds cadence dates for [month-1, month, month+1] and tests ±1d match.
+function _hasCadenceWithinOneDay(date, cfg, year, month) {
+  const skip = new Set(cfg.exceptions_skip || []);
+  // Explicitly-skipped dates are hard-rejected even when an adjacent
+  // exceptions_add would otherwise pull them in via the ±1d fuzzy match.
+  if (skip.has(date)) return false;
+  const allowed = new Set(cfg.exceptions_add || []);
+  for (let dm = -1; dm <= 1; dm++) {
+    let y = year, m = month + dm;
+    if (m < 0) { m += 12; y--; }
+    if (m > 11) { m -= 12; y++; }
+    cfg.rules.forEach(r => {
+      const d = _nthWeekdayOfMonth(y, m, r.week, r.dow);
+      if (d && !skip.has(d)) allowed.add(d);
+    });
+  }
+  const target = new Date(date + 'T12:00:00').getTime();
+  if (allowed.has(date)) return true;
+  for (const a of allowed) {
+    const at = new Date(a + 'T12:00:00').getTime();
+    if (Math.abs(at - target) <= 86400000) return true;
+  }
+  return false;
+}
+
+// Returns the next `count` future cadence dates per body for muni, as
+// {date, body_type} entries. Used to backfill projected dates into the
+// unified set so the forward window always shows scheduled meetings.
+function projectFutureCadenceDates(muniId, count) {
+  const muni = MUNI_CADENCE && MUNI_CADENCE[muniId];
+  if (!muni) return [];
+  const todayDate = new Date();
+  const todayStr = todayDate.toISOString().split('T')[0];
+  const out = [];
+  Object.keys(muni).forEach(bodyType => {
+    const cfg = muni[bodyType];
+    if (!cfg || !Array.isArray(cfg.rules) || !cfg.rules.length) return;
+    const skip = new Set(cfg.exceptions_skip || []);
+    const dates = new Set(cfg.exceptions_add || []);
+    // Generate forward 12 months — plenty for a "next N" slice.
+    let y = todayDate.getFullYear(), m = todayDate.getMonth();
+    for (let i = 0; i < 12; i++) {
+      cfg.rules.forEach(r => {
+        const d = _nthWeekdayOfMonth(y, m, r.week, r.dow);
+        if (d && !skip.has(d)) dates.add(d);
+      });
+      m++; if (m > 11) { m = 0; y++; }
+    }
+    Array.from(dates)
+      .filter(d => d >= todayStr)
+      .sort()
+      .slice(0, count)
+      .forEach(d => out.push({ date: d, body_type: bodyType }));
+  });
+  return out;
 }
 
 // ── Build unified date set from 3 sources ──
