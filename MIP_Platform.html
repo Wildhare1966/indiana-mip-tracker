@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p31r6 -->
+<!-- MIP build p32r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com; img-src 'self' data:; frame-src 'none';">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p31r6">
+<link rel="stylesheet" href="styles.css?v=p32r1">
 </head>
 <body>
 
@@ -494,6 +494,14 @@ function getWebAppUrl() {
     return base + '?token=' + encodeURIComponent(DEFAULT_AUTH_TOKEN);
   }
   return base + '?_v=20';
+}
+
+// P32: operator marker. Anon visitors never see operator-only affordances
+// (e.g. the rollback button in Recent Changes, which is server-side token-gated
+// but UX-wise belongs to the operator). To mark yourself as operator, run
+// `localStorage.setItem('mip_operator','1')` in DevTools once.
+function isOperator() {
+  try { return !!localStorage.getItem('mip_operator'); } catch(e) { return false; }
 }
 
 // ── MUNI DATA CACHE CONSTANTS ────────────────────────────────────────────────────────────────────────
@@ -3086,7 +3094,7 @@ async function refreshRecentChanges() {
         ? esc(e.target_table) + ':' + esc(String(e.target_row_id || '').slice(0,8))
         : '';
       const after = e.after_json ? esc(e.after_json.slice(0, 80)) : '';
-      const rollbackBtn = (isActive && !isRollback)
+      const rollbackBtn = (isActive && !isRollback && isOperator())
         ? '<button class="add-url-btn" style="margin-left:6px;font-size:10px;padding:2px 6px;" onclick="rollbackManualEntry(\'' + escAttr(e.entry_id) + '\')">↶ rollback</button>'
         : '';
       const statusColor = e.status === 'rolled_back' ? '#888' : (isRollback ? '#e8a020' : '#6dc49a');
