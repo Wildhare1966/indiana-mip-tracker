@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p39r1 -->
+<!-- MIP build p43r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com; img-src 'self' data:; frame-src 'none';">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p39r1">
+<link rel="stylesheet" href="styles.css?v=p43r1">
 </head>
 <body>
 
@@ -2448,19 +2448,14 @@ function renderHearingsContent(muniId) {
     return true; // non-Council/PC future passes through
   });
 
-  // Council and Plan Commission combined, sorted chronologically (future asc, then past desc).
-  // Other meeting types still segregated below.
+  // P43 W2: single descending timeline. Both future and past sort DESC so the
+  // page reads as one continuous chronological line (latest future at top →
+  // imminent future → most-recent past → ...). Previous behavior (future ASC,
+  // past DESC) created a visual "fold" where time reversed direction mid-list.
   const today2 = new Date().toISOString().split('T')[0];
   const councilPcDates = filtered
     .filter(d => isCouncilType(d.body_type) || isPlanCommissionType(d.body_type))
-    .sort((a, b) => {
-      const aFuture = a.date >= today2;
-      const bFuture = b.date >= today2;
-      if (aFuture && !bFuture) return -1;
-      if (!aFuture && bFuture) return 1;
-      if (aFuture && bFuture) return a.date.localeCompare(b.date);
-      return b.date.localeCompare(a.date);
-    });
+    .sort((a, b) => b.date.localeCompare(a.date));
   const otherDates = filtered.filter(d => !isCouncilType(d.body_type) && !isPlanCommissionType(d.body_type));
 
   let html = renderScheduleBanner(muniId, unified, ref);
@@ -2714,18 +2709,11 @@ function buildUnifiedDateSet(muniId) {
     delete e._minutes_candidates;
   });
 
-  // Convert to array and sort: all future ascending first, then all past descending
+  // P43 W2: single descending timeline. See note at the Council/PC sort site
+  // for rationale. Future and past both DESC removes the fold and aligns the
+  // "Other Meetings" section's order with the Council/PC section above it.
   const entries = Object.values(dateMap);
-  const today = new Date().toISOString().split('T')[0];
-
-  entries.sort((a, b) => {
-    const aFuture = a.date >= today;
-    const bFuture = b.date >= today;
-    if (aFuture && !bFuture) return -1;
-    if (!aFuture && bFuture) return 1;
-    if (aFuture && bFuture) return a.date.localeCompare(b.date); // ascending
-    return b.date.localeCompare(a.date); // past: descending
-  });
+  entries.sort((a, b) => b.date.localeCompare(a.date));
 
   return entries;
 }
