@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p36r1 -->
+<!-- MIP build p37r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com; img-src 'self' data:; frame-src 'none';">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p36r1">
+<link rel="stylesheet" href="styles.css?v=p37r1">
 </head>
 <body>
 
@@ -4020,6 +4020,7 @@ function tpLoad(force) {
   if (!webappUrl) return;
   if (!force && tpProjects.length && Date.now() - tpLoadedAt < 60000) {
     tpRenderTable();
+    if (typeof phRenderTracked === 'function') phRenderTracked();
     return;
   }
   var statusEl = document.getElementById('tp-status');
@@ -4030,7 +4031,11 @@ function tpLoad(force) {
       tpProjects = Array.isArray(rows) ? rows : [];
       tpLoadedAt = Date.now();
       // P35: fetch tagged-doc counts in parallel; re-render once they land.
-      return tpLoadDocCounts().then(function() { tpRenderTable(); });
+      // P37: also refresh the PH-header chip list so the two surfaces stay in sync.
+      return tpLoadDocCounts().then(function() {
+        tpRenderTable();
+        if (typeof phRenderTracked === 'function') phRenderTracked();
+      });
     })
     .catch(function(err) {
       console.error('tpLoad error:', err);
@@ -4658,86 +4663,203 @@ window.chatSend = chatSend;
 // PUBLIC HEARINGS VIEW (top-nav)
 // ═══════════════════════════════════════════════════════
 
-// Persistent state for the PH view
-let phTrackedProjects = JSON.parse(localStorage.getItem('mip_ph_tracked') || '[]');
+// P37: PH-header tracker is now backed by the same Tracked_Projects sheet
+// that powers the global tab and per-muni view. Reads go through tpProjects
+// (the shared in-memory cache populated by tpLoad). Writes hit
+// create_tracked_project / update_tracked_project. Legacy localStorage
+// entries (mip_ph_tracked) are migrated once on first PH-view init, then
+// the key is cleared.
 let phReviewedKeys    = new Set(JSON.parse(localStorage.getItem('mip_ph_reviewed') || '[]'));
 let phReviewedVisible = false;
 let phFilterMuniVal   = '';
+let phMigratedLegacy  = false;
 
-function phSaveTracked() {
-  localStorage.setItem('mip_ph_tracked', JSON.stringify(phTrackedProjects));
-}
 function phSaveReviewed() {
   localStorage.setItem('mip_ph_reviewed', JSON.stringify([...phReviewedKeys]));
 }
 
+// Active projects from the shared cache. Empty array if tpLoad hasn't run yet.
+function phTrackedRows() {
+  var rows = (typeof tpProjects !== 'undefined' && Array.isArray(tpProjects)) ? tpProjects : [];
+  return rows.filter(function(p) { return (p.status || 'active') !== 'closed'; });
+}
+
 function phAddProject() {
-  const ordEl  = document.getElementById('ph-ord');
-  const nameEl = document.getElementById('ph-name');
-  const msgEl  = document.getElementById('ph-form-msg');
-  const ord    = ordEl  ? ordEl.value.trim()  : '';
-  const name   = nameEl ? nameEl.value.trim() : '';
+  var ordEl  = document.getElementById('ph-ord');
+  var nameEl = document.getElementById('ph-name');
+  var msgEl  = document.getElementById('ph-form-msg');
+  var ord    = ordEl  ? ordEl.value.trim()  : '';
+  var name   = nameEl ? nameEl.value.trim() : '';
   if (!name) {
     if (nameEl) nameEl.style.borderColor = 'rgba(220,80,80,0.6)';
     return;
   }
   if (nameEl) nameEl.style.borderColor = '';
 
-  // Check for duplicates
-  const dupOrd  = ord  && phTrackedProjects.find(p => p.ord  && p.ord.toLowerCase()  === ord.toLowerCase());
-  const dupName =        phTrackedProjects.find(p => p.name.toLowerCase() === name.toLowerCase());
+  var rows = phTrackedRows();
+  var dupOrd  = ord && rows.find(function(p) { return p.ordinanceId && p.ordinanceId.toLowerCase() === ord.toLowerCase(); });
+  var dupName =        rows.find(function(p) { return (p.projectName || '').toLowerCase() === name.toLowerCase(); });
   if (dupOrd || dupName) {
-    const dup = dupOrd || dupName;
-    msgEl.className = 'ph-form-msg duplicate';
-    msgEl.innerHTML = `Already tracked — add as alias? <button class="ph-confirm-btn" onclick="phAddAlias('${escAttr(dup.id)}','${escAttr(name)}','${escAttr(ord)}')">Confirm Alias</button>`;
-    msgEl.style.display = 'flex';
+    var dup = dupOrd || dupName;
+    if (msgEl) {
+      msgEl.className = 'ph-form-msg duplicate';
+      msgEl.innerHTML = 'Already tracked — add as alias? <button class="ph-confirm-btn" onclick="phAddAlias(\'' + escAttr(dup.projectId) + '\',\'' + escAttr(name) + '\',\'' + escAttr(ord) + '\')">Confirm Alias</button>';
+      msgEl.style.display = 'flex';
+    }
     return;
   }
 
-  // Add new project
-  const id = 'ph_proj_' + Date.now();
-  phTrackedProjects.unshift({ id, ord, name, aliases: [] });
-  phSaveTracked();
-  if (ordEl)  ordEl.value  = '';
-  if (nameEl) nameEl.value = '';
-  msgEl.className = 'ph-form-msg success';
-  msgEl.textContent = 'Project added successfully.';
-  msgEl.style.display = 'block';
-  setTimeout(() => { msgEl.style.display = 'none'; }, 2500);
-  phRenderTracked();
+  var webappUrl = getWebAppUrl();
+  if (!webappUrl) {
+    if (msgEl) { msgEl.className = 'ph-form-msg duplicate'; msgEl.textContent = 'Web app URL not configured.'; msgEl.style.display = 'block'; }
+    return;
+  }
+  if (msgEl) { msgEl.className = 'ph-form-msg'; msgEl.textContent = 'Saving…'; msgEl.style.display = 'block'; }
+
+  var q = '&action=create_tracked_project'
+        + '&project_name=' + encodeURIComponent(name)
+        + '&ordinance_id=' + encodeURIComponent(ord)
+        + '&jurisdiction=' + encodeURIComponent(phFilterMuniVal || '')
+        + '&aliases=';
+  fetch(webappUrl + q)
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (res && res.success) {
+        if (ordEl)  ordEl.value  = '';
+        if (nameEl) nameEl.value = '';
+        if (msgEl) {
+          msgEl.className = 'ph-form-msg success';
+          msgEl.textContent = 'Project added.';
+          msgEl.style.display = 'block';
+          setTimeout(function() { msgEl.style.display = 'none'; }, 2500);
+        }
+        tpLoad(true);
+      } else {
+        if (msgEl) {
+          msgEl.className = 'ph-form-msg duplicate';
+          msgEl.textContent = 'Failed: ' + (res && res.error ? res.error : 'unknown');
+          msgEl.style.display = 'block';
+        }
+      }
+    })
+    .catch(function(err) {
+      console.error('phAddProject error:', err);
+      if (msgEl) {
+        msgEl.className = 'ph-form-msg duplicate';
+        msgEl.textContent = 'Network error.';
+        msgEl.style.display = 'block';
+      }
+    });
 }
 
 function phAddAlias(projId, aliasName, aliasOrd) {
-  const proj = phTrackedProjects.find(p => p.id === projId);
-  if (proj) {
-    if (aliasName && !proj.aliases.includes(aliasName)) proj.aliases.push(aliasName);
-    if (aliasOrd  && !proj.aliases.includes(aliasOrd))  proj.aliases.push(aliasOrd);
-    phSaveTracked();
-    phRenderTracked();
-  }
-  const msgEl = document.getElementById('ph-form-msg');
-  if (msgEl) {
-    msgEl.className = 'ph-form-msg success';
-    msgEl.textContent = 'Alias added to existing project.';
-    msgEl.style.display = 'block';
-    setTimeout(() => { msgEl.style.display = 'none'; }, 2500);
-  }
+  var webappUrl = getWebAppUrl();
+  if (!webappUrl) return;
+  var pool = (typeof tpProjects !== 'undefined' && Array.isArray(tpProjects)) ? tpProjects : [];
+  var proj = pool.find(function(p) { return p.projectId === projId; });
+  var existing = (proj && proj.aliases) ? proj.aliases.split(',').map(function(s){ return s.trim(); }).filter(Boolean) : [];
+  if (aliasName && existing.indexOf(aliasName) === -1) existing.push(aliasName);
+  if (aliasOrd  && existing.indexOf(aliasOrd)  === -1) existing.push(aliasOrd);
+  var joined = existing.join(', ');
+
+  var msgEl = document.getElementById('ph-form-msg');
+  var q = '&action=update_tracked_project'
+        + '&project_id=' + encodeURIComponent(projId)
+        + '&aliases='   + encodeURIComponent(joined);
+  fetch(webappUrl + q)
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (msgEl) {
+        msgEl.className = (res && res.success) ? 'ph-form-msg success' : 'ph-form-msg duplicate';
+        msgEl.textContent = (res && res.success) ? 'Alias added.' : 'Update failed.';
+        msgEl.style.display = 'block';
+        setTimeout(function() { msgEl.style.display = 'none'; }, 2500);
+      }
+      if (res && res.success) tpLoad(true);
+    })
+    .catch(function(err) {
+      console.error('phAddAlias error:', err);
+      if (msgEl) {
+        msgEl.className = 'ph-form-msg duplicate';
+        msgEl.textContent = 'Network error.';
+        msgEl.style.display = 'block';
+      }
+    });
 }
 
 function phRenderTracked() {
-  const container = document.getElementById('ph-tracked-list');
+  var container = document.getElementById('ph-tracked-list');
   if (!container) return;
-  if (phTrackedProjects.length === 0) {
+  var rows = phTrackedRows();
+  if (rows.length === 0) {
     container.innerHTML = '<div class="ph-tracked-empty">No projects tracked yet. Use the form above to add one.</div>';
     return;
   }
-  container.innerHTML = phTrackedProjects.map(p => {
-    const aliasText = p.aliases && p.aliases.length ? ` <span style="font-size:9px;color:var(--text-dim);">(${p.aliases.join(', ')})</span>` : '';
-    return `<div class="ph-tracked-chip">
-      ${p.ord ? `<span class="ph-tracked-chip-ord">${p.ord}</span>` : ''}
-      <span>${p.name}${aliasText}</span>
-    </div>`;
+  container.innerHTML = rows.map(function(p) {
+    var aliasStr = (p.aliases || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean).join(', ');
+    var aliasHtml = aliasStr ? ' <span style="font-size:9px;color:var(--text-dim);">(' + esc(aliasStr) + ')</span>' : '';
+    var ord = p.ordinanceId || '';
+    return '<div class="ph-tracked-chip">'
+      + (ord ? '<span class="ph-tracked-chip-ord">' + esc(ord) + '</span>' : '')
+      + '<span>' + esc(p.projectName || '') + aliasHtml + '</span>'
+      + '</div>';
   }).join('');
+}
+
+// One-shot migration of legacy localStorage entries to the backend.
+// Runs the first time the PH view initializes; safe to call again — once
+// the localStorage key is cleared, subsequent runs are no-ops. De-dupes
+// against the current tpProjects cache by case-insensitive project name.
+function phMigrateLegacyLocalStorage() {
+  if (phMigratedLegacy) return Promise.resolve();
+  phMigratedLegacy = true;
+  var raw;
+  try { raw = localStorage.getItem('mip_ph_tracked'); } catch (e) { return Promise.resolve(); }
+  if (!raw) return Promise.resolve();
+  var legacy;
+  try { legacy = JSON.parse(raw); } catch (e) {
+    localStorage.removeItem('mip_ph_tracked');
+    return Promise.resolve();
+  }
+  if (!Array.isArray(legacy) || !legacy.length) {
+    localStorage.removeItem('mip_ph_tracked');
+    return Promise.resolve();
+  }
+  var webappUrl = getWebAppUrl();
+  if (!webappUrl) { phMigratedLegacy = false; return Promise.resolve(); }
+
+  var existingNames = {};
+  ((typeof tpProjects !== 'undefined' && Array.isArray(tpProjects)) ? tpProjects : []).forEach(function(p) {
+    if (p && p.projectName) existingNames[p.projectName.toLowerCase()] = true;
+  });
+  var pending = legacy.filter(function(p) {
+    return p && p.name && !existingNames[String(p.name).toLowerCase()];
+  });
+  if (!pending.length) {
+    localStorage.removeItem('mip_ph_tracked');
+    return Promise.resolve();
+  }
+
+  console.log('[P37] migrating ' + pending.length + ' legacy PH-tracked project(s) to backend');
+  return pending.reduce(function(chain, p) {
+    return chain.then(function() {
+      var aliasStr = (Array.isArray(p.aliases) && p.aliases.length) ? p.aliases.join(', ') : '';
+      var q = '&action=create_tracked_project'
+            + '&project_name=' + encodeURIComponent(p.name || '')
+            + '&ordinance_id=' + encodeURIComponent(p.ord || '')
+            + '&jurisdiction='
+            + '&aliases='     + encodeURIComponent(aliasStr);
+      return fetch(webappUrl + q)
+        .then(function(r){ return r.json(); })
+        .catch(function(e){
+          console.error('[P37] migration POST failed for', p, e);
+          return null;
+        });
+    });
+  }, Promise.resolve()).then(function() {
+    localStorage.removeItem('mip_ph_tracked');
+    if (typeof tpLoad === 'function') tpLoad(true);
+  });
 }
 
 // ── Weekly calendar state and helpers ──
@@ -4896,6 +5018,12 @@ function phRenderHearings() {
 }
 
 function initPublicHearingsView() {
+  // P37: pull from the shared Tracked Projects cache so PH chips, the global
+  // tab, and per-muni view are all reading the same data. tpLoad re-renders
+  // the PH chip list when it resolves; this also fires the one-shot legacy
+  // localStorage migration on first init.
+  if (typeof tpLoad === 'function') tpLoad(false);
+  phMigrateLegacyLocalStorage();
   phRenderTracked();
   phWeekOffset = 0;
   phRenderWeeklyHearings();
