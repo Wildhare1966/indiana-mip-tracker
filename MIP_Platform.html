@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p43r1 -->
+<!-- MIP build p43r2 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com; img-src 'self' data:; frame-src 'none';">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p43r1">
+<link rel="stylesheet" href="styles.css?v=p43r2">
 </head>
 <body>
 
@@ -2415,7 +2415,21 @@ function renderHearingsContent(muniId) {
       return _dateMatchesCadence(d.date, muniId, bodyKey);
     });
     // Merge projected future cadence dates that aren't already represented.
+    //
+    // P43 W3: derive the canonical display label for each body from existing
+    // unified rows. The cadence config uses generic keys ('Council', 'Plan
+    // Commission') but munis prefer their statutory label ('Common Council',
+    // 'Town Council', 'City Council', 'Advisory Plan Commission', etc.).
+    // Previously projected rows displayed the generic key, producing visible
+    // mixed labels alongside real rows. Self-healing: read the canonical from
+    // any real row of the same body_type instead of maintaining a FE alias map.
     const existingKeys = new Set(unified.map(d => d.date + '|' + d.body_type));
+    const canonicalForBody = {};
+    unified.forEach(d => {
+      if (!d.meeting_type || !d.body_type) return;
+      if (d.meeting_type === d.body_type) return;
+      if (!canonicalForBody[d.body_type]) canonicalForBody[d.body_type] = d.meeting_type;
+    });
     projectFutureCadenceDates(muniId, 6).forEach(p => {
       const k = p.date + '|' + p.body_type;
       if (!existingKeys.has(k)) {
@@ -2427,7 +2441,7 @@ function renderHearingsContent(muniId) {
           summary_doc: '',
           minutes_url: '',
           agendas: [],
-          meeting_type: p.body_type
+          meeting_type: canonicalForBody[p.body_type] || p.body_type
         });
       }
     });
@@ -2707,6 +2721,25 @@ function buildUnifiedDateSet(muniId) {
       e.minutes_url = winners.length ? winners[0].url : '';
     }
     delete e._minutes_candidates;
+  });
+
+  // P43 W3: canonicalize meeting_type on entries that inherited it from
+  // body_type (projected dates from meeting_dates or cadence). Backend sends
+  // projected rows with body_type='Council'|'Plan Commission' but no canonical
+  // label — the FE assigned meeting_type = body_type as a placeholder. Now
+  // replace it with the per-muni statutory label discovered from any real
+  // overlay row of the same body_type. Self-healing — no FE alias map.
+  const entriesAll = Object.values(dateMap);
+  const canonicalForBody = {};
+  entriesAll.forEach(e => {
+    if (!e.meeting_type || !e.body_type) return;
+    if (e.meeting_type === e.body_type) return;
+    if (!canonicalForBody[e.body_type]) canonicalForBody[e.body_type] = e.meeting_type;
+  });
+  entriesAll.forEach(e => {
+    if (e.meeting_type && e.meeting_type !== e.body_type) return;
+    const canon = canonicalForBody[e.body_type];
+    if (canon) e.meeting_type = canon;
   });
 
   // P43 W2: single descending timeline. See note at the Council/PC sort site
