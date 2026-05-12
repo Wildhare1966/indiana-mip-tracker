@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p34r1 -->
+<!-- MIP build p35r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com; img-src 'self' data:; frame-src 'none';">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p34r1">
+<link rel="stylesheet" href="styles.css?v=p35r1">
 </head>
 <body>
 
@@ -4029,7 +4029,8 @@ function tpLoad(force) {
     .then(function(rows) {
       tpProjects = Array.isArray(rows) ? rows : [];
       tpLoadedAt = Date.now();
-      tpRenderTable();
+      // P35: fetch tagged-doc counts in parallel; re-render once they land.
+      return tpLoadDocCounts().then(function() { tpRenderTable(); });
     })
     .catch(function(err) {
       console.error('tpLoad error:', err);
@@ -4085,7 +4086,19 @@ function tpRenderTable() {
       '<td style="padding:8px 10px;vertical-align:top;">' +
         '<input type="text" value="' + escAttr(p.petitionerApplicant || '') + '" data-field="petitioner_applicant" onblur="tpInlineSave(this)" style="width:140px;background:transparent;border:1px solid transparent;color:inherit;padding:2px 4px;font-size:12px;border-radius:3px;" onfocus="this.style.borderColor=\'var(--border,#444)\'">' +
       '</td>' +
-      '<td style="padding:8px 10px;vertical-align:top;color:var(--muted,#888);" title="Document tagging ships in P35">—</td>' +
+      // P35: Tagged Docs — count badge + Tag button (opens tag mode) + popup
+      '<td style="padding:8px 10px;vertical-align:top;white-space:nowrap;">' +
+        (function() {
+          var n = tpDocCounts[p.projectId] || 0;
+          var badge = n > 0
+            ? '<a href="javascript:void(0)" onclick="tpOpenDocsPopup(\'' + pidAttr + '\', this); return false;" title="View tagged documents" style="font-weight:600;color:#7e57c2;text-decoration:none;">' + n + ' doc' + (n===1?'':'s') + '</a>'
+            : '<span style="color:var(--muted,#888);">0 docs</span>';
+          var tagBtn = (p.status !== 'closed')
+            ? ' <button class="refresh-btn" onclick="tpEnterTagMode(\'' + pidAttr + '\')" style="font-size:10px;padding:1px 6px;margin-left:6px;" title="Enter tag mode for this project">+ Tag</button>'
+            : '';
+          return badge + tagBtn;
+        })() +
+      '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;color:' + statusColor + ';">' + esc(status) + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' + natureBadge + when + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' + agenda + '</td>' +
@@ -4216,6 +4229,402 @@ window.tpInlineSave       = tpInlineSave;
 window.tpToggleAddForm    = tpToggleAddForm;
 window.tpSubmitNew        = tpSubmitNew;
 window.tpCloseProject     = tpCloseProject;
+
+// ═══════════════════════════════════════════════════════
+// P35: TAG MODE — Drive integration + document tagging
+// ═══════════════════════════════════════════════════════
+// State + UI for tagging documents to Tracked Projects. When tag mode is on,
+// every external doc link in the active view gets a ✚ sibling button. Clicking
+// ✚ fires tag_document and reports inline ✓/⚠. Tagged Docs column on the
+// Tracked Projects tab shows per-project counts and a popup of tagged docs.
+
+var TAG_MODE_KEY   = 'mip_tag_mode';           // sessionStorage: project_id when ON, absent when OFF
+var TAG_CLIENT_KEY = 'mip_client_id';          // localStorage: stable UUID for audit attribution
+var tpDocCounts    = {};                       // { project_id: count }
+var _tagMoObserver = null;                     // MutationObserver for active view re-decoration
+
+function tagClientId() {
+  try {
+    var id = localStorage.getItem(TAG_CLIENT_KEY);
+    if (!id) {
+      id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+         : 'c_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+      localStorage.setItem(TAG_CLIENT_KEY, id);
+    }
+    return id;
+  } catch (e) { return 'c_anon'; }
+}
+
+function tagGetProjectId() {
+  try { return sessionStorage.getItem(TAG_MODE_KEY) || ''; } catch (e) { return ''; }
+}
+function tagSetProjectId(pid) {
+  try {
+    if (pid) sessionStorage.setItem(TAG_MODE_KEY, pid);
+    else sessionStorage.removeItem(TAG_MODE_KEY);
+  } catch (e) {}
+}
+
+// Heuristic: a link is "taggable" when it's an http(s) link inside a known
+// content view, isn't a same-page anchor, and isn't explicitly opted out.
+function tagIsLinkTaggable(a) {
+  if (!a || a.tagName !== 'A') return false;
+  if (a.classList.contains('mip-no-tag') || a.hasAttribute('data-no-tag')) return false;
+  if (a.classList.contains('topbar-btn') || a.classList.contains('mip-tag-btn')) return false;
+  var href = a.getAttribute('href') || '';
+  if (!/^https?:\/\//i.test(href)) return false;
+  return true;
+}
+
+function tagScanContainer() {
+  return document.querySelector('#view-publichearings.active, #view-muni.active, #view-tracked.active, #view-overview.active');
+}
+
+// Inject a ✚ button after each taggable link in `root`. Idempotent — skips
+// links that already have a sibling button.
+function tagDecorate(root) {
+  if (!root) return;
+  var pid = tagGetProjectId();
+  if (!pid) return;
+  var links = root.querySelectorAll('a[href]');
+  for (var i = 0; i < links.length; i++) {
+    var a = links[i];
+    if (!tagIsLinkTaggable(a)) continue;
+    if (a.nextSibling && a.nextSibling.classList && a.nextSibling.classList.contains('mip-tag-btn')) continue;
+    var btn = document.createElement('button');
+    btn.className = 'mip-tag-btn';
+    btn.type = 'button';
+    btn.textContent = '✚';
+    btn.title = 'Tag this document to selected project';
+    btn.setAttribute('data-href', a.getAttribute('href'));
+    btn.setAttribute('data-scraped-id', a.getAttribute('data-scraped-id') || '');
+    btn.onclick = function(ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      tagOneDoc(this);
+    };
+    a.parentNode.insertBefore(btn, a.nextSibling);
+  }
+}
+
+function tagUndecorate() {
+  var btns = document.querySelectorAll('.mip-tag-btn');
+  for (var i = 0; i < btns.length; i++) btns[i].parentNode && btns[i].parentNode.removeChild(btns[i]);
+}
+
+function tagInstallObserver() {
+  if (_tagMoObserver) { try { _tagMoObserver.disconnect(); } catch(e) {} _tagMoObserver = null; }
+  var target = document.querySelector('.content') || document.body;
+  if (!target || !window.MutationObserver) return;
+  _tagMoObserver = new MutationObserver(function() {
+    if (!tagGetProjectId()) return;
+    var root = tagScanContainer();
+    if (root) tagDecorate(root);
+  });
+  _tagMoObserver.observe(target, { childList: true, subtree: true });
+}
+
+function tagUninstallObserver() {
+  if (_tagMoObserver) { try { _tagMoObserver.disconnect(); } catch(e) {} _tagMoObserver = null; }
+}
+
+function tagBannerEnsure() {
+  var bar = document.getElementById('mip-tag-banner');
+  if (bar) return bar;
+  bar = document.createElement('div');
+  bar.id = 'mip-tag-banner';
+  bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#3b2a52;color:#eee;padding:8px 16px;display:none;align-items:center;gap:12px;font-size:12px;border-bottom:2px solid #7e57c2;font-family:inherit;flex-wrap:wrap;';
+  bar.innerHTML =
+    '<span style="font-weight:600;color:#c7adff;">Tag mode</span>' +
+    '<span>· Project:</span>' +
+    '<select id="mip-tag-project" style="background:#2a1f3d;color:#eee;border:1px solid #7e57c2;border-radius:3px;padding:3px 6px;font-size:12px;min-width:220px;"></select>' +
+    '<button type="button" id="mip-tag-all" style="background:#7e57c2;color:#fff;border:none;border-radius:3px;padding:4px 10px;font-size:11px;cursor:pointer;">Tag all on this page</button>' +
+    '<span id="mip-tag-status" style="color:#c7adff;font-size:11px;flex:1;"></span>' +
+    '<button type="button" id="mip-tag-close" style="background:transparent;color:#eee;border:1px solid #7e57c2;border-radius:3px;padding:3px 8px;font-size:11px;cursor:pointer;">✕ Exit tag mode</button>';
+  document.body.appendChild(bar);
+  document.getElementById('mip-tag-project').onchange = function() {
+    var pid = this.value;
+    if (!pid) return;
+    tagSetProjectId(pid);
+    tagSetStatus('Click ✚ next to any document link to tag it.');
+  };
+  document.getElementById('mip-tag-all').onclick = tagAllOnPage;
+  document.getElementById('mip-tag-close').onclick = function() { tagModeOff(); };
+  return bar;
+}
+
+function tagSetStatus(msg) {
+  var el = document.getElementById('mip-tag-status');
+  if (el) el.textContent = msg || '';
+}
+
+function tagPopulateProjectSelect() {
+  var sel = document.getElementById('mip-tag-project');
+  if (!sel) return;
+  var currentPid = tagGetProjectId();
+  var opts = '<option value="">— pick a project —</option>';
+  var projects = (Array.isArray(tpProjects) && tpProjects.length) ? tpProjects : [];
+  // Sort active first, then by jurisdiction + name
+  projects = projects.slice().sort(function(a, b) {
+    var aS = (a.status || 'active'), bS = (b.status || 'active');
+    if (aS !== bS) return aS === 'active' ? -1 : 1;
+    return ((a.jurisdiction||'') + (a.projectName||'')).localeCompare((b.jurisdiction||'') + (b.projectName||''));
+  });
+  for (var i = 0; i < projects.length; i++) {
+    var p = projects[i];
+    if (p.status === 'closed') continue;
+    var label = (p.projectName || '(untitled)') + (p.jurisdiction ? ' — ' + p.jurisdiction : '');
+    opts += '<option value="' + escAttr(p.projectId) + '"' + (p.projectId === currentPid ? ' selected' : '') + '>' + esc(label) + '</option>';
+  }
+  sel.innerHTML = opts;
+}
+
+function tagModeOn(projectId) {
+  // Tag mode requires a project list — fetch first if empty.
+  if (!Array.isArray(tpProjects) || !tpProjects.length) {
+    tpLoad(true);
+    setTimeout(function() { tagModeOn(projectId); }, 600);
+    return;
+  }
+  tagSetProjectId(projectId || tagGetProjectId() || '');
+  var bar = tagBannerEnsure();
+  tagPopulateProjectSelect();
+  bar.style.display = 'flex';
+  document.body.classList.add('tag-mode-on');
+  // Shift main content down so banner doesn't cover it.
+  document.body.style.paddingTop = (bar.offsetHeight || 40) + 'px';
+  tagSetStatus(tagGetProjectId() ? 'Click ✚ next to any document link to tag it.' : 'Select a project to begin.');
+  var root = tagScanContainer();
+  if (root) tagDecorate(root);
+  tagInstallObserver();
+}
+
+function tagModeOff() {
+  tagSetProjectId('');
+  var bar = document.getElementById('mip-tag-banner');
+  if (bar) bar.style.display = 'none';
+  document.body.classList.remove('tag-mode-on');
+  document.body.style.paddingTop = '';
+  tagUndecorate();
+  tagUninstallObserver();
+}
+
+function tagOneDoc(btnEl) {
+  var pid = tagGetProjectId();
+  if (!pid) { tagSetStatus('Select a project first.'); return; }
+  var href = btnEl.getAttribute('data-href');
+  var sid  = btnEl.getAttribute('data-scraped-id') || '';
+  if (!href) return;
+  btnEl.disabled = true;
+  btnEl.textContent = '…';
+  var webappUrl = getWebAppUrl();
+  if (!webappUrl) { btnEl.textContent = '⚠'; return; }
+  var q = '&action=tag_document'
+        + '&project_id=' + encodeURIComponent(pid)
+        + '&scraped_doc_id=' + encodeURIComponent(sid)
+        + '&source_url=' + encodeURIComponent(href)
+        + '&client_id=' + encodeURIComponent(tagClientId());
+  fetch(webappUrl + q)
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (res && res.ok) {
+        btnEl.textContent = res.status === 'active' ? '✓' : (res.status === 'url-only' ? '🔗' : '⚠');
+        btnEl.title = 'Tagged · ' + (res.status || '') + (res.size_bytes ? ' · ' + Math.round(res.size_bytes/1024) + 'KB' : '');
+        btnEl.classList.add('mip-tag-btn-done');
+        tpDocCounts[pid] = (tpDocCounts[pid] || 0) + 1;
+      } else {
+        btnEl.textContent = '⚠';
+        btnEl.title = 'Tag failed: ' + ((res && res.error) || 'unknown');
+      }
+    })
+    .catch(function(err) {
+      btnEl.textContent = '⚠';
+      btnEl.title = 'Network error: ' + err.message;
+    });
+}
+
+function tagAllOnPage() {
+  var pid = tagGetProjectId();
+  if (!pid) { tagSetStatus('Select a project first.'); return; }
+  var btns = document.querySelectorAll('.mip-tag-btn:not(.mip-tag-btn-done)');
+  if (!btns.length) { tagSetStatus('No untagged links visible on this page.'); return; }
+  var items = [];
+  var btnList = [];
+  // Cap at 25 (matches PD_BATCH_CAP server-side).
+  for (var i = 0; i < Math.min(btns.length, 25); i++) {
+    var b = btns[i];
+    var href = b.getAttribute('data-href');
+    if (!href) continue;
+    items.push({ project_id: pid, scraped_doc_id: b.getAttribute('data-scraped-id') || '', source_url: href });
+    btnList.push(b);
+    b.disabled = true; b.textContent = '…';
+  }
+  tagSetStatus('Tagging ' + items.length + ' document' + (items.length===1?'':'s') + '…');
+  var webappUrl = getWebAppUrl();
+  if (!webappUrl) return;
+  var body = 'action=tag_documents_batch'
+           + '&token=' + encodeURIComponent(DEFAULT_AUTH_TOKEN)
+           + '&client_id=' + encodeURIComponent(tagClientId())
+           + '&items=' + encodeURIComponent(JSON.stringify(items));
+  // Use POST so we don't blow the URL length budget on large batches.
+  fetch(webappUrl, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (!res || !res.ok) { tagSetStatus('Batch failed: ' + ((res && res.error) || 'unknown')); return; }
+      var counts = res.counts || {};
+      tagSetStatus('Batch done — ' + (counts.active||0) + ' downloaded, ' + (counts['url-only']||0) + ' url-only, ' + (counts.failed||0) + ' failed.');
+      for (var i = 0; i < res.results.length && i < btnList.length; i++) {
+        var r2 = res.results[i];
+        var b2 = btnList[i];
+        if (r2 && r2.ok) {
+          b2.textContent = r2.status === 'active' ? '✓' : (r2.status === 'url-only' ? '🔗' : '⚠');
+          b2.classList.add('mip-tag-btn-done');
+          tpDocCounts[pid] = (tpDocCounts[pid] || 0) + 1;
+        } else { b2.textContent = '⚠'; }
+      }
+    })
+    .catch(function(err) { tagSetStatus('Network error: ' + err.message); });
+}
+
+// Auto-restore tag mode after view switch when the banner state is in sessionStorage.
+(function _hookSwitchViewForTag() {
+  var prev = window.switchView;
+  if (typeof prev !== 'function') return;
+  window.switchView = function(name) {
+    var r = prev.apply(this, arguments);
+    if (tagGetProjectId()) {
+      // Re-decorate the newly active view.
+      setTimeout(function() {
+        var root = tagScanContainer();
+        if (root) tagDecorate(root);
+      }, 50);
+    }
+    return r;
+  };
+})();
+
+// On page-load, restore tag mode if sessionStorage has it.
+document.addEventListener('DOMContentLoaded', function() {
+  if (tagGetProjectId()) {
+    // Defer so tpProjects can populate.
+    setTimeout(function() { tagModeOn(tagGetProjectId()); }, 800);
+  }
+});
+
+// Entry point — invoked from the Tracked Projects tab's "Tag docs" button per row.
+function tpEnterTagMode(projectId) {
+  tagModeOn(projectId);
+  // Switch to Public Hearings as the default tagging surface.
+  switchView('publichearings');
+}
+
+// ── Tagged Docs column popup ─────────────────────────────────────────────────
+
+function tpOpenDocsPopup(projectId, anchorEl) {
+  // Close any existing popup
+  var existing = document.getElementById('mip-tp-docs-popup');
+  if (existing) existing.remove();
+  var pop = document.createElement('div');
+  pop.id = 'mip-tp-docs-popup';
+  pop.style.cssText = 'position:absolute;z-index:9998;background:var(--bg-card,#1a1a1a);border:1px solid var(--border,#444);border-radius:6px;padding:10px 12px;min-width:280px;max-width:480px;max-height:320px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,0.5);font-size:11px;';
+  pop.innerHTML = '<div style="color:var(--muted,#888);">Loading…</div>';
+  document.body.appendChild(pop);
+  var rect = anchorEl.getBoundingClientRect();
+  pop.style.top  = (window.scrollY + rect.bottom + 4) + 'px';
+  pop.style.left = (window.scrollX + Math.max(8, rect.left - 100)) + 'px';
+
+  // Click-outside to close
+  setTimeout(function() {
+    var onDoc = function(ev) {
+      if (!pop.contains(ev.target)) { pop.remove(); document.removeEventListener('click', onDoc, true); }
+    };
+    document.addEventListener('click', onDoc, true);
+  }, 50);
+
+  var webappUrl = getWebAppUrl();
+  if (!webappUrl) { pop.innerHTML = '<div style="color:#d65a5a;">No webapp URL.</div>'; return; }
+  fetch(webappUrl + '&action=list_project_documents&project_id=' + encodeURIComponent(projectId))
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (!res || !res.ok) { pop.innerHTML = '<div style="color:#d65a5a;">Failed: ' + esc((res && res.error) || 'unknown') + '</div>'; return; }
+      var hdr = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;border-bottom:1px solid var(--border,#333);padding-bottom:6px;">'
+              +   '<strong>' + res.count + ' tagged document' + (res.count===1?'':'s') + '</strong>'
+              +   (res.folder_url ? '<a href="' + esc(res.folder_url) + '" target="_blank" rel="noopener" style="font-size:10px;">↗ Drive folder</a>' : '')
+              + '</div>';
+      if (!res.count) {
+        pop.innerHTML = hdr + '<div style="color:var(--muted,#888);">No documents tagged yet. Enable Tag mode and click ✚ on doc links.</div>';
+        return;
+      }
+      var rows = res.documents.map(function(d) {
+        var sizeLabel = d.size_bytes ? (' · ' + Math.round(d.size_bytes/1024) + 'KB') : '';
+        var statusBadge = '<span style="color:' + (d.status==='active'?'#4ac49a':(d.status==='url-only'?'#c4a64a':'#d65a5a')) + ';font-size:10px;margin-right:6px;">[' + d.status + ']</span>';
+        var primary = d.drive_file_url
+          ? '<a href="' + esc(d.drive_file_url) + '" target="_blank" rel="noopener">' + esc(d.filename || 'file') + '</a>'
+          : '<a href="' + esc(d.source_url) + '" target="_blank" rel="noopener">' + esc(d.filename || d.source_url) + '</a>';
+        var untag = isOperator()
+          ? ' <button type="button" onclick="tpUntagDoc(\'' + escAttr(d.doc_id) + '\', \'' + escAttr(projectId) + '\', this)" style="background:transparent;color:#d65a5a;border:1px solid #5a2a2a;border-radius:3px;padding:0 5px;font-size:10px;cursor:pointer;" title="Untag (operator only)">✕</button>'
+          : '';
+        return '<div style="padding:4px 0;border-bottom:1px dotted var(--border,#2a2a2a);">'
+             + statusBadge + primary + sizeLabel + untag
+             + (d.source_url && d.drive_file_url ? '<div style="font-size:9px;color:var(--muted,#666);margin-left:60px;">orig: <a href="' + esc(d.source_url) + '" target="_blank" rel="noopener">' + esc(d.source_url.length > 60 ? d.source_url.slice(0,57)+'…' : d.source_url) + '</a></div>' : '')
+             + '</div>';
+      }).join('');
+      pop.innerHTML = hdr + rows;
+    })
+    .catch(function(err) { pop.innerHTML = '<div style="color:#d65a5a;">Network error.</div>'; });
+}
+
+function tpUntagDoc(docId, projectId, btnEl) {
+  if (!confirm('Untag this document? (archives the row — operator can restore by clearing status in the sheet)')) return;
+  btnEl.disabled = true;
+  btnEl.textContent = '…';
+  var webappUrl = getWebAppUrl();
+  if (!webappUrl) return;
+  var q = '&action=untag_document'
+        + '&doc_id=' + encodeURIComponent(docId)
+        + '&client_id=' + encodeURIComponent(tagClientId());
+  fetch(webappUrl + q)
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (res && res.ok) {
+        btnEl.textContent = '✓';
+        // Bump count down + re-render trackedprojects table
+        if (tpDocCounts[projectId]) tpDocCounts[projectId] = Math.max(0, tpDocCounts[projectId] - 1);
+        // Close popup; user will see updated count on the table
+        var pop = document.getElementById('mip-tp-docs-popup');
+        if (pop) pop.remove();
+        tpRenderTable();
+      } else {
+        btnEl.textContent = '⚠';
+        alert('Untag failed: ' + ((res && res.error) || 'unknown'));
+      }
+    })
+    .catch(function(err) {
+      btnEl.textContent = '⚠';
+      alert('Network error: ' + err.message);
+    });
+}
+
+// Refresh the per-project tagged-doc counts. Called from tpLoad.
+function tpLoadDocCounts() {
+  var webappUrl = getWebAppUrl();
+  if (!webappUrl) return Promise.resolve();
+  return fetch(webappUrl + '&action=list_project_document_counts')
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (res && res.ok) tpDocCounts = res.counts || {};
+    })
+    .catch(function(err) { console.warn('tpLoadDocCounts:', err); });
+}
+
+window.tagModeOn        = tagModeOn;
+window.tagModeOff       = tagModeOff;
+window.tagOneDoc        = tagOneDoc;
+window.tagAllOnPage     = tagAllOnPage;
+window.tpEnterTagMode   = tpEnterTagMode;
+window.tpOpenDocsPopup  = tpOpenDocsPopup;
+window.tpUntagDoc       = tpUntagDoc;
+
 window.verifyMember = verifyMember;
 window.unverifyMember = unverifyMember;
 window.saveMemberNotes = saveMemberNotes;
