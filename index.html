@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p38r1 -->
+<!-- MIP build p39r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com; img-src 'self' data:; frame-src 'none';">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p38r1">
+<link rel="stylesheet" href="styles.css?v=p39r1">
 </head>
 <body>
 
@@ -857,7 +857,7 @@ async function updateMemberVoteHistory(memberId, memberName, muniName, muniId, b
       if (!result) { if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Update Vote History'; } return; }
       memberVoteCache[memberId] = { text: result, sources: docs, timestamp: new Date().toLocaleDateString() };
       if (containerEl) {
-        const sourceLinks = docs.map(d => `<a href="${escUrl(d.url)}" target="_blank">${esc(d.date)}</a>`).join(' · ');
+        const sourceLinks = docs.map(d => `<a href="${escUrl(d.url)}" target="_blank" data-doc-link="agenda" data-scraped-id="${escAttr(d.id || '')}">${esc(d.date)}</a>`).join(' · ');
         containerEl.innerHTML = `
           <div class="vote-history-title">Vote / Position History — ${esc(memberName)}</div>
           <div class="vote-history-item" style="white-space:pre-wrap;">${esc(result)}</div>
@@ -889,7 +889,7 @@ async function updateMemberVoteHistory(memberId, memberName, muniName, muniId, b
 
     memberVoteCache[memberId] = { text: result, sources: ytHearings, timestamp: new Date().toLocaleDateString() };
     if (containerEl) {
-      const sourceLinks = ytHearings.map(h => `<a href="${escUrl(h.youtube_url)}" target="_blank">${esc(h.date)}</a>`).join(' · ');
+      const sourceLinks = ytHearings.map(h => `<a href="${escUrl(h.youtube_url)}" target="_blank" data-doc-link="youtube" data-scraped-id="${escAttr(h.meeting_id || h.id || '')}">${esc(h.date)}</a>`).join(' · ');
       containerEl.innerHTML = `
         <div class="vote-history-title">Vote / Position History — ${esc(memberName)}</div>
         <div class="vote-history-item" style="white-space:pre-wrap;">${esc(result)}</div>
@@ -2269,7 +2269,7 @@ async function ytResubmit(youtubeUrl, jurisdiction, meetingDate, btnId, summaryE
       // Update the summary span with a new link to the generated doc
       const el = document.getElementById(summaryElId);
       if (el) {
-        el.innerHTML = `<a href="${escUrl(data.summary_doc)}" target="_blank" class="hearing-link doc">✦ Summary</a>`;
+        el.innerHTML = `<a href="${escUrl(data.summary_doc)}" target="_blank" class="hearing-link doc" data-doc-link="summary">✦ Summary</a>`;
       }
       if (btn) { btn.textContent = '✓ Done'; btn.style.borderColor = 'rgba(26,122,74,0.45)'; btn.style.color = '#6dc49a'; }
     } else {
@@ -3862,7 +3862,7 @@ function renderTrackedTimeline(projectId) {
   return refs.map(r => {
     const natureCls = 'nature-' + (r.nature || 'discussed').replace(' ','-');
     const link = r.sourceUrl
-      ? `<a class="tracked-timeline-link" href="${r.sourceUrl}" target="_blank" rel="noopener">→ Source</a>` : '';
+      ? `<a class="tracked-timeline-link" href="${r.sourceUrl}" target="_blank" rel="noopener" data-doc-link="reference" data-scraped-id="${escAttr(r.meetingId || '')}">→ Source</a>` : '';
     return `<div class="tracked-timeline-item">
       <div class="tracked-timeline-dot"></div>
       <div class="tracked-timeline-body">
@@ -4118,7 +4118,7 @@ function tpRenderTable() {
         (p.mapUrl ? ' <a href="' + esc(p.mapUrl) + '" target="_blank" rel="noopener" title="Open map" data-no-tag>↗</a>' : '') +
       '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;text-align:right;">' +
-        (isOperator() && status !== 'closed' ? '<button class="refresh-btn" onclick="tpCloseProject(\'' + pidAttr + '\', \'' + escAttr((p.projectName||'').replace(/\x27/g,"\\\x27")) + '\')" style="font-size:10px;padding:2px 6px;" title="Close tracking (operator only)">✕</button>' : '') +
+        (isOperator() && status !== 'closed' ? '<button class="refresh-btn" onclick="event.stopPropagation();tpCloseProject(\'' + pidAttr + '\', \'' + escAttr((p.projectName||'').replace(/\x27/g,"\\\x27")) + '\')" style="font-size:10px;padding:2px 6px;" title="Close tracking (operator only)">✕</button>' : '') +
       '</td>' +
     '</tr>';
   }).join('');
