@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p35r1 -->
+<!-- MIP build p36r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com; img-src 'self' data:; frame-src 'none';">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p35r1">
+<link rel="stylesheet" href="styles.css?v=p36r1">
 </head>
 <body>
 
@@ -2856,10 +2856,10 @@ function renderBodySection(bodyLabel, dates, muniId) {
       const summaryId = 'yts_' + muniId + '_' + bodyLabel.replace(/\s/g,'') + '_' + rowIdx;
       const btnId = 'ytrs_' + muniId + '_' + bodyLabel.replace(/\s/g,'') + '_' + rowIdx;
       ytCell = `<div class="yt-hearing-item">`;
-      ytCell += `<a href="${escUrl(entry.youtube_url)}" target="_blank" class="hearing-link yt">▶ YouTube</a>`;
+      ytCell += `<a href="${escUrl(entry.youtube_url)}" target="_blank" class="hearing-link yt" data-doc-link="youtube" data-scraped-id="${escAttr(entry.meeting_id || '')}">▶ YouTube</a>`;
       ytCell += `<span id="${esc(summaryId)}">`;
       if (entry.summary_doc) {
-        ytCell += `<a href="${escUrl(entry.summary_doc)}" target="_blank" class="hearing-link doc">✦ Summary</a>`;
+        ytCell += `<a href="${escUrl(entry.summary_doc)}" target="_blank" class="hearing-link doc" data-doc-link="summary" data-scraped-id="${escAttr(entry.meeting_id || '')}">✦ Summary</a>`;
       }
       ytCell += `</span>`;
       if (entry.summary_doc) {
@@ -2902,7 +2902,7 @@ function renderBodySection(bodyLabel, dates, muniId) {
         const cls = status === 'approved' ? ' ag-approved' : status === 'rejected' ? ' ag-rejected' : '';
         const curType = sd.meeting_type_override || sd.meeting_type || '';
         let h = `<div class="ag-item${cls}" id="${esc(agId)}">`;
-        h += sdUrl ? `<a href="${escUrl(sdUrl)}" target="_blank" class="hearing-link ag">↓ Agenda</a>` : `<span class="hearing-link ag" style="cursor:default;">↓ Agenda</span>`;
+        h += sdUrl ? `<a href="${escUrl(sdUrl)}" target="_blank" class="hearing-link ag" data-doc-link="agenda" data-scraped-id="${escAttr(sd.id || '')}">↓ Agenda</a>` : `<span class="hearing-link ag" style="cursor:default;">↓ Agenda</span>`;
         if (!status) {
           h += `<button class="ag-correct-btn yes" id="${esc(btnYId)}" onclick="agApprove('${escAttr(sd.id)}','${escAttr(sd.meeting_type||'')}','${escAttr(muniId)}','${escAttr(btnYId)}','${escAttr(btnNId)}','${escAttr(agId)}')">✓ Yes</button>`;
           h += `<button class="ag-correct-btn no" id="${esc(btnNId)}" onclick="agReject('${escAttr(sd.id)}','${escAttr(sd.meeting_type||'')}','${escAttr(muniId)}','${escAttr(btnYId)}','${escAttr(btnNId)}','${escAttr(agId)}')">✗ No</button>`;
@@ -2921,7 +2921,7 @@ function renderBodySection(bodyLabel, dates, muniId) {
     // Minutes cell (matched per-entry by buildUnifiedDateSet — exact date or fuzzy ±1d)
     let mnCell;
     if (entry.minutes_url) {
-      mnCell = `<a href="${escUrl(entry.minutes_url)}" target="_blank" class="hearing-link doc">↓ Minutes</a>`;
+      mnCell = `<a href="${escUrl(entry.minutes_url)}" target="_blank" class="hearing-link doc" data-doc-link="minutes" data-scraped-id="${escAttr(entry.meeting_id || '')}">↓ Minutes</a>`;
       if (entry.meeting_id) {
         mnCell += ` <button class="ag-correct-btn no" title="Remove this minutes URL" onclick="showRemoveUrlPopover(this,'minutes_url','Meetings','${escAttr(entry.meeting_id)}','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(entry.meeting_type || '')}')">✕</button>`;
       }
@@ -3832,7 +3832,7 @@ function renderTrackedProjects(m) {
             <span>${p.refCount} reference${p.refCount!==1?'s':''}</span>
             ${p.lastDate && p.lastDate!=='—' ? `<span>Last: ${p.lastDate}</span>` : ''}
             ${lastBadge}
-            <span style="margin-left:auto;cursor:pointer;color:var(--text-dim);font-size:10px;" onclick="event.stopPropagation();closeProjectConfirm('${p.projectId}','${p.projectName.replace(/'/g,"\\'")}')">✕ Close</span>
+            ${isOperator() ? `<span style="margin-left:auto;cursor:pointer;color:var(--text-dim);font-size:10px;" onclick="event.stopPropagation();closeProjectConfirm('${p.projectId}','${p.projectName.replace(/'/g,"\\'")}')" title="Close tracking (operator only)">✕ Close</span>` : ''}
           </div>
           ${isActive ? `<div class="tracked-timeline">${timeline}</div>` : ''}
         </div>`;
@@ -4066,9 +4066,9 @@ function tpRenderTable() {
 
   tbody.innerHTML = rows.map(function(p) {
     var pidAttr = escAttr(p.projectId || '');
-    var agenda  = p.latestAgendaUrl    ? '<a href="' + esc(p.latestAgendaUrl)    + '" target="_blank" rel="noopener">Agenda</a>'  : '<span style="color:var(--muted,#888);">—</span>';
-    var yt      = p.latestYtSummaryUrl ? '<a href="' + esc(p.latestYtSummaryUrl) + '" target="_blank" rel="noopener">YouTube</a>' : '<span style="color:var(--muted,#888);">—</span>';
-    var minutes = p.latestMinutesUrl   ? '<a href="' + esc(p.latestMinutesUrl)   + '" target="_blank" rel="noopener">Minutes</a>' : '<span style="color:var(--muted,#888);">—</span>';
+    var agenda  = p.latestAgendaUrl    ? '<a href="' + esc(p.latestAgendaUrl)    + '" target="_blank" rel="noopener" data-doc-link="agenda">Agenda</a>'   : '<span style="color:var(--muted,#888);">—</span>';
+    var yt      = p.latestYtSummaryUrl ? '<a href="' + esc(p.latestYtSummaryUrl) + '" target="_blank" rel="noopener" data-doc-link="youtube">YouTube</a>' : '<span style="color:var(--muted,#888);">—</span>';
+    var minutes = p.latestMinutesUrl   ? '<a href="' + esc(p.latestMinutesUrl)   + '" target="_blank" rel="noopener" data-doc-link="minutes">Minutes</a>' : '<span style="color:var(--muted,#888);">—</span>';
     var when    = p.latestMeetingDate ? '<div style="font-size:10px;color:var(--muted,#888);">' + esc(p.latestMeetingDate) + '</div>' : '';
     var nature  = p.lastNature || '';
     var natureBadge = nature
@@ -4106,7 +4106,7 @@ function tpRenderTable() {
       '<td style="padding:8px 10px;vertical-align:top;">' + minutes + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' +
         '<input type="text" value="' + escAttr(p.mapUrl || '') + '" placeholder="ArcGIS / parcel URL" data-field="map_url" onblur="tpInlineSave(this)" style="width:160px;background:transparent;border:1px solid transparent;color:inherit;padding:2px 4px;font-size:12px;border-radius:3px;" onfocus="this.style.borderColor=\'var(--border,#444)\'">' +
-        (p.mapUrl ? ' <a href="' + esc(p.mapUrl) + '" target="_blank" rel="noopener" title="Open map">↗</a>' : '') +
+        (p.mapUrl ? ' <a href="' + esc(p.mapUrl) + '" target="_blank" rel="noopener" title="Open map" data-no-tag>↗</a>' : '') +
       '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;text-align:right;">' +
         (isOperator() && status !== 'closed' ? '<button class="refresh-btn" onclick="tpCloseProject(\'' + pidAttr + '\', \'' + escAttr((p.projectName||'').replace(/\x27/g,"\\\x27")) + '\')" style="font-size:10px;padding:2px 6px;" title="Close tracking (operator only)">✕</button>' : '') +
@@ -4265,15 +4265,21 @@ function tagSetProjectId(pid) {
   } catch (e) {}
 }
 
-// Heuristic: a link is "taggable" when it's an http(s) link inside a known
-// content view, isn't a same-page anchor, and isn't explicitly opted out.
+// P36: tag-mode link selector. Preferred path is the explicit
+// `data-doc-link="agenda|minutes|youtube|summary"` attribute (set at render
+// time on known document anchors). Fallback: narrower URL heuristic that
+// only matches links that look like meeting documents. The broad
+// `a[href^="http"]` rule from P35 was over-tagging external nav links.
+var TAG_DOC_URL_RE = /\.pdf(\?|#|$)|\.docx?(\?|#|$)|civicengage|civicclerk|civicplus|granicus|legistar|youtube\.com\/watch|youtu\.be\/|docs\.google\.com\/document|drive\.google\.com\/file|\/agenda|\/minutes|\/AgendaCenter|\/document\//i;
 function tagIsLinkTaggable(a) {
   if (!a || a.tagName !== 'A') return false;
   if (a.classList.contains('mip-no-tag') || a.hasAttribute('data-no-tag')) return false;
   if (a.classList.contains('topbar-btn') || a.classList.contains('mip-tag-btn')) return false;
+  // Preferred — explicit annotation at render time.
+  if (a.hasAttribute('data-doc-link')) return true;
   var href = a.getAttribute('href') || '';
   if (!/^https?:\/\//i.test(href)) return false;
-  return true;
+  return TAG_DOC_URL_RE.test(href);
 }
 
 function tagScanContainer() {
@@ -4549,7 +4555,7 @@ function tpOpenDocsPopup(projectId, anchorEl) {
       if (!res || !res.ok) { pop.innerHTML = '<div style="color:#d65a5a;">Failed: ' + esc((res && res.error) || 'unknown') + '</div>'; return; }
       var hdr = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;border-bottom:1px solid var(--border,#333);padding-bottom:6px;">'
               +   '<strong>' + res.count + ' tagged document' + (res.count===1?'':'s') + '</strong>'
-              +   (res.folder_url ? '<a href="' + esc(res.folder_url) + '" target="_blank" rel="noopener" style="font-size:10px;">↗ Drive folder</a>' : '')
+              +   (res.folder_url ? '<a href="' + esc(res.folder_url) + '" target="_blank" rel="noopener" data-no-tag style="font-size:10px;">↗ Drive folder</a>' : '')
               + '</div>';
       if (!res.count) {
         pop.innerHTML = hdr + '<div style="color:var(--muted,#888);">No documents tagged yet. Enable Tag mode and click ✚ on doc links.</div>';
@@ -4559,14 +4565,14 @@ function tpOpenDocsPopup(projectId, anchorEl) {
         var sizeLabel = d.size_bytes ? (' · ' + Math.round(d.size_bytes/1024) + 'KB') : '';
         var statusBadge = '<span style="color:' + (d.status==='active'?'#4ac49a':(d.status==='url-only'?'#c4a64a':'#d65a5a')) + ';font-size:10px;margin-right:6px;">[' + d.status + ']</span>';
         var primary = d.drive_file_url
-          ? '<a href="' + esc(d.drive_file_url) + '" target="_blank" rel="noopener">' + esc(d.filename || 'file') + '</a>'
-          : '<a href="' + esc(d.source_url) + '" target="_blank" rel="noopener">' + esc(d.filename || d.source_url) + '</a>';
+          ? '<a href="' + esc(d.drive_file_url) + '" target="_blank" rel="noopener" data-no-tag>' + esc(d.filename || 'file') + '</a>'
+          : '<a href="' + esc(d.source_url) + '" target="_blank" rel="noopener" data-no-tag>' + esc(d.filename || d.source_url) + '</a>';
         var untag = isOperator()
           ? ' <button type="button" onclick="tpUntagDoc(\'' + escAttr(d.doc_id) + '\', \'' + escAttr(projectId) + '\', this)" style="background:transparent;color:#d65a5a;border:1px solid #5a2a2a;border-radius:3px;padding:0 5px;font-size:10px;cursor:pointer;" title="Untag (operator only)">✕</button>'
           : '';
         return '<div style="padding:4px 0;border-bottom:1px dotted var(--border,#2a2a2a);">'
              + statusBadge + primary + sizeLabel + untag
-             + (d.source_url && d.drive_file_url ? '<div style="font-size:9px;color:var(--muted,#666);margin-left:60px;">orig: <a href="' + esc(d.source_url) + '" target="_blank" rel="noopener">' + esc(d.source_url.length > 60 ? d.source_url.slice(0,57)+'…' : d.source_url) + '</a></div>' : '')
+             + (d.source_url && d.drive_file_url ? '<div style="font-size:9px;color:var(--muted,#666);margin-left:60px;">orig: <a href="' + esc(d.source_url) + '" target="_blank" rel="noopener" data-no-tag>' + esc(d.source_url.length > 60 ? d.source_url.slice(0,57)+'…' : d.source_url) + '</a></div>' : '')
              + '</div>';
       }).join('');
       pop.innerHTML = hdr + rows;
@@ -4848,19 +4854,20 @@ function phRenderWeeklyHearings() {
         var bodyLabel = isCouncilType(e.body_type) ? 'Council' : 'Planning Commission';
         // Pick a single representative agenda URL (prefer view_url, then pdf_url).
         var agUrl = '';
+        var agScrapedId = '';
         for (var i = 0; i < e.agendas.length; i++) {
           var sd = e.agendas[i];
           var u = sd.view_url || sd.pdf_url || '';
-          if (u) { agUrl = u; break; }
+          if (u) { agUrl = u; agScrapedId = sd.id || ''; break; }
         }
         var agLink = agUrl
-          ? '<a href="' + escUrl(agUrl) + '" target="_blank" class="ph-meeting-link ag" title="Agenda">Agenda</a>'
+          ? '<a href="' + escUrl(agUrl) + '" target="_blank" class="ph-meeting-link ag" title="Agenda" data-doc-link="agenda" data-scraped-id="' + escAttr(agScrapedId) + '">Agenda</a>'
           : '<span class="ph-meeting-link ag disabled" title="No agenda">Agenda</span>';
         var sumLink = e.summary_doc
-          ? '<a href="' + escUrl(e.summary_doc) + '" target="_blank" class="ph-meeting-link yt" title="YouTube summary">Summary</a>'
+          ? '<a href="' + escUrl(e.summary_doc) + '" target="_blank" class="ph-meeting-link yt" title="YouTube summary" data-doc-link="summary" data-scraped-id="' + escAttr(e.meeting_id || '') + '">Summary</a>'
           : '<span class="ph-meeting-link yt disabled" title="No summary">Summary</span>';
         var mnLink = e.minutes_url
-          ? '<a href="' + escUrl(e.minutes_url) + '" target="_blank" class="ph-meeting-link mn" title="Minutes">Minutes</a>'
+          ? '<a href="' + escUrl(e.minutes_url) + '" target="_blank" class="ph-meeting-link mn" title="Minutes" data-doc-link="minutes" data-scraped-id="' + escAttr(e.meeting_id || '') + '">Minutes</a>'
           : '<span class="ph-meeting-link mn disabled" title="No minutes">Minutes</span>';
 
         return '<div class="ph-meeting-item">'
