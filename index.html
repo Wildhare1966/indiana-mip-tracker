@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p33r1 -->
+<!-- MIP build p34r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com; img-src 'self' data:; frame-src 'none';">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p33r1">
+<link rel="stylesheet" href="styles.css?v=p34r1">
 </head>
 <body>
 
@@ -23,6 +23,7 @@
     <button class="topbar-btn" onclick="switchView('muni')" id="nav-muni">Jurisdictions</button>
     <!-- Intelligence Feed nav temporarily removed (P13) — view element and data pipeline retained in code for future re-enable. -->
     <button class="topbar-btn" onclick="switchView('publichearings')" id="nav-publichearings">Public Hearings</button>
+    <button class="topbar-btn" onclick="switchView('tracked')" id="nav-tracked">Tracked Projects</button>
     <button class="topbar-btn" onclick="switchView('schedule')" id="nav-schedule">Schedule & Requirements</button>
     <button class="topbar-btn" onclick="switchView('settings')" id="nav-settings">⚙ Settings</button>
   </div>
@@ -352,6 +353,60 @@
           </div>
         </div>
 
+      </div>
+    </div>
+
+    <!-- P34: TRACKED PROJECTS GLOBAL VIEW -->
+    <div id="view-tracked" class="view">
+      <div style="padding:24px 32px;max-width:1400px;margin:0 auto;width:100%;">
+        <div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;">
+          <div>
+            <div class="overview-title">Tracked Projects</div>
+            <div class="overview-sub">Cross-jurisdiction roll-up of every project flagged for ordinance / project-name matching. Updates after every scrape.</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <input id="tp-filter-juris" type="search" placeholder="Filter jurisdiction…" oninput="tpRenderTable()" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-card,#1a1a1a);color:inherit;border-radius:4px;font-size:12px;width:180px;">
+            <input id="tp-filter-text" type="search" placeholder="Filter project / ordinance / petitioner…" oninput="tpRenderTable()" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-card,#1a1a1a);color:inherit;border-radius:4px;font-size:12px;width:280px;">
+            <button class="refresh-btn" onclick="tpLoad(true)" title="Re-fetch from backend">↺ Refresh</button>
+            <button class="export-btn" onclick="tpToggleAddForm()">+ Track Project</button>
+          </div>
+        </div>
+        <div id="tp-add-form" style="display:none;background:var(--bg-card,#1a1a1a);border:1px solid var(--border,#444);border-radius:6px;padding:14px 16px;margin-bottom:14px;">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;">
+            <input id="tp-new-name" type="text" placeholder="Project name *" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-page,#0d0d0d);color:inherit;border-radius:4px;font-size:12px;">
+            <input id="tp-new-ord" type="text" placeholder="Ordinance #" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-page,#0d0d0d);color:inherit;border-radius:4px;font-size:12px;">
+            <input id="tp-new-juris" type="text" placeholder="Jurisdiction (blank = all)" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-page,#0d0d0d);color:inherit;border-radius:4px;font-size:12px;">
+            <input id="tp-new-petitioner" type="text" placeholder="Petitioner / applicant" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-page,#0d0d0d);color:inherit;border-radius:4px;font-size:12px;">
+            <input id="tp-new-aliases" type="text" placeholder="Aliases (comma-sep)" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-page,#0d0d0d);color:inherit;border-radius:4px;font-size:12px;">
+            <input id="tp-new-mapurl" type="text" placeholder="Map URL (ArcGIS / parcel)" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-page,#0d0d0d);color:inherit;border-radius:4px;font-size:12px;">
+          </div>
+          <div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
+            <button class="refresh-btn" onclick="tpSubmitNew()">Create</button>
+            <button class="refresh-btn" onclick="tpToggleAddForm()" style="background:transparent;">Cancel</button>
+            <span id="tp-add-msg" style="font-size:11px;color:var(--muted,#888);"></span>
+          </div>
+        </div>
+        <div id="tp-status" style="font-size:11px;color:var(--muted,#888);margin-bottom:8px;">Loading…</div>
+        <div style="overflow-x:auto;border:1px solid var(--border,#333);border-radius:6px;">
+          <table id="tp-table" style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead>
+              <tr style="background:var(--bg-card,#1a1a1a);text-align:left;">
+                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Project</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Jurisdiction</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Petitioner</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Tagged Docs</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Status</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Action Taken</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Latest Agenda</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Latest YT</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Latest Minutes</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Map</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);"></th>
+              </tr>
+            </thead>
+            <tbody id="tp-tbody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -3953,6 +4008,214 @@ window.cancelTrackedForm        = cancelTrackedForm;
 window.submitNewProject         = submitNewProject;
 window.toggleProjectTimeline    = toggleProjectTimeline;
 window.closeProjectConfirm      = closeProjectConfirm;
+
+// ═══════════════════════════════════════════════════════
+// P34: GLOBAL TRACKED PROJECTS TAB
+// ═══════════════════════════════════════════════════════
+var tpProjects = [];
+var tpLoadedAt = 0;
+
+function tpLoad(force) {
+  var webappUrl = getWebAppUrl();
+  if (!webappUrl) return;
+  if (!force && tpProjects.length && Date.now() - tpLoadedAt < 60000) {
+    tpRenderTable();
+    return;
+  }
+  var statusEl = document.getElementById('tp-status');
+  if (statusEl) statusEl.textContent = 'Loading…';
+  fetch(webappUrl + '&action=list_tracked_projects&jurisdiction=*')
+    .then(function(r) { return r.json(); })
+    .then(function(rows) {
+      tpProjects = Array.isArray(rows) ? rows : [];
+      tpLoadedAt = Date.now();
+      tpRenderTable();
+    })
+    .catch(function(err) {
+      console.error('tpLoad error:', err);
+      if (statusEl) statusEl.textContent = 'Failed to load.';
+    });
+}
+
+function tpRenderTable() {
+  var tbody = document.getElementById('tp-tbody');
+  var statusEl = document.getElementById('tp-status');
+  if (!tbody) return;
+
+  var jurisFilter = (document.getElementById('tp-filter-juris')||{}).value || '';
+  var textFilter  = (document.getElementById('tp-filter-text')||{}).value  || '';
+  jurisFilter = jurisFilter.trim().toLowerCase();
+  textFilter  = textFilter.trim().toLowerCase();
+
+  var rows = tpProjects.filter(function(p) {
+    if (jurisFilter && (p.jurisdiction||'').toLowerCase().indexOf(jurisFilter) === -1) return false;
+    if (textFilter) {
+      var hay = ((p.projectName||'') + ' ' + (p.ordinanceId||'') + ' ' + (p.petitionerApplicant||'') + ' ' + (p.aliases||'')).toLowerCase();
+      if (hay.indexOf(textFilter) === -1) return false;
+    }
+    return true;
+  });
+
+  if (statusEl) statusEl.textContent = rows.length + ' project' + (rows.length === 1 ? '' : 's') + (tpProjects.length === rows.length ? '' : ' (of ' + tpProjects.length + ')');
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="11" style="padding:24px;text-align:center;color:var(--muted,#888);">No projects match the current filters.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = rows.map(function(p) {
+    var pidAttr = escAttr(p.projectId || '');
+    var agenda  = p.latestAgendaUrl    ? '<a href="' + esc(p.latestAgendaUrl)    + '" target="_blank" rel="noopener">Agenda</a>'  : '<span style="color:var(--muted,#888);">—</span>';
+    var yt      = p.latestYtSummaryUrl ? '<a href="' + esc(p.latestYtSummaryUrl) + '" target="_blank" rel="noopener">YouTube</a>' : '<span style="color:var(--muted,#888);">—</span>';
+    var minutes = p.latestMinutesUrl   ? '<a href="' + esc(p.latestMinutesUrl)   + '" target="_blank" rel="noopener">Minutes</a>' : '<span style="color:var(--muted,#888);">—</span>';
+    var when    = p.latestMeetingDate ? '<div style="font-size:10px;color:var(--muted,#888);">' + esc(p.latestMeetingDate) + '</div>' : '';
+    var nature  = p.lastNature || '';
+    var natureBadge = nature
+      ? '<span class="tracked-nature-badge nature-' + esc(nature.replace(' ','-')) + '">' + esc(nature) + '</span>'
+      : '<span style="color:var(--muted,#888);">—</span>';
+    var status = p.status || 'active';
+    var statusColor = status === 'closed' ? '#888' : (status === 'paused' ? '#c4a64a' : '#4ac49a');
+
+    return '<tr data-project-id="' + pidAttr + '" style="border-bottom:1px solid var(--border,#2a2a2a);">' +
+      '<td style="padding:8px 10px;vertical-align:top;">' +
+        '<div style="font-weight:600;">' + esc(p.projectName || '(untitled)') + '</div>' +
+        (p.ordinanceId ? '<div style="font-size:10px;color:var(--muted,#888);">' + esc(p.ordinanceId) + '</div>' : '') +
+      '</td>' +
+      '<td style="padding:8px 10px;vertical-align:top;">' + esc(p.jurisdiction || '<i>all</i>') + '</td>' +
+      '<td style="padding:8px 10px;vertical-align:top;">' +
+        '<input type="text" value="' + escAttr(p.petitionerApplicant || '') + '" data-field="petitioner_applicant" onblur="tpInlineSave(this)" style="width:140px;background:transparent;border:1px solid transparent;color:inherit;padding:2px 4px;font-size:12px;border-radius:3px;" onfocus="this.style.borderColor=\'var(--border,#444)\'">' +
+      '</td>' +
+      '<td style="padding:8px 10px;vertical-align:top;color:var(--muted,#888);" title="Document tagging ships in P35">—</td>' +
+      '<td style="padding:8px 10px;vertical-align:top;color:' + statusColor + ';">' + esc(status) + '</td>' +
+      '<td style="padding:8px 10px;vertical-align:top;">' + natureBadge + when + '</td>' +
+      '<td style="padding:8px 10px;vertical-align:top;">' + agenda + '</td>' +
+      '<td style="padding:8px 10px;vertical-align:top;">' + yt + '</td>' +
+      '<td style="padding:8px 10px;vertical-align:top;">' + minutes + '</td>' +
+      '<td style="padding:8px 10px;vertical-align:top;">' +
+        '<input type="text" value="' + escAttr(p.mapUrl || '') + '" placeholder="ArcGIS / parcel URL" data-field="map_url" onblur="tpInlineSave(this)" style="width:160px;background:transparent;border:1px solid transparent;color:inherit;padding:2px 4px;font-size:12px;border-radius:3px;" onfocus="this.style.borderColor=\'var(--border,#444)\'">' +
+        (p.mapUrl ? ' <a href="' + esc(p.mapUrl) + '" target="_blank" rel="noopener" title="Open map">↗</a>' : '') +
+      '</td>' +
+      '<td style="padding:8px 10px;vertical-align:top;text-align:right;">' +
+        (isOperator() && status !== 'closed' ? '<button class="refresh-btn" onclick="tpCloseProject(\'' + pidAttr + '\', \'' + escAttr((p.projectName||'').replace(/\x27/g,"\\\x27")) + '\')" style="font-size:10px;padding:2px 6px;" title="Close tracking (operator only)">✕</button>' : '') +
+      '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function tpInlineSave(inputEl) {
+  if (!inputEl) return;
+  var tr = inputEl.closest('tr');
+  if (!tr) return;
+  var pid = tr.getAttribute('data-project-id');
+  var field = inputEl.getAttribute('data-field');
+  if (!pid || !field) return;
+  // Find the current cached value so we can skip no-op saves
+  var current = tpProjects.find(function(p) { return p.projectId === pid; });
+  if (!current) return;
+  var oldVal = (field === 'petitioner_applicant') ? (current.petitionerApplicant || '')
+             : (field === 'map_url')              ? (current.mapUrl || '')
+             : '';
+  var newVal = inputEl.value || '';
+  if (newVal === oldVal) {
+    inputEl.style.borderColor = 'transparent';
+    return;
+  }
+  var webappUrl = getWebAppUrl();
+  if (!webappUrl) return;
+  inputEl.style.borderColor = '#c4a64a';
+  var q = '&action=update_tracked_project'
+        + '&project_id=' + encodeURIComponent(pid)
+        + '&' + field + '=' + encodeURIComponent(newVal);
+  fetch(webappUrl + q)
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (res && res.success) {
+        inputEl.style.borderColor = '#4ac49a';
+        if (field === 'petitioner_applicant') current.petitionerApplicant = newVal;
+        if (field === 'map_url')              current.mapUrl = newVal;
+        setTimeout(function() { inputEl.style.borderColor = 'transparent'; }, 800);
+      } else {
+        inputEl.style.borderColor = 'rgba(220,80,80,0.6)';
+        console.error('tpInlineSave failed:', res);
+      }
+    })
+    .catch(function(err) {
+      inputEl.style.borderColor = 'rgba(220,80,80,0.6)';
+      console.error('tpInlineSave error:', err);
+    });
+}
+
+function tpToggleAddForm() {
+  var f = document.getElementById('tp-add-form');
+  if (!f) return;
+  f.style.display = (f.style.display === 'none' || !f.style.display) ? 'block' : 'none';
+  if (f.style.display === 'block') {
+    var n = document.getElementById('tp-new-name');
+    if (n) n.focus();
+  }
+}
+
+function tpSubmitNew() {
+  var name = (document.getElementById('tp-new-name')||{}).value || '';
+  var ord  = (document.getElementById('tp-new-ord')||{}).value  || '';
+  var jur  = (document.getElementById('tp-new-juris')||{}).value || '';
+  var pet  = (document.getElementById('tp-new-petitioner')||{}).value || '';
+  var ali  = (document.getElementById('tp-new-aliases')||{}).value || '';
+  var map  = (document.getElementById('tp-new-mapurl')||{}).value || '';
+  var msgEl = document.getElementById('tp-add-msg');
+  name = name.trim();
+  if (!name) {
+    if (msgEl) { msgEl.textContent = 'Project name required.'; msgEl.style.color = '#d65a5a'; }
+    return;
+  }
+  if (msgEl) { msgEl.textContent = 'Creating…'; msgEl.style.color = 'var(--muted,#888)'; }
+  var webappUrl = getWebAppUrl();
+  if (!webappUrl) return;
+  var q = '&action=create_tracked_project'
+        + '&project_name=' + encodeURIComponent(name)
+        + '&ordinance_id=' + encodeURIComponent(ord.trim())
+        + '&jurisdiction=' + encodeURIComponent(jur.trim())
+        + '&aliases='     + encodeURIComponent(ali.trim())
+        + '&petitioner_applicant=' + encodeURIComponent(pet.trim())
+        + '&map_url='     + encodeURIComponent(map.trim());
+  fetch(webappUrl + q)
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (res && res.success) {
+        if (msgEl) { msgEl.textContent = 'Created.'; msgEl.style.color = '#4ac49a'; }
+        ['tp-new-name','tp-new-ord','tp-new-juris','tp-new-petitioner','tp-new-aliases','tp-new-mapurl'].forEach(function(id) {
+          var el = document.getElementById(id);
+          if (el) el.value = '';
+        });
+        tpLoad(true);
+        setTimeout(function() { tpToggleAddForm(); if (msgEl) msgEl.textContent = ''; }, 600);
+      } else {
+        if (msgEl) { msgEl.textContent = 'Failed: ' + (res && res.error ? res.error : 'unknown'); msgEl.style.color = '#d65a5a'; }
+      }
+    })
+    .catch(function(err) {
+      if (msgEl) { msgEl.textContent = 'Network error.'; msgEl.style.color = '#d65a5a'; }
+      console.error('tpSubmitNew error:', err);
+    });
+}
+
+function tpCloseProject(pid, name) {
+  if (!confirm('Close tracking for "' + name + '"? This cannot be undone.')) return;
+  // The server-side create_tracked_project sent the petitioner_applicant; close just
+  // calls close_tracked_project which requires no new params.
+  closeProjectConfirm(pid, name);
+  // Refresh after a beat so server-side write is observable.
+  setTimeout(function() { tpLoad(true); }, 800);
+}
+
+registerViewInit('tracked', function() { tpLoad(false); });
+
+window.tpLoad             = tpLoad;
+window.tpRenderTable      = tpRenderTable;
+window.tpInlineSave       = tpInlineSave;
+window.tpToggleAddForm    = tpToggleAddForm;
+window.tpSubmitNew        = tpSubmitNew;
+window.tpCloseProject     = tpCloseProject;
 window.verifyMember = verifyMember;
 window.unverifyMember = unverifyMember;
 window.saveMemberNotes = saveMemberNotes;
