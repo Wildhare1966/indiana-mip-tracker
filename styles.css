@@ -1237,6 +1237,19 @@
     font-size: 11px;
     color: var(--text-dim);
   }
+  /* P38 Option B: top-N collapse toggle — visually distinct from data chips. */
+  .ph-tracked-toggle {
+    background: transparent;
+    border: 1px dashed var(--border);
+    color: var(--text-dim);
+    cursor: pointer;
+    font: inherit;
+  }
+  .ph-tracked-toggle:hover { color: var(--text); border-color: var(--text-dim); }
+  /* P38 C.3: scope inline YT title to weekly-calendar columns — drop the
+     240px cap from the global .yt-title-inline rule so it shrinks to fit
+     the narrow .ph-meeting-info parent. */
+  .ph-meeting-info .yt-title-inline { max-width: 100%; }
   .ph-hearings-list {
     display: flex;
     flex-direction: column;
