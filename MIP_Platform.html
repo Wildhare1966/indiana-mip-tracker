@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p37r2 -->
+<!-- MIP build p38r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com; img-src 'self' data:; frame-src 'none';">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p37r2">
+<link rel="stylesheet" href="styles.css?v=p38r1">
 </head>
 <body>
 
@@ -4677,6 +4677,11 @@ let phReviewedKeys    = new Set(JSON.parse(localStorage.getItem('mip_ph_reviewed
 let phReviewedVisible = false;
 let phFilterMuniVal   = '';
 let phMigratedLegacy  = false;
+// P38 Option B: chip de-clutter. Default to collapsed view (top N most recent)
+// once the active-project count grows past the threshold. Toggle expands to
+// full list. Sort key: latestMeetingDate desc, fallback createdDate desc.
+const PH_CHIP_COLLAPSE_THRESHOLD = 8;
+let phChipsExpanded   = false;
 
 function phSaveReviewed() {
   localStorage.setItem('mip_ph_reviewed', JSON.stringify([...phReviewedKeys]));
@@ -4799,7 +4804,21 @@ function phRenderTracked() {
     container.innerHTML = '<div class="ph-tracked-empty">No projects tracked yet. Use the form above to add one.</div>';
     return;
   }
-  container.innerHTML = rows.map(function(p) {
+  // P38 Option B: sort by latestMeetingDate desc, fallback createdDate desc, so
+  // recently-active projects float to the top. tpProjects stores both as
+  // toLocaleDateString() strings — Date.parse handles them; missing values
+  // sort last.
+  var keyOf = function(p) {
+    var d = Date.parse(p.latestMeetingDate || '') || Date.parse(p.createdDate || '') || 0;
+    return d;
+  };
+  rows = rows.slice().sort(function(a, b) { return keyOf(b) - keyOf(a); });
+
+  var total = rows.length;
+  var overflow = total > PH_CHIP_COLLAPSE_THRESHOLD;
+  var shown = (overflow && !phChipsExpanded) ? rows.slice(0, PH_CHIP_COLLAPSE_THRESHOLD) : rows;
+
+  var chipsHtml = shown.map(function(p) {
     var aliasStr = (p.aliases || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean).join(', ');
     var aliasHtml = aliasStr ? ' <span style="font-size:9px;color:var(--text-dim);">(' + esc(aliasStr) + ')</span>' : '';
     var ord = p.ordinanceId || '';
@@ -4808,6 +4827,20 @@ function phRenderTracked() {
       + '<span>' + esc(p.projectName || '') + aliasHtml + '</span>'
       + '</div>';
   }).join('');
+
+  if (overflow) {
+    var label = phChipsExpanded
+      ? 'Show fewer ▴'
+      : 'Show all (' + total + ') ▾';
+    chipsHtml += '<button type="button" class="ph-tracked-chip ph-tracked-toggle" onclick="phToggleChips()" title="Toggle full list">'
+      + esc(label) + '</button>';
+  }
+  container.innerHTML = chipsHtml;
+}
+
+function phToggleChips() {
+  phChipsExpanded = !phChipsExpanded;
+  phRenderTracked();
 }
 
 // One-shot migration of legacy localStorage entries to the backend.
@@ -4996,10 +5029,16 @@ function phRenderWeeklyHearings() {
           ? '<a href="' + escUrl(e.minutes_url) + '" target="_blank" class="ph-meeting-link mn" title="Minutes" data-doc-link="minutes" data-scraped-id="' + escAttr(e.meeting_id || '') + '">Minutes</a>'
           : '<span class="ph-meeting-link mn disabled" title="No minutes">Minutes</span>';
 
+        // P38 C.3: mirror per-muni inline YT title — visible truncated, click
+        // to expand. Reuses .yt-title-inline styling + toggleYtTitle handler.
+        var ytTitleHtml = e.video_title
+          ? '<div class="yt-title-inline" onclick="toggleYtTitle(this)" title="Click to expand / collapse">' + esc(e.video_title) + '</div>'
+          : '';
         return '<div class="ph-meeting-item">'
           + '<div class="ph-meeting-info">'
           + '<div class="ph-meeting-muni">' + esc(shortName) + '</div>'
           + '<div class="ph-meeting-type">' + esc(bodyLabel) + '</div>'
+          + ytTitleHtml
           + '</div>'
           + '<div class="ph-meeting-links">' + agLink + sumLink + mnLink + '</div>'
           + '</div>';
@@ -5038,6 +5077,7 @@ registerViewInit('publichearings', initPublicHearingsView);
 
 window.phAddProject = phAddProject;
 window.phAddAlias = phAddAlias;
+window.phToggleChips = phToggleChips;
 
 // ═══════════════════════════════════════════════════════
 // SCHEDULE & REQUIREMENTS MODULE
