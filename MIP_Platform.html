@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p32r1 -->
+<!-- MIP build p33r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com; img-src 'self' data:; frame-src 'none';">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p32r1">
+<link rel="stylesheet" href="styles.css?v=p33r1">
 </head>
 <body>
 
@@ -3822,32 +3822,37 @@ function renderTrackedTimeline(projectId) {
   }).join('');
 }
 
+// P33: switched from google.script.run (only works inside HtmlService) to
+// fetch() against the webapp ?action= routes. The previous calls silently
+// no-op'd on GitHub Pages — that's why the +Track Project button felt dead.
 function loadTrackedProjects(muniId, jurisdiction) {
-  if (typeof google === 'undefined' || !google.script) return;
-  google.script.run
-    .withSuccessHandler(function(projects) {
-      trackedProjectsCache[muniId] = projects || [];
+  var webappUrl = getWebAppUrl();
+  if (!webappUrl) return;
+  fetch(webappUrl + '&action=list_tracked_projects&jurisdiction=' + encodeURIComponent(jurisdiction || ''))
+    .then(function(r) { return r.json(); })
+    .then(function(projects) {
+      trackedProjectsCache[muniId] = Array.isArray(projects) ? projects : [];
       if (currentMuni && currentMuni.id === muniId) renderMuniPanel();
     })
-    .withFailureHandler(function(err) {
+    .catch(function(err) {
       trackedProjectsCache[muniId] = [];
       console.error('loadTrackedProjects error:', err);
-    })
-    .getProjectsForJurisdictionAPI(jurisdiction);
+    });
 }
 
 function loadProjectTimeline(projectId) {
-  if (typeof google === 'undefined' || !google.script) return;
-  google.script.run
-    .withSuccessHandler(function(refs) {
-      trackedTimelineCache[projectId] = refs || [];
+  var webappUrl = getWebAppUrl();
+  if (!webappUrl) return;
+  fetch(webappUrl + '&action=project_timeline&project_id=' + encodeURIComponent(projectId))
+    .then(function(r) { return r.json(); })
+    .then(function(refs) {
+      trackedTimelineCache[projectId] = Array.isArray(refs) ? refs : [];
       if (currentMuni) renderMuniPanel();
     })
-    .withFailureHandler(function(err) {
+    .catch(function(err) {
       trackedTimelineCache[projectId] = [];
       console.error('loadProjectTimeline error:', err);
-    })
-    .getProjectTimelineAPI(projectId);
+    });
 }
 
 function expandTrackedSection(muniId) {
@@ -3895,18 +3900,24 @@ function submitNewProject(muniId, jurisdiction) {
   });
   renderMuniPanel();
 
-  if (typeof google === 'undefined' || !google.script) return;
-  google.script.run
-    .withSuccessHandler(function(result) {
+  var webappUrl = getWebAppUrl();
+  if (!webappUrl) return;
+  var q = '&action=create_tracked_project'
+        + '&ordinance_id=' + encodeURIComponent(ord)
+        + '&project_name=' + encodeURIComponent(name)
+        + '&aliases='     + encodeURIComponent(alias)
+        + '&jurisdiction='+ encodeURIComponent(jurisdiction || '');
+  fetch(webappUrl + q)
+    .then(function(r) { return r.json(); })
+    .then(function(result) {
       delete trackedProjectsCache[muniId]; // force reload
       if (currentMuni && currentMuni.id === muniId) loadTrackedProjects(muniId, jurisdiction);
     })
-    .withFailureHandler(function(err) {
+    .catch(function(err) {
       console.error('createTrackedProject error:', err);
       delete trackedProjectsCache[muniId];
       if (currentMuni && currentMuni.id === muniId) renderMuniPanel();
-    })
-    .createTrackedProjectAPI(ord, name, alias, jurisdiction);
+    });
 }
 
 function toggleProjectTimeline(projectId) {
@@ -3921,15 +3932,17 @@ function toggleProjectTimeline(projectId) {
 
 function closeProjectConfirm(projectId, projectName) {
   if (!confirm('Close tracking for "' + projectName + '"? This cannot be undone.')) return;
-  if (typeof google === 'undefined' || !google.script) return;
-  google.script.run
-    .withSuccessHandler(function() {
+  var webappUrl = getWebAppUrl();
+  if (!webappUrl) return;
+  fetch(webappUrl + '&action=close_tracked_project&project_id=' + encodeURIComponent(projectId))
+    .then(function(r) { return r.json(); })
+    .then(function() {
       if (currentMuni) {
         delete trackedProjectsCache[currentMuni.id];
         loadTrackedProjects(currentMuni.id, currentMuni.name);
       }
     })
-    .closeTrackedProjectAPI(projectId);
+    .catch(function(err) { console.error('closeTrackedProject error:', err); });
 }
 
 window.renderTrackedProjects    = renderTrackedProjects;
