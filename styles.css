@@ -95,6 +95,9 @@
   /* ── Public Hearings ── */
   [data-theme="light"] .hearings-th { background: #e8ecf0; color: #14304f; border-bottom: 2px solid rgba(0,0,0,0.1); }
   [data-theme="light"] .hearings-td { color: #111820; border-bottom-color: rgba(0,0,0,0.06); }
+  /* P57 W3: dark-mode .hearing-row uses a white-tinted alpha border — invisible
+     on light background. Override to dark-tinted alpha for parity with .hearings-td. */
+  [data-theme="light"] .hearing-row { border-bottom-color: rgba(0,0,0,0.08); }
   [data-theme="light"] .hearings-table-row:hover { background: rgba(20,48,79,0.04); }
   [data-theme="light"] .hearing-link.yt { background: rgba(200,30,30,0.1); color: #a02020; border-color: rgba(200,30,30,0.25); }
   [data-theme="light"] .hearing-link.doc { background: rgba(20,80,160,0.1); color: #14508a; border-color: rgba(20,80,160,0.25); }
@@ -639,7 +642,10 @@
     align-items: flex-start;
     gap: 12px;
     padding: 7px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.04);
+    /* P57 W3: bumped from rgba(255,255,255,0.04) — was barely visible against the
+       dark panel background. 0.18 reads as a clear hairline at normal viewing
+       distance without competing with content. Light-mode override below. */
+    border-bottom: 1px solid rgba(255,255,255,0.18);
   }
   .hearing-row:last-child { border-bottom: none; }
   .hearing-date {
@@ -701,7 +707,8 @@
   }
   .hearings-td {
     padding: 5px 10px;
-    border-bottom: 1px solid rgba(255,255,255,0.04);
+    /* P57 W3: see .hearing-row note above. Same alpha bump for the table view. */
+    border-bottom: 1px solid rgba(255,255,255,0.18);
     vertical-align: middle;
   }
   .hearings-td-date {

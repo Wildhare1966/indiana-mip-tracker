@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p43r2 -->
+<!-- MIP build p57r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -563,6 +563,18 @@ function isOperator() {
 const MUNI_CACHE_KEY = 'mip_muni_data';
 const MUNI_CACHE_TS_KEY = 'mip_muni_data_ts';
 const MUNI_CACHE_TTL_HOURS = 4;
+
+// P57 W2: SCRAPED_DOCS stale-while-revalidate cache. Pre-P57 every page load
+// did a fresh `?action=scraped_documents` round-trip (~3000 rows, 5-10s on
+// slow links) before agendas/minutes could render — that's the lag users
+// reported when "selecting a jurisdiction." The MUNI bootstrap already had
+// the SWR pattern (P25); this extends it to the scraped-docs payload. Same
+// version-gating endpoint, so stale-cache invalidation rides on the same
+// `?action=data_version` signal already in use.
+const SCRAPED_CACHE_KEY = 'mip_scraped_docs';
+const SCRAPED_CACHE_TS_KEY = 'mip_scraped_docs_ts';
+const SCRAPED_CACHE_VER_KEY = 'mip_scraped_docs_ver';
+const SCRAPED_CACHE_TTL_HOURS = 4;
 
 // ── P21-M5: GLOBAL ERROR HANDLER ───────────────────────────────────────────────
 // Surfaces uncaught exceptions to the user as a dismissible toast so the app
@@ -1442,15 +1454,67 @@ let SCRAPED_DOCS = []; // populated from ?action=scraped_documents if available
 let MEETING_DATES = {}; // populated from ?action=meeting_dates if available
 let MUNI_CADENCE = {}; // populated from ?action=bootstrap; {muniId: {Council|Plan Commission: {rules, exceptions_*}}}
 
+// P57 W2: SWR. Synchronous read of localStorage so SCRAPED_DOCS is populated
+// before the first renderHearingsContent fires. Returns true if cache hydrated.
+function loadScrapedDocsFromCache() {
+  try {
+    const cached = localStorage.getItem(SCRAPED_CACHE_KEY);
+    if (!cached) return false;
+    const data = JSON.parse(cached);
+    if (Array.isArray(data) && data.length) {
+      SCRAPED_DOCS = data;
+      console.log('[MIP] Scraped documents: ' + data.length + ' items (from cache)');
+      return true;
+    }
+  } catch(e) { /* corrupted cache — fall through to fetch */ }
+  return false;
+}
+
 async function fetchScrapedDocuments() {
   const url = getWebAppUrl();
   if (!url) return;
+
+  // Synchronous cache hydrate — render path can rely on SCRAPED_DOCS being
+  // populated before the first paint when a cache exists. Without this, the
+  // first per-juris view shows zero agendas/minutes until the network round-
+  // trip completes (the 5-10s lag users reported).
+  const hadCache = loadScrapedDocsFromCache();
+  const cachedTs = localStorage.getItem(SCRAPED_CACHE_TS_KEY);
+  const cachedVer = localStorage.getItem(SCRAPED_CACHE_VER_KEY);
+
+  // Version-gate the refresh. Same `?action=data_version` endpoint the muni
+  // cache already uses (P21-M6) — one round-trip serves both. If the server
+  // version matches the cached version AND we're within TTL, skip the fetch
+  // entirely.
+  let shouldRefetch = !hadCache;
+  if (hadCache && cachedTs) {
+    const ageHours = (Date.now() - new Date(cachedTs).getTime()) / (1000 * 60 * 60);
+    const serverVer = await checkDataVersion();
+    const versionMatches = serverVer && cachedVer && serverVer === cachedVer;
+    const withinTTL = ageHours < SCRAPED_CACHE_TTL_HOURS;
+    shouldRefetch = !(versionMatches || (!serverVer && withinTTL));
+  }
+  if (!shouldRefetch) return;
+
   try {
     const resp = await fetch(url + '&action=scraped_documents', { signal: AbortSignal.timeout(45000) });
     const data = await resp.json();
     if (Array.isArray(data) && data.length) {
       SCRAPED_DOCS = data;
       console.log('[MIP] Scraped documents: ' + data.length + ' items loaded');
+      try {
+        localStorage.setItem(SCRAPED_CACHE_KEY, JSON.stringify(data));
+        localStorage.setItem(SCRAPED_CACHE_TS_KEY, new Date().toISOString());
+        // Reuse the muni data_version as the cache key. Both payloads change
+        // together when the sheet updates, so a single version stamp is
+        // sufficient for invalidation.
+        const ver = localStorage.getItem(MUNI_CACHE_VER_KEY);
+        if (ver) localStorage.setItem(SCRAPED_CACHE_VER_KEY, ver);
+      } catch(e) {
+        // localStorage quota (~5MB) can be hit when SCRAPED_DOCS grows large.
+        // Silent fallback — in-memory copy still works; just no cache benefit.
+        console.warn('[MIP] Scraped docs cache write failed:', e.message);
+      }
       rerenderHearingsIfActive();
     }
   } catch(e) {
