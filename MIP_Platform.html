@@ -633,6 +633,23 @@ function escAttr(s) {
   return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '');
 }
 
+// P52 B1: some upstreams serve documents with `Content-Disposition: attachment`,
+// which forces the browser to download the file instead of rendering inline,
+// even with target="_blank". Confirmed offenders:
+//   - CivicClerk PDF stream (Fishers / Westfield / Carmel)
+//     {tenant}.api.civicclerk.com/v1/Meetings/GetMeetingFileStream(...) → PDF + attachment header
+//   - Greenfield Joomla download endpoint
+//     greenfield.in.gov/*-documents?download=N%3A... → DOCX + attachment header
+// Wrapping with Google Docs Viewer fetches the file server-side and renders
+// inline (works for both PDF and DOCX). Pass-through for all other URLs.
+function inlineViewerUrl(url) {
+  if (!url) return url;
+  var s = String(url);
+  var FORCE_DOWNLOAD_RE = /(\.civicclerk\.com\/v1\/Meetings\/GetMeetingFileStream)|(^https?:\/\/(www\.)?greenfield\.in\.gov\/[^?#]*\?[^#]*\bdownload=)/i;
+  if (!FORCE_DOWNLOAD_RE.test(s)) return s;
+  return 'https://docs.google.com/viewer?url=' + encodeURIComponent(s) + '&embedded=false';
+}
+
 // ── GEMINI CLIENT (P13: all calls proxied through Apps Script backend) ────────────────────────────
 // Project key lives ONLY in Apps Script Script Properties. The Settings "Gemini API Key" field
 // is now OPTIONAL — if set, it's forwarded to the proxy as a per-request override.
@@ -857,7 +874,7 @@ async function updateMemberVoteHistory(memberId, memberName, muniName, muniId, b
       if (!result) { if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Update Vote History'; } return; }
       memberVoteCache[memberId] = { text: result, sources: docs, timestamp: new Date().toLocaleDateString() };
       if (containerEl) {
-        const sourceLinks = docs.map(d => `<a href="${escUrl(d.url)}" target="_blank" data-doc-link="agenda" data-scraped-id="${escAttr(d.id || '')}">${esc(d.date)}</a>`).join(' · ');
+        const sourceLinks = docs.map(d => `<a href="${escUrl(inlineViewerUrl(d.url))}" target="_blank" data-doc-link="agenda" data-scraped-id="${escAttr(d.id || '')}">${esc(d.date)}</a>`).join(' · ');
         containerEl.innerHTML = `
           <div class="vote-history-title">Vote / Position History — ${esc(memberName)}</div>
           <div class="vote-history-item" style="white-space:pre-wrap;">${esc(result)}</div>
@@ -2923,7 +2940,7 @@ function renderBodySection(bodyLabel, dates, muniId) {
         const cls = status === 'approved' ? ' ag-approved' : status === 'rejected' ? ' ag-rejected' : '';
         const curType = sd.meeting_type_override || sd.meeting_type || '';
         let h = `<div class="ag-item${cls}" id="${esc(agId)}">`;
-        h += sdUrl ? `<a href="${escUrl(sdUrl)}" target="_blank" class="hearing-link ag" data-doc-link="agenda" data-scraped-id="${escAttr(sd.id || '')}">↓ Agenda</a>` : `<span class="hearing-link ag" style="cursor:default;">↓ Agenda</span>`;
+        h += sdUrl ? `<a href="${escUrl(inlineViewerUrl(sdUrl))}" target="_blank" class="hearing-link ag" data-doc-link="agenda" data-scraped-id="${escAttr(sd.id || '')}">↓ Agenda</a>` : `<span class="hearing-link ag" style="cursor:default;">↓ Agenda</span>`;
         if (!status) {
           h += `<button class="ag-correct-btn yes" id="${esc(btnYId)}" onclick="agApprove('${escAttr(sd.id)}','${escAttr(sd.meeting_type||'')}','${escAttr(muniId)}','${escAttr(btnYId)}','${escAttr(btnNId)}','${escAttr(agId)}')">✓ Yes</button>`;
           h += `<button class="ag-correct-btn no" id="${esc(btnNId)}" onclick="agReject('${escAttr(sd.id)}','${escAttr(sd.meeting_type||'')}','${escAttr(muniId)}','${escAttr(btnYId)}','${escAttr(btnNId)}','${escAttr(agId)}')">✗ No</button>`;
@@ -2942,7 +2959,7 @@ function renderBodySection(bodyLabel, dates, muniId) {
     // Minutes cell (matched per-entry by buildUnifiedDateSet — exact date or fuzzy ±1d)
     let mnCell;
     if (entry.minutes_url) {
-      mnCell = `<a href="${escUrl(entry.minutes_url)}" target="_blank" class="hearing-link doc" data-doc-link="minutes" data-scraped-id="${escAttr(entry.meeting_id || '')}">↓ Minutes</a>`;
+      mnCell = `<a href="${escUrl(inlineViewerUrl(entry.minutes_url))}" target="_blank" class="hearing-link doc" data-doc-link="minutes" data-scraped-id="${escAttr(entry.meeting_id || '')}">↓ Minutes</a>`;
       if (entry.meeting_id) {
         mnCell += ` <button class="ag-correct-btn no" title="Remove this minutes URL" onclick="showRemoveUrlPopover(this,'minutes_url','Meetings','${escAttr(entry.meeting_id)}','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(entry.meeting_type || '')}')">✕</button>`;
       }
@@ -4096,9 +4113,9 @@ function tpRenderTable() {
 
   tbody.innerHTML = rows.map(function(p) {
     var pidAttr = escAttr(p.projectId || '');
-    var agenda  = p.latestAgendaUrl    ? '<a href="' + esc(p.latestAgendaUrl)    + '" target="_blank" rel="noopener" data-doc-link="agenda">Agenda</a>'   : '<span style="color:var(--muted,#888);">—</span>';
+    var agenda  = p.latestAgendaUrl    ? '<a href="' + esc(inlineViewerUrl(p.latestAgendaUrl))    + '" target="_blank" rel="noopener" data-doc-link="agenda">Agenda</a>'   : '<span style="color:var(--muted,#888);">—</span>';
     var yt      = p.latestYtSummaryUrl ? '<a href="' + esc(p.latestYtSummaryUrl) + '" target="_blank" rel="noopener" data-doc-link="youtube">YouTube</a>' : '<span style="color:var(--muted,#888);">—</span>';
-    var minutes = p.latestMinutesUrl   ? '<a href="' + esc(p.latestMinutesUrl)   + '" target="_blank" rel="noopener" data-doc-link="minutes">Minutes</a>' : '<span style="color:var(--muted,#888);">—</span>';
+    var minutes = p.latestMinutesUrl   ? '<a href="' + esc(inlineViewerUrl(p.latestMinutesUrl))   + '" target="_blank" rel="noopener" data-doc-link="minutes">Minutes</a>' : '<span style="color:var(--muted,#888);">—</span>';
     var when    = p.latestMeetingDate ? '<div style="font-size:10px;color:var(--muted,#888);">' + esc(p.latestMeetingDate) + '</div>' : '';
     var nature  = p.lastNature || '';
     var natureBadge = nature
@@ -5041,13 +5058,13 @@ function phRenderWeeklyHearings() {
           if (u) { agUrl = u; agScrapedId = sd.id || ''; break; }
         }
         var agLink = agUrl
-          ? '<a href="' + escUrl(agUrl) + '" target="_blank" class="ph-meeting-link ag" title="Agenda" data-doc-link="agenda" data-scraped-id="' + escAttr(agScrapedId) + '">Agenda</a>'
+          ? '<a href="' + escUrl(inlineViewerUrl(agUrl)) + '" target="_blank" class="ph-meeting-link ag" title="Agenda" data-doc-link="agenda" data-scraped-id="' + escAttr(agScrapedId) + '">Agenda</a>'
           : '<span class="ph-meeting-link ag disabled" title="No agenda">Agenda</span>';
         var sumLink = e.summary_doc
           ? '<a href="' + escUrl(e.summary_doc) + '" target="_blank" class="ph-meeting-link yt" title="YouTube summary" data-doc-link="summary" data-scraped-id="' + escAttr(e.meeting_id || '') + '">Summary</a>'
           : '<span class="ph-meeting-link yt disabled" title="No summary">Summary</span>';
         var mnLink = e.minutes_url
-          ? '<a href="' + escUrl(e.minutes_url) + '" target="_blank" class="ph-meeting-link mn" title="Minutes" data-doc-link="minutes" data-scraped-id="' + escAttr(e.meeting_id || '') + '">Minutes</a>'
+          ? '<a href="' + escUrl(inlineViewerUrl(e.minutes_url)) + '" target="_blank" class="ph-meeting-link mn" title="Minutes" data-doc-link="minutes" data-scraped-id="' + escAttr(e.meeting_id || '') + '">Minutes</a>'
           : '<span class="ph-meeting-link mn disabled" title="No minutes">Minutes</span>';
 
         // P38 C.3: mirror per-muni inline YT title — visible truncated, click
