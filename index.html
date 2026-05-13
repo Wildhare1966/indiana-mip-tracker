@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p57r1 -->
+<!-- MIP build p57r2 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -2409,6 +2409,64 @@ async function agReject(docId, meetingType, jurisdiction, btnYesId, btnNoId, row
   }
 }
 
+// P57 W5c — Minutes review-flag handlers. POST to `flag_minutes_review` and
+// optimistically update the DOM. localStorage mirror keeps the flag state
+// stable across re-renders before the SCRAPED_DOCS cache refresh rolls in.
+window._minFlagLocal = window._minFlagLocal || {};
+
+async function _mnPostFlag(docId, flag) {
+  const url = getWebAppUrl() + '&action=flag_minutes_review'
+    + '&id=' + encodeURIComponent(docId)
+    + '&flag=' + encodeURIComponent(flag);
+  const resp = await fetch(url);
+  return resp.ok ? resp.json() : { ok: false, error: 'HTTP ' + resp.status };
+}
+
+async function mnFlagNo(docId, rowId) {
+  if (!docId) return;
+  // Optimistic: paint the flag state instantly so the click feels responsive.
+  window._minFlagLocal[docId] = 'flagged';
+  const row = document.getElementById(rowId);
+  if (row) row.classList.add('mn-flagged');
+  try {
+    await _mnPostFlag(docId, 'flagged');
+    // Re-render the active hearings view so the buttons swap to the "↺ Clear" path.
+    if (typeof rerenderHearingsIfActive === 'function') rerenderHearingsIfActive();
+  } catch(e) {
+    // Roll back optimistic UI on hard failure.
+    delete window._minFlagLocal[docId];
+    if (row) row.classList.remove('mn-flagged');
+    console.warn('[MIP] flag_minutes_review (No) failed:', e.message);
+  }
+}
+
+async function mnFlagYes(docId, rowId) {
+  // "Yes" is an explicit acknowledgement that the minutes are correct. Clears
+  // any pre-existing flag and stamps a local "ack" so the buttons don't
+  // re-render on the next pass. Minimal feedback — no banner / toast needed.
+  if (!docId) return;
+  window._minFlagLocal[docId] = '';
+  try {
+    await _mnPostFlag(docId, '');
+  } catch(e) {
+    console.warn('[MIP] flag_minutes_review (Yes) failed:', e.message);
+  }
+}
+
+async function mnClearFlag(docId, rowId) {
+  // Operator/visitor undo for an earlier "No" click. Same backend write as Yes.
+  if (!docId) return;
+  delete window._minFlagLocal[docId];
+  const row = document.getElementById(rowId);
+  if (row) row.classList.remove('mn-flagged');
+  try {
+    await _mnPostFlag(docId, '');
+    if (typeof rerenderHearingsIfActive === 'function') rerenderHearingsIfActive();
+  } catch(e) {
+    console.warn('[MIP] flag_minutes_review (clear) failed:', e.message);
+  }
+}
+
 // P18: Meeting-type options (mirrors classifyMeetingType() in Main_Final.js L64-102)
 const MEETING_TYPE_OPTIONS = [
   'Advisory Plan Commission', 'Area Plan Commission', 'Plan Commission',
@@ -2742,6 +2800,9 @@ function buildUnifiedDateSet(muniId) {
   // agenda still attach. P30: collect every scraped-minutes URL into a
   // candidates array so we can pick the highest-version revision later. The
   // Meetings-tab-sourced minutes_url (set in step 2) still wins if present.
+  // P57 W5c: track each candidate as {url, sd_id, review_flag} so the
+  // Yes/No flag buttons on the rendered row know which Scraped_Documents row
+  // to write back to.
   Object.keys(scrapedByDate).forEach(date => {
     const minDocs = scrapedByDate[date].filter(sd => (sd.document_type||'').toLowerCase().includes('minutes'));
     minDocs.forEach(sd => {
@@ -2750,15 +2811,16 @@ function buildUnifiedDateSet(muniId) {
       const k = key(date, bt);
       const url = sd.view_url || sd.pdf_url || '';
       if (!url) return;
+      const cand = { url, sd_id: sd.id || '', review_flag: sd.review_flag || '' };
       let bucket = dateMap[k];
       if (!bucket) {
         bucket = findFuzzyAgendaMatch(dateMap, date, bt, 1, null, bt === 'Meeting');
       }
       if (bucket) {
         if (!bucket._minutes_candidates) bucket._minutes_candidates = [];
-        bucket._minutes_candidates.push(url);
+        bucket._minutes_candidates.push(cand);
       } else {
-        dateMap[k] = { date, body_type: bt, status: '', youtube_url: '', summary_doc: '', minutes_url: '', agendas: [], meeting_type: effectiveType || bt, _minutes_candidates: [url] };
+        dateMap[k] = { date, body_type: bt, status: '', youtube_url: '', summary_doc: '', minutes_url: '', agendas: [], meeting_type: effectiveType || bt, _minutes_candidates: [cand] };
       }
     });
   });
@@ -2797,9 +2859,18 @@ function buildUnifiedDateSet(muniId) {
       e.agendas = pickLatestUrlVersionsFromList(e.agendas, sd => sd.view_url || sd.pdf_url || '');
     }
     if (!e.minutes_url && e._minutes_candidates && e._minutes_candidates.length) {
-      const wrapped = e._minutes_candidates.map(u => ({ url: u }));
-      const winners = pickLatestUrlVersionsFromList(wrapped, w => w.url);
-      e.minutes_url = winners.length ? winners[0].url : '';
+      // P57 W5c: _minutes_candidates now carries {url, sd_id, review_flag}.
+      // pickLatestUrlVersionsFromList receives them directly (extracts via getter).
+      const winners = pickLatestUrlVersionsFromList(e._minutes_candidates, w => w.url);
+      if (winners.length) {
+        e.minutes_url = winners[0].url;
+        // Stash sd_id + review_flag so the Yes/No buttons can fire `flag_minutes_review`
+        // for the right document.
+        e.minutes_sd_id = winners[0].sd_id || '';
+        e.minutes_review_flag = winners[0].review_flag || '';
+      } else {
+        e.minutes_url = '';
+      }
     }
     delete e._minutes_candidates;
   });
@@ -2976,9 +3047,9 @@ function renderBodySection(bodyLabel, dates, muniId) {
         // No summary yet — keep the existing Generate path (operator-facing).
         ytCell += `<button class="yt-resubmit-btn" id="${esc(btnId)}" onclick="ytResubmit('${escAttr(entry.youtube_url)}','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(btnId)}','${escAttr(summaryId)}')">↻ Generate Summary</button>`;
       }
-      if (entry.meeting_id) {
-        ytCell += `<button class="ag-correct-btn no" title="Remove this YouTube URL" onclick="showRemoveUrlPopover(this,'youtube_url','Meetings','${escAttr(entry.meeting_id)}','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(entry.meeting_type || '')}')">✕</button>`;
-      }
+      // P57 W5b: ✕ remove-YouTube-URL button removed per user request. The
+      // Flag-summary button covers visitor-reportable issues; URL removal is
+      // an operator action that lives in the Meetings sheet directly.
       // P31 R6: visible truncated YouTube title on its own line. Click to toggle full text.
       // Replaces the unreliable `title=` hover (didn't render in some browsers / on touch).
       if (entry.video_title) {
@@ -3009,7 +3080,8 @@ function renderBodySection(bodyLabel, dates, muniId) {
           h += `<button class="ag-correct-btn yes" id="${esc(btnYId)}" onclick="agApprove('${escAttr(sd.id)}','${escAttr(sd.meeting_type||'')}','${escAttr(muniId)}','${escAttr(btnYId)}','${escAttr(btnNId)}','${escAttr(agId)}')">✓ Yes</button>`;
           h += `<button class="ag-correct-btn no" id="${esc(btnNId)}" onclick="agReject('${escAttr(sd.id)}','${escAttr(sd.meeting_type||'')}','${escAttr(muniId)}','${escAttr(btnYId)}','${escAttr(btnNId)}','${escAttr(agId)}')">✗ No</button>`;
         }
-        h += `<button class="ag-correct-btn change-type" onclick="showChangeTypePopover(this,'${escAttr(sd.id)}','${escAttr(muniId)}','${escAttr(curType)}','${escAttr(agId)}')">⚙ Change Type</button>`;
+        // P57 W5a: Change Type button removed per user request — the agenda
+        // Yes/No already feeds classifier corrections via Override_Rules.
         h += `</div>`;
         return h;
       }).join('');
@@ -3023,10 +3095,31 @@ function renderBodySection(bodyLabel, dates, muniId) {
     // Minutes cell (matched per-entry by buildUnifiedDateSet — exact date or fuzzy ±1d)
     let mnCell;
     if (entry.minutes_url) {
-      mnCell = `<a href="${escUrl(inlineViewerUrl(entry.minutes_url))}" target="_blank" class="hearing-link doc" data-doc-link="minutes" data-scraped-id="${escAttr(entry.meeting_id || '')}">↓ Minutes</a>`;
-      if (entry.meeting_id) {
+      const mnSdId = entry.minutes_sd_id || '';
+      // P57 W5c: server-persisted flag wins; per-tab localStorage override
+      // covers in-flight clicks before the SCRAPED_DOCS cache rolls forward.
+      const localFlag = (window._minFlagLocal && window._minFlagLocal[mnSdId]) || '';
+      const flagState = localFlag || entry.minutes_review_flag || '';
+      const mnRowId = 'mn_' + muniId + '_' + rowIdx;
+      const flaggedCls = flagState === 'flagged' ? ' mn-flagged' : '';
+      mnCell = `<span id="${esc(mnRowId)}" class="mn-cell${flaggedCls}">`;
+      mnCell += `<a href="${escUrl(inlineViewerUrl(entry.minutes_url))}" target="_blank" class="hearing-link doc" data-doc-link="minutes" data-scraped-id="${escAttr(mnSdId || entry.meeting_id || '')}">↓ Minutes</a>`;
+      // Yes/No only if we have a Scraped_Documents id to flag against. Meetings-tab-
+      // sourced minutes (no sd_id) keep the operator ✕ remove path inline instead.
+      if (mnSdId) {
+        if (flagState === 'flagged') {
+          mnCell += ` <span class="mn-flag-badge" title="Flagged for manual review">⚑ flagged</span>`;
+          mnCell += ` <button class="ag-correct-btn yes" onclick="mnClearFlag('${escAttr(mnSdId)}','${escAttr(mnRowId)}')" title="Clear review flag">↺ Clear</button>`;
+        } else {
+          mnCell += ` <button class="ag-correct-btn yes" onclick="mnFlagYes('${escAttr(mnSdId)}','${escAttr(mnRowId)}')" title="Minutes are correct">✓ Yes</button>`;
+          mnCell += ` <button class="ag-correct-btn no" onclick="mnFlagNo('${escAttr(mnSdId)}','${escAttr(mnRowId)}')" title="Flag for manual review">✗ No</button>`;
+        }
+      } else if (entry.meeting_id) {
+        // Meetings-tab-sourced URL — no scraped row to flag. Keep operator-only
+        // remove affordance.
         mnCell += ` <button class="ag-correct-btn no" title="Remove this minutes URL" onclick="showRemoveUrlPopover(this,'minutes_url','Meetings','${escAttr(entry.meeting_id)}','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(entry.meeting_type || '')}')">✕</button>`;
       }
+      mnCell += `</span>`;
     } else if (isPast) {
       const addMnId = 'addmn_' + muniId + '_' + rowIdx;
       mnCell = `<button class="add-url-btn" id="${esc(addMnId)}" onclick="showAddUrlPopover(this,'minutes','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(entry.meeting_type || entry.body_type || '')}')">+ Add Minutes</button>`;
@@ -3894,15 +3987,22 @@ function renderTrackedProjects(m) {
   const expanded = trackedExpandedMuni[m.id]  || false;
   const showForm = trackedShowForm[m.id]       || false;
 
-  if (!expanded && projects.length === 0) {
-    // Collapsed with no data — show minimal bar and load in background
+  // P57 W4: Collapse stays sticky even when projects exist — pre-P57 the gate
+  // was `!expanded && projects.length === 0`, so collapsing a populated section
+  // had no visible effect (the else-branch ignored the flag). Now `!expanded`
+  // always shows the minimal bar; the button label reflects whether there's
+  // cached data to reveal.
+  if (!expanded) {
     if (!trackedProjectsCache.hasOwnProperty(m.id)) loadTrackedProjects(m.id, m.name);
+    const expandLabel = projects.length > 0
+      ? `▼ Expand · ${projects.length} project${projects.length === 1 ? '' : 's'}`
+      : '▼ Load';
     return `<div class="tracked-section">
       <div class="tracked-header">
         <span class="tracked-title">Tracked Projects</span>
         <div class="tracked-header-btns">
           <button class="tracked-add-btn"   onclick="toggleTrackedForm('${m.id}')">+ Track Project</button>
-          <button class="tracked-expand-btn" onclick="expandTrackedSection('${m.id}')">▼ Load</button>
+          <button class="tracked-expand-btn" onclick="expandTrackedSection('${m.id}')">${expandLabel}</button>
         </div>
       </div>
     </div>`;
@@ -4015,6 +4115,10 @@ function loadProjectTimeline(projectId) {
 function expandTrackedSection(muniId) {
   trackedExpandedMuni[muniId] = true;
   if (currentMuni) loadTrackedProjects(muniId, currentMuni.name);
+  // P57 W4: re-render so the collapsed bar swaps to the project list immediately.
+  // loadTrackedProjects also re-renders when the fetch returns, so this just
+  // covers the cached-data path where no fetch fires.
+  renderMuniPanel();
 }
 
 function collapseTrackedSection(muniId) {

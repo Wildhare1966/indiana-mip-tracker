@@ -26,27 +26,36 @@
     --intel-bg: #0a1520;
   }
 
+  /* P57 W6 — Light Mode Palette A · High-contrast neutral (WCAG-AAA-leaning).
+     Picked from 3-way mockup; replaces the pre-P57 light theme. Key shifts:
+       - Page bg pure white (#fff) — was off-blue (#eef1f5)
+       - Borders darkened 0.12 -> 0.16 alpha; row dividers 0.06/0.08 -> 0.14
+       - Section accents switched from amber (#9a5f00) to navy (#14304f) so
+         section labels match the table header color; amber retained as
+         --accent-warn for callouts (review-flag badge, etc.)
+       - Text deepened 1 step for AAA contrast against the whiter bg. */
   [data-theme="light"] {
-    --bg: #eef1f5;
+    --bg: #ffffff;
     --panel: #ffffff;
-    --panel-hover: #f0f3f7;
-    --border: rgba(0,0,0,0.12);
-    --text: #111820;
-    --text-dim: #4a5568;
-    --intel-bg: #e2e7ed;
+    --panel-hover: #f4f6f8;
+    --border: rgba(0,0,0,0.16);
+    --text: #0f1419;
+    --text-dim: #475467;
+    --intel-bg: #eef1f5;
     --navy: #14304f;
     --navy-dark: #0d1e33;
     --navy-mid: #1e4570;
     --navy-light: #2a5a8c;
-    --accent: #9a5f00;
-    --accent-light: #b37000;
-    --white: #111820;
+    --accent: #14304f;
+    --accent-light: #1e4570;
+    --accent-warn: #9a5f00;
+    --white: #0f1419;
     --gray-100: #e0e4ea;
     --gray-200: #c8ced8;
-    --gray-400: #556070;
-    --gray-600: #3a4555;
-    --success: #0d5a2a;
-    --warn: #8a4000;
+    --gray-400: #475467;
+    --gray-600: #2c3340;
+    --success: #0a4d22;
+    --warn: #7a3a00;
     --profile-a: #14408a;
     --profile-b: #0d5428;
     --profile-c: #6a1e1e;
@@ -57,7 +66,8 @@
   [data-theme="light"] .refresh-btn { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.2); }
   [data-theme="light"] .export-btn { background: #9a5f00; color: #fff; }
   /* ── Sidebar ── */
-  [data-theme="light"] .sidebar { background: #dce1e8; border-right-color: rgba(0,0,0,0.1); }
+  /* P57 W6: lightened sidebar (was #dce1e8) to match palette A. */
+  [data-theme="light"] .sidebar { background: #eef1f5; border-right-color: rgba(0,0,0,0.16); }
   [data-theme="light"] .sidebar .county-header { color: #14304f; }
   [data-theme="light"] .sidebar .muni-item { color: #1a2a40; }
   [data-theme="light"] .sidebar .muni-item:hover { background: rgba(20,48,79,0.1); }
@@ -93,11 +103,12 @@
   [data-theme="light"] .settings-select { background: #f0f2f5; border-color: rgba(0,0,0,0.15); color: #111820; }
   [data-theme="light"] .settings-save-btn { background: #14304f; color: #fff; }
   /* ── Public Hearings ── */
-  [data-theme="light"] .hearings-th { background: #e8ecf0; color: #14304f; border-bottom: 2px solid rgba(0,0,0,0.1); }
-  [data-theme="light"] .hearings-td { color: #111820; border-bottom-color: rgba(0,0,0,0.06); }
+  /* P57 W6: darker TH bg + dividers per palette A high-contrast direction. */
+  [data-theme="light"] .hearings-th { background: #d8dee5; color: #0d1e33; border-bottom: 2px solid rgba(0,0,0,0.20); }
+  [data-theme="light"] .hearings-td { color: #0f1419; border-bottom-color: rgba(0,0,0,0.14); }
   /* P57 W3: dark-mode .hearing-row uses a white-tinted alpha border — invisible
-     on light background. Override to dark-tinted alpha for parity with .hearings-td. */
-  [data-theme="light"] .hearing-row { border-bottom-color: rgba(0,0,0,0.08); }
+     on light background. P57 W6: bumped to 0.14 for palette A parity. */
+  [data-theme="light"] .hearing-row { border-bottom-color: rgba(0,0,0,0.14); }
   [data-theme="light"] .hearings-table-row:hover { background: rgba(20,48,79,0.04); }
   [data-theme="light"] .hearing-link.yt { background: rgba(200,30,30,0.1); color: #a02020; border-color: rgba(200,30,30,0.25); }
   [data-theme="light"] .hearing-link.doc { background: rgba(20,80,160,0.1); color: #14508a; border-color: rgba(20,80,160,0.25); }
@@ -759,6 +770,30 @@
   .ag-approved { opacity: 0.6; }
   .ag-approved::after { content: ' ✓'; color: #6dc49a; font-size: 9px; }
   .ag-rejected { opacity: 0.3; text-decoration: line-through; transition: opacity 0.5s; }
+
+  /* P57 W5c — Minutes flagged-for-review state. Subtle amber wash so the row
+     stays readable but visibly distinct in a scan. The badge inline is the
+     primary signal; the cell tint is the secondary signal. */
+  .mn-cell.mn-flagged { background: rgba(232,160,32,0.10); border-radius: 3px; padding: 1px 4px; }
+  .mn-flag-badge {
+    display: inline-block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: rgba(232,160,32,0.2);
+    color: var(--accent-light);
+    border: 1px solid rgba(232,160,32,0.4);
+    vertical-align: middle;
+  }
+  [data-theme="light"] .mn-cell.mn-flagged { background: rgba(154,95,0,0.10); }
+  [data-theme="light"] .mn-flag-badge {
+    background: rgba(154,95,0,0.12);
+    color: #6a3f00;
+    border-color: rgba(154,95,0,0.30);
+  }
 
   .members-grid {
     display: grid;
