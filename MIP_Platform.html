@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p57r2 -->
+<!-- MIP build p57r3 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -2612,6 +2612,9 @@ function renderHearingsContent(muniId) {
   const otherDates = filtered.filter(d => !isCouncilType(d.body_type) && !isPlanCommissionType(d.body_type));
 
   let html = renderScheduleBanner(muniId, unified, ref);
+  // P57 W7: per-juris landing-page buttons. Source from MUNICIPALITIES[muniId]
+  // (populated by getMunicipalitiesJSON via Muni_Data + scraper-config fallback).
+  html += renderLandingPageButtons(muniId);
 
   if (councilPcDates.length > 0) {
     html += renderBodySection('Council & Plan Commission', councilPcDates, muniId);
@@ -2625,6 +2628,33 @@ function renderHearingsContent(muniId) {
   }
 
   return html;
+}
+
+// P57 W7 — Per-juris landing-page buttons at the top of the Public Hearings
+// tab. Renders nothing if the muni has no agenda/minutes URL configured (most
+// will resolve via getMunicipalitiesJSON's scraper-config fallback; the few
+// outliers stay invisible until they get manual research on the sheet).
+function renderLandingPageButtons(muniId) {
+  const muni = MUNICIPALITIES.find(m => m.id === muniId);
+  if (!muni) return '';
+  const ag = muni.agenda_landing_url || '';
+  const mn = muni.minutes_landing_url || '';
+  if (!ag && !mn) return '';
+  // When agenda and minutes URLs are identical (most platforms), render two
+  // buttons that point to the same page — the labels still communicate intent
+  // to a user scanning the row.
+  let h = '<div class="landing-buttons">';
+  if (ag) {
+    h += `<a class="landing-btn" href="${escUrl(ag)}" target="_blank" rel="noopener noreferrer" title="${escAttr(ag)}">📄 Agenda Page</a>`;
+  }
+  if (mn && mn !== ag) {
+    h += `<a class="landing-btn" href="${escUrl(mn)}" target="_blank" rel="noopener noreferrer" title="${escAttr(mn)}">📝 Minutes Page</a>`;
+  } else if (mn && mn === ag) {
+    // Reuse same URL but a different button so the visitor sees both options.
+    h += `<a class="landing-btn" href="${escUrl(mn)}" target="_blank" rel="noopener noreferrer" title="${escAttr(mn)}">📝 Minutes Page</a>`;
+  }
+  h += '</div>';
+  return h;
 }
 
 // ── Body type classification helpers ──

@@ -771,6 +771,44 @@
   .ag-approved::after { content: ' ✓'; color: #6dc49a; font-size: 9px; }
   .ag-rejected { opacity: 0.3; text-decoration: line-through; transition: opacity 0.5s; }
 
+  /* P57 W7 — Per-juris Agenda Page / Minutes Page landing-link buttons.
+     Sits between the schedule banner and the body sections in the Public
+     Hearings tab. Solid panel-tinted background distinguishes them from
+     hearing-link badges (which are alpha-tinted by doc class). */
+  .landing-buttons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 8px 0 12px;
+  }
+  .landing-btn {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    padding: 5px 12px;
+    border-radius: 4px;
+    text-decoration: none;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    color: var(--text);
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .landing-btn:hover {
+    background: rgba(255,255,255,0.10);
+    border-color: var(--accent-light);
+    color: var(--text);
+  }
+  [data-theme="light"] .landing-btn {
+    background: rgba(20,48,79,0.06);
+    border-color: rgba(0,0,0,0.18);
+    color: #14304f;
+  }
+  [data-theme="light"] .landing-btn:hover {
+    background: rgba(20,48,79,0.12);
+    border-color: rgba(20,48,79,0.35);
+  }
+
   /* P57 W5c — Minutes flagged-for-review state. Subtle amber wash so the row
      stays readable but visibly distinct in a scan. The badge inline is the
      primary signal; the cell tint is the secondary signal. */
