@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p58.8r2 -->
+<!-- MIP build p58.8r3 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1977,7 +1977,7 @@ function renderTpRail(m) {
     rail.innerHTML =
       '<div class="tpr-header">'
       +  '<div class="tpr-title">Tracked Projects</div>'
-      +  '<button class="tpr-add-btn" disabled title="Loading projects…">+ Add</button>'
+      +  '<button class="tpr-add-btn" disabled title="Loading projects…">+ Add Project</button>'
       + '</div>'
       + '<div class="tpr-empty">Loading…</div>';
     return;
@@ -2001,7 +2001,7 @@ function renderTpRail(m) {
     +    '<span class="tpr-title-count">· ' + rows.length + '</span>'
     +  '</div>'
     +  '<button class="tpr-add-btn" onclick="tprToggleAddForm()" title="Add tracked project">'
-    +    (tprAddFormOpen ? '× Cancel' : '+ Add')
+    +    (tprAddFormOpen ? '× Cancel' : '+ Add Project')
     +  '</button>'
     + '</div>';
 
@@ -3705,9 +3705,9 @@ function renderBodySection(bodyLabel, dates, muniId) {
   const rows = dates.map(entry => {
     const isPast = entry.date < new Date().toISOString().split('T')[0];
 
-    // Status badge
-    const statusBadge = entry.status === 'confirmed' ? '<span class="status-badge confirmed">confirmed</span>'
-      : entry.status === 'projected' ? '<span class="status-badge projected">projected</span>' : '';
+    // Status badge — P58.8 r3: "projected" warning labels removed per user
+    // request. "confirmed" badge retained as a positive signal.
+    const statusBadge = entry.status === 'confirmed' ? '<span class="status-badge confirmed">confirmed</span>' : '';
 
     // YouTube cell
     let ytCell = '';

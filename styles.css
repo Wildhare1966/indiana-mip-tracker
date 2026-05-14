@@ -622,7 +622,8 @@
      (hide-member-detail), we still want the rail visible — only member-detail
      should disappear. No extra rule needed; default behavior is correct. */
 
-  /* P58.8 commit 4: Add Project button in rail header. */
+  /* P58.8 commit 4: Add Project button in rail header. P58.8 r3: allow text
+     to wrap to two lines when the rail is narrow ("+ Add" / "Project" stack). */
   .tpr-add-btn {
     font-family: 'IBM Plex Mono', monospace;
     font-size: 10px;
@@ -634,7 +635,11 @@
     border: 1px solid rgba(232,160,32,0.4);
     cursor: pointer;
     letter-spacing: 0.04em;
-    white-space: nowrap;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.2;
+    flex: 0 0 auto;
+    max-width: 90px;
   }
   .tpr-add-btn:hover:not(:disabled) { background: rgba(232,160,32,0.28); }
   .tpr-add-btn:disabled { opacity: 0.45; cursor: not-allowed; }
