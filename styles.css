@@ -1858,3 +1858,535 @@
 [data-theme="light"] .ph-meeting-link.ag { color: #9a5f00; border-color: rgba(154,95,0,0.3); }
 [data-theme="light"] .ph-meeting-link.yt { color: #b04848; border-color: rgba(176,72,72,0.3); }
 [data-theme="light"] .ph-meeting-link.mn { color: #2d6cb6; border-color: rgba(45,108,182,0.3); }
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* P58.2 — AGENDA SIDE-PANEL VIEWER                                          */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+/* Container — invisible / non-interactive until .open */
+.agenda-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  pointer-events: none;
+  visibility: hidden;
+}
+.agenda-panel.open {
+  pointer-events: auto;
+  visibility: visible;
+}
+
+/* Backdrop — dim the main content behind */
+.agenda-panel-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+.agenda-panel.open .agenda-panel-backdrop {
+  opacity: 1;
+}
+
+/* Shell — the panel itself, slides in from the right */
+.agenda-panel-shell {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(70vw, 1100px);
+  background: #1a1a1a;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 260ms cubic-bezier(0.2, 0, 0, 1);
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.4);
+}
+.agenda-panel.open .agenda-panel-shell {
+  transform: translateX(0);
+}
+
+/* Popup-mode override: panel fills the entire window, no slide, no backdrop. */
+.agenda-panel.popup-mode .agenda-panel-backdrop { display: none; }
+.agenda-panel.popup-mode .agenda-panel-shell {
+  position: static;
+  width: 100%;
+  height: 100vh;
+  transform: none;
+  border-left: none;
+  box-shadow: none;
+}
+
+/* When panel is open, prevent body scroll. */
+body.agenda-panel-locked { overflow: hidden; }
+
+/* ── Header ────────────────────────────────────────────────────────── */
+.agenda-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0) 100%);
+  flex-shrink: 0;
+}
+.agenda-panel-meta {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.agenda-panel-title-text {
+  font-size: 15px;
+  margin: 0 0 3px 0;
+  color: var(--text, #e8e8e8);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: 0.02em;
+}
+.agenda-panel-subtitle {
+  font-size: 11px;
+  color: var(--text-dim, #888);
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: 0.04em;
+}
+.agenda-panel-versions {
+  display: inline-block;
+  margin-left: 10px;
+  font-size: 10px;
+  color: var(--text-dim, #888);
+}
+
+.agenda-panel-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.agenda-panel-controls button,
+.agenda-panel-controls a.agenda-panel-external,
+.agenda-panel-controls select {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text, #e8e8e8);
+  cursor: pointer;
+  letter-spacing: 0.03em;
+  text-decoration: none;
+}
+.agenda-panel-controls button:hover,
+.agenda-panel-controls a.agenda-panel-external:hover,
+.agenda-panel-controls select:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+.agenda-panel-controls select:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.agenda-panel-tagmode.on {
+  background: rgba(160, 76, 184, 0.22);
+  border-color: rgba(160, 76, 184, 0.6);
+  color: #d49ce4;
+}
+.agenda-panel-project {
+  max-width: 240px;
+  text-overflow: ellipsis;
+}
+.agenda-panel-close {
+  font-size: 14px !important;
+  line-height: 1;
+  padding: 6px 9px !important;
+}
+
+/* ── Body (main + sidebar) ─────────────────────────────────────────── */
+.agenda-panel-body {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  min-height: 0;
+}
+.agenda-panel-main {
+  position: relative;
+  background: #0f0f0f;
+  overflow: hidden;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+}
+.agenda-panel-iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #f5f5f5;
+}
+
+/* External-only state — when the host won't iframe-embed (OnBase, CivicClerk) */
+.agenda-panel-external-state {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  text-align: center;
+  gap: 16px;
+  color: var(--text, #e8e8e8);
+}
+.agenda-panel-external-icon {
+  font-size: 36px;
+  color: var(--text-dim, #888);
+  opacity: 0.6;
+}
+.agenda-panel-external-msg {
+  font-size: 13px;
+  line-height: 1.5;
+  max-width: 460px;
+  color: var(--text-dim, #aaa);
+}
+.agenda-panel-external-btn {
+  display: inline-block;
+  padding: 10px 22px;
+  border-radius: 4px;
+  background: rgba(232, 160, 32, 0.15);
+  color: #e8a020;
+  border: 1px solid rgba(232, 160, 32, 0.4);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+}
+.agenda-panel-external-btn:hover {
+  background: rgba(232, 160, 32, 0.25);
+  border-color: rgba(232, 160, 32, 0.6);
+}
+.agenda-panel-external-hint {
+  font-size: 10px;
+  color: var(--text-dim, #888);
+  opacity: 0.7;
+  letter-spacing: 0.04em;
+}
+
+/* ── P58.4 proxy loading state ─────────────────────────────────────── */
+.agenda-panel-proxy-loading {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 48px 32px;
+  text-align: center;
+}
+.agenda-panel-proxy-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(232, 160, 32, 0.18);
+  border-top-color: rgba(232, 160, 32, 0.8);
+  border-radius: 50%;
+  animation: agendaPanelProxySpin 0.9s linear infinite;
+}
+@keyframes agendaPanelProxySpin {
+  to { transform: rotate(360deg); }
+}
+.agenda-panel-proxy-msg {
+  font-size: 13px;
+  color: var(--text-dim, #ccc);
+  letter-spacing: 0.02em;
+}
+.agenda-panel-proxy-hint {
+  font-size: 10px;
+  max-width: 380px;
+  color: var(--text-dim, #888);
+  opacity: 0.7;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+}
+[data-theme="light"] .agenda-panel-proxy-msg { color: #444; }
+[data-theme="light"] .agenda-panel-proxy-hint { color: #666; }
+
+/* ── Sidebar ───────────────────────────────────────────────────────── */
+.agenda-panel-sidebar {
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  background: #121212;
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.agenda-panel-sidebar-title {
+  margin: 0 0 4px 0;
+  font-size: 10px;
+  font-family: 'IBM Plex Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-dim, #888);
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.agenda-panel-sidebar-count {
+  font-size: 9px;
+  font-weight: 400;
+  opacity: 0.65;
+  text-transform: none;
+  letter-spacing: 0.04em;
+}
+.agenda-panel-link.is-viewing {
+  border-color: rgba(160, 76, 184, 0.4);
+  background: rgba(160, 76, 184, 0.06);
+}
+.agenda-panel-link.is-viewing .agenda-panel-link-label {
+  color: #d49ce4;
+  font-weight: 600;
+}
+[data-theme="light"] .agenda-panel-link.is-viewing {
+  border-color: rgba(120, 50, 140, 0.35);
+  background: rgba(120, 50, 140, 0.04);
+}
+[data-theme="light"] .agenda-panel-link.is-viewing .agenda-panel-link-label {
+  color: #6d3284;
+}
+.agenda-panel-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.agenda-panel-link {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.agenda-panel-link-meta {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.agenda-panel-link-label {
+  font-size: 12px;
+  color: var(--text, #e8e8e8);
+  margin-bottom: 3px;
+  word-break: break-word;
+}
+.agenda-panel-link-url {
+  font-size: 10px;
+  color: var(--text-dim, #888);
+  font-family: 'IBM Plex Mono', monospace;
+  word-break: break-all;
+  opacity: 0.8;
+}
+.agenda-panel-tag-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  border: 1px solid rgba(160, 76, 184, 0.4);
+  background: rgba(160, 76, 184, 0.12);
+  color: #d49ce4;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  font-family: inherit;
+  opacity: 0.35;
+  transition: opacity 120ms ease, background 120ms ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+/* ✚ buttons only become interactive when tag-mode is on AND a project is selected. */
+.agenda-panel.tag-on .agenda-panel-tag-btn {
+  opacity: 1;
+}
+.agenda-panel-tag-btn:hover:not(:disabled) {
+  background: rgba(160, 76, 184, 0.24);
+  border-color: rgba(160, 76, 184, 0.7);
+}
+.agenda-panel-tag-btn:disabled {
+  cursor: default;
+}
+.agenda-panel-tag-btn.tagged {
+  background: rgba(76, 184, 124, 0.2);
+  border-color: rgba(76, 184, 124, 0.6);
+  color: #9ce4b8;
+  opacity: 1;
+}
+.agenda-panel-tag-btn.failed {
+  background: rgba(184, 76, 76, 0.2);
+  border-color: rgba(184, 76, 76, 0.6);
+  color: #e49c9c;
+  opacity: 1;
+}
+
+/* P58.3a — Layer 2 extracted-links section */
+.agenda-panel-extraction {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.agenda-panel-extraction-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.agenda-panel-extraction-label {
+  font-size: 10px;
+  font-family: 'IBM Plex Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-dim, #888);
+  font-weight: 600;
+}
+.agenda-panel-extraction-status {
+  font-size: 9px;
+  font-weight: 400;
+  opacity: 0.65;
+  letter-spacing: 0.04em;
+  color: var(--text-dim, #888);
+}
+.agenda-panel-extraction.loading .agenda-panel-extraction-status::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,0.2);
+  border-top-color: #d49ce4;
+  margin-right: 5px;
+  vertical-align: -1px;
+  animation: agenda-panel-spin 0.8s linear infinite;
+}
+@keyframes agenda-panel-spin { to { transform: rotate(360deg); } }
+.agenda-panel-extension-msg,
+.agenda-panel-extraction-msg {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-dim, #888);
+  padding: 8px 10px;
+  background: rgba(255,255,255,0.02);
+  border-radius: 4px;
+}
+.agenda-panel-extraction.error .agenda-panel-extraction-msg {
+  background: rgba(184, 76, 76, 0.08);
+  border: 1px solid rgba(184, 76, 76, 0.2);
+  color: #e49c9c;
+}
+.agenda-panel-link-kind {
+  display: inline-block;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-dim, #aaa);
+  letter-spacing: 0.06em;
+  margin-right: 4px;
+  vertical-align: 1px;
+}
+.agenda-panel-extlinks .agenda-panel-link {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+[data-theme="light"] .agenda-panel-extraction-head {
+  border-top-color: rgba(0, 0, 0, 0.08);
+}
+[data-theme="light"] .agenda-panel-extraction-msg {
+  background: rgba(0,0,0,0.03);
+}
+[data-theme="light"] .agenda-panel-link-kind {
+  background: rgba(0,0,0,0.06);
+}
+
+.agenda-panel-create-hint {
+  padding: 12px;
+  border-radius: 4px;
+  background: rgba(45, 108, 182, 0.08);
+  border: 1px solid rgba(45, 108, 182, 0.25);
+  font-size: 11px;
+  color: var(--text, #e8e8e8);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.agenda-panel-create-btn {
+  align-self: flex-start;
+  padding: 6px 12px;
+  background: rgba(45, 108, 182, 0.18);
+  border: 1px solid rgba(45, 108, 182, 0.5);
+  border-radius: 4px;
+  color: #6ca8e4;
+  cursor: pointer;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+}
+.agenda-panel-create-btn:hover {
+  background: rgba(45, 108, 182, 0.3);
+}
+
+/* ── Live region (visually hidden, screen-reader only) ─────────────── */
+.agenda-panel-live {
+  position: absolute;
+  left: -10000px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+/* ── Light theme overrides ─────────────────────────────────────────── */
+[data-theme="light"] .agenda-panel-shell {
+  background: #fafafa;
+  border-left-color: rgba(0, 0, 0, 0.08);
+}
+[data-theme="light"] .agenda-panel-header {
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+  background: linear-gradient(180deg, rgba(0,0,0,0.02) 0%, rgba(0,0,0,0) 100%);
+}
+[data-theme="light"] .agenda-panel-main { background: #e8e8e8; }
+[data-theme="light"] .agenda-panel-sidebar {
+  background: #f1f1f1;
+  border-left-color: rgba(0, 0, 0, 0.08);
+}
+[data-theme="light"] .agenda-panel-link {
+  background: #fff;
+  border-color: rgba(0, 0, 0, 0.06);
+}
+[data-theme="light"] .agenda-panel-controls button,
+[data-theme="light"] .agenda-panel-controls a.agenda-panel-external,
+[data-theme="light"] .agenda-panel-controls select {
+  background: #fff;
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+/* ── Responsive ────────────────────────────────────────────────────── */
+@media (max-width: 1023px) {
+  .agenda-panel-shell { width: 85vw; }
+  .agenda-panel-body { grid-template-columns: 1fr 220px; }
+  .agenda-panel-popout { display: none; } /* multi-monitor only makes sense on desktop */
+}
+@media (max-width: 767px) {
+  .agenda-panel-shell { width: 100vw; }
+  .agenda-panel-body { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+  .agenda-panel-sidebar { display: none; }   /* P58.2: hide sidebar on mobile; tabs land in a later phase */
+  .agenda-panel-header { flex-wrap: wrap; gap: 8px; }
+  .agenda-panel-controls { width: 100%; flex-wrap: wrap; }
+  .agenda-panel-project { max-width: 100%; flex: 1 1 100%; }
+  .agenda-panel-tag-btn { width: 44px; height: 44px; } /* touch target */
+}

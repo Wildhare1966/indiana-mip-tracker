@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p57r3 -->
+<!-- MIP build p58.4r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -8,10 +8,10 @@
      newly-deployed FE reaches users without manual hard-reload. -->
 <meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com; img-src 'self' data:; frame-src 'none';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com; img-src 'self' data:; frame-src https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p43r2">
+<link rel="stylesheet" href="styles.css?v=p58.4r1">
 </head>
 <body>
 
@@ -6270,6 +6270,975 @@ window.runScheduleGeneration = runScheduleGeneration;
 window.exportScheduleDoc = exportScheduleDoc;
 window.exportScheduleCSV = exportScheduleCSV;
 window.copyScheduleToClipboard = copyScheduleToClipboard;
+// ═══════════════════════════════════════════════════════════════════════════
+// P58.2 — AGENDA SIDE-PANEL VIEWER
+// ═══════════════════════════════════════════════════════════════════════════
+// Trigger: click on [data-doc-link="agenda"][data-scraped-id] inside #view-muni
+// Renders: header (title/date/body), main iframe via Google Docs Viewer for
+// open-PDF platforms; "external-only" fallback for X-frame-blocked hosts
+// (OnBase, CivicClerk stream URLs) until P58.3 ships the proxy.
+// Sidebar (stub): the agenda itself + a P58.4 placeholder.
+// Tag-mode: jurisdiction-filtered project dropdown + ✚ per sidebar link,
+// hits existing P35 tag_document. Independent from global P35 tag-mode banner.
+// Pop-out: window.open() to #agenda=<id>&mode=popout (PiP intentionally skipped
+// per P58.2 decision #4 — cross-browser predictability over Chromium-only PiP).
+// Popup self-closes when MRD tab closes via BroadcastChannel('mrd-panel').
+// ═══════════════════════════════════════════════════════════════════════════
+(function() {
+  'use strict';
+
+  // Hosts that block iframe embedding via X-Frame-Options or
+  // CSP frame-ancestors. These get the external-only fallback in P58.2;
+  // P58.3 will introduce an Apps Script proxy + Drive cache to embed them.
+  var X_FRAME_BLOCKED_HOST_RE = /(^|\.)onbase\.|\.civicclerk\.com$|civicclerkstaging\.com$/i;
+
+  var TAG_PROJECT_KEY = 'mip_panel_tag_project';
+  var PROJECT_CACHE_TTL_MS = 5 * 60 * 1000;
+
+  var state = {
+    open: false,
+    ctx: null,                  // current AgendaContext
+    route: 'idle',              // 'docs-viewer-iframe' | 'external-only'
+    tagMode: false,             // panel-scoped tag-mode toggle
+    projectId: '',              // selected project_id when tagMode on
+    projectsByJuris: {},        // juris -> { ts, rows }
+    lastFocus: null,            // element to restore focus to on close
+    popupMode: false,           // running inside a popped-out window?
+    bc: null,                   // BroadcastChannel
+    suppressTrigger: false,     // guard against re-entrant clicks
+  };
+
+  function $(sel, root) { return (root || document).querySelector(sel); }
+  function el(id) { return document.getElementById(id); }
+
+  // ── URL / host helpers ────────────────────────────────────────────────
+  function isXFrameBlocked(url) {
+    try { return X_FRAME_BLOCKED_HOST_RE.test(new URL(url).hostname); }
+    catch(e) { return false; }
+  }
+
+  function rawUrlFor(row) {
+    // Prefer the unwrapped raw URL; inlineViewerUrl() in this codebase
+    // already wraps some hosts (CivicClerk/Greenfield) through the Docs
+    // viewer. We do our own wrapping for the iframe path.
+    return row.view_url || row.pdf_url || '';
+  }
+
+  function chooseRoute(row) {
+    var u = rawUrlFor(row);
+    if (!u) return 'external-only';
+    // P58.4: X-Frame-blocked hosts (OnBase, CivicClerk) route through the
+    // Apps Script proxy → Drive cache → drive.google.com /preview iframe.
+    if (isXFrameBlocked(u)) return 'proxy-drive-iframe';
+    return 'docs-viewer-iframe';
+  }
+
+  function docsViewerSrc(url) {
+    return 'https://docs.google.com/viewer?url=' + encodeURIComponent(url) + '&embedded=true';
+  }
+
+  // ── Context lookup ────────────────────────────────────────────────────
+  function findRowById(scrapedId) {
+    if (!scrapedId || typeof SCRAPED_DOCS === 'undefined') return null;
+    var arr = SCRAPED_DOCS;
+    if (!Array.isArray(arr)) return null;
+    for (var i = 0; i < arr.length; i++) {
+      if (String(arr[i].id) === String(scrapedId)) return arr[i];
+    }
+    return null;
+  }
+
+  function buildContext(row) {
+    var muniName = '';
+    try {
+      if (typeof MUNICIPALITIES !== 'undefined' && Array.isArray(MUNICIPALITIES)) {
+        var m = MUNICIPALITIES.find(function(mm) {
+          var dj = (row.jurisdiction || '').toLowerCase();
+          var dc = (row.code || '').toLowerCase();
+          return (mm.id || '').toLowerCase() === dj || (mm.id || '').toLowerCase() === dc;
+        });
+        if (m) muniName = m.name || '';
+      }
+    } catch(e) {}
+    var rawUrl = rawUrlFor(row);
+    return {
+      scrapedDocId: row.id || '',
+      rawUrl: rawUrl,
+      jurisdictionId: (row.code || row.jurisdiction || '').toLowerCase(),
+      jurisdictionName: muniName || row.jurisdiction || '',
+      meetingDate: row.meeting_date || '',
+      meetingType: row.meeting_type_override || row.meeting_type || '',
+      body: row.body || row.meeting_type || '',
+      title: row.title || ((row.meeting_type || 'Meeting') + ' Agenda'),
+      route: chooseRoute(row),
+    };
+  }
+
+  // ── Tag-mode storage ──────────────────────────────────────────────────
+  function getStoredProjectId() {
+    try { return sessionStorage.getItem(TAG_PROJECT_KEY) || ''; }
+    catch(e) { return ''; }
+  }
+  function setStoredProjectId(pid) {
+    try {
+      if (pid) sessionStorage.setItem(TAG_PROJECT_KEY, pid);
+      else sessionStorage.removeItem(TAG_PROJECT_KEY);
+    } catch(e) {}
+  }
+
+  // ── Projects fetch (jurisdiction-filtered, SWR cache) ─────────────────
+  function loadProjectsForJuris(juris) {
+    var key = (juris || '').toLowerCase();
+    var cached = state.projectsByJuris[key];
+    if (cached && (Date.now() - cached.ts) < PROJECT_CACHE_TTL_MS) {
+      return Promise.resolve(cached.rows);
+    }
+    if (typeof getWebAppUrl !== 'function') return Promise.resolve([]);
+    var webappUrl = getWebAppUrl();
+    if (!webappUrl) return Promise.resolve([]);
+    var url = webappUrl + (webappUrl.indexOf('?') === -1 ? '?' : '&')
+            + 'action=list_tracked_projects&jurisdiction=' + encodeURIComponent(juris || '');
+    return fetch(url)
+      .then(function(r) { return r.json(); })
+      .then(function(res) {
+        var rows = [];
+        if (res && res.ok && Array.isArray(res.projects)) rows = res.projects;
+        else if (Array.isArray(res)) rows = res;
+        state.projectsByJuris[key] = { ts: Date.now(), rows: rows };
+        return rows;
+      })
+      .catch(function() { return []; });
+  }
+
+  function projectsCacheHit(juris) {
+    var key = (juris || '').toLowerCase();
+    var c = state.projectsByJuris[key];
+    return c ? c.rows : null;
+  }
+
+  // ── Render: header / main / sidebar ───────────────────────────────────
+  function escText(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return '';
+    var d;
+    // P58.2: parse YYYY-MM-DD as a LOCAL date — `new Date('2026-02-11')`
+    // is parsed as UTC midnight, which renders as the previous day in
+    // any timezone west of UTC. Mirrors the P39 _normDate fix in WebApp.js.
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso));
+    if (m) { d = new Date(+m[1], +m[2] - 1, +m[3]); }
+    else { d = new Date(iso); }
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+  }
+
+  function renderHeader() {
+    var ctx = state.ctx;
+    if (!ctx) return;
+    el('agenda-panel-title').textContent = ctx.title;
+    el('agenda-panel-subtitle').textContent =
+      [fmtDate(ctx.meetingDate), ctx.body, ctx.jurisdictionName].filter(Boolean).join(' · ');
+    var ext = el('agenda-panel-external');
+    ext.href = ctx.rawUrl || '#';
+    // P58.7 hook: hidden span for earlier-versions disclosure
+    var ver = el('agenda-panel-versions');
+    if (ver) ver.hidden = true;
+  }
+
+  function renderMain() {
+    var ctx = state.ctx;
+    var main = el('agenda-panel-main');
+    if (!ctx || !main) return;
+    if (ctx.route === 'docs-viewer-iframe' && ctx.rawUrl) {
+      main.innerHTML =
+        '<iframe class="agenda-panel-iframe" '
+      + 'src="' + escText(docsViewerSrc(ctx.rawUrl)) + '" '
+      + 'title="Agenda: ' + escText((ctx.meetingType || 'Meeting') + ' – ' + fmtDate(ctx.meetingDate)) + '" '
+      + 'sandbox="allow-scripts allow-same-origin allow-popups" '
+      + 'referrerpolicy="no-referrer" '
+      + 'loading="lazy"></iframe>';
+    } else if (ctx.route === 'proxy-drive-iframe' && ctx.rawUrl) {
+      renderProxyDriveIframe(ctx, main);
+    } else {
+      renderExternalOnly(ctx, main, 'This agenda can\'t be embedded inline. Open it externally to view.');
+    }
+  }
+
+  // P58.4 — fetch the agenda_proxy endpoint (Apps Script downloads + caches
+  // the PDF in Drive) and embed the Drive /preview iframe. Cold fetch: 5-15s
+  // for OnBase / CivicClerk PDFs. Cached: <500ms. Stale-response guard: if
+  // the user closes/reopens the panel mid-fetch on a different agenda, the
+  // earlier promise's result is discarded.
+  function renderProxyDriveIframe(ctx, main) {
+    // Loading state
+    main.innerHTML =
+      '<div class="agenda-panel-proxy-loading">'
+    + '  <div class="agenda-panel-proxy-spinner" aria-hidden="true"></div>'
+    + '  <div class="agenda-panel-proxy-msg">Caching agenda for inline view…</div>'
+    + '  <div class="agenda-panel-proxy-hint">First open of an OnBase or CivicClerk PDF takes a few seconds; later opens are instant.</div>'
+    + '</div>';
+
+    var webappUrl = (typeof getWebAppUrl === 'function') ? getWebAppUrl() : '';
+    if (!webappUrl) {
+      renderExternalOnly(ctx, main, 'Backend URL not configured — open this agenda externally to view.');
+      return;
+    }
+    if (!ctx.scrapedDocId) {
+      // Without a scraped_doc_id the proxy has no relaxed-SSRF path. Fall
+      // back to external-only rather than hitting the strict validator.
+      renderExternalOnly(ctx, main, 'This agenda can\'t be cached without an indexed source row. Open it externally to view.');
+      return;
+    }
+
+    // Tag this fetch so a late response from a previous open doesn't paint
+    // over a newer agenda's panel.
+    state.proxyRequestId = ctx.scrapedDocId;
+
+    var url = webappUrl
+            + (webappUrl.indexOf('?') === -1 ? '?' : '&')
+            + 'action=agenda_proxy'
+            + '&scraped_doc_id=' + encodeURIComponent(ctx.scrapedDocId);
+
+    fetch(url, { method: 'GET', cache: 'no-store' })
+      .then(function(r) { return r.json(); })
+      .then(function(res) {
+        if (state.proxyRequestId !== ctx.scrapedDocId) return;
+        if (res && res.ok && res.drive_preview_url) {
+          main.innerHTML =
+            '<iframe class="agenda-panel-iframe" '
+          + 'src="' + escText(res.drive_preview_url) + '" '
+          + 'title="Agenda: ' + escText((ctx.meetingType || 'Meeting') + ' – ' + fmtDate(ctx.meetingDate)) + '" '
+          + 'referrerpolicy="no-referrer" '
+          + 'loading="lazy"></iframe>';
+        } else {
+          var reason = (res && res.error) ? res.error : 'Unknown error';
+          renderExternalOnly(ctx, main,
+            'Could not cache this agenda for inline view (' + reason + '). Open it externally to view.');
+        }
+      })
+      .catch(function(err) {
+        if (state.proxyRequestId !== ctx.scrapedDocId) return;
+        renderExternalOnly(ctx, main,
+          'Network error caching this agenda (' + String(err) + '). Open it externally to view.');
+      });
+  }
+
+  function renderExternalOnly(ctx, main, reason) {
+    main.innerHTML =
+      '<div class="agenda-panel-external-state">'
+    + '  <div class="agenda-panel-external-icon">↗</div>'
+    + '  <div class="agenda-panel-external-msg">' + escText(reason) + '</div>'
+    + '  <a class="agenda-panel-external-btn" target="_blank" rel="noopener" '
+    + '     href="' + escText(ctx.rawUrl || '#') + '">Open agenda externally ↗</a>'
+    + '  <div class="agenda-panel-external-hint">The sidebar and Tag mode still work below.</div>'
+    + '</div>';
+  }
+
+  // ── Layer 1 sibling-doc discovery ───────────────────────────────────
+  // Find every Scraped_Documents row that belongs to the same meeting as
+  // the agenda the user is viewing. Match key: jurisdiction (case-insensitive)
+  // + meeting_date + meeting_type. The agenda the user clicked is always
+  // included and placed first.
+  function findSiblingDocs(ctx) {
+    if (!ctx) return [];
+    if (typeof SCRAPED_DOCS === 'undefined' || !Array.isArray(SCRAPED_DOCS)) return [];
+    var jl = (ctx.jurisdictionId || '').toLowerCase();
+    var mn = (ctx.jurisdictionName || '').toLowerCase();
+    var mt = (ctx.meetingType || '').toLowerCase();
+    var md = ctx.meetingDate || '';
+    var siblings = SCRAPED_DOCS.filter(function(d) {
+      if ((d.meeting_date || '') !== md) return false;
+      var dj = (d.jurisdiction || '').toLowerCase();
+      var dc = (d.code || '').toLowerCase();
+      var jurisOk = dj === jl || dc === jl || dj === mn;
+      if (!jurisOk) return false;
+      var dmt = ((d.meeting_type_override || d.meeting_type) || '').toLowerCase();
+      // Allow empty meetingType to match anything for the same date (rare);
+      // otherwise require exact meeting_type match.
+      return !mt || !dmt || dmt === mt;
+    });
+    // Sort: viewed agenda first, then Agenda, Agenda Packet, Minutes, others
+    // (alpha). Dedupe on view_url to suppress P58.1-style duplicates.
+    var typeOrder = { 'agenda': 1, 'agenda packet': 2, 'packet': 2, 'minutes': 3 };
+    function rankRow(d) {
+      var urlMatch = (d.view_url || d.pdf_url || '') === ctx.rawUrl ? 0 : 9;
+      var t = (d.document_type || '').toLowerCase();
+      return urlMatch + 0.01 * (typeOrder[t] || 5);
+    }
+    siblings.sort(function(a, b) {
+      var ra = rankRow(a), rb = rankRow(b);
+      if (ra !== rb) return ra - rb;
+      return (a.document_type || '').localeCompare(b.document_type || '');
+    });
+    var seen = {};
+    var out = [];
+    for (var i = 0; i < siblings.length; i++) {
+      var u = siblings[i].view_url || siblings[i].pdf_url || '';
+      if (!u || seen[u]) continue;
+      seen[u] = 1;
+      out.push(siblings[i]);
+    }
+    return out;
+  }
+
+  function shortLabelFor(row, isViewed) {
+    var dt = (row.document_type || '').trim();
+    if (dt) return isViewed ? dt + ' (viewing)' : dt;
+    return isViewed ? 'Currently viewing' : 'Document';
+  }
+
+  function renderSidebar() {
+    var ctx = state.ctx;
+    var listEl = el('agenda-panel-links');
+    if (!ctx || !listEl) return;
+    // P58.2 Layer 1: list every Scraped_Documents row for the same meeting
+    // (agenda + packet + minutes + any sibling exhibits the scraper caught).
+    // P58.4 Layer 2 will additionally extract URLs from inside the PDF itself.
+    var rows = findSiblingDocs(ctx);
+    if (!rows.length) {
+      // Fallback: at minimum show the agenda the user clicked in on.
+      rows = [{
+        id: ctx.scrapedDocId,
+        view_url: ctx.rawUrl,
+        document_type: 'Agenda',
+        meeting_type: ctx.meetingType
+      }];
+    }
+    var html = '';
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      var url = r.view_url || r.pdf_url || '';
+      var isViewed = url === ctx.rawUrl;
+      var label = shortLabelFor(r, isViewed);
+      html +=
+        '<li class="agenda-panel-link' + (isViewed ? ' is-viewing' : '') + '" '
+      + '    data-link-url="' + escText(url) + '" '
+      + '    data-scraped-id="' + escText(r.id || '') + '">'
+      + '  <div class="agenda-panel-link-meta">'
+      + '    <div class="agenda-panel-link-label">' + escText(label) + '</div>'
+      + '    <div class="agenda-panel-link-url">' + escText(url) + '</div>'
+      + '  </div>'
+      + '  <button class="agenda-panel-tag-btn" type="button" '
+      + '          aria-label="Tag ' + escText(label) + ' to selected project">✚</button>'
+      + '</li>';
+    }
+    listEl.innerHTML = html;
+    // Wire ✚ buttons (event delegation would also work; per-button is fine here)
+    var btns = listEl.querySelectorAll('.agenda-panel-tag-btn');
+    for (var j = 0; j < btns.length; j++) {
+      (function(btn) {
+        btn.addEventListener('click', function(e) {
+          e.preventDefault();
+          var li = btn.closest('.agenda-panel-link');
+          var url = li.getAttribute('data-link-url');
+          var sid = li.getAttribute('data-scraped-id');
+          tagSidebarLink(btn, url, sid);
+        });
+      })(btns[j]);
+    }
+    // Update the count badge in the sidebar header
+    var hdr = el('agenda-panel-sidebar-count');
+    if (hdr) hdr.textContent = rows.length + (rows.length === 1 ? ' document' : ' documents');
+    applyTagModeToSidebar();
+    // P58.3a: kick off Layer 2 extraction in parallel (URLs inside the PDF).
+    loadExtractedLinks(ctx, rows.length);
+  }
+
+  // ── Layer 2: extract URLs from inside the agenda PDF/HTML ─────────────
+  function loadExtractedLinks(ctx, siblingCount) {
+    if (!ctx || !ctx.scrapedDocId) return;
+    var extr = el('agenda-panel-extraction');
+    if (!extr) return;
+    // Reset to loading state
+    extr.classList.remove('error', 'empty');
+    extr.classList.add('loading');
+    extr.innerHTML =
+      '<div class="agenda-panel-extraction-head">'
+    + '  <span class="agenda-panel-extraction-label">Links inside this agenda</span>'
+    + '  <span class="agenda-panel-extraction-status">scanning…</span>'
+    + '</div>';
+    var webappUrl = (typeof getWebAppUrl === 'function') ? getWebAppUrl() : '';
+    if (!webappUrl) {
+      extr.classList.remove('loading');
+      extr.classList.add('error');
+      extr.innerHTML =
+        '<div class="agenda-panel-extraction-head">'
+      + '  <span class="agenda-panel-extraction-label">Links inside this agenda</span>'
+      + '</div>'
+      + '<div class="agenda-panel-extraction-msg">Backend URL not configured.</div>';
+      return;
+    }
+    // Capture which agenda we requested for so a late response doesn't paint
+    // links from a previous panel open into the current one.
+    var requestedId = ctx.scrapedDocId;
+    var q = (webappUrl.indexOf('?') === -1 ? '?' : '&')
+          + 'action=extract_agenda_links&scraped_doc_id=' + encodeURIComponent(requestedId);
+    fetch(webappUrl + q, { signal: AbortSignal.timeout(45000) })
+      .then(function(r) { return r.json(); })
+      .then(function(res) {
+        // Stale-response guard
+        if (!state.open || !state.ctx || state.ctx.scrapedDocId !== requestedId) return;
+        if (!res || !res.ok) {
+          extr.classList.remove('loading');
+          extr.classList.add('error');
+          extr.innerHTML =
+            '<div class="agenda-panel-extraction-head">'
+          + '  <span class="agenda-panel-extraction-label">Links inside this agenda</span>'
+          + '</div>'
+          + '<div class="agenda-panel-extraction-msg">Could not scan this agenda: '
+          + escText((res && res.error) || 'unknown error') + '</div>';
+          return;
+        }
+        renderExtractedLinks(res.links || [], !!res.cached, res.extractor || '');
+      })
+      .catch(function(err) {
+        if (!state.open || !state.ctx || state.ctx.scrapedDocId !== requestedId) return;
+        extr.classList.remove('loading');
+        extr.classList.add('error');
+        extr.innerHTML =
+          '<div class="agenda-panel-extraction-head">'
+        + '  <span class="agenda-panel-extraction-label">Links inside this agenda</span>'
+        + '</div>'
+        + '<div class="agenda-panel-extraction-msg">Network error: '
+        + escText(err.message || 'unknown') + '</div>';
+      });
+  }
+
+  function renderExtractedLinks(links, cached, extractor) {
+    var extr = el('agenda-panel-extraction');
+    if (!extr) return;
+    extr.classList.remove('loading', 'error', 'empty');
+    if (!links.length) {
+      extr.classList.add('empty');
+      extr.innerHTML =
+        '<div class="agenda-panel-extraction-head">'
+      + '  <span class="agenda-panel-extraction-label">Links inside this agenda</span>'
+      + '  <span class="agenda-panel-extraction-status">no links found</span>'
+      + '</div>'
+      + '<div class="agenda-panel-extraction-msg">'
+      + 'This agenda doesn\'t link out to any external documents — or the PDF is image-only (scanned). '
+      + 'Gemini fallback will catch image-only agendas in P58.3b.</div>';
+      return;
+    }
+    // Dedup against URLs already in the sibling list (avoid double-listing the agenda itself)
+    var siblingUrls = {};
+    document.querySelectorAll('.agenda-panel-link[data-link-url]').forEach(function(li) {
+      var u = li.getAttribute('data-link-url') || '';
+      if (u) siblingUrls[u.toLowerCase()] = 1;
+    });
+    var fresh = links.filter(function(L) { return !siblingUrls[(L.url || '').toLowerCase()]; });
+    var head =
+      '<div class="agenda-panel-extraction-head">'
+    + '  <span class="agenda-panel-extraction-label">Links inside this agenda</span>'
+    + '  <span class="agenda-panel-extraction-status">'
+    + fresh.length + (fresh.length === 1 ? ' link' : ' links')
+    + (cached ? ' · cached' : '')
+    + '</span>'
+    + '</div>';
+    if (!fresh.length) {
+      extr.innerHTML = head
+        + '<div class="agenda-panel-extraction-msg">All extracted links were already shown above.</div>';
+      return;
+    }
+    var listHtml = '<ul class="agenda-panel-links agenda-panel-extlinks">';
+    for (var i = 0; i < fresh.length; i++) {
+      var L = fresh[i];
+      var kindLabel = L.kind ? L.kind.toUpperCase() : 'LINK';
+      listHtml +=
+        '<li class="agenda-panel-link" data-link-url="' + escText(L.url) + '" data-scraped-id="">'
+      + '  <div class="agenda-panel-link-meta">'
+      + '    <div class="agenda-panel-link-label">'
+      + '      <span class="agenda-panel-link-kind">' + escText(kindLabel) + '</span> '
+      + escText(L.label || L.url)
+      + '    </div>'
+      + '    <div class="agenda-panel-link-url">' + escText(L.url) + '</div>'
+      + '  </div>'
+      + '  <button class="agenda-panel-tag-btn" type="button" '
+      + '          aria-label="Tag ' + escText(L.label || L.url) + ' to selected project">✚</button>'
+      + '</li>';
+    }
+    listHtml += '</ul>';
+    extr.innerHTML = head + listHtml;
+    // Wire the ✚ buttons. scraped_doc_id is empty (these links aren't in
+    // Scraped_Documents); P35 tag_document writes an audit row regardless.
+    var btns = extr.querySelectorAll('.agenda-panel-tag-btn');
+    for (var k = 0; k < btns.length; k++) {
+      (function(btn) {
+        btn.addEventListener('click', function(e) {
+          e.preventDefault();
+          var li = btn.closest('.agenda-panel-link');
+          var url = li.getAttribute('data-link-url');
+          tagSidebarLink(btn, url, '');
+        });
+      })(btns[k]);
+    }
+    applyTagModeToSidebar();
+  }
+
+  // ── Project dropdown render ───────────────────────────────────────────
+  function renderProjectDropdown() {
+    var sel = el('agenda-panel-project');
+    if (!sel) return;
+    var ctx = state.ctx;
+    var jurisLabel = ctx ? ctx.jurisdictionName : '';
+    sel.innerHTML = '<option value="">Loading projects in ' + escText(jurisLabel) + '…</option>';
+    sel.disabled = true;
+    var emptyHint = el('agenda-panel-create-hint');
+    if (emptyHint) emptyHint.hidden = true;
+
+    loadProjectsForJuris(ctx ? ctx.jurisdictionId : '').then(function(rows) {
+      if (!state.open || !state.ctx) return; // closed in flight
+      if (state.ctx.scrapedDocId !== ctx.scrapedDocId) return; // changed in flight
+      sel.innerHTML = '';
+      if (!rows.length) {
+        sel.innerHTML = '<option value="">No projects in ' + escText(jurisLabel) + '</option>';
+        sel.disabled = true;
+        // Decision #3: auto-show [+ Create] hint
+        if (emptyHint) emptyHint.hidden = false;
+        return;
+      }
+      var opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = 'Select a project…';
+      sel.appendChild(opt);
+      rows.forEach(function(p) {
+        var o = document.createElement('option');
+        o.value = p.projectId || p.project_id || '';
+        o.textContent = (p.projectName || p.project_name || '(unnamed)') +
+          (p.ordinanceNumber || p.ordinance_number ? ' · ' + (p.ordinanceNumber || p.ordinance_number) : '');
+        sel.appendChild(o);
+      });
+      sel.disabled = false;
+      // Restore previous selection if still present
+      var prev = getStoredProjectId();
+      if (prev) {
+        for (var i = 0; i < sel.options.length; i++) {
+          if (sel.options[i].value === prev) { sel.selectedIndex = i; break; }
+        }
+      }
+      syncTagButtonLabel();
+    });
+  }
+
+  function syncTagButtonLabel() {
+    var btn = el('agenda-panel-tagmode');
+    if (!btn) return;
+    btn.setAttribute('aria-pressed', state.tagMode ? 'true' : 'false');
+    btn.textContent = state.tagMode ? 'Tag mode: ON' : 'Tag mode: off';
+    btn.classList.toggle('on', state.tagMode);
+  }
+
+  function applyTagModeToSidebar() {
+    var panel = el('agenda-panel');
+    if (!panel) return;
+    panel.classList.toggle('tag-on', state.tagMode && !!state.projectId);
+  }
+
+  function setTagMode(on) {
+    state.tagMode = !!on;
+    var sel = el('agenda-panel-project');
+    if (state.tagMode) {
+      state.projectId = sel && sel.value ? sel.value : '';
+      setStoredProjectId(state.projectId);
+    } else {
+      state.projectId = '';
+      setStoredProjectId('');
+    }
+    syncTagButtonLabel();
+    applyTagModeToSidebar();
+    if (state.tagMode && !state.projectId) {
+      announce('Tag mode on — pick a project to enable ✚ buttons.');
+    } else if (state.tagMode) {
+      announce('Tag mode on. Click ✚ next to any document to file it.');
+    } else {
+      announce('Tag mode off.');
+    }
+  }
+
+  // ── ✚ click handler — POST tag_document ──────────────────────────────
+  function tagSidebarLink(btn, url, scrapedId) {
+    if (!state.tagMode) { announce('Switch Tag mode on first.'); return; }
+    if (!state.projectId) { announce('Pick a project first.'); return; }
+    if (!url) return;
+    btn.disabled = true;
+    btn.textContent = '…';
+    btn.classList.remove('failed', 'tagged');
+    var webappUrl = (typeof getWebAppUrl === 'function') ? getWebAppUrl() : '';
+    if (!webappUrl) { btn.textContent = '⚠'; btn.classList.add('failed'); return; }
+    var clientId = (typeof tagClientId === 'function') ? tagClientId() : '';
+    var q = '&action=tag_document'
+          + '&project_id=' + encodeURIComponent(state.projectId)
+          + '&scraped_doc_id=' + encodeURIComponent(scrapedId || '')
+          + '&source_url=' + encodeURIComponent(url)
+          + '&client_id=' + encodeURIComponent(clientId);
+    fetch(webappUrl + q)
+      .then(function(r) { return r.json(); })
+      .then(function(res) {
+        if (res && res.ok) {
+          btn.textContent = res.status === 'active' ? '✓' : (res.status === 'url-only' ? '🔗' : '⚠');
+          btn.classList.add('tagged');
+          btn.title = 'Tagged · ' + (res.status || '');
+          announce('Tagged document to project.');
+          // Bump global tpDocCounts so the Tracked Projects tab updates
+          try {
+            if (typeof tpDocCounts !== 'undefined' && state.projectId) {
+              tpDocCounts[state.projectId] = (tpDocCounts[state.projectId] || 0) + 1;
+            }
+          } catch(e) {}
+          // Cross-window broadcast for popup → main sync
+          if (state.bc) {
+            try {
+              state.bc.postMessage({
+                type: 'tag',
+                project_id: state.projectId,
+                scraped_doc_id: scrapedId || '',
+                ts: Date.now()
+              });
+            } catch(e) {}
+          }
+        } else {
+          btn.textContent = '⚠';
+          btn.classList.add('failed');
+          btn.title = 'Tag failed: ' + ((res && res.error) || 'unknown');
+          announce('Tag failed.');
+        }
+      })
+      .catch(function(err) {
+        btn.textContent = '⚠';
+        btn.classList.add('failed');
+        btn.title = 'Network error: ' + err.message;
+        announce('Tag failed: network error.');
+      });
+  }
+
+  // ── A11y live region ──────────────────────────────────────────────────
+  function announce(msg) {
+    var live = el('agenda-panel-live');
+    if (!live) return;
+    live.textContent = '';
+    // Force re-announce by clearing then setting in next tick
+    setTimeout(function() { live.textContent = msg; }, 30);
+  }
+
+  // ── Open / close ──────────────────────────────────────────────────────
+  function openByScrapedId(scrapedId, opts) {
+    opts = opts || {};
+    var row = findRowById(scrapedId);
+    if (!row) {
+      console.warn('[mrd-panel] No SCRAPED_DOCS row for id=', scrapedId);
+      return false;
+    }
+    state.ctx = buildContext(row);
+    state.route = state.ctx.route;
+    if (!state.popupMode) {
+      state.lastFocus = document.activeElement;
+    }
+    state.tagMode = false;
+    state.projectId = '';
+    setStoredProjectId('');
+    showPanel();
+    renderHeader();
+    renderMain();
+    renderSidebar();
+    renderProjectDropdown();
+    // Focus close button after open
+    setTimeout(function() {
+      var closeBtn = el('agenda-panel-close');
+      if (closeBtn) closeBtn.focus();
+    }, 50);
+    return true;
+  }
+
+  function showPanel() {
+    var p = el('agenda-panel');
+    if (!p) return;
+    state.open = true;
+    p.setAttribute('aria-hidden', 'false');
+    p.classList.add('open');
+    if (state.popupMode) p.classList.add('popup-mode');
+    document.body.classList.add('agenda-panel-locked');
+  }
+
+  function closePanel() {
+    var p = el('agenda-panel');
+    if (!p) return;
+    state.open = false;
+    state.tagMode = false;
+    setStoredProjectId('');
+    p.setAttribute('aria-hidden', 'true');
+    p.classList.remove('open', 'tag-on', 'popup-mode');
+    document.body.classList.remove('agenda-panel-locked');
+    // Clear iframe to stop any in-flight loading
+    var main = el('agenda-panel-main');
+    if (main) main.innerHTML = '';
+    state.ctx = null;
+    if (state.popupMode) {
+      // Popup: closing the panel = closing the window
+      try { window.close(); } catch(e) {}
+      return;
+    }
+    if (state.lastFocus && typeof state.lastFocus.focus === 'function') {
+      try { state.lastFocus.focus(); } catch(e) {}
+    }
+    state.lastFocus = null;
+  }
+
+  // ── Pop-out (window.open) ─────────────────────────────────────────────
+  function popOut() {
+    if (!state.ctx) return;
+    var id = state.ctx.scrapedDocId;
+    // Decision #5: 800x900
+    var features = 'noopener=yes,popup=yes,width=800,height=900,left=' +
+      Math.max(0, (screen.width - 800) / 2) + ',top=' + Math.max(0, (screen.height - 900) / 2);
+    var href = window.location.pathname + window.location.search + '#agenda=' + encodeURIComponent(id) + '&mode=popout';
+    var w = window.open(href, '_blank', features);
+    if (!w) {
+      announce('Popup blocked. Allow popups for this site to use the pop-out feature.');
+      return;
+    }
+    // Close the in-app panel since the user just spawned a separate window.
+    closePanel();
+  }
+
+  // ── Hash router (popup-mode entry point) ──────────────────────────────
+  function parseHash() {
+    var h = (window.location.hash || '').replace(/^#/, '');
+    if (!h) return null;
+    var parts = h.split('&');
+    var out = {};
+    for (var i = 0; i < parts.length; i++) {
+      var kv = parts[i].split('=');
+      if (kv.length === 2) out[kv[0]] = decodeURIComponent(kv[1]);
+    }
+    return out;
+  }
+
+  function maybeAutoOpenFromHash() {
+    var hp = parseHash();
+    if (!hp || !hp.agenda) return;
+    state.popupMode = (hp.mode === 'popout');
+    // Wait until SCRAPED_DOCS is hydrated
+    var tries = 0;
+    var iv = setInterval(function() {
+      tries++;
+      if (typeof SCRAPED_DOCS !== 'undefined' && Array.isArray(SCRAPED_DOCS) && SCRAPED_DOCS.length) {
+        clearInterval(iv);
+        openByScrapedId(hp.agenda);
+      } else if (tries > 40) {  // ~12s max
+        clearInterval(iv);
+      }
+    }, 300);
+  }
+
+  // ── BroadcastChannel: popup ↔ main sync + lifecycle ──────────────────
+  function setupBroadcast() {
+    if (typeof BroadcastChannel === 'undefined') return;
+    try { state.bc = new BroadcastChannel('mrd-panel'); } catch(e) { return; }
+    state.bc.addEventListener('message', function(ev) {
+      var msg = ev.data || {};
+      if (state.popupMode) {
+        // Decision #6: popup self-closes when main MRD tab closes
+        if (msg.type === 'main-closing') {
+          try { window.close(); } catch(e) {}
+        }
+      } else {
+        // Main listens for tag events from popups → bump local counts
+        if (msg.type === 'tag' && msg.project_id) {
+          try {
+            if (typeof tpDocCounts !== 'undefined') {
+              tpDocCounts[msg.project_id] = (tpDocCounts[msg.project_id] || 0) + 1;
+            }
+          } catch(e) {}
+        }
+      }
+    });
+    if (!state.popupMode) {
+      // Broadcast a closing signal on tab close so any popups self-close
+      window.addEventListener('beforeunload', function() {
+        try { state.bc.postMessage({ type: 'main-closing' }); } catch(e) {}
+      });
+    }
+  }
+
+  // ── Click delegation: agenda anchors inside #view-muni only ───────────
+  function setupTrigger() {
+    var muniView = el('view-muni');
+    if (!muniView) return;
+    muniView.addEventListener('click', function(ev) {
+      if (state.suppressTrigger) return;
+      var a = ev.target && ev.target.closest && ev.target.closest('a[data-doc-link="agenda"][data-scraped-id]');
+      if (!a) return;
+      var sid = a.getAttribute('data-scraped-id') || '';
+      if (!sid) return;
+      // Modifier-clicks → let the browser handle normally (new tab etc.)
+      if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button !== 0) return;
+      // Tag-mode (global P35) on this anchor? Let the existing ✚ flow run.
+      // (Our anchor is the <a> itself; the ✚ button is a sibling, so a click
+      // on the <a> here is purely a navigation click.)
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (openByScrapedId(sid)) {
+        // success
+      } else {
+        // Fallback to the browser's default navigation
+        try { window.open(a.href, '_blank', 'noopener'); } catch(e) {}
+      }
+    }, true);
+  }
+
+  // ── Key handlers (ESC, focus trap) ────────────────────────────────────
+  function setupKeys() {
+    document.addEventListener('keydown', function(ev) {
+      if (!state.open) return;
+      if (ev.key === 'Escape' || ev.keyCode === 27) {
+        ev.preventDefault();
+        closePanel();
+        return;
+      }
+      // Simple focus trap
+      if (ev.key === 'Tab') {
+        var panel = el('agenda-panel');
+        if (!panel) return;
+        var focusables = panel.querySelectorAll(
+          'a[href], button:not([disabled]), select:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        if (!focusables.length) return;
+        var first = focusables[0];
+        var last = focusables[focusables.length - 1];
+        if (ev.shiftKey && document.activeElement === first) {
+          ev.preventDefault(); last.focus();
+        } else if (!ev.shiftKey && document.activeElement === last) {
+          ev.preventDefault(); first.focus();
+        }
+      }
+    });
+  }
+
+  // ── Header control wiring ─────────────────────────────────────────────
+  function setupControls() {
+    var closeBtn = el('agenda-panel-close');
+    if (closeBtn) closeBtn.addEventListener('click', closePanel);
+
+    var backdrop = el('agenda-panel-backdrop');
+    if (backdrop) backdrop.addEventListener('click', closePanel);
+
+    var tagBtn = el('agenda-panel-tagmode');
+    if (tagBtn) tagBtn.addEventListener('click', function() {
+      setTagMode(!state.tagMode);
+    });
+
+    var projSel = el('agenda-panel-project');
+    if (projSel) projSel.addEventListener('change', function() {
+      state.projectId = projSel.value || '';
+      setStoredProjectId(state.projectId);
+      applyTagModeToSidebar();
+      if (state.tagMode && state.projectId) {
+        announce('Project selected. ✚ buttons enabled.');
+      }
+    });
+
+    var popoutBtn = el('agenda-panel-popout');
+    if (popoutBtn) popoutBtn.addEventListener('click', popOut);
+
+    var createBtn = el('agenda-panel-create-btn');
+    if (createBtn) createBtn.addEventListener('click', function() {
+      // Send the user to PH view's create form prefilled with jurisdiction.
+      // If we're in the popup, post a message asking main to handle it.
+      var juris = state.ctx ? state.ctx.jurisdictionId : '';
+      if (state.popupMode) {
+        // No reliable way to open a form in opener without window.opener (we
+        // used noopener). Fall back to instructing the user.
+        announce('Switch to your main MRD tab → Public Hearings → Add a project for ' + juris + '.');
+        return;
+      }
+      closePanel();
+      try {
+        if (typeof switchView === 'function') switchView('publichearings');
+        var nameInput = document.getElementById('ph-name');
+        setTimeout(function() {
+          if (nameInput) {
+            nameInput.focus();
+            nameInput.placeholder = 'Project Name (required) — for ' + juris;
+          }
+        }, 250);
+      } catch(e) {}
+    });
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────────
+  function init() {
+    setupTrigger();
+    setupKeys();
+    setupControls();
+    setupBroadcast();
+    maybeAutoOpenFromHash();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+  // Expose for debugging + programmatic open
+  window.openAgendaPanel = openByScrapedId;
+  window.closeAgendaPanel = closePanel;
+})();
+
 </script>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- P58.2 — AGENDA SIDE-PANEL VIEWER (HTML structure)                     -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<div id="agenda-panel" class="agenda-panel" aria-hidden="true" role="dialog"
+     aria-modal="true" aria-labelledby="agenda-panel-title">
+  <div id="agenda-panel-backdrop" class="agenda-panel-backdrop"></div>
+  <div class="agenda-panel-shell">
+    <header class="agenda-panel-header">
+      <div class="agenda-panel-meta">
+        <h2 id="agenda-panel-title" class="agenda-panel-title-text">Agenda</h2>
+        <div id="agenda-panel-subtitle" class="agenda-panel-subtitle"></div>
+        <!-- P58.7 hook: hidden until earlier-versions disclosure lands -->
+        <span id="agenda-panel-versions" class="agenda-panel-versions" hidden></span>
+      </div>
+      <div class="agenda-panel-controls">
+        <button id="agenda-panel-tagmode" class="agenda-panel-tagmode"
+                type="button" aria-pressed="false">Tag mode: off</button>
+        <select id="agenda-panel-project" class="agenda-panel-project"
+                aria-label="Tracked project to file documents under" disabled>
+          <option value="">Loading projects…</option>
+        </select>
+        <button id="agenda-panel-popout" class="agenda-panel-popout"
+                type="button" title="Open in a new window for second-monitor reference">⇱ Pop out</button>
+        <a id="agenda-panel-external" class="agenda-panel-external"
+           target="_blank" rel="noopener" href="#">Open externally ↗</a>
+        <button id="agenda-panel-close" class="agenda-panel-close"
+                type="button" aria-label="Close agenda panel">✕</button>
+      </div>
+    </header>
+    <div class="agenda-panel-body">
+      <div id="agenda-panel-main" class="agenda-panel-main"></div>
+      <aside class="agenda-panel-sidebar" aria-label="Documents for this meeting">
+        <h3 class="agenda-panel-sidebar-title">
+          Documents for this meeting
+          <span id="agenda-panel-sidebar-count" class="agenda-panel-sidebar-count"></span>
+        </h3>
+        <ul id="agenda-panel-links" class="agenda-panel-links"></ul>
+        <!-- Layer 2 extraction surface — populated by loadExtractedLinks() -->
+        <div id="agenda-panel-extraction" class="agenda-panel-extraction"></div>
+        <div id="agenda-panel-create-hint" class="agenda-panel-create-hint" hidden>
+          No tracked projects yet for this jurisdiction.
+          <button id="agenda-panel-create-btn" class="agenda-panel-create-btn" type="button">+ Create one</button>
+        </div>
+      </aside>
+    </div>
+  </div>
+</div>
+<div id="agenda-panel-live" class="agenda-panel-live" role="status" aria-live="polite"></div>
+
 </body>
 </html>
