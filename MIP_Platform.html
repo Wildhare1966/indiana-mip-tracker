@@ -399,7 +399,6 @@
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Action Taken</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Latest Agenda</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Latest YT</th>
-                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Latest Minutes</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Map</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);"></th>
               </tr>
@@ -2039,6 +2038,12 @@ function switchTab(tab) {
 // class. On every re-render (renderMuniPanel calls mipReapplyLastDocBtn) the
 // class is reapplied to whichever currently-rendered anchor matches the
 // stored href. Switching to a different doc clears the old highlight.
+//
+// P58.7 R12: extended to route doc clicks through Window Management API
+// (window.getScreenDetails) so that on multi-monitor setups the opened
+// document lands on the external monitor instead of a new tab on monitor 1.
+// Falls back to a normal new-tab on single-monitor / permission-denied /
+// unsupported-browser paths so behavior is never worse than before.
 (function() {
   function key() { return 'mip_last_doc_btn_v1'; }
   function getStored() { try { return sessionStorage.getItem(key()) || ''; } catch(e) { return ''; } }
@@ -2050,20 +2055,97 @@ function switchTab(tab) {
       a.classList.remove('last-doc-selected');
     });
     if (!href) return;
-    document.querySelectorAll('a.hearing-link[href], a.ph-meeting-link[href]').forEach(function(a) {
+    document.querySelectorAll('a.hearing-link[href], a.ph-meeting-link[href], a.tp-doc-link[href]').forEach(function(a) {
       if (a.getAttribute('href') === href) a.classList.add('last-doc-selected');
     });
   }
 
+  // ── R12: multi-monitor opener ───────────────────────────────────────────
+  // Cache the resolved external screen for the session so we don't re-prompt
+  // permission on every click. null means "no external screen / unavailable";
+  // undefined means "haven't asked yet".
+  var _extScreen;
+  var _resolving = null;
+
+  function resolveExternalScreen() {
+    if (_extScreen !== undefined) return Promise.resolve(_extScreen);
+    if (_resolving) return _resolving;
+    if (typeof window.getScreenDetails !== 'function') {
+      _extScreen = null;
+      return Promise.resolve(null);
+    }
+    _resolving = window.getScreenDetails().then(function(details) {
+      _resolving = null;
+      var screens = (details && details.screens) || [];
+      // Pick the first non-primary screen; if all are primary (single monitor),
+      // null. Some setups report multiple isPrimary=false screens — pick the
+      // largest by area (likely the external display).
+      var externals = screens.filter(function(s) { return !s.isPrimary; });
+      if (!externals.length) { _extScreen = null; return null; }
+      externals.sort(function(a, b) { return (b.availWidth * b.availHeight) - (a.availWidth * a.availHeight); });
+      _extScreen = externals[0];
+      return _extScreen;
+    }).catch(function(err) {
+      _resolving = null;
+      console.warn('[mrd] getScreenDetails unavailable:', err && err.message);
+      _extScreen = null;
+      return null;
+    });
+    return _resolving;
+  }
+
+  function openOnExternalMonitor(url) {
+    if (!url) return false;
+    resolveExternalScreen().then(function(scr) {
+      var features = 'noopener,noreferrer';
+      if (scr) {
+        // Position the popup window on the external monitor at native size.
+        var l = scr.availLeft != null ? scr.availLeft : scr.left || 0;
+        var t = scr.availTop  != null ? scr.availTop  : scr.top  || 0;
+        var w = scr.availWidth  || 1200;
+        var h = scr.availHeight || 900;
+        features = 'popup=yes,left=' + l + ',top=' + t + ',width=' + w + ',height=' + h + ',noopener,noreferrer';
+      }
+      var win = window.open(url, '_blank', features);
+      // If the browser blocked popup or returned null, fall back to a plain
+      // anchor-style open in a new tab.
+      if (!win) {
+        try { window.open(url, '_blank', 'noopener,noreferrer'); } catch(e) {}
+      }
+    });
+    return true;
+  }
+
   document.addEventListener('click', function(ev) {
     var a = ev.target && ev.target.closest
-      && ev.target.closest('a.hearing-link[data-doc-link], a.ph-meeting-link[data-doc-link]');
+      && ev.target.closest('a.hearing-link[data-doc-link], a.ph-meeting-link[data-doc-link], a.tp-doc-link[data-doc-link]');
     if (!a) return;
-    setStored(a.getAttribute('href') || '');
+    // Modifier-clicks (Ctrl/Cmd/Shift) → let browser handle natively so
+    // power users can override the multi-monitor routing if they want.
+    if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button !== 0) {
+      setStored(a.getAttribute('href') || '');
+      reapply();
+      return;
+    }
+    var href = a.getAttribute('href') || '';
+    setStored(href);
     reapply();
+    // P58.7 R12: try to open on the external monitor. If the Window
+    // Management API is unavailable, openOnExternalMonitor falls back to
+    // a normal popup/new-tab; that is still a window.open call so the
+    // browser's anchor-default would otherwise also fire — preventDefault
+    // so we don't end up with two open windows.
+    if (href) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      openOnExternalMonitor(href);
+    }
   }, true);
 
   window.mipReapplyLastDocBtn = reapply;
+  // Exposed so the Tracked Projects table (and other future surfaces) can
+  // wire this without re-declaring it.
+  window.mipOpenDoc = openOnExternalMonitor;
 
   // Reapply once on DOM ready (covers global PH page initial render where
   // renderMuniPanel doesn't fire).
@@ -2732,7 +2814,12 @@ function renderHearingsContent(muniId) {
     .sort((a, b) => b.date.localeCompare(a.date));
   const otherDates = filtered.filter(d => !isCouncilType(d.body_type) && !isPlanCommissionType(d.body_type));
 
-  let html = renderScheduleBanner(muniId, unified, ref);
+  // P58.7 R11: schedule-banner ("Schedule unconfirmed — dates projected…",
+  // "No upcoming dates loaded") removed per user request. Function retained
+  // in case a non-warning variant is reintroduced later. The "Add Schedule
+  // URL" affordance the banner provided lives only on the operator side
+  // now (submit_manual_entry / submitScheduleUrl can be invoked directly).
+  let html = '';
   // P57 W7: per-juris landing-page buttons. Source from MUNICIPALITIES[muniId]
   // (populated by getMunicipalitiesJSON via Muni_Data + scraper-config fallback).
   html += renderLandingPageButtons(muniId);
@@ -4534,7 +4621,12 @@ function tpRenderTable() {
   jurisFilter = jurisFilter.trim().toLowerCase();
   textFilter  = textFilter.trim().toLowerCase();
 
+  // P58.7 R13c: archived + closed rows are hidden from the visible list but
+  // remain in the database (status_archive_filter). The dropdown lets users
+  // flip a row to "archive" which sets status='archived' on the backend.
   var rows = tpProjects.filter(function(p) {
+    var st = (p.status || 'active').toLowerCase();
+    if (st === 'archived' || st === 'closed') return false;
     if (jurisFilter && (p.jurisdiction||'').toLowerCase().indexOf(jurisFilter) === -1) return false;
     if (textFilter) {
       var hay = ((p.projectName||'') + ' ' + (p.ordinanceId||'') + ' ' + (p.petitionerApplicant||'') + ' ' + (p.aliases||'')).toLowerCase();
@@ -4546,22 +4638,38 @@ function tpRenderTable() {
   if (statusEl) statusEl.textContent = rows.length + ' project' + (rows.length === 1 ? '' : 's') + (tpProjects.length === rows.length ? '' : ' (of ' + tpProjects.length + ')');
 
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="11" style="padding:24px;text-align:center;color:var(--muted,#888);">No projects match the current filters.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="padding:24px;text-align:center;color:var(--muted,#888);">No projects match the current filters.</td></tr>';
     return;
   }
 
   tbody.innerHTML = rows.map(function(p) {
     var pidAttr = escAttr(p.projectId || '');
-    var agenda  = p.latestAgendaUrl    ? '<a href="' + esc(inlineViewerUrl(p.latestAgendaUrl))    + '" target="_blank" rel="noopener" data-doc-link="agenda">Agenda</a>'   : '<span style="color:var(--muted,#888);">—</span>';
-    var yt      = p.latestYtSummaryUrl ? '<a href="' + esc(p.latestYtSummaryUrl) + '" target="_blank" rel="noopener" data-doc-link="youtube">YouTube</a>' : '<span style="color:var(--muted,#888);">—</span>';
-    var minutes = p.latestMinutesUrl   ? '<a href="' + esc(inlineViewerUrl(p.latestMinutesUrl))   + '" target="_blank" rel="noopener" data-doc-link="minutes">Minutes</a>' : '<span style="color:var(--muted,#888);">—</span>';
+    // P58.7 R13a: resolve the YT cell to the AI-generated SUMMARY DOC URL
+    // when one is available for this project's latest meeting. Falls back
+    // to the YouTube video URL (legacy behavior) when no summary exists.
+    var summaryDocUrl = _tpFindSummaryDocFor(p);
+    var ytHref = summaryDocUrl || p.latestYtSummaryUrl || '';
+    var ytLabel = summaryDocUrl ? 'Summary' : (p.latestYtSummaryUrl ? 'YouTube' : '');
+    var agenda  = p.latestAgendaUrl
+      ? '<a class="tp-doc-link" href="' + esc(inlineViewerUrl(p.latestAgendaUrl)) + '" target="_blank" rel="noopener" data-doc-link="agenda">Agenda</a>'
+      : '<span style="color:var(--muted,#888);">—</span>';
+    var yt = ytHref
+      ? '<a class="tp-doc-link" href="' + esc(ytHref) + '" target="_blank" rel="noopener" data-doc-link="' + (summaryDocUrl ? 'summary' : 'youtube') + '">' + esc(ytLabel) + '</a>'
+      : '<span style="color:var(--muted,#888);">—</span>';
     var when    = p.latestMeetingDate ? '<div style="font-size:10px;color:var(--muted,#888);">' + esc(p.latestMeetingDate) + '</div>' : '';
     var nature  = p.lastNature || '';
     var natureBadge = nature
       ? '<span class="tracked-nature-badge nature-' + esc(nature.replace(' ','-')) + '">' + esc(nature) + '</span>'
       : '<span style="color:var(--muted,#888);">—</span>';
-    var status = p.status || 'active';
-    var statusColor = status === 'closed' ? '#888' : (status === 'paused' ? '#c4a64a' : '#4ac49a');
+    var status = (p.status || 'active').toLowerCase();
+    // P58.7 R13c: dropdown replaces the static colored text. Only Active +
+    // Archive are user-selectable here; "closed" rows are filtered out
+    // above so the legacy state never reaches this branch.
+    var statusSelect =
+      '<select class="tp-status-select" data-status-select="' + pidAttr + '" onchange="tpStatusChange(this)">' +
+        '<option value="active"'   + (status === 'active' ? ' selected' : '')   + '>Active</option>' +
+        '<option value="archived"' + (status === 'archived' ? ' selected' : '') + '>Archive</option>' +
+      '</select>';
 
     return '<tr data-project-id="' + pidAttr + '" style="border-bottom:1px solid var(--border,#2a2a2a);">' +
       '<td style="padding:8px 10px;vertical-align:top;">' +
@@ -4579,26 +4687,129 @@ function tpRenderTable() {
           var badge = n > 0
             ? '<a href="javascript:void(0)" onclick="tpOpenDocsPopup(\'' + pidAttr + '\', this); return false;" title="View tagged documents" style="font-weight:600;color:#7e57c2;text-decoration:none;">' + n + ' doc' + (n===1?'':'s') + '</a>'
             : '<span style="color:var(--muted,#888);">0 docs</span>';
-          var tagBtn = (p.status !== 'closed')
-            ? ' <button class="refresh-btn" onclick="tpEnterTagMode(\'' + pidAttr + '\')" style="font-size:10px;padding:1px 6px;margin-left:6px;" title="Enter tag mode for this project">+ Tag</button>'
-            : '';
+          var tagBtn = ' <button class="refresh-btn" onclick="tpEnterTagMode(\'' + pidAttr + '\')" style="font-size:10px;padding:1px 6px;margin-left:6px;" title="Enter tag mode for this project">+ Tag</button>';
           return badge + tagBtn;
         })() +
       '</td>' +
-      '<td style="padding:8px 10px;vertical-align:top;color:' + statusColor + ';">' + esc(status) + '</td>' +
+      '<td style="padding:8px 10px;vertical-align:top;">' + statusSelect + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' + natureBadge + when + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' + agenda + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' + yt + '</td>' +
-      '<td style="padding:8px 10px;vertical-align:top;">' + minutes + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' +
         '<input type="text" value="' + escAttr(p.mapUrl || '') + '" placeholder="ArcGIS / parcel URL" data-field="map_url" onblur="tpInlineSave(this)" style="width:160px;background:transparent;border:1px solid transparent;color:inherit;padding:2px 4px;font-size:12px;border-radius:3px;" onfocus="this.style.borderColor=\'var(--border,#444)\'">' +
         (p.mapUrl ? ' <a href="' + esc(p.mapUrl) + '" target="_blank" rel="noopener" title="Open map" data-no-tag>↗</a>' : '') +
       '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;text-align:right;">' +
-        (isOperator() && status !== 'closed' ? '<button class="refresh-btn" onclick="event.stopPropagation();tpCloseProject(\'' + pidAttr + '\', \'' + escAttr((p.projectName||'').replace(/\x27/g,"\\\x27")) + '\')" style="font-size:10px;padding:2px 6px;" title="Close tracking (operator only)">✕</button>' : '') +
+        (isOperator() ? '<button class="refresh-btn" onclick="event.stopPropagation();tpCloseProject(\'' + pidAttr + '\', \'' + escAttr((p.projectName||'').replace(/\x27/g,"\\\x27")) + '\')" style="font-size:10px;padding:2px 6px;" title="Close tracking (operator only)">✕</button>' : '') +
       '</td>' +
     '</tr>';
   }).join('');
+  // Reapply R6 highlight to any newly-rendered tp-doc-link anchors.
+  if (typeof mipReapplyLastDocBtn === 'function') mipReapplyLastDocBtn();
+}
+
+// P58.7 R13a: walk PUBLIC_HEARINGS for the project's jurisdiction + meeting
+// date, return the summary_doc URL if any. Tolerates jurisdiction stored as
+// either canonical id ("carmel") or full label ("City of Carmel"); also
+// normalizes mixed date formats — latestMeetingDate often comes back from
+// the backend as M/D/YYYY (sheet format) while PUBLIC_HEARINGS entries are
+// yyyy-MM-dd. Normalize both sides before comparing.
+function _tpNormDateYmd(raw) {
+  if (!raw) return '';
+  var s = String(raw).trim();
+  // yyyy-MM-dd (or longer ISO) — take the first 10 chars.
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  // M/D/YYYY or MM/DD/YYYY → reformat as yyyy-MM-dd
+  var m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);
+  if (m) {
+    var mm = m[1].length === 1 ? '0' + m[1] : m[1];
+    var dd = m[2].length === 1 ? '0' + m[2] : m[2];
+    return m[3] + '-' + mm + '-' + dd;
+  }
+  // Fallback: Date.parse (tolerates a wider range but timezone-sensitive)
+  var d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    var y = d.getFullYear();
+    var mo = String(d.getMonth() + 1).padStart(2, '0');
+    var da = String(d.getDate()).padStart(2, '0');
+    return y + '-' + mo + '-' + da;
+  }
+  return s.slice(0, 10);
+}
+
+function _tpFindSummaryDocFor(p) {
+  if (!p || !p.latestMeetingDate) return '';
+  if (typeof PUBLIC_HEARINGS !== 'object' || !PUBLIC_HEARINGS) return '';
+  var targetDate = _tpNormDateYmd(p.latestMeetingDate);
+  if (!targetDate) return '';
+  var jurisRaw = (p.jurisdiction || '').toString().toLowerCase().trim();
+  // Resolve jurisdiction key — PUBLIC_HEARINGS is keyed by muni id (e.g.
+  // "carmel"). MUNICIPALITIES maps id → {id, name}. Try the raw key first,
+  // then fall back to matching by name.
+  var keysToTry = [];
+  if (jurisRaw) keysToTry.push(jurisRaw);
+  if (typeof MUNICIPALITIES !== 'undefined' && Array.isArray(MUNICIPALITIES)) {
+    var hit = MUNICIPALITIES.find(function(m) {
+      return (m.id || '').toLowerCase() === jurisRaw
+          || (m.name || '').toLowerCase() === jurisRaw
+          || (jurisRaw && (m.name || '').toLowerCase().indexOf(jurisRaw) !== -1);
+    });
+    if (hit && hit.id) keysToTry.push(hit.id.toLowerCase());
+  }
+  for (var i = 0; i < keysToTry.length; i++) {
+    var k = keysToTry[i];
+    var arr = PUBLIC_HEARINGS[k];
+    if (!Array.isArray(arr)) continue;
+    for (var j = 0; j < arr.length; j++) {
+      var h = arr[j];
+      if (!h) continue;
+      var hd = _tpNormDateYmd(h.date || h.meeting_date || '');
+      if (hd === targetDate && h.summary_doc) return String(h.summary_doc);
+    }
+  }
+  return '';
+}
+
+// P58.7 R13c: status dropdown change → update_tracked_project. On success,
+// the row is filtered out by tpRenderTable (archived rows are hidden).
+function tpStatusChange(sel) {
+  if (!sel) return;
+  var pid = sel.getAttribute('data-status-select');
+  var newStatus = sel.value;
+  if (!pid || !newStatus) return;
+  // Optimistic local update so the row disappears immediately on Archive.
+  var cached = tpProjects.find(function(p) { return p.projectId === pid; });
+  var prev = cached ? cached.status : 'active';
+  if (cached) cached.status = newStatus;
+  // Pre-render so the user sees the row disappear right away.
+  tpRenderTable();
+
+  var webappUrl = getWebAppUrl();
+  if (!webappUrl) return;
+  var body = 'action=update_tracked_project'
+           + '&project_id=' + encodeURIComponent(pid)
+           + '&fields=' + encodeURIComponent(JSON.stringify({ status: newStatus }))
+           + '&token=' + encodeURIComponent(DEFAULT_AUTH_TOKEN || '')
+           + '&client_id=' + encodeURIComponent((typeof tagClientId === 'function') ? tagClientId() : '');
+  fetch(webappUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (!res || !res.ok) {
+        // Roll back optimistic update on failure
+        if (cached) cached.status = prev;
+        tpRenderTable();
+        alert('Status update failed: ' + ((res && res.error) || 'unknown'));
+      }
+    })
+    .catch(function(err) {
+      if (cached) cached.status = prev;
+      tpRenderTable();
+      alert('Status update network error: ' + err.message);
+    });
 }
 
 function tpInlineSave(inputEl) {
@@ -4715,6 +4926,8 @@ window.tpInlineSave       = tpInlineSave;
 window.tpToggleAddForm    = tpToggleAddForm;
 window.tpSubmitNew        = tpSubmitNew;
 window.tpCloseProject     = tpCloseProject;
+// P58.7 R13c: status-dropdown handler
+window.tpStatusChange     = tpStatusChange;
 
 // ═══════════════════════════════════════════════════════
 // P35: TAG MODE — Drive integration + document tagging
