@@ -543,6 +543,285 @@
      right-side member-detail pane so the muni-panel expands full-width. */
   .muni-view-inner.hide-member-detail .member-detail { display: none; }
 
+  /* P58.8: Tracked Projects rail. Sticky right column on per-juris page,
+     populated by renderTpRail(). Sits between muni-panel and member-detail.
+     Has its own inner scroll so the muni-panel scroll stays independent.
+     Hidden when no muni is selected (no #muni-tp-rail content). */
+  .muni-tp-rail {
+    flex: 0 0 300px;
+    overflow-y: auto;
+    border-left: 1px solid var(--border);
+    background: rgba(255,255,255,0.015);
+    padding: 16px 14px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    font-size: 12px;
+  }
+  .muni-tp-rail:empty { display: none; }
+  [data-theme="light"] .muni-tp-rail { background: rgba(0,0,0,0.015); border-left-color: rgba(0,0,0,0.1); }
+  .muni-tp-rail::-webkit-scrollbar { width: 6px; }
+  .muni-tp-rail::-webkit-scrollbar-track { background: transparent; }
+  .muni-tp-rail::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
+
+  .tpr-header {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .tpr-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px; font-weight: 600;
+    color: var(--text);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .tpr-title-count { color: var(--text-dim); font-weight: 400; margin-left: 4px; }
+
+  .tpr-empty {
+    color: var(--text-dim);
+    font-style: italic;
+    padding: 12px 0;
+    text-align: center;
+    font-size: 11px;
+  }
+
+  .tpr-project {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .tpr-project-head {
+    display: flex; align-items: flex-start; gap: 6px;
+  }
+  .tpr-project-name {
+    flex: 1; min-width: 0;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.3;
+    word-break: break-word;
+  }
+  .tpr-project-ord {
+    font-weight: 400;
+    color: var(--text-dim);
+    font-size: 10px;
+    margin-left: 6px;
+  }
+  .tpr-project-meta {
+    font-size: 10px;
+    color: var(--text-dim);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  /* When the per-juris hearings sub-tab gives the muni-panel full width
+     (hide-member-detail), we still want the rail visible — only member-detail
+     should disappear. No extra rule needed; default behavior is correct. */
+
+  /* P58.8 commit 4: Add Project button in rail header. */
+  .tpr-add-btn {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 3px;
+    background: rgba(232,160,32,0.18);
+    color: var(--accent);
+    border: 1px solid rgba(232,160,32,0.4);
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+  .tpr-add-btn:hover:not(:disabled) { background: rgba(232,160,32,0.28); }
+  .tpr-add-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  /* P58.8 commit 4: Add-project form (chip input + ord + name). */
+  .tpr-add-form {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .tpr-input {
+    width: 100%;
+    box-sizing: border-box;
+    background: var(--intel-bg, #1a2540);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 5px 8px;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 11px;
+  }
+  .tpr-input:focus { outline: 1px solid rgba(232,160,32,0.5); border-color: rgba(232,160,32,0.5); }
+  .tpr-input::placeholder { color: var(--text-dim); }
+
+  /* Chip input — wrapping flex container that behaves like a single field. */
+  .tpr-chip-input {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    background: var(--intel-bg, #1a2540);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 4px 6px;
+    min-height: 26px;
+    cursor: text;
+  }
+  .tpr-chip-input:focus-within { border-color: rgba(232,160,32,0.5); outline: 1px solid rgba(232,160,32,0.3); }
+  .tpr-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    background: rgba(232,160,32,0.15);
+    color: var(--accent);
+    border: 1px solid rgba(232,160,32,0.35);
+    border-radius: 3px;
+    padding: 1px 4px 1px 6px;
+    font-size: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    white-space: nowrap;
+  }
+  .tpr-chip-x {
+    background: transparent;
+    color: var(--accent);
+    border: 0;
+    padding: 0 2px;
+    margin: 0;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+  }
+  .tpr-chip-x:hover { color: #fff; }
+  .tpr-chip-input-field {
+    flex: 1; min-width: 80px;
+    background: transparent;
+    color: var(--text);
+    border: 0;
+    outline: none;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 11px;
+    padding: 1px 0;
+  }
+  .tpr-chip-input-field::placeholder { color: var(--text-dim); }
+
+  /* Form row — Save / Cancel buttons. */
+  .tpr-form-row { display: flex; gap: 6px; }
+  .tpr-save-btn, .tpr-cancel-btn {
+    flex: 1;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+  }
+  .tpr-save-btn {
+    background: rgba(232,160,32,0.22);
+    color: var(--accent);
+    border: 1px solid rgba(232,160,32,0.5);
+  }
+  .tpr-save-btn:hover { background: rgba(232,160,32,0.32); }
+  .tpr-cancel-btn {
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+  }
+  .tpr-cancel-btn:hover { color: var(--text); border-color: rgba(255,255,255,0.25); }
+
+  /* Inline form status row. */
+  .tpr-form-msg {
+    font-size: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--text-dim);
+    padding: 2px 0;
+  }
+  .tpr-form-msg-warn { color: #e08888; }
+  .tpr-form-msg-ok   { color: #6dc49a; }
+
+  /* Per-project icon tag button. */
+  .tpr-tag-btn {
+    flex: 0 0 22px;
+    width: 22px;
+    height: 22px;
+    line-height: 1;
+    border-radius: 3px;
+    background: rgba(232,160,32,0.12);
+    color: var(--accent);
+    border: 1px solid rgba(232,160,32,0.3);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 0;
+    text-align: center;
+  }
+  .tpr-tag-btn:hover { background: rgba(232,160,32,0.25); }
+
+  /* Per-project tag input panel (expands on click). */
+  .tpr-tag-input {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px dashed var(--border);
+  }
+
+  /* P58.8 commit 5a: per-project description list. Compact dot-separated
+     pills under each project; "Analyzing…" rows pulse while pending. */
+  .tpr-desc-list {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    margin-top: 4px;
+    font-size: 10px;
+    color: var(--text-dim);
+    font-family: 'IBM Plex Mono', monospace;
+    line-height: 1.4;
+  }
+  .tpr-desc-item {
+    color: var(--text);
+    background: rgba(255,255,255,0.04);
+    border-radius: 2px;
+    padding: 1px 5px;
+  }
+  [data-theme="light"] .tpr-desc-item { background: rgba(0,0,0,0.04); }
+  .tpr-desc-sep { color: var(--text-dim); opacity: 0.6; }
+  .tpr-desc-analyzing {
+    color: var(--accent);
+    background: rgba(232,160,32,0.1);
+    animation: tprPulse 1.4s ease-in-out infinite;
+  }
+  @keyframes tprPulse {
+    0%, 100% { opacity: 0.65; }
+    50%      { opacity: 1; }
+  }
+  .tpr-desc-failed {
+    color: #e08888;
+    background: rgba(220,80,80,0.08);
+  }
+  .tpr-desc-more {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--text-dim);
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    padding: 0 4px;
+    text-decoration: underline;
+  }
+  .tpr-desc-more:hover { color: var(--accent); }
+
   /* P58.7 R2: Report Issue input row at the top of each jurisdiction page. */
   .report-issue-row { display: flex; align-items: flex-start; gap: 6px; flex-wrap: wrap; }
   .report-issue-input {

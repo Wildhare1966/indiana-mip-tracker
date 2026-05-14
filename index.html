@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p58.5r1 -->
+<!-- MIP build p58.8r2 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -103,6 +103,8 @@
             <div class="empty-state-text">Select a municipality from the sidebar</div>
           </div>
         </div>
+        <!-- P58.8: Tracked Projects rail — sticky, inner-scroll, populated by renderTpRail() -->
+        <aside class="muni-tp-rail" id="muni-tp-rail" aria-label="Tracked Projects"></aside>
         <div class="member-detail empty" id="member-detail">
           <div>
             <div style="font-size:20px;margin-bottom:8px;">◈</div>
@@ -1901,9 +1903,9 @@ function renderMuniPanel() {
 
     ${renderMuniIntelFeed(m)}
 
-    ${renderTrackedProjects(m)}
+    <!-- P58.8: inline Tracked Projects section removed — moved to right rail (renderTpRail). -->
 
-    <!-- P58.7 R4: clearer divider between Tracked Projects and members tabs -->
+    <!-- P58.7 R4: clearer divider between intel feed and members tabs -->
     <div class="muni-section-divider" aria-hidden="true"></div>
 
     <div class="members-section">
@@ -1926,6 +1928,452 @@ function renderMuniPanel() {
   // P58.7 R6: reapply "last selected document" highlight after re-render so
   // the visited Agenda/Summary/Minutes button stays marked.
   if (typeof mipReapplyLastDocBtn === 'function') mipReapplyLastDocBtn();
+
+  // P58.8: populate the sticky right rail with this muni's Tracked Projects.
+  // Independent of muni-panel innerHTML so its inner scroll doesn't reset on
+  // tab switch (council/pc/hearings re-renders muni-panel only).
+  renderTpRail(m);
+}
+
+// P58.8: Tracked Projects rail — single source per-juris surface for tracked
+// projects. Filters shared tpProjects cache by muni name (case-insensitive).
+// Kicks tpLoad() if the cache is empty. Re-rendered by tpLoad's onsuccess
+// hook so any backend mutation (create/close/tag) flows through here.
+//
+// State held in closure-scoped vars so re-renders preserve open forms and
+// partial input. Re-renders happen on: muni-panel re-render (tab switch),
+// tpLoad completion, and explicit rail mutations (toggle form, add chip,
+// submit). For input value/cursor preservation, oninput updates state in
+// place without triggering a re-render; only chip-mutating actions (Enter,
+// comma, Backspace-on-empty, ×) re-render.
+var tprAddFormOpen = false;
+var tprAddOrd      = '';
+var tprAddName     = '';
+var tprAliasChips  = [];
+var tprAliasDraft  = '';
+var tprAddMsg      = '';
+var tprAddMsgKind  = ''; // '' | 'warn' | 'ok'
+var tprActiveTagPid = null;
+var tprTagUrl       = '';
+var tprTagMsg       = '';
+var tprTagMsgKind   = '';
+
+// P58.8 commit 5a: per-project session-only description rows. Pre-existing
+// descriptions from the backend are NOT loaded here (would require extending
+// listProjectDocuments); only newly-tagged docs surface in this map. Map shape:
+//   { project_id: [{ doc_id, filename, description, description_status, description_date_iso }, ...] }
+// description_status: 'analyzing' | 'done' | 'failed' | 'skipped'
+var tprDescriptionsByProject = {};
+var tprDescExpandedByProject = {}; // { project_id: true } for "+N more" expanded
+var TPR_DESC_COLLAPSED_MAX = 5;
+
+function renderTpRail(m) {
+  var rail = document.getElementById('muni-tp-rail');
+  if (!rail || !m) return;
+
+  var loaded = (typeof tpProjects !== 'undefined' && Array.isArray(tpProjects));
+  if (!loaded || (!tpProjects.length && !tpLoadedAt)) {
+    if (loaded && typeof tpLoad === 'function' && !tpLoadedAt) tpLoad(false);
+    rail.innerHTML =
+      '<div class="tpr-header">'
+      +  '<div class="tpr-title">Tracked Projects</div>'
+      +  '<button class="tpr-add-btn" disabled title="Loading projects…">+ Add</button>'
+      + '</div>'
+      + '<div class="tpr-empty">Loading…</div>';
+    return;
+  }
+
+  var muniName = (m.name || '').toLowerCase();
+  var rows = tpProjects.filter(function(p) {
+    var st = (p.status || 'active').toLowerCase();
+    if (st === 'closed' || st === 'archived') return false;
+    return (p.jurisdiction || '').toLowerCase() === muniName;
+  });
+
+  var keyOf = function(p) {
+    return Date.parse(p.latestMeetingDate || '') || Date.parse(p.createdDate || '') || 0;
+  };
+  rows.sort(function(a, b) { return keyOf(b) - keyOf(a); });
+
+  var header =
+    '<div class="tpr-header">'
+    +  '<div class="tpr-title">Tracked Projects'
+    +    '<span class="tpr-title-count">· ' + rows.length + '</span>'
+    +  '</div>'
+    +  '<button class="tpr-add-btn" onclick="tprToggleAddForm()" title="Add tracked project">'
+    +    (tprAddFormOpen ? '× Cancel' : '+ Add')
+    +  '</button>'
+    + '</div>';
+
+  var addForm = tprAddFormOpen ? _tprRenderAddForm(m) : '';
+
+  var cards = rows.length
+    ? rows.map(function(p) { return _tprRenderProjectCard(p); }).join('')
+    : '<div class="tpr-empty">No tracked projects for ' + esc(m.name) + '.</div>';
+
+  rail.innerHTML = header + addForm + cards;
+
+  // Restore focus to the alias input when the add form is open (re-renders
+  // from chip-add steal focus otherwise).
+  if (tprAddFormOpen) {
+    var aliasInput = document.getElementById('tpr-alias-draft');
+    if (aliasInput && document.activeElement !== aliasInput) {
+      // Only auto-focus if the user has been interacting with the form (a
+      // chip was just added) — avoid stealing focus from project name/ord.
+      if (tprAliasChips.length && tprAliasDraft === '') aliasInput.focus();
+    }
+  }
+}
+
+function _tprRenderAddForm(m) {
+  var chips = tprAliasChips.map(function(a, i) {
+    return '<span class="tpr-chip">' + esc(a)
+         + '<button type="button" class="tpr-chip-x" onclick="tprRemoveChip(' + i + ')" title="Remove">×</button>'
+         + '</span>';
+  }).join('');
+  var msgCls = tprAddMsgKind === 'warn' ? ' tpr-form-msg-warn' : (tprAddMsgKind === 'ok' ? ' tpr-form-msg-ok' : '');
+  var msg = tprAddMsg ? '<div class="tpr-form-msg' + msgCls + '">' + esc(tprAddMsg) + '</div>' : '';
+  return ''
+    + '<div class="tpr-add-form">'
+    +   '<input id="tpr-ord" class="tpr-input" type="text" placeholder="Ord# / Docket ID (optional)"'
+    +     ' value="' + escAttr(tprAddOrd) + '"'
+    +     ' oninput="tprAddOrd = this.value;">'
+    +   '<input id="tpr-name" class="tpr-input" type="text" placeholder="Project name (required)"'
+    +     ' value="' + escAttr(tprAddName) + '"'
+    +     ' oninput="tprAddName = this.value;">'
+    +   '<div class="tpr-chip-input" onclick="document.getElementById(\'tpr-alias-draft\').focus();">'
+    +     chips
+    +     '<input id="tpr-alias-draft" class="tpr-chip-input-field" type="text" placeholder="' + (tprAliasChips.length ? 'Add alias…' : 'Aliases (Enter to add)') + '"'
+    +       ' value="' + escAttr(tprAliasDraft) + '"'
+    +       ' oninput="tprAliasDraft = this.value;"'
+    +       ' onkeydown="tprAliasKeyDown(event);">'
+    +   '</div>'
+    +   '<div class="tpr-form-row">'
+    +     '<button class="tpr-save-btn" onclick="tprSubmitProject()">Save</button>'
+    +     '<button class="tpr-cancel-btn" onclick="tprToggleAddForm()">Cancel</button>'
+    +   '</div>'
+    +   msg
+    + '</div>';
+}
+
+function _tprRenderProjectCard(p) {
+  var pid    = p.projectId || '';
+  var pidEsc = escAttr(pid);
+  var ord    = p.ordinanceId ? '<span class="tpr-project-ord">' + esc(p.ordinanceId) + '</span>' : '';
+  var meta = [];
+  if (p.latestMeetingDate) meta.push('Last: ' + esc(p.latestMeetingDate));
+  if (p.lastNature)        meta.push(esc(p.lastNature));
+  var metaHtml = meta.length ? '<div class="tpr-project-meta">' + meta.join(' · ') + '</div>' : '';
+
+  var tagOpen = (tprActiveTagPid === pid);
+  var msgCls = tprTagMsgKind === 'warn' ? ' tpr-form-msg-warn' : (tprTagMsgKind === 'ok' ? ' tpr-form-msg-ok' : '');
+  var tagMsg = (tagOpen && tprTagMsg) ? '<div class="tpr-form-msg' + msgCls + '">' + esc(tprTagMsg) + '</div>' : '';
+  var tagInputHtml = tagOpen
+    ? '<div class="tpr-tag-input">'
+        + '<input id="tpr-url-' + pidEsc + '" class="tpr-input" type="url" placeholder="Paste document URL (https://…)"'
+          + ' value="' + escAttr(tprTagUrl) + '"'
+          + ' oninput="tprTagUrl = this.value;">'
+        + '<div class="tpr-form-row">'
+          + '<button class="tpr-save-btn" onclick="tprSubmitTag(\'' + pidEsc + '\')">Save</button>'
+          + '<button class="tpr-cancel-btn" onclick="tprToggleTagInput(\'' + pidEsc + '\')">Cancel</button>'
+        + '</div>'
+        + tagMsg
+      + '</div>'
+    : '';
+
+  // Description list — session-only (commit 5a). Pre-existing descriptions
+  // from the backend are not loaded yet.
+  var descHtml = _tprRenderDescriptions(pid);
+
+  return ''
+    + '<div class="tpr-project" data-pid="' + pidEsc + '">'
+    +   '<div class="tpr-project-head">'
+    +     '<div class="tpr-project-name">' + esc(p.projectName || '(untitled)') + ord + '</div>'
+    +     '<button class="tpr-tag-btn" onclick="tprToggleTagInput(\'' + pidEsc + '\')"'
+    +       ' title="' + (tagOpen ? 'Cancel tag' : 'Tag a document to this project') + '">'
+    +       (tagOpen ? '×' : '+')
+    +     '</button>'
+    +   '</div>'
+    +   metaHtml
+    +   descHtml
+    +   tagInputHtml
+    + '</div>';
+}
+
+// Render the description list for a project. Empty if no rows. Collapsible
+// when >TPR_DESC_COLLAPSED_MAX rows ("+N more" → expanded). Format per spec:
+//   "{type} — {MM/DD/YYYY}" or "Analyzing…" while pending.
+function _tprRenderDescriptions(projectId) {
+  var rows = tprDescriptionsByProject[projectId] || [];
+  if (!rows.length) return '';
+  var expanded = !!tprDescExpandedByProject[projectId];
+  var total = rows.length;
+  var shown = (expanded || total <= TPR_DESC_COLLAPSED_MAX) ? rows : rows.slice(0, TPR_DESC_COLLAPSED_MAX);
+
+  var items = shown.map(function(r) {
+    var status = r.description_status || 'pending';
+    var label = '';
+    if (status === 'analyzing' || status === 'pending') {
+      label = 'Analyzing…';
+    } else if (status === 'failed') {
+      label = 'Analysis failed';
+    } else if (status === 'skipped') {
+      label = 'Skipped';
+    } else {
+      label = r.description || (r.filename || 'Document');
+    }
+    var titleAttr = r.filename ? ' title="' + escAttr(r.filename) + '"' : '';
+    var cls = 'tpr-desc-item';
+    if (status === 'analyzing' || status === 'pending') cls += ' tpr-desc-analyzing';
+    if (status === 'failed') cls += ' tpr-desc-failed';
+    return '<span class="' + cls + '"' + titleAttr + '>' + esc(label) + '</span>';
+  }).join('<span class="tpr-desc-sep">·</span>');
+
+  var moreBtn = '';
+  if (total > TPR_DESC_COLLAPSED_MAX) {
+    var pidAttr = escAttr(projectId);
+    moreBtn = expanded
+      ? '<button type="button" class="tpr-desc-more" onclick="tprToggleDescExpand(\'' + pidAttr + '\')">show less</button>'
+      : '<button type="button" class="tpr-desc-more" onclick="tprToggleDescExpand(\'' + pidAttr + '\')">+' + (total - TPR_DESC_COLLAPSED_MAX) + ' more</button>';
+  }
+  return '<div class="tpr-desc-list">' + items + moreBtn + '</div>';
+}
+
+function tprToggleDescExpand(pid) {
+  tprDescExpandedByProject[pid] = !tprDescExpandedByProject[pid];
+  if (currentMuni) renderTpRail(currentMuni);
+}
+
+// Format an ISO date (YYYY-MM-DD) as MM/DD/YYYY without going through Date
+// (which off-by-ones across the Indianapolis TZ boundary — same fix the
+// backend's _pdFormatDateShort_ applies).
+function _tprFormatDateShort(iso) {
+  if (!iso) return '';
+  var m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return iso;
+  return m[2] + '/' + m[3] + '/' + m[1];
+}
+
+// Today's date as MM/DD/YYYY (used when describe returns no date).
+function _tprTodayShort() {
+  var d = new Date();
+  var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
+  return pad(d.getMonth() + 1) + '/' + pad(d.getDate()) + '/' + d.getFullYear();
+}
+
+function tprToggleAddForm() {
+  tprAddFormOpen = !tprAddFormOpen;
+  if (!tprAddFormOpen) {
+    tprAddOrd = ''; tprAddName = '';
+    tprAliasChips = []; tprAliasDraft = '';
+    tprAddMsg = ''; tprAddMsgKind = '';
+  }
+  if (currentMuni) renderTpRail(currentMuni);
+  // Focus the name field on open (renderTpRail synchronous → DOM is ready).
+  if (tprAddFormOpen) {
+    var el = document.getElementById('tpr-name');
+    if (el) el.focus();
+  }
+}
+
+function tprAliasKeyDown(ev) {
+  if (ev.key === 'Enter' || ev.key === ',') {
+    ev.preventDefault();
+    var v = (tprAliasDraft || '').trim();
+    if (v && tprAliasChips.indexOf(v) === -1) tprAliasChips.push(v);
+    tprAliasDraft = '';
+    if (currentMuni) renderTpRail(currentMuni);
+  } else if (ev.key === 'Backspace' && (tprAliasDraft || '') === '' && tprAliasChips.length) {
+    ev.preventDefault();
+    tprAliasChips.pop();
+    if (currentMuni) renderTpRail(currentMuni);
+  }
+}
+
+function tprRemoveChip(idx) {
+  tprAliasChips.splice(idx, 1);
+  if (currentMuni) renderTpRail(currentMuni);
+}
+
+function tprSubmitProject() {
+  var name = (tprAddName || '').trim();
+  if (!name) {
+    tprAddMsg = 'Project name is required.'; tprAddMsgKind = 'warn';
+    if (currentMuni) renderTpRail(currentMuni);
+    return;
+  }
+  // Flush any unfinished alias draft so it isn't dropped on submit.
+  var pendingDraft = (tprAliasDraft || '').trim();
+  if (pendingDraft && tprAliasChips.indexOf(pendingDraft) === -1) tprAliasChips.push(pendingDraft);
+
+  var ord    = (tprAddOrd || '').trim();
+  var aliasStr = tprAliasChips.join(',');
+  var juris  = currentMuni ? currentMuni.name : '';
+  var webappUrl = getWebAppUrl();
+  if (!webappUrl) {
+    tprAddMsg = 'Web app URL not configured.'; tprAddMsgKind = 'warn';
+    if (currentMuni) renderTpRail(currentMuni);
+    return;
+  }
+  // Duplicate detection (same logic as phAddProject — match ord or name).
+  var rows = (typeof tpProjects !== 'undefined' && Array.isArray(tpProjects)) ? tpProjects : [];
+  var dup = rows.find(function(p) {
+    if (ord && p.ordinanceId && p.ordinanceId.toLowerCase() === ord.toLowerCase()) return true;
+    if ((p.projectName || '').toLowerCase() === name.toLowerCase()) return true;
+    return false;
+  });
+  if (dup) {
+    tprAddMsg = 'Already tracked: ' + (dup.projectName || dup.ordinanceId);
+    tprAddMsgKind = 'warn';
+    if (currentMuni) renderTpRail(currentMuni);
+    return;
+  }
+
+  tprAddMsg = 'Saving…'; tprAddMsgKind = '';
+  if (currentMuni) renderTpRail(currentMuni);
+  var q = '&action=create_tracked_project'
+        + '&project_name=' + encodeURIComponent(name)
+        + '&ordinance_id=' + encodeURIComponent(ord)
+        + '&jurisdiction=' + encodeURIComponent(juris)
+        + '&aliases='      + encodeURIComponent(aliasStr);
+  fetch(webappUrl + q)
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (res && res.success) {
+        // Reset form state, then trigger a full tpLoad → render with new project.
+        tprAddFormOpen = false;
+        tprAddOrd = ''; tprAddName = '';
+        tprAliasChips = []; tprAliasDraft = '';
+        tprAddMsg = ''; tprAddMsgKind = '';
+        if (typeof tpLoad === 'function') tpLoad(true);
+      } else {
+        tprAddMsg = 'Save failed: ' + ((res && res.error) || 'unknown');
+        tprAddMsgKind = 'warn';
+        if (currentMuni) renderTpRail(currentMuni);
+      }
+    })
+    .catch(function(err) {
+      tprAddMsg = 'Network error: ' + err.message;
+      tprAddMsgKind = 'warn';
+      if (currentMuni) renderTpRail(currentMuni);
+    });
+}
+
+function tprToggleTagInput(pid) {
+  if (tprActiveTagPid === pid) {
+    tprActiveTagPid = null;
+    tprTagUrl = ''; tprTagMsg = ''; tprTagMsgKind = '';
+  } else {
+    tprActiveTagPid = pid;
+    tprTagUrl = ''; tprTagMsg = ''; tprTagMsgKind = '';
+  }
+  if (currentMuni) renderTpRail(currentMuni);
+  if (tprActiveTagPid) {
+    var el = document.getElementById('tpr-url-' + pid);
+    if (el) el.focus();
+  }
+}
+
+function tprSubmitTag(pid) {
+  var url = (tprTagUrl || '').trim();
+  if (!url) {
+    tprTagMsg = 'Paste a document URL first.'; tprTagMsgKind = 'warn';
+    if (currentMuni) renderTpRail(currentMuni);
+    return;
+  }
+  if (!/^https?:\/\//i.test(url)) {
+    tprTagMsg = 'URL must start with http:// or https://';
+    tprTagMsgKind = 'warn';
+    if (currentMuni) renderTpRail(currentMuni);
+    return;
+  }
+  var webappUrl = getWebAppUrl();
+  if (!webappUrl) {
+    tprTagMsg = 'Web app URL not configured.'; tprTagMsgKind = 'warn';
+    if (currentMuni) renderTpRail(currentMuni);
+    return;
+  }
+  tprTagMsg = 'Tagging…'; tprTagMsgKind = '';
+  if (currentMuni) renderTpRail(currentMuni);
+  var cid = (typeof tagClientId === 'function') ? tagClientId() : '';
+  var q = '&action=tag_document'
+        + '&project_id=' + encodeURIComponent(pid)
+        + '&scraped_doc_id='
+        + '&source_url=' + encodeURIComponent(url)
+        + '&client_id=' + encodeURIComponent(cid);
+  fetch(webappUrl + q)
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (res && res.ok) {
+        var status  = res.status  || 'tagged';
+        var docId   = res.doc_id  || '';
+        var filename = res.filename || (url.split('/').pop() || 'Document').replace(/[?#].*$/, '');
+        tprTagMsg = 'Tagged ✓ (' + status + ')'; tprTagMsgKind = 'ok';
+        tprTagUrl = '';
+        if (typeof tpDocCounts !== 'undefined') {
+          tpDocCounts[pid] = (tpDocCounts[pid] || 0) + 1;
+        }
+        // P58.8 commit 5a: push optimistic Analyzing… row and fire
+        // describe_document. Only fires when status is 'active' (a real
+        // Drive-backed row exists); url-only / skipped statuses get a
+        // permanent "Skipped" row so the user sees what happened.
+        if (!tprDescriptionsByProject[pid]) tprDescriptionsByProject[pid] = [];
+        var descStatus = (status === 'active') ? 'analyzing' : 'skipped';
+        tprDescriptionsByProject[pid].unshift({
+          doc_id: docId,
+          filename: filename,
+          description: '',
+          description_status: descStatus,
+          description_date_iso: ''
+        });
+        if (currentMuni) renderTpRail(currentMuni);
+        if (descStatus === 'analyzing' && docId) {
+          _tprFireDescribe(pid, docId);
+        }
+      } else {
+        tprTagMsg = 'Tag failed: ' + ((res && res.error) || 'unknown');
+        tprTagMsgKind = 'warn';
+        if (currentMuni) renderTpRail(currentMuni);
+      }
+    })
+    .catch(function(err) {
+      tprTagMsg = 'Network error: ' + err.message;
+      tprTagMsgKind = 'warn';
+      if (currentMuni) renderTpRail(currentMuni);
+    });
+}
+
+// P58.8 commit 5a: chain describe_document after a successful tag. On
+// response, locate the optimistic row in tprDescriptionsByProject[pid] by
+// doc_id and replace it with the rendered description string.
+function _tprFireDescribe(pid, docId) {
+  var webappUrl = getWebAppUrl();
+  if (!webappUrl) return;
+  var q = '&action=describe_document&doc_id=' + encodeURIComponent(docId);
+  fetch(webappUrl + q)
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      var rows = tprDescriptionsByProject[pid] || [];
+      var row = rows.find(function(r) { return r.doc_id === docId; });
+      if (!row) return;
+      if (res && res.ok) {
+        var type = (res.type || '').trim();
+        var dateIso = res.date_iso || '';
+        var dateStr = dateIso ? _tprFormatDateShort(dateIso) : _tprTodayShort();
+        row.description = type ? (type + ' — ' + dateStr) : ('Document — ' + dateStr);
+        row.description_status = res.status || 'done';
+        row.description_date_iso = dateIso || '';
+      } else {
+        row.description_status = 'failed';
+      }
+      if (currentMuni) renderTpRail(currentMuni);
+    })
+    .catch(function(err) {
+      var rows = tprDescriptionsByProject[pid] || [];
+      var row = rows.find(function(r) { return r.doc_id === docId; });
+      if (row) row.description_status = 'failed';
+      if (currentMuni) renderTpRail(currentMuni);
+    });
 }
 
 // P58.7 R3: per-muni collapse state. Defaults to collapsed (false).
@@ -4585,6 +5033,7 @@ function tpLoad(force) {
   if (!force && tpProjects.length && Date.now() - tpLoadedAt < 60000) {
     tpRenderTable();
     if (typeof phRenderTracked === 'function') phRenderTracked();
+    if (typeof renderTpRail === 'function' && typeof currentMuni !== 'undefined' && currentMuni) renderTpRail(currentMuni);
     return;
   }
   var statusEl = document.getElementById('tp-status');
@@ -4599,6 +5048,8 @@ function tpLoad(force) {
       // Docs column, never the PH chip list). The post-counts re-render
       // below is kept so the global tab's count column populates when ready.
       if (typeof phRenderTracked === 'function') phRenderTracked();
+      // P58.8: refresh per-juris rail when fresh data lands.
+      if (typeof renderTpRail === 'function' && typeof currentMuni !== 'undefined' && currentMuni) renderTpRail(currentMuni);
       // P35: fetch tagged-doc counts in parallel; re-render once they land.
       return tpLoadDocCounts().then(function() {
         tpRenderTable();
