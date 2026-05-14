@@ -491,6 +491,56 @@
     border-radius: 6px;
     padding: 14px;
   }
+  /* P58.7 R3: collapsible header (caret toggle inside the lighter panel). */
+  .muni-summary-toggle { cursor: pointer; user-select: none; display: flex; align-items: center; gap: 8px; margin-bottom: 0; }
+  .muni-summary-box.open .muni-summary-toggle { margin-bottom: 10px; }
+  .muni-summary-caret { display: inline-block; width: 10px; text-align: center; color: var(--accent); }
+  .muni-summary-toggle:hover { color: var(--text); }
+
+  /* P58.7 R4: divider between Tracked Projects and members tabs row. */
+  .muni-section-divider { height: 1px; background: var(--border); margin: 4px 0; opacity: 0.7; }
+
+  /* P58.7 R6: sticky highlight on the last-clicked Agenda/Summary/Minutes button. */
+  a.hearing-link.last-doc-selected,
+  a.ph-meeting-link.last-doc-selected {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+    box-shadow: 0 0 0 2px rgba(232,160,32,0.25);
+    font-weight: 700;
+  }
+
+  /* P58.7 R7: when on the per-juris Public Hearings sub-tab, hide the
+     right-side member-detail pane so the muni-panel expands full-width. */
+  .muni-view-inner.hide-member-detail .member-detail { display: none; }
+
+  /* P58.7 R2: Report Issue input row at the top of each jurisdiction page. */
+  .report-issue-row { display: flex; align-items: flex-start; gap: 6px; flex-wrap: wrap; }
+  .report-issue-input {
+    flex: 1; min-width: 0; min-height: 30px; resize: vertical;
+    background: var(--intel-bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    font-family: 'IBM Plex Sans', sans-serif; font-size: 12px;
+    padding: 6px 10px; outline: none; box-sizing: border-box;
+  }
+  .report-issue-input:focus { border-color: rgba(232,160,32,0.5); }
+  .report-issue-input::placeholder { color: var(--text-dim); }
+  .report-issue-send {
+    background: rgba(232,160,32,0.18); color: var(--accent);
+    border: 1px solid rgba(232,160,32,0.4);
+    font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600;
+    padding: 6px 14px; border-radius: 4px; cursor: pointer;
+    letter-spacing: 0.04em;
+  }
+  .report-issue-send:hover { background: rgba(232,160,32,0.28); }
+  .report-issue-msg { width: 100%; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-dim); min-height: 14px; }
+  .report-issue-msg.ok   { color: #6ec56e; }
+  .report-issue-msg.warn { color: #e8a020; }
+
+  /* P58.7 R1: Document Display Name input (matches existing .tdf-url). */
+  .tdf-name { width: 100%; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 3px; color: var(--text); font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; padding: 5px 8px; outline: none; box-sizing: border-box; }
+  .tdf-name:focus { border-color: rgba(232,160,32,0.4); }
+  .tdf-name::placeholder { color: var(--text-dim); }
+
   .section-label {
     font-family: 'IBM Plex Mono', monospace;
     font-size: 10px;
@@ -519,7 +569,15 @@
   .rec-low { background: #8b3030; }
   .rec-mixed { background: #5a4a8b; }
 
-  .members-section { }
+  /* P58.7 R5: members-section gets the same lighter-bg panel treatment as
+     Municipality Summary and Tracked Projects. Tabs become the section's
+     "title" row, sitting inside the panel rather than floating above it. */
+  .members-section {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px;
+  }
   .members-tabs {
     display: flex;
     gap: 2px;
@@ -595,10 +653,18 @@
   .muni-intel-meta { font-size: 10px; color: var(--text-dim); margin-top: 2px; display: flex; gap: 8px; }
   .muni-intel-empty { font-size: 11px; color: var(--text-dim); padding: 8px 0; }
 
-  /* TRACKED PROJECTS */
-  .tracked-section { border-top: 1px solid var(--border); padding-top: 12px; margin-bottom: 4px; }
-  .tracked-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-  .tracked-title { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; color: var(--accent); letter-spacing: 0.06em; text-transform: uppercase; }
+  /* TRACKED PROJECTS — P58.7 R5: lighter-bg container so title sits inside
+     the same panel as the contents (matches Municipality Summary).
+     P58.7 R8: collapsible — collapsed state has no inner content, just the
+     clickable header bar. */
+  .tracked-section { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 14px; margin-bottom: 4px; }
+  .tracked-section.collapsed { padding: 10px 14px; }
+  .tracked-section.collapsed .tracked-header { margin-bottom: 0; }
+  .tracked-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .tracked-header-toggle { cursor: pointer; user-select: none; }
+  .tracked-header-toggle:hover { color: var(--text); }
+  .tracked-caret { display: inline-block; width: 10px; text-align: center; color: var(--accent); margin-right: 4px; }
+  .tracked-title { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; color: var(--accent); letter-spacing: 0.08em; text-transform: uppercase; }
   .tracked-header-btns { display: flex; gap: 6px; }
   .tracked-add-btn { background: rgba(232,160,32,0.15); color: var(--accent); border: 1px solid rgba(232,160,32,0.35); font-family: 'IBM Plex Mono', monospace; font-size: 9px; padding: 2px 8px; border-radius: 3px; cursor: pointer; }
   .tracked-add-btn:hover { background: rgba(232,160,32,0.25); }
@@ -633,6 +699,17 @@
   .tracked-new-form input:focus { border-color: rgba(232,160,32,0.4); }
   .tracked-new-form input::placeholder { color: var(--text-dim); }
   .tracked-form-row { display: flex; gap: 6px; margin-top: 4px; }
+
+  /* P58.7 — per-juris paste-URL "Tag document to Tracked Project" form */
+  .tdf-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; color: var(--accent); letter-spacing: 0.06em; margin-bottom: 8px; text-transform: uppercase; }
+  .tdf-row { margin-bottom: 6px; }
+  .tdf-select, .tdf-url { width: 100%; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 3px; color: var(--text); font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; padding: 5px 8px; outline: none; box-sizing: border-box; }
+  .tdf-select:focus, .tdf-url:focus { border-color: rgba(232,160,32,0.4); }
+  .tdf-url::placeholder { color: var(--text-dim); }
+  .tdf-empty { font-size: 11px; color: var(--text-dim); font-style: italic; }
+  .tdf-msg { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-dim); margin-top: 6px; min-height: 14px; }
+  .tdf-msg.ok   { color: #6ec56e; }
+  .tdf-msg.warn { color: #e8a020; }
 
   /* PUBLIC HEARINGS TAB */
   .hearings-section { padding: 4px 0; }
