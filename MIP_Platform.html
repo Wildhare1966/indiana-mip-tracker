@@ -5252,9 +5252,11 @@ function tpOpenDocsPopup(projectId, anchorEl) {
     .then(function(r) { return r.json(); })
     .then(function(res) {
       if (!res || !res.ok) { pop.innerHTML = '<div style="color:#d65a5a;">Failed: ' + esc((res && res.error) || 'unknown') + '</div>'; return; }
+      // P58.7 r3: apply .tp-doc-link to popup anchors for legibility (was
+      // inheriting browser-default blue against the dark popup card).
       var hdr = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;border-bottom:1px solid var(--border,#333);padding-bottom:6px;">'
               +   '<strong>' + res.count + ' tagged document' + (res.count===1?'':'s') + '</strong>'
-              +   (res.folder_url ? '<a href="' + esc(res.folder_url) + '" target="_blank" rel="noopener" data-no-tag style="font-size:10px;">↗ Drive folder</a>' : '')
+              +   (res.folder_url ? '<a class="tp-doc-link" href="' + esc(res.folder_url) + '" target="_blank" rel="noopener" data-no-tag style="font-size:10px;">↗ Drive folder</a>' : '')
               + '</div>';
       if (!res.count) {
         pop.innerHTML = hdr + '<div style="color:var(--muted,#888);">No documents tagged yet. Enable Tag mode and click ✚ on doc links.</div>';
@@ -5264,14 +5266,14 @@ function tpOpenDocsPopup(projectId, anchorEl) {
         var sizeLabel = d.size_bytes ? (' · ' + Math.round(d.size_bytes/1024) + 'KB') : '';
         var statusBadge = '<span style="color:' + (d.status==='active'?'#4ac49a':(d.status==='url-only'?'#c4a64a':'#d65a5a')) + ';font-size:10px;margin-right:6px;">[' + d.status + ']</span>';
         var primary = d.drive_file_url
-          ? '<a href="' + esc(d.drive_file_url) + '" target="_blank" rel="noopener" data-no-tag>' + esc(d.filename || 'file') + '</a>'
-          : '<a href="' + esc(d.source_url) + '" target="_blank" rel="noopener" data-no-tag>' + esc(d.filename || d.source_url) + '</a>';
+          ? '<a class="tp-doc-link" href="' + esc(d.drive_file_url) + '" target="_blank" rel="noopener" data-no-tag>' + esc(d.filename || 'file') + '</a>'
+          : '<a class="tp-doc-link" href="' + esc(d.source_url) + '" target="_blank" rel="noopener" data-no-tag>' + esc(d.filename || d.source_url) + '</a>';
         var untag = isOperator()
           ? ' <button type="button" onclick="tpUntagDoc(\'' + escAttr(d.doc_id) + '\', \'' + escAttr(projectId) + '\', this)" style="background:transparent;color:#d65a5a;border:1px solid #5a2a2a;border-radius:3px;padding:0 5px;font-size:10px;cursor:pointer;" title="Untag (operator only)">✕</button>'
           : '';
         return '<div style="padding:4px 0;border-bottom:1px dotted var(--border,#2a2a2a);">'
              + statusBadge + primary + sizeLabel + untag
-             + (d.source_url && d.drive_file_url ? '<div style="font-size:9px;color:var(--muted,#666);margin-left:60px;">orig: <a href="' + esc(d.source_url) + '" target="_blank" rel="noopener" data-no-tag>' + esc(d.source_url.length > 60 ? d.source_url.slice(0,57)+'…' : d.source_url) + '</a></div>' : '')
+             + (d.source_url && d.drive_file_url ? '<div style="font-size:9px;color:var(--muted,#aaa);margin-left:60px;">orig: <a class="tp-doc-link" href="' + esc(d.source_url) + '" target="_blank" rel="noopener" data-no-tag style="font-size:9px;font-weight:500;">' + esc(d.source_url.length > 60 ? d.source_url.slice(0,57)+'…' : d.source_url) + '</a></div>' : '')
              + '</div>';
       }).join('');
       pop.innerHTML = hdr + rows;
