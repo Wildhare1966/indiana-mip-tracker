@@ -6407,7 +6407,14 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
         state.projectsByJuris[key] = { ts: Date.now(), rows: rows };
         return rows;
       })
-      .catch(function() { return []; });
+      .catch(function(err) {
+        // P58.6a: don't swallow silently — log + cache empty so user sees
+        // "No projects" instead of a stuck "Loading…" state, and we can
+        // diagnose dropdown-empty reports from the console.
+        console.warn('[mrd-panel] list_tracked_projects fetch failed:', err);
+        state.projectsByJuris[key] = { ts: Date.now(), rows: [] };
+        return [];
+      });
   }
 
   function projectsCacheHit(juris) {
@@ -6644,8 +6651,10 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
     var hdr = el('agenda-panel-sidebar-count');
     if (hdr) hdr.textContent = rows.length + (rows.length === 1 ? ' document' : ' documents');
     applyTagModeToSidebar();
-    // P58.3a: kick off Layer 2 extraction in parallel (URLs inside the PDF).
-    loadExtractedLinks(ctx, rows.length);
+    // P58.6a: extract_agenda_links call REMOVED — the extraction rail is
+    // hidden (paste-URL is the only tagging affordance until P58.6b PDF.js
+    // click-to-tag lands). loadExtractedLinks() body retained for restoration
+    // in P58.6b when the rail comes back for HTML-agenda routes.
   }
 
   // ── Layer 2: extract URLs from inside the agenda PDF/HTML ─────────────
@@ -6867,10 +6876,14 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
       if (state.ctx.scrapedDocId !== ctx.scrapedDocId) return; // changed in flight
       sel.innerHTML = '';
       if (!rows.length) {
-        sel.innerHTML = '<option value="">No projects in ' + escText(jurisLabel) + '</option>';
+        sel.innerHTML = '<option value="">No projects in ' + escText(jurisLabel) + ' — use + New Tracked Project</option>';
         sel.disabled = true;
-        // Decision #3: auto-show [+ Create] hint
+        // Legacy sidebar empty-state hint (kept for popup parity); sidebar
+        // is hidden in P58.6a so this is mostly inert in the main path.
         if (emptyHint) emptyHint.hidden = false;
+        // P58.6a: auto-open the inline new-project form so the user has a
+        // visible next step instead of an empty dropdown they can't use.
+        try { newProjFormOpen(true); } catch(e) {}
         return;
       }
       var opt = document.createElement('option');
@@ -6973,6 +6986,13 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
           btn.classList.add('tagged');
           btn.title = 'Tagged · ' + (res.status || '');
           announce('Tagged document to project.');
+          // P58.6a: visible toast in addition to ARIA announce
+          toast(
+            res.status === 'url-only'
+              ? 'URL captured (not in allowlist — link saved without Drive cache).'
+              : 'Document tagged to project.',
+            'success'
+          );
           // Bump global tpDocCounts so the Tracked Projects tab updates
           try {
             if (typeof tpDocCounts !== 'undefined' && state.projectId) {
@@ -6997,6 +7017,7 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
           var emsg = (res && res.error) || 'unknown';
           btn.title = 'Tag failed: ' + emsg;
           announce('Tag failed.');
+          toast('Tag failed: ' + emsg, 'error');
           if (cb.onError) cb.onError('Tag failed: ' + emsg);
         }
       })
@@ -7006,6 +7027,7 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
         btn.classList.add('failed');
         btn.title = 'Network error: ' + err.message;
         announce('Tag failed: network error.');
+        toast('Tag failed: ' + (err.message || 'network error'), 'error');
         if (cb.onError) cb.onError('Network error: ' + err.message);
       });
   }
@@ -7017,6 +7039,132 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
     live.textContent = '';
     // Force re-announce by clearing then setting in next tick
     setTimeout(function() { live.textContent = msg; }, 30);
+  }
+
+  // ── P58.6a: visible toast ─────────────────────────────────────────────
+  // Single toast element, replaces content on each call. kind ∈ {success, error, ''}
+  // Auto-dismisses after `ms` (default 2600). Also fires announce() for SR users.
+  var _toastTimer = null;
+  function toast(msg, kind, ms) {
+    var t = el('agenda-panel-toast');
+    if (!t) return;
+    t.classList.remove('success', 'error');
+    if (kind) t.classList.add(kind);
+    t.textContent = msg;
+    t.classList.add('show');
+    announce(msg);
+    if (_toastTimer) clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(function() {
+      t.classList.remove('show');
+    }, ms || 2600);
+  }
+
+  // ── P58.6a: operator-mode badge ───────────────────────────────────────
+  function applyOperatorBadge() {
+    var badge = el('agenda-panel-op-badge');
+    if (!badge) return;
+    var isOp = false;
+    try { isOp = !!localStorage.getItem('mip_operator'); } catch(e) {}
+    badge.hidden = !isOp;
+  }
+
+  // ── P58.6a: New Tracked Project inline form ───────────────────────────
+  // Mirrors phAddProject (line ~4932) but scoped to the panel, with
+  // jurisdiction auto-filled from the current agenda context, and
+  // auto-selecting the new project in the dropdown on success.
+  function newProjFormOpen(open) {
+    var form = el('agenda-panel-newproj-form');
+    var btn  = el('agenda-panel-newproj-btn');
+    if (!form || !btn) return;
+    form.hidden = !open;
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) {
+      var name = el('agenda-panel-newproj-name');
+      if (name) { name.value = ''; name.classList.remove('invalid'); setTimeout(function() { name.focus(); }, 30); }
+      var ord  = el('agenda-panel-newproj-ord');  if (ord)  ord.value  = '';
+      var msg  = el('agenda-panel-newproj-msg');  if (msg)  { msg.textContent = ''; msg.className = 'agenda-panel-newproj-msg'; }
+    }
+  }
+
+  function newProjSubmit() {
+    var nameEl = el('agenda-panel-newproj-name');
+    var ordEl  = el('agenda-panel-newproj-ord');
+    var msgEl  = el('agenda-panel-newproj-msg');
+    var saveBtn = el('agenda-panel-newproj-save');
+    var name = (nameEl && nameEl.value || '').trim();
+    var ord  = (ordEl  && ordEl.value  || '').trim();
+    if (!name) {
+      if (nameEl) nameEl.classList.add('invalid');
+      if (msgEl) { msgEl.textContent = 'Project name is required.'; msgEl.className = 'agenda-panel-newproj-msg error'; }
+      return;
+    }
+    if (nameEl) nameEl.classList.remove('invalid');
+
+    var ctx = state.ctx;
+    var juris = ctx ? ctx.jurisdictionId : '';
+    if (!juris) {
+      if (msgEl) { msgEl.textContent = 'No jurisdiction context — re-open the agenda and try again.'; msgEl.className = 'agenda-panel-newproj-msg error'; }
+      return;
+    }
+
+    if (typeof getWebAppUrl !== 'function') return;
+    var webappUrl = getWebAppUrl();
+    if (!webappUrl) {
+      if (msgEl) { msgEl.textContent = 'Backend URL not configured.'; msgEl.className = 'agenda-panel-newproj-msg error'; }
+      return;
+    }
+
+    if (msgEl) { msgEl.textContent = 'Saving…'; msgEl.className = 'agenda-panel-newproj-msg'; }
+    if (saveBtn) saveBtn.disabled = true;
+
+    var q = (webappUrl.indexOf('?') === -1 ? '?' : '&')
+          + 'action=create_tracked_project'
+          + '&project_name=' + encodeURIComponent(name)
+          + '&ordinance_id=' + encodeURIComponent(ord)
+          + '&jurisdiction=' + encodeURIComponent(juris)
+          + '&aliases=';
+    fetch(webappUrl + q)
+      .then(function(r) { return r.json(); })
+      .then(function(res) {
+        if (saveBtn) saveBtn.disabled = false;
+        if (res && res.success) {
+          // Bust the projects cache for this juris so the dropdown picks up the new row
+          var key = (juris || '').toLowerCase();
+          if (state.projectsByJuris[key]) delete state.projectsByJuris[key];
+
+          // Pull project_id back from the response (server returns it on create)
+          var newProjId = (res.project && (res.project.project_id || res.project.projectId))
+                       || res.project_id
+                       || res.projectId
+                       || '';
+
+          // Re-render the dropdown; auto-select the new project once it's there
+          renderProjectDropdown();
+          if (newProjId) {
+            // Pre-stash so renderProjectDropdown's restore-selection picks it up
+            setStoredProjectId(newProjId);
+            state.projectId = newProjId;
+          }
+
+          // Refresh global tracked-projects cache so other surfaces (PH chips,
+          // global tab) reflect the addition.
+          try { if (typeof tpLoad === 'function') tpLoad(true); } catch(e) {}
+
+          if (msgEl) { msgEl.textContent = 'Project added.'; msgEl.className = 'agenda-panel-newproj-msg success'; }
+          toast('Tracked project added: ' + name, 'success');
+          setTimeout(function() { newProjFormOpen(false); }, 900);
+        } else {
+          var err = (res && res.error) ? res.error : 'unknown error';
+          if (msgEl) { msgEl.textContent = 'Failed: ' + err; msgEl.className = 'agenda-panel-newproj-msg error'; }
+          toast('Could not create project: ' + err, 'error');
+        }
+      })
+      .catch(function(err) {
+        if (saveBtn) saveBtn.disabled = false;
+        var em = (err && err.message) || 'network error';
+        if (msgEl) { msgEl.textContent = 'Failed: ' + em; msgEl.className = 'agenda-panel-newproj-msg error'; }
+        toast('Could not create project: ' + em, 'error');
+      });
   }
 
   // ── Open / close ──────────────────────────────────────────────────────
@@ -7041,6 +7189,10 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
     renderSidebar();
     renderProjectDropdown();
     renderPasteAffordance();
+    // P58.6a: show/hide operator badge per current localStorage flag,
+    // and reset the new-project form to its hidden default.
+    applyOperatorBadge();
+    newProjFormOpen(false);
     // Focus close button after open
     setTimeout(function() {
       var closeBtn = el('agenda-panel-close');
@@ -7240,29 +7392,33 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
     var popoutBtn = el('agenda-panel-popout');
     if (popoutBtn) popoutBtn.addEventListener('click', popOut);
 
+    // P58.6a: the legacy empty-state "+ Create one" button now opens the
+    // same inline new-project form as the header button — no longer routes
+    // the user out to Public Hearings view.
     var createBtn = el('agenda-panel-create-btn');
     if (createBtn) createBtn.addEventListener('click', function() {
-      // Send the user to PH view's create form prefilled with jurisdiction.
-      // If we're in the popup, post a message asking main to handle it.
-      var juris = state.ctx ? state.ctx.jurisdictionId : '';
-      if (state.popupMode) {
-        // No reliable way to open a form in opener without window.opener (we
-        // used noopener). Fall back to instructing the user.
-        announce('Switch to your main MRD tab → Public Hearings → Add a project for ' + juris + '.');
-        return;
-      }
-      closePanel();
-      try {
-        if (typeof switchView === 'function') switchView('publichearings');
-        var nameInput = document.getElementById('ph-name');
-        setTimeout(function() {
-          if (nameInput) {
-            nameInput.focus();
-            nameInput.placeholder = 'Project Name (required) — for ' + juris;
-          }
-        }, 250);
-      } catch(e) {}
+      newProjFormOpen(true);
     });
+
+    // P58.6a: header "+ New Tracked Project" button → toggle inline form.
+    var newProjBtn = el('agenda-panel-newproj-btn');
+    if (newProjBtn) newProjBtn.addEventListener('click', function() {
+      var form = el('agenda-panel-newproj-form');
+      newProjFormOpen(!!(form && form.hidden));
+    });
+
+    // P58.6a: form Save / Cancel + Enter-to-submit.
+    var saveBtn = el('agenda-panel-newproj-save');
+    if (saveBtn) saveBtn.addEventListener('click', newProjSubmit);
+    var cancelBtn = el('agenda-panel-newproj-cancel');
+    if (cancelBtn) cancelBtn.addEventListener('click', function() {
+      newProjFormOpen(false);
+    });
+    var nameInput = el('agenda-panel-newproj-name');
+    var ordInput  = el('agenda-panel-newproj-ord');
+    function onEnter(ev) { if (ev.key === 'Enter') { ev.preventDefault(); newProjSubmit(); } }
+    if (nameInput) nameInput.addEventListener('keydown', onEnter);
+    if (ordInput)  ordInput.addEventListener('keydown', onEnter);
   }
 
   // ── Init ──────────────────────────────────────────────────────────────
@@ -7296,7 +7452,12 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
   <div class="agenda-panel-shell">
     <header class="agenda-panel-header">
       <div class="agenda-panel-meta">
-        <h2 id="agenda-panel-title" class="agenda-panel-title-text">Agenda</h2>
+        <div class="agenda-panel-title-row">
+          <h2 id="agenda-panel-title" class="agenda-panel-title-text">Agenda</h2>
+          <!-- P58.6a: operator-mode indicator (sibling of title so
+               renderHeader's textContent assignment doesn't clobber it) -->
+          <span id="agenda-panel-op-badge" class="agenda-panel-op-badge" hidden>OPERATOR</span>
+        </div>
         <div id="agenda-panel-subtitle" class="agenda-panel-subtitle"></div>
         <!-- P58.7 hook: hidden until earlier-versions disclosure lands -->
         <span id="agenda-panel-versions" class="agenda-panel-versions" hidden></span>
@@ -7308,6 +7469,12 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
                 aria-label="Tracked project to file documents under" disabled>
           <option value="">Loading projects…</option>
         </select>
+        <!-- P58.6a: New Tracked Project button — always available next to the
+             project dropdown. Opens an inline form below the header. -->
+        <button id="agenda-panel-newproj-btn" class="agenda-panel-newproj-btn"
+                type="button" aria-expanded="false"
+                aria-controls="agenda-panel-newproj-form"
+                title="Create a new tracked project for this jurisdiction">+ New Tracked Project</button>
         <button id="agenda-panel-popout" class="agenda-panel-popout"
                 type="button" title="Open in a new window for second-monitor reference">⇱ Pop out</button>
         <a id="agenda-panel-external" class="agenda-panel-external"
@@ -7316,19 +7483,46 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
                 type="button" aria-label="Close agenda panel">✕</button>
       </div>
     </header>
+    <!-- P58.6a: action rail above the document — both interactive tools
+         (paste-URL + new-project form) live here so users don't have to
+         hunt the sidebar. Sidebar itself is hidden in this cut. -->
+    <div class="agenda-panel-actions">
+      <!-- Paste-URL row — always visible (was previously inside the
+           sidebar at #agenda-panel-paste-container). -->
+      <div id="agenda-panel-paste-container" class="agenda-panel-paste-container"></div>
+      <!-- New Tracked Project inline form — hidden by default; expands
+           when the +New Tracked Project button is clicked. -->
+      <div id="agenda-panel-newproj-form" class="agenda-panel-newproj-form" hidden>
+        <div class="agenda-panel-newproj-row">
+          <input type="text" id="agenda-panel-newproj-name"
+                 class="agenda-panel-newproj-name"
+                 placeholder="Project name (required)"
+                 autocomplete="off" spellcheck="false" maxlength="200">
+          <input type="text" id="agenda-panel-newproj-ord"
+                 class="agenda-panel-newproj-ord"
+                 placeholder="Ordinance # (optional)"
+                 autocomplete="off" spellcheck="false" maxlength="64">
+          <button type="button" id="agenda-panel-newproj-save"
+                  class="agenda-panel-newproj-save">Save</button>
+          <button type="button" id="agenda-panel-newproj-cancel"
+                  class="agenda-panel-newproj-cancel" aria-label="Cancel">✕</button>
+        </div>
+        <div id="agenda-panel-newproj-msg" class="agenda-panel-newproj-msg" role="status" aria-live="polite"></div>
+      </div>
+    </div>
     <div class="agenda-panel-body">
       <div id="agenda-panel-main" class="agenda-panel-main"></div>
-      <aside class="agenda-panel-sidebar" aria-label="Documents for this meeting">
+      <!-- P58.6a: sidebar HIDDEN. Paste-URL + New Tracked Project moved
+           above the document into .agenda-panel-actions. Sibling-docs
+           list ("Documents for this meeting") is also hidden in this cut.
+           Markup retained (with hidden) so P58.6b can restore selectively. -->
+      <aside class="agenda-panel-sidebar" aria-label="Documents for this meeting" hidden>
         <h3 class="agenda-panel-sidebar-title">
           Documents for this meeting
           <span id="agenda-panel-sidebar-count" class="agenda-panel-sidebar-count"></span>
         </h3>
         <ul id="agenda-panel-links" class="agenda-panel-links"></ul>
-        <!-- Layer 2 extraction surface — populated by loadExtractedLinks() -->
-        <div id="agenda-panel-extraction" class="agenda-panel-extraction"></div>
-        <!-- P58.5: dedicated paste-URL affordance — rendered on panel open
-             so it's always visible (doesn't wait for extraction). -->
-        <div id="agenda-panel-paste-container" class="agenda-panel-paste-container"></div>
+        <div id="agenda-panel-extraction" class="agenda-panel-extraction" hidden></div>
         <div id="agenda-panel-create-hint" class="agenda-panel-create-hint" hidden>
           No tracked projects yet for this jurisdiction.
           <button id="agenda-panel-create-btn" class="agenda-panel-create-btn" type="button">+ Create one</button>
@@ -7338,6 +7532,9 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
   </div>
 </div>
 <div id="agenda-panel-live" class="agenda-panel-live" role="status" aria-live="polite"></div>
+<!-- P58.6a: visible toast for paste-tag / new-project success/error feedback.
+     Distinct from #agenda-panel-live (which is screen-reader-only). -->
+<div id="agenda-panel-toast" class="agenda-panel-toast" aria-hidden="true"></div>
 
 </body>
 </html>
