@@ -502,12 +502,42 @@
 
   /* P58.7 R6: sticky highlight on the last-clicked Agenda/Summary/Minutes button. */
   a.hearing-link.last-doc-selected,
-  a.ph-meeting-link.last-doc-selected {
+  a.ph-meeting-link.last-doc-selected,
+  a.tp-doc-link.last-doc-selected {
     outline: 2px solid var(--accent);
     outline-offset: 1px;
     box-shadow: 0 0 0 2px rgba(232,160,32,0.25);
     font-weight: 700;
   }
+
+  /* P58.7 R13d: high-contrast link styling for the Tracked Projects table.
+     Default <a> inherits browser blue which has poor contrast on the dark
+     navy table. Use the accent color (matches other doc-link surfaces). */
+  a.tp-doc-link {
+    color: var(--accent);
+    font-weight: 600;
+    text-decoration: underline;
+    text-decoration-color: rgba(232,160,32,0.5);
+    text-underline-offset: 2px;
+  }
+  a.tp-doc-link:hover { color: var(--accent-light, #f1c068); text-decoration-color: var(--accent); }
+  a.tp-doc-link:visited { color: var(--accent); }
+  [data-theme="light"] a.tp-doc-link { color: #b87a08; text-decoration-color: rgba(184,122,8,0.5); }
+  [data-theme="light"] a.tp-doc-link:hover { color: #8b5a00; }
+
+  /* P58.7 R13c: status dropdown in the Tracked Projects table. */
+  .tp-status-select {
+    background: var(--intel-bg, #1a2540);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    padding: 3px 6px;
+    cursor: pointer;
+    min-width: 80px;
+  }
+  .tp-status-select:focus { outline: 1px solid var(--accent); }
 
   /* P58.7 R7: when on the per-juris Public Hearings sub-tab, hide the
      right-side member-detail pane so the muni-panel expands full-width. */
