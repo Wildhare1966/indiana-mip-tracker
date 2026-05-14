@@ -22,7 +22,7 @@
     <button class="topbar-btn active" onclick="switchView('overview')" id="nav-overview">Overview</button>
     <button class="topbar-btn" onclick="switchView('muni')" id="nav-muni">Jurisdictions</button>
     <!-- Intelligence Feed nav temporarily removed (P13) — view element and data pipeline retained in code for future re-enable. -->
-    <button class="topbar-btn" onclick="switchView('publichearings')" id="nav-publichearings">Public Hearings</button>
+    <button class="topbar-btn" onclick="switchView('publichearings')" id="nav-publichearings">Hearing Schedule</button>
     <button class="topbar-btn" onclick="switchView('tracked')" id="nav-tracked">Tracked Projects</button>
     <button class="topbar-btn" onclick="switchView('schedule')" id="nav-schedule">Schedule & Requirements</button>
     <button class="topbar-btn" onclick="switchView('settings')" id="nav-settings">⚙ Settings</button>
@@ -1845,38 +1845,41 @@ function renderMuniPanel() {
 
   const recColors = { high: 'rec-high', med: 'rec-med', low: 'rec-low', mixed: 'rec-mixed' };
 
-  // Prepare chat context up-front so it's available in the template
-  const jurisChatId = 'juris-' + m.id;
-  const escapedMuniName = escAttr(m.name || '');
-  const memberCount = (m.council||[]).length + (m.pc||[]).length;
-  const shortMuniName = (m.name||'').replace('City of ','').replace('Town of ','');
-  const jurisContext = `You are an AI assistant for the Municipal Resource Dashboard. You have detailed knowledge about ${m.name}, Indiana. The jurisdiction has ${memberCount} plan commission/council members. Focus: residential development, rezoning, planning commission activity, council votes, member positions. Be concise and cite meeting dates when possible.`;
-  const encodedContext = encodeURIComponent(jurisContext);
+  // P58.7 R3: Municipal Summary defaults to collapsed; user-driven expand
+  // doesn't persist across jurisdiction switches (intentional — keeps the
+  // PH/Tracked surface visible by default after navigation).
+  const summaryOpen = !!muniSummaryOpenById[m.id];
+  const summaryToggleLabel = summaryOpen ? '▼' : '▶';
 
+  // P58.7 R7: hearings sub-tab → full-width muni-panel (member-detail hidden).
+  applyMuniDetailVisibility();
+
+  // P58.7 R10: top-of-page warn-banner removed (visual noise). The
+  // underlying m.data_gap flag still drives the gap-indicator dot on the
+  // sidebar list so operators can locate gap-flagged jurisdictions there.
   panel.innerHTML = `
-    ${m.data_gap ? `<div class="warn-banner"><span class="warn-banner-icon">⚠</span><span>${esc(m.gap_note)}</span></div>` : ''}
     <div class="muni-title-row" style="align-items:center;gap:16px;">
       <div style="flex:0 0 auto;">
         <div class="muni-title">${esc(m.name)}</div>
         <div class="muni-county">${esc(m.county)} County</div>
       </div>
-      <div id="chat-panel-${esc(jurisChatId)}" style="flex:1;min-width:0;">
-        <div class="gemini-chat-input-row" style="padding:0;border:none;">
-          <textarea class="gemini-chat-input" id="chat-input-${esc(jurisChatId)}" rows="1"
-            placeholder="Ask about this jurisdiction…"
-            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();chatSend('${escAttr(jurisChatId)}','${escAttr(encodedContext)}');}"></textarea>
-          <button class="gemini-chat-send" onclick="chatSend('${escAttr(jurisChatId)}','${escAttr(encodedContext)}')">Send</button>
-        </div>
+      <div class="report-issue-row" id="report-issue-${esc(m.id)}" style="flex:1;min-width:0;">
+        <textarea class="report-issue-input" id="report-issue-input-${esc(m.id)}" rows="1"
+          placeholder="Report issue (errors, missing data, broken links…)"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitReportIssue('${escAttr(m.id)}','${escAttr(m.name)}');}"></textarea>
+        <button class="report-issue-send" onclick="submitReportIssue('${escAttr(m.id)}','${escAttr(m.name)}')">Send</button>
+        <div id="report-issue-msg-${esc(m.id)}" class="report-issue-msg" role="status" aria-live="polite"></div>
       </div>
     </div>
-    <div class="gemini-chat-messages" id="chat-msgs-${esc(jurisChatId)}" style="display:none;background:var(--intel-bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;max-height:200px;overflow-y:auto;flex-direction:column;gap:8px;font-size:12px;line-height:1.5;"></div>
 
-    <div class="muni-summary-box">
-      <div class="section-label">Municipality Summary</div>
-      <div class="summary-grid">
+    <div class="muni-summary-box${summaryOpen?' open':''}">
+      <div class="section-label muni-summary-toggle" onclick="toggleMuniSummary('${escAttr(m.id)}')" role="button" tabindex="0">
+        <span class="muni-summary-caret">${summaryToggleLabel}</span> Municipality Summary
+      </div>
+      <div class="summary-grid" id="summary-grid-${esc(m.id)}" style="display:${summaryOpen?'grid':'none'};">
         <div class="summary-item">
           <div class="summary-key">PC Size</div>
-          <div class="summary-val">${(m.pc||[]).length} members${m.data_gap?' (incomplete)':''}</div>
+          <div class="summary-val">${(m.pc||[]).length} members</div>
         </div>
         <div class="summary-item">
           <div class="summary-key">Council Size</div>
@@ -1901,6 +1904,9 @@ function renderMuniPanel() {
 
     ${renderTrackedProjects(m)}
 
+    <!-- P58.7 R4: clearer divider between Tracked Projects and members tabs -->
+    <div class="muni-section-divider" aria-hidden="true"></div>
+
     <div class="members-section">
       <div class="members-tabs">
         <button class="members-tab ${currentTab==='council'?'active':''}" onclick="switchTab('council')">
@@ -1918,7 +1924,77 @@ function renderMuniPanel() {
       </div>
     </div>
   `;
+  // P58.7 R6: reapply "last selected document" highlight after re-render so
+  // the visited Agenda/Summary/Minutes button stays marked.
+  if (typeof mipReapplyLastDocBtn === 'function') mipReapplyLastDocBtn();
 }
+
+// P58.7 R3: per-muni collapse state. Defaults to collapsed (false).
+let muniSummaryOpenById = {};
+function toggleMuniSummary(muniId) {
+  muniSummaryOpenById[muniId] = !muniSummaryOpenById[muniId];
+  renderMuniPanel();
+}
+
+// P58.7 R7: hide member-detail pane when on the Public Hearings sub-tab so
+// the per-juris content gets full width for the hearings table.
+function applyMuniDetailVisibility() {
+  var inner = document.querySelector('#view-muni .muni-view-inner');
+  if (!inner) return;
+  if (currentTab === 'hearings') inner.classList.add('hide-member-detail');
+  else inner.classList.remove('hide-member-detail');
+}
+
+// P58.7 R2: Report Issue submit — POSTs to Apps Script submit_issue_report.
+// Falls back to a graceful "queued locally" toast if the endpoint isn't
+// deployed yet (so the FE doesn't appear broken pre-clasp-push).
+function submitReportIssue(muniId, muniName) {
+  var input = document.getElementById('report-issue-input-' + muniId);
+  var msg   = document.getElementById('report-issue-msg-' + muniId);
+  if (!input || !msg) return;
+  var text = (input.value || '').trim();
+  msg.classList.remove('warn', 'ok');
+  if (!text) { msg.textContent = 'Type the issue, then click Send.'; msg.classList.add('warn'); return; }
+  if (text.length > 2000) {
+    msg.textContent = 'Too long (' + text.length + ' chars; cap is 2000).';
+    msg.classList.add('warn');
+    return;
+  }
+  var webappUrl = (typeof getWebAppUrl === 'function') ? getWebAppUrl() : '';
+  if (!webappUrl) { msg.textContent = 'Backend URL not configured.'; msg.classList.add('warn'); return; }
+  msg.textContent = 'Sending…';
+  var cid = (typeof tagClientId === 'function') ? tagClientId() : '';
+  var body = 'action=submit_issue_report'
+           + '&jurisdiction=' + encodeURIComponent(muniName || muniId)
+           + '&jurisdiction_id=' + encodeURIComponent(muniId || '')
+           + '&issue_text=' + encodeURIComponent(text)
+           + '&client_id=' + encodeURIComponent(cid)
+           + '&page_url=' + encodeURIComponent(location.href);
+  fetch(webappUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (res && res.ok) {
+        msg.textContent = 'Reported ✓ (logged in Issue_Reports)';
+        msg.classList.add('ok');
+        input.value = '';
+        setTimeout(function() { if (msg) { msg.textContent = ''; msg.classList.remove('ok'); } }, 4000);
+      } else {
+        msg.textContent = 'Send failed: ' + ((res && res.error) || 'unknown action — backend may need redeploy');
+        msg.classList.add('warn');
+      }
+    })
+    .catch(function(err) {
+      msg.textContent = 'Network error: ' + err.message;
+      msg.classList.add('warn');
+    });
+}
+
+window.toggleMuniSummary = toggleMuniSummary;
+window.submitReportIssue = submitReportIssue;
 
 function renderMemberCards(members) {
   if (!members || members.length === 0) return '<div style="color:var(--text-dim);font-size:12px;padding:8px;">No members recorded.</div>';
@@ -1931,7 +2007,7 @@ function renderMemberCards(members) {
                      mem.party === 'I' ? '<span class="member-tag tag-ind">I</span>' : '';
     const bodyTag = mem.body === 'Council' ? '<span class="member-tag tag-council">COUNCIL</span>' :
                     mem.body === 'PC' ? '<span class="member-tag tag-pc">PC</span>' : '';
-    const warnTag = mem.warn ? '<span class="member-tag warn-tag">⚠ VERIFY</span>' : '';
+    // P58.7 R10: warnTag ("⚠ VERIFY") removed from member cards.
     const termTag = mem.term ? `<span class="member-tag tag-term">${esc(mem.term)}</span>` : '';
 
     return `
@@ -1940,7 +2016,7 @@ function renderMemberCards(members) {
         <div class="member-name">${esc(mem.name)}</div>
         <div class="member-role">${esc(mem.role)}</div>
         <div class="member-tags">
-          ${bodyTag}${partyTag}${warnTag}${termTag}
+          ${bodyTag}${partyTag}${termTag}
         </div>
       </div>
     `;
@@ -1951,7 +2027,52 @@ function switchTab(tab) {
   currentTab = tab;
   renderMuniPanel();
   renderMemberDetail(null);
+  // P58.7 R7: applyMuniDetailVisibility runs inside renderMuniPanel, but
+  // call it again here as belt-and-suspenders in case renderMuniPanel is
+  // skipped (e.g. !currentMuni guard).
+  if (typeof applyMuniDetailVisibility === 'function') applyMuniDetailVisibility();
 }
+
+// P58.7 R6: "last selected document button" sticky highlight. When a user
+// clicks an Agenda/Summary/Minutes button anywhere in the app the anchor's
+// href is stashed in sessionStorage and the anchor gets a `.last-doc-selected`
+// class. On every re-render (renderMuniPanel calls mipReapplyLastDocBtn) the
+// class is reapplied to whichever currently-rendered anchor matches the
+// stored href. Switching to a different doc clears the old highlight.
+(function() {
+  function key() { return 'mip_last_doc_btn_v1'; }
+  function getStored() { try { return sessionStorage.getItem(key()) || ''; } catch(e) { return ''; } }
+  function setStored(href) { try { sessionStorage.setItem(key(), href || ''); } catch(e) {} }
+
+  function reapply() {
+    var href = getStored();
+    document.querySelectorAll('a.last-doc-selected').forEach(function(a) {
+      a.classList.remove('last-doc-selected');
+    });
+    if (!href) return;
+    document.querySelectorAll('a.hearing-link[href], a.ph-meeting-link[href]').forEach(function(a) {
+      if (a.getAttribute('href') === href) a.classList.add('last-doc-selected');
+    });
+  }
+
+  document.addEventListener('click', function(ev) {
+    var a = ev.target && ev.target.closest
+      && ev.target.closest('a.hearing-link[data-doc-link], a.ph-meeting-link[data-doc-link]');
+    if (!a) return;
+    setStored(a.getAttribute('href') || '');
+    reapply();
+  }, true);
+
+  window.mipReapplyLastDocBtn = reapply;
+
+  // Reapply once on DOM ready (covers global PH page initial render where
+  // renderMuniPanel doesn't fire).
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', reapply, { once: true });
+  } else {
+    setTimeout(reapply, 0);
+  }
+})();
 
 function showMemberDetail(idx) {
   const mem = memberLookup[idx];
@@ -1984,7 +2105,7 @@ function renderMemberDetail(mem) {
     <div>
       <div class="detail-name">${esc(mem.name)}</div>
       <div class="detail-role">${esc(mem.role)}</div>
-      ${mem.warn && !isVerified ? `<div style="margin-top:6px;"><span class="member-tag warn-tag">⚠ Needs Verification</span></div>` : ''}
+      ${/* P58.7 R10: "Needs Verification" badge removed; ✓ Verified retained as positive affirmation. */ ''}
       ${isVerified ? `<div style="margin-top:6px;"><span class="member-tag" style="background:rgba(26,122,74,0.2);color:#6dc49a;border:1px solid rgba(26,122,74,0.35);">✓ Verified</span></div>` : ''}
     </div>
 
@@ -4011,29 +4132,32 @@ const trackedTimelineCache  = {};   // projectId    → [{...}]
 let   trackedExpandedMuni   = {};   // muniId → bool (section expanded)
 let   trackedActiveProject  = null; // projectId currently showing timeline
 let   trackedShowForm       = {};   // muniId → bool
+let   trackedShowTagForm    = {};   // muniId → bool (P58.7 paste-URL form)
 
 function renderTrackedProjects(m) {
   const projects = trackedProjectsCache[m.id] || [];
   const expanded = trackedExpandedMuni[m.id]  || false;
   const showForm = trackedShowForm[m.id]       || false;
+  const showTagForm = trackedShowTagForm[m.id] || false;
 
-  // P57 W4: Collapse stays sticky even when projects exist — pre-P57 the gate
-  // was `!expanded && projects.length === 0`, so collapsing a populated section
-  // had no visible effect (the else-branch ignored the flag). Now `!expanded`
-  // always shows the minimal bar; the button label reflects whether there's
-  // cached data to reveal.
+  // P58.7: paste-URL → tag form rendered next to the Tracked Projects header.
+  // Project dropdown reads from trackedProjectsCache (already loaded for this
+  // juris when the section was expanded). Submits via the existing P35
+  // `tag_document` endpoint.
+  const tagForm = showTagForm ? renderTagDocForm(m, projects) : '';
+
+  // P58.7 R8: when collapsed, render only a clickable header (matches the
+  // Muni Summary collapse pattern). Buttons + tag form + project cards are
+  // hidden until the user expands. Default state is collapsed because
+  // trackedExpandedMuni[muniId] is undefined → falsy.
   if (!expanded) {
     if (!trackedProjectsCache.hasOwnProperty(m.id)) loadTrackedProjects(m.id, m.name);
-    const expandLabel = projects.length > 0
-      ? `▼ Expand · ${projects.length} project${projects.length === 1 ? '' : 's'}`
-      : '▼ Load';
-    return `<div class="tracked-section">
-      <div class="tracked-header">
-        <span class="tracked-title">Tracked Projects</span>
-        <div class="tracked-header-btns">
-          <button class="tracked-add-btn"   onclick="toggleTrackedForm('${m.id}')">+ Track Project</button>
-          <button class="tracked-expand-btn" onclick="expandTrackedSection('${m.id}')">${expandLabel}</button>
-        </div>
+    const countLabel = projects.length > 0
+      ? ` · ${projects.length} project${projects.length === 1 ? '' : 's'}`
+      : '';
+    return `<div class="tracked-section collapsed">
+      <div class="tracked-header tracked-header-toggle" onclick="expandTrackedSection('${m.id}')" role="button" tabindex="0">
+        <span class="tracked-title"><span class="tracked-caret">▶</span> Tracked Projects${countLabel}</span>
       </div>
     </div>`;
   }
@@ -4072,15 +4196,128 @@ function renderTrackedProjects(m) {
 
   return `<div class="tracked-section">
     <div class="tracked-header">
-      <span class="tracked-title">Tracked Projects · ${projects.length} active</span>
+      <span class="tracked-title tracked-header-toggle" onclick="collapseTrackedSection('${m.id}')" role="button" tabindex="0">
+        <span class="tracked-caret">▼</span> Tracked Projects · ${projects.length} active
+      </span>
       <div class="tracked-header-btns">
-        <button class="tracked-add-btn"    onclick="toggleTrackedForm('${m.id}')">+ Track Project</button>
-        <button class="tracked-expand-btn" onclick="collapseTrackedSection('${m.id}')">▲ Collapse</button>
+        <button class="tracked-add-btn" onclick="event.stopPropagation();toggleTrackedForm('${m.id}')">+ Track Project</button>
+        <button class="tracked-add-btn" onclick="event.stopPropagation();toggleTagDocForm('${m.id}')">Tag document to Tracked Project</button>
       </div>
     </div>
     ${newForm}
+    ${tagForm}
     ${projectCards}
   </div>`;
+}
+
+// P58.7 — paste-URL tag form rendered inside the per-juris Tracked Projects
+// section. Lets the user copy a doc URL from the agenda window and file it
+// under any tracked project in this jurisdiction. Soft-fails to status
+// "url-only" if the URL is off the SSRF allowlist (audit row still written).
+function renderTagDocForm(m, projects) {
+  const opts = (projects || []).map(p => {
+    const name = (p.projectName || p.project_name || '(unnamed)');
+    const ord = (p.ordinanceId || p.ordinanceNumber || p.ordinance_number || '');
+    const label = ord ? (name + ' · ' + ord) : name;
+    const pid = (p.projectId || p.project_id || '');
+    return `<option value="${escAttr(pid)}">${esc(label)}</option>`;
+  }).join('');
+  const projectSelect = projects && projects.length
+    ? `<select id="tdf-pid-${m.id}" class="tdf-select">
+         <option value="">Select project…</option>${opts}
+       </select>`
+    : `<span class="tdf-empty">No tracked projects yet — click "+ Track Project" first.</span>`;
+  return `
+    <div class="tracked-new-form" id="tagdoc-form-${m.id}">
+      <div class="tdf-label">Tag a document URL to a Tracked Project in ${esc(m.name)}</div>
+      <div class="tdf-row">
+        ${projectSelect}
+      </div>
+      <div class="tdf-row">
+        <input id="tdf-name-${m.id}" type="text" class="tdf-name"
+               placeholder="Document Display Name (e.g. Auburn Ridge Site Plan)"
+               autocomplete="off" spellcheck="false" maxlength="200">
+      </div>
+      <div class="tdf-row">
+        <input id="tdf-url-${m.id}" type="url" class="tdf-url"
+               placeholder="Paste document URL (https://…)"
+               autocomplete="off" spellcheck="false">
+      </div>
+      <div class="tracked-form-row">
+        <button class="edit-save-btn"
+                onclick="submitTagDocForm('${m.id}')"
+                ${projects && projects.length ? '' : 'disabled'}>Tag</button>
+        <button class="edit-cancel-btn" onclick="cancelTagDocForm('${m.id}')">Cancel</button>
+      </div>
+      <div id="tdf-msg-${m.id}" class="tdf-msg" role="status" aria-live="polite"></div>
+    </div>`;
+}
+
+function toggleTagDocForm(muniId) {
+  trackedShowTagForm[muniId] = !trackedShowTagForm[muniId];
+  // Ensure cached project list is available; if not, kick a load so the
+  // dropdown populates on the next render.
+  if (!trackedProjectsCache.hasOwnProperty(muniId) && currentMuni) {
+    loadTrackedProjects(muniId, currentMuni.name);
+  }
+  renderMuniPanel();
+}
+
+function cancelTagDocForm(muniId) {
+  trackedShowTagForm[muniId] = false;
+  renderMuniPanel();
+}
+
+function submitTagDocForm(muniId) {
+  const pidEl  = document.getElementById('tdf-pid-' + muniId);
+  const urlEl  = document.getElementById('tdf-url-' + muniId);
+  const nameEl = document.getElementById('tdf-name-' + muniId);
+  const msgEl  = document.getElementById('tdf-msg-' + muniId);
+  if (!pidEl || !urlEl || !msgEl) return;
+  const pid  = (pidEl.value || '').trim();
+  const url  = (urlEl.value || '').trim();
+  const name = nameEl ? (nameEl.value || '').trim() : '';
+  msgEl.classList.remove('warn', 'ok');
+  if (!pid) { msgEl.textContent = 'Select a project first.'; msgEl.classList.add('warn'); return; }
+  if (!url) { msgEl.textContent = 'Paste a document URL.'; msgEl.classList.add('warn'); return; }
+  if (!/^https?:\/\//i.test(url)) {
+    msgEl.textContent = 'URL must start with http:// or https://';
+    msgEl.classList.add('warn');
+    return;
+  }
+  const webappUrl = getWebAppUrl();
+  if (!webappUrl) { msgEl.textContent = 'Backend URL not configured.'; msgEl.classList.add('warn'); return; }
+  msgEl.textContent = 'Tagging…';
+  const cid = (typeof tagClientId === 'function') ? tagClientId() : '';
+  // display_name overrides the backend's derived filename when present so
+  // the listing UIs surface the user's chosen label instead of a URL slug.
+  const q = '&action=tag_document'
+          + '&project_id=' + encodeURIComponent(pid)
+          + '&scraped_doc_id='
+          + '&source_url=' + encodeURIComponent(url)
+          + '&display_name=' + encodeURIComponent(name)
+          + '&client_id=' + encodeURIComponent(cid);
+  fetch(webappUrl + q)
+    .then(r => r.json())
+    .then(res => {
+      if (res && res.ok) {
+        const status = res.status || 'tagged';
+        msgEl.textContent = 'Tagged ✓ (' + status + ')';
+        msgEl.classList.add('ok');
+        urlEl.value = '';
+        if (nameEl) nameEl.value = '';
+        if (typeof tpDocCounts !== 'undefined') {
+          tpDocCounts[pid] = (tpDocCounts[pid] || 0) + 1;
+        }
+      } else {
+        msgEl.textContent = 'Tag failed: ' + ((res && res.error) || 'unknown');
+        msgEl.classList.add('warn');
+      }
+    })
+    .catch(err => {
+      msgEl.textContent = 'Network error: ' + err.message;
+      msgEl.classList.add('warn');
+    });
 }
 
 function renderTrackedTimeline(projectId) {
@@ -4244,6 +4481,10 @@ window.cancelTrackedForm        = cancelTrackedForm;
 window.submitNewProject         = submitNewProject;
 window.toggleProjectTimeline    = toggleProjectTimeline;
 window.closeProjectConfirm      = closeProjectConfirm;
+// P58.7: paste-URL → tag affordance on per-juris view
+window.toggleTagDocForm         = toggleTagDocForm;
+window.cancelTagDocForm         = cancelTagDocForm;
+window.submitTagDocForm         = submitTagDocForm;
 
 // ═══════════════════════════════════════════════════════
 // P34: GLOBAL TRACKED PROJECTS TAB
@@ -7312,31 +7553,14 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
     }
   }
 
-  // ── Click delegation: agenda anchors inside #view-muni only ───────────
-  function setupTrigger() {
-    var muniView = el('view-muni');
-    if (!muniView) return;
-    muniView.addEventListener('click', function(ev) {
-      if (state.suppressTrigger) return;
-      var a = ev.target && ev.target.closest && ev.target.closest('a[data-doc-link="agenda"][data-scraped-id]');
-      if (!a) return;
-      var sid = a.getAttribute('data-scraped-id') || '';
-      if (!sid) return;
-      // Modifier-clicks → let the browser handle normally (new tab etc.)
-      if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button !== 0) return;
-      // Tag-mode (global P35) on this anchor? Let the existing ✚ flow run.
-      // (Our anchor is the <a> itself; the ✚ button is a sibling, so a click
-      // on the <a> here is purely a navigation click.)
-      ev.preventDefault();
-      ev.stopPropagation();
-      if (openByScrapedId(sid)) {
-        // success
-      } else {
-        // Fallback to the browser's default navigation
-        try { window.open(a.href, '_blank', 'noopener'); } catch(e) {}
-      }
-    }, true);
-  }
+  // ── Click delegation: DISABLED in P58.7 ───────────────────────────────
+  // P58.7: inline-viewer click intercept disabled while the side-panel UI is
+  // redesigned. Agenda anchors carry `target="_blank"`, so without this
+  // listener the browser's native handling opens them in a new tab. Tagging
+  // is now driven by the per-juris "Tag document to Tracked Project" button.
+  // Panel markup + openAgendaPanel() retained for hash-deep-link entry and
+  // for the next UI iteration to restore selectively.
+  function setupTrigger() { /* no-op */ }
 
   // ── Key handlers (ESC, focus trap) ────────────────────────────────────
   function setupKeys() {
