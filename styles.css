@@ -2433,6 +2433,174 @@ body.agenda-panel-locked { overflow: hidden; }
   overflow: hidden;
 }
 
+/* ── P58.6a: New Tracked Project button + inline form ──────────────── */
+.agenda-panel-newproj-btn {
+  background: rgba(45, 108, 182, 0.18);
+  border: 1px solid rgba(45, 108, 182, 0.5);
+  color: #6ca8e4;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.agenda-panel-newproj-btn:hover {
+  background: rgba(45, 108, 182, 0.3);
+}
+.agenda-panel-newproj-btn[aria-expanded="true"] {
+  background: rgba(45, 108, 182, 0.4);
+  color: #fff;
+}
+.agenda-panel-newproj-form {
+  padding: 10px 16px 12px;
+  background: rgba(45, 108, 182, 0.06);
+  border-bottom: 1px solid rgba(45, 108, 182, 0.2);
+}
+.agenda-panel-newproj-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.agenda-panel-newproj-name,
+.agenda-panel-newproj-ord {
+  background: rgba(0,0,0,0.25);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: var(--text, #e8e8e8);
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+}
+.agenda-panel-newproj-name { flex: 1 1 240px; min-width: 200px; }
+.agenda-panel-newproj-ord  { flex: 0 1 160px; min-width: 120px; }
+.agenda-panel-newproj-name:focus,
+.agenda-panel-newproj-ord:focus {
+  outline: none;
+  border-color: rgba(45, 108, 182, 0.6);
+}
+.agenda-panel-newproj-name.invalid {
+  border-color: rgba(220,80,80,0.7);
+}
+.agenda-panel-newproj-save {
+  background: rgba(45, 108, 182, 0.4);
+  border: 1px solid rgba(45, 108, 182, 0.7);
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  cursor: pointer;
+}
+.agenda-panel-newproj-save:hover {
+  background: rgba(45, 108, 182, 0.55);
+}
+.agenda-panel-newproj-save:disabled {
+  opacity: 0.5; cursor: not-allowed;
+}
+.agenda-panel-newproj-cancel {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.15);
+  color: var(--text-dim, #888);
+  width: 28px; height: 28px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.agenda-panel-newproj-cancel:hover {
+  color: var(--text, #e8e8e8);
+  border-color: rgba(255,255,255,0.3);
+}
+.agenda-panel-newproj-msg {
+  margin-top: 8px;
+  font-size: 11px;
+  min-height: 14px;
+  color: var(--text-dim, #888);
+}
+.agenda-panel-newproj-msg.success { color: #6ec07a; }
+.agenda-panel-newproj-msg.error   { color: #d9534f; }
+
+/* P58.6a: light-theme overrides for the new-project form */
+[data-theme="light"] .agenda-panel-newproj-form {
+  background: rgba(45, 108, 182, 0.05);
+  border-bottom-color: rgba(45, 108, 182, 0.18);
+}
+[data-theme="light"] .agenda-panel-newproj-name,
+[data-theme="light"] .agenda-panel-newproj-ord {
+  background: #fff;
+  color: #222;
+  border-color: rgba(0,0,0,0.15);
+}
+[data-theme="light"] .agenda-panel-newproj-cancel {
+  border-color: rgba(0,0,0,0.15);
+  color: #666;
+}
+
+/* ── P58.6a: Operator-mode badge ───────────────────────────────────── */
+.agenda-panel-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.agenda-panel-op-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  background: rgba(232, 160, 32, 0.18);
+  border: 1px solid rgba(232, 160, 32, 0.55);
+  color: #f0b84a;
+  border-radius: 3px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  vertical-align: middle;
+}
+[data-theme="light"] .agenda-panel-op-badge {
+  color: #9a5f00;
+  background: rgba(232, 160, 32, 0.12);
+  border-color: rgba(232, 160, 32, 0.4);
+}
+
+/* ── P58.6a: Visible toast (paste-tag / new-project feedback) ──────── */
+.agenda-panel-toast {
+  position: fixed;
+  bottom: 20px;
+  right: 24px;
+  z-index: 100000;
+  padding: 10px 16px;
+  background: rgba(20, 48, 79, 0.96);
+  border: 1px solid rgba(108, 168, 228, 0.55);
+  border-radius: 4px;
+  color: #fff;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.4);
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition: opacity 220ms ease, transform 220ms ease;
+  max-width: 360px;
+}
+.agenda-panel-toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+.agenda-panel-toast.success {
+  border-color: rgba(110, 192, 122, 0.6);
+}
+.agenda-panel-toast.error {
+  border-color: rgba(217, 83, 79, 0.7);
+  background: rgba(60, 20, 20, 0.96);
+}
+[data-theme="light"] .agenda-panel-toast {
+  background: #14304f;
+  color: #fff;
+}
+
 /* ── Light theme overrides ─────────────────────────────────────────── */
 [data-theme="light"] .agenda-panel-shell {
   background: #fafafa;
