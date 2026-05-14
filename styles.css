@@ -2005,11 +2005,37 @@ body.agenda-panel-locked { overflow: hidden; }
 }
 
 /* ── Body (main + sidebar) ─────────────────────────────────────────── */
+/* P58.6a: sidebar is hidden in this cut; body is single-column so the
+   document iframe uses the full width. The 1fr 320px split returns in
+   P58.6b if/when the sidebar comes back for HTML-agenda routes. */
 .agenda-panel-body {
   flex: 1 1 auto;
   display: grid;
-  grid-template-columns: 1fr 320px;
+  grid-template-columns: 1fr;
   min-height: 0;
+}
+/* P58.6a: action rail above the document — holds paste-URL + new-project
+   form. Sits between the header and the body so both interactive tools
+   are visible before the user has to scroll the PDF. */
+.agenda-panel-actions {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 10px 16px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+/* The paste-container's inner `.agenda-panel-paste` already has its own
+   card framing — no extra margin needed when sitting above the doc. */
+.agenda-panel-actions > #agenda-panel-paste-container:not(:empty) {
+  padding-bottom: 10px;
+}
+/* When new-project form expands, give it breathing room from paste-URL */
+.agenda-panel-actions > #agenda-panel-newproj-form:not([hidden]) {
+  margin-bottom: 4px;
+}
+[data-theme="light"] .agenda-panel-actions {
+  border-bottom-color: rgba(0, 0, 0, 0.08);
 }
 .agenda-panel-main {
   position: relative;
@@ -2204,6 +2230,9 @@ body.agenda-panel-locked { overflow: hidden; }
   flex-direction: column;
   gap: 12px;
 }
+/* P58.6a: when [hidden] is set, this needs higher specificity than the
+   base .agenda-panel-sidebar { display: flex } rule above. */
+.agenda-panel-sidebar[hidden] { display: none; }
 .agenda-panel-sidebar-title {
   margin: 0 0 4px 0;
   font-size: 10px;

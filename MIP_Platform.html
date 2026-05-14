@@ -6407,7 +6407,14 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
         state.projectsByJuris[key] = { ts: Date.now(), rows: rows };
         return rows;
       })
-      .catch(function() { return []; });
+      .catch(function(err) {
+        // P58.6a: don't swallow silently — log + cache empty so user sees
+        // "No projects" instead of a stuck "Loading…" state, and we can
+        // diagnose dropdown-empty reports from the console.
+        console.warn('[mrd-panel] list_tracked_projects fetch failed:', err);
+        state.projectsByJuris[key] = { ts: Date.now(), rows: [] };
+        return [];
+      });
   }
 
   function projectsCacheHit(juris) {
@@ -6869,10 +6876,14 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
       if (state.ctx.scrapedDocId !== ctx.scrapedDocId) return; // changed in flight
       sel.innerHTML = '';
       if (!rows.length) {
-        sel.innerHTML = '<option value="">No projects in ' + escText(jurisLabel) + '</option>';
+        sel.innerHTML = '<option value="">No projects in ' + escText(jurisLabel) + ' — use + New Tracked Project</option>';
         sel.disabled = true;
-        // Decision #3: auto-show [+ Create] hint
+        // Legacy sidebar empty-state hint (kept for popup parity); sidebar
+        // is hidden in P58.6a so this is mostly inert in the main path.
         if (emptyHint) emptyHint.hidden = false;
+        // P58.6a: auto-open the inline new-project form so the user has a
+        // visible next step instead of an empty dropdown they can't use.
+        try { newProjFormOpen(true); } catch(e) {}
         return;
       }
       var opt = document.createElement('option');
@@ -7472,41 +7483,46 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
                 type="button" aria-label="Close agenda panel">✕</button>
       </div>
     </header>
-    <!-- P58.6a: New Tracked Project inline form — hidden by default; expands
-         under the header when the +New Tracked Project button is clicked.
-         Jurisdiction is implied from current agenda context. -->
-    <div id="agenda-panel-newproj-form" class="agenda-panel-newproj-form" hidden>
-      <div class="agenda-panel-newproj-row">
-        <input type="text" id="agenda-panel-newproj-name"
-               class="agenda-panel-newproj-name"
-               placeholder="Project name (required)"
-               autocomplete="off" spellcheck="false" maxlength="200">
-        <input type="text" id="agenda-panel-newproj-ord"
-               class="agenda-panel-newproj-ord"
-               placeholder="Ordinance # (optional)"
-               autocomplete="off" spellcheck="false" maxlength="64">
-        <button type="button" id="agenda-panel-newproj-save"
-                class="agenda-panel-newproj-save">Save</button>
-        <button type="button" id="agenda-panel-newproj-cancel"
-                class="agenda-panel-newproj-cancel" aria-label="Cancel">✕</button>
+    <!-- P58.6a: action rail above the document — both interactive tools
+         (paste-URL + new-project form) live here so users don't have to
+         hunt the sidebar. Sidebar itself is hidden in this cut. -->
+    <div class="agenda-panel-actions">
+      <!-- Paste-URL row — always visible (was previously inside the
+           sidebar at #agenda-panel-paste-container). -->
+      <div id="agenda-panel-paste-container" class="agenda-panel-paste-container"></div>
+      <!-- New Tracked Project inline form — hidden by default; expands
+           when the +New Tracked Project button is clicked. -->
+      <div id="agenda-panel-newproj-form" class="agenda-panel-newproj-form" hidden>
+        <div class="agenda-panel-newproj-row">
+          <input type="text" id="agenda-panel-newproj-name"
+                 class="agenda-panel-newproj-name"
+                 placeholder="Project name (required)"
+                 autocomplete="off" spellcheck="false" maxlength="200">
+          <input type="text" id="agenda-panel-newproj-ord"
+                 class="agenda-panel-newproj-ord"
+                 placeholder="Ordinance # (optional)"
+                 autocomplete="off" spellcheck="false" maxlength="64">
+          <button type="button" id="agenda-panel-newproj-save"
+                  class="agenda-panel-newproj-save">Save</button>
+          <button type="button" id="agenda-panel-newproj-cancel"
+                  class="agenda-panel-newproj-cancel" aria-label="Cancel">✕</button>
+        </div>
+        <div id="agenda-panel-newproj-msg" class="agenda-panel-newproj-msg" role="status" aria-live="polite"></div>
       </div>
-      <div id="agenda-panel-newproj-msg" class="agenda-panel-newproj-msg" role="status" aria-live="polite"></div>
     </div>
     <div class="agenda-panel-body">
       <div id="agenda-panel-main" class="agenda-panel-main"></div>
-      <aside class="agenda-panel-sidebar" aria-label="Documents for this meeting">
+      <!-- P58.6a: sidebar HIDDEN. Paste-URL + New Tracked Project moved
+           above the document into .agenda-panel-actions. Sibling-docs
+           list ("Documents for this meeting") is also hidden in this cut.
+           Markup retained (with hidden) so P58.6b can restore selectively. -->
+      <aside class="agenda-panel-sidebar" aria-label="Documents for this meeting" hidden>
         <h3 class="agenda-panel-sidebar-title">
           Documents for this meeting
           <span id="agenda-panel-sidebar-count" class="agenda-panel-sidebar-count"></span>
         </h3>
         <ul id="agenda-panel-links" class="agenda-panel-links"></ul>
-        <!-- P58.6a: extraction rail HIDDEN (paste-URL is the only tagging
-             affordance for now; PDF.js click-to-tag in P58.6b will replace
-             this rail entirely for PDF routes, restore it for HTML routes). -->
         <div id="agenda-panel-extraction" class="agenda-panel-extraction" hidden></div>
-        <!-- P58.5: dedicated paste-URL affordance — rendered on panel open
-             so it's always visible (doesn't wait for extraction). -->
-        <div id="agenda-panel-paste-container" class="agenda-panel-paste-container"></div>
         <div id="agenda-panel-create-hint" class="agenda-panel-create-hint" hidden>
           No tracked projects yet for this jurisdiction.
           <button id="agenda-panel-create-btn" class="agenda-panel-create-btn" type="button">+ Create one</button>
