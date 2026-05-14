@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p58.4r1 -->
+<!-- MIP build p58.5r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com; img-src 'self' data:; frame-src https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p58.4r1">
+<link rel="stylesheet" href="styles.css?v=p58.5r1">
 </head>
 <body>
 
@@ -6712,60 +6712,61 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
     var extr = el('agenda-panel-extraction');
     if (!extr) return;
     extr.classList.remove('loading', 'error', 'empty');
-    if (!links.length) {
-      extr.classList.add('empty');
-      extr.innerHTML =
-        '<div class="agenda-panel-extraction-head">'
-      + '  <span class="agenda-panel-extraction-label">Links inside this agenda</span>'
-      + '  <span class="agenda-panel-extraction-status">no links found</span>'
-      + '</div>'
-      + '<div class="agenda-panel-extraction-msg">'
-      + 'This agenda doesn\'t link out to any external documents — or the PDF is image-only (scanned). '
-      + 'Gemini fallback will catch image-only agendas in P58.3b.</div>';
-      return;
-    }
-    // Dedup against URLs already in the sibling list (avoid double-listing the agenda itself)
+
+    // Dedup against URLs already in the sibling list (avoid double-listing
+    // the agenda itself or anything we already showed above).
     var siblingUrls = {};
     document.querySelectorAll('.agenda-panel-link[data-link-url]').forEach(function(li) {
       var u = li.getAttribute('data-link-url') || '';
       if (u) siblingUrls[u.toLowerCase()] = 1;
     });
-    var fresh = links.filter(function(L) { return !siblingUrls[(L.url || '').toLowerCase()]; });
+    var fresh = (links || []).filter(function(L) { return !siblingUrls[(L.url || '').toLowerCase()]; });
+
     var head =
       '<div class="agenda-panel-extraction-head">'
     + '  <span class="agenda-panel-extraction-label">Links inside this agenda</span>'
     + '  <span class="agenda-panel-extraction-status">'
-    + fresh.length + (fresh.length === 1 ? ' link' : ' links')
-    + (cached ? ' · cached' : '')
+    + (fresh.length ? (fresh.length + (fresh.length === 1 ? ' link' : ' links')
+                       + (cached ? ' · cached' : ''))
+                   : 'auto-detected: 0')
     + '</span>'
     + '</div>';
-    if (!fresh.length) {
-      extr.innerHTML = head
-        + '<div class="agenda-panel-extraction-msg">All extracted links were already shown above.</div>';
-      return;
+
+    var listHtml = '';
+    if (fresh.length) {
+      listHtml = '<ul class="agenda-panel-links agenda-panel-extlinks">';
+      for (var i = 0; i < fresh.length; i++) {
+        var L = fresh[i];
+        var kindLabel = L.kind ? L.kind.toUpperCase() : 'LINK';
+        listHtml +=
+          '<li class="agenda-panel-link" data-link-url="' + escText(L.url) + '" data-scraped-id="">'
+        + '  <div class="agenda-panel-link-meta">'
+        + '    <div class="agenda-panel-link-label">'
+        + '      <span class="agenda-panel-link-kind">' + escText(kindLabel) + '</span> '
+        + escText(L.label || L.url)
+        + '    </div>'
+        + '    <div class="agenda-panel-link-url">' + escText(L.url) + '</div>'
+        + '  </div>'
+        + '  <button class="agenda-panel-tag-btn" type="button" '
+        + '          aria-label="Tag ' + escText(L.label || L.url) + ' to selected project">✚</button>'
+        + '</li>';
+      }
+      listHtml += '</ul>';
+    } else {
+      listHtml =
+        '<div class="agenda-panel-extraction-msg">'
+      + 'Auto-detection finds prominent URLs (broadcast / social) but can\'t see hyperlink '
+      + 'annotations embedded in the PDF. Use the paste field below to capture any URL you see '
+      + 'in the agenda (right-click a link in the viewer → "Copy link address" → paste here).'
+      + '</div>';
     }
-    var listHtml = '<ul class="agenda-panel-links agenda-panel-extlinks">';
-    for (var i = 0; i < fresh.length; i++) {
-      var L = fresh[i];
-      var kindLabel = L.kind ? L.kind.toUpperCase() : 'LINK';
-      listHtml +=
-        '<li class="agenda-panel-link" data-link-url="' + escText(L.url) + '" data-scraped-id="">'
-      + '  <div class="agenda-panel-link-meta">'
-      + '    <div class="agenda-panel-link-label">'
-      + '      <span class="agenda-panel-link-kind">' + escText(kindLabel) + '</span> '
-      + escText(L.label || L.url)
-      + '    </div>'
-      + '    <div class="agenda-panel-link-url">' + escText(L.url) + '</div>'
-      + '  </div>'
-      + '  <button class="agenda-panel-tag-btn" type="button" '
-      + '          aria-label="Tag ' + escText(L.label || L.url) + ' to selected project">✚</button>'
-      + '</li>';
-    }
-    listHtml += '</ul>';
+
     extr.innerHTML = head + listHtml;
-    // Wire the ✚ buttons. scraped_doc_id is empty (these links aren't in
-    // Scraped_Documents); P35 tag_document writes an audit row regardless.
-    var btns = extr.querySelectorAll('.agenda-panel-tag-btn');
+
+    // Wire the ✚ buttons on auto-detected rows. scraped_doc_id is empty
+    // (these links aren't in Scraped_Documents); P35 tag_document writes
+    // an audit row regardless.
+    var btns = extr.querySelectorAll('.agenda-panel-link .agenda-panel-tag-btn');
     for (var k = 0; k < btns.length; k++) {
       (function(btn) {
         btn.addEventListener('click', function(e) {
@@ -6776,7 +6777,78 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
         });
       })(btns[k]);
     }
+
     applyTagModeToSidebar();
+  }
+
+  // P58.5: manual paste-URL affordance lives in its own container that's
+  // rendered on every panel open (not blocked by extraction in-flight).
+  // The user reads the agenda inline (P58.4 proxy iframe for OnBase /
+  // CivicClerk; Docs viewer for everything else), copies a hyperlink target,
+  // pastes here, taps ✚ Tag — the URL is filed under whatever project is
+  // selected in the project dropdown. Changing the dropdown changes which
+  // project subsequent ✚ Tag clicks file to.
+  function renderPasteAffordance() {
+    var c = el('agenda-panel-paste-container');
+    if (!c) return;
+    c.innerHTML =
+      '<div class="agenda-panel-paste">'
+    + '  <label class="agenda-panel-paste-label" for="agenda-panel-paste-input">'
+    + '    Paste any URL to tag'
+    + '  </label>'
+    + '  <div class="agenda-panel-paste-row">'
+    + '    <input type="url" id="agenda-panel-paste-input" class="agenda-panel-paste-input" '
+    + '           placeholder="https://… (copy a link from the agenda viewer)" '
+    + '           autocomplete="off" spellcheck="false">'
+    + '    <button type="button" class="agenda-panel-paste-btn" '
+    + '            aria-label="Tag pasted URL to selected project">✚ Tag</button>'
+    + '  </div>'
+    + '  <div class="agenda-panel-paste-hint" role="status" aria-live="polite"></div>'
+    + '</div>';
+
+    var pasteInput = el('agenda-panel-paste-input');
+    var pasteBtn = c.querySelector('.agenda-panel-paste-btn');
+    var pasteHint = c.querySelector('.agenda-panel-paste-hint');
+
+    function doTagPasted() {
+      var raw = (pasteInput.value || '').trim();
+      if (!raw) {
+        pasteHint.textContent = 'Paste a URL first.';
+        pasteHint.classList.add('warn');
+        return;
+      }
+      if (!/^https?:\/\//i.test(raw)) {
+        pasteHint.textContent = 'URL must start with http:// or https://';
+        pasteHint.classList.add('warn');
+        return;
+      }
+      pasteHint.classList.remove('warn');
+      pasteHint.textContent = '';
+      tagSidebarLink(pasteBtn, raw, '', {
+        onSuccess: function() {
+          pasteInput.value = '';
+          pasteHint.textContent = 'Tagged to ' + (currentProjectName() || 'project') + ' ✓';
+          pasteHint.classList.remove('warn');
+          setTimeout(function() { if (pasteHint) pasteHint.textContent = ''; }, 3000);
+        },
+        onError: function(msg) {
+          pasteHint.textContent = msg || 'Tag failed';
+          pasteHint.classList.add('warn');
+        }
+      });
+    }
+
+    if (pasteBtn) pasteBtn.addEventListener('click', function(e) { e.preventDefault(); doTagPasted(); });
+    if (pasteInput) pasteInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); doTagPasted(); }
+    });
+  }
+
+  function currentProjectName() {
+    var sel = el('agenda-panel-project');
+    if (!sel) return '';
+    var opt = sel.options[sel.selectedIndex];
+    return opt ? (opt.textContent || '').trim() : '';
   }
 
   // ── Project dropdown render ───────────────────────────────────────────
@@ -6860,15 +6932,32 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
   }
 
   // ── ✚ click handler — POST tag_document ──────────────────────────────
-  function tagSidebarLink(btn, url, scrapedId) {
-    if (!state.tagMode) { announce('Switch Tag mode on first.'); return; }
-    if (!state.projectId) { announce('Pick a project first.'); return; }
-    if (!url) return;
+  // P58.5: accepts optional `cb` with onSuccess/onError callbacks so the
+  // paste-URL affordance can clear its input + show its own status without
+  // reusing the icon-button success path.
+  function tagSidebarLink(btn, url, scrapedId, cb) {
+    cb = cb || {};
+    if (!state.tagMode) {
+      announce('Switch Tag mode on first.');
+      if (cb.onError) cb.onError('Switch Tag mode on first.');
+      return;
+    }
+    if (!state.projectId) {
+      announce('Pick a project first.');
+      if (cb.onError) cb.onError('Pick a project first.');
+      return;
+    }
+    if (!url) { if (cb.onError) cb.onError('No URL provided.'); return; }
     btn.disabled = true;
     btn.textContent = '…';
     btn.classList.remove('failed', 'tagged');
     var webappUrl = (typeof getWebAppUrl === 'function') ? getWebAppUrl() : '';
-    if (!webappUrl) { btn.textContent = '⚠'; btn.classList.add('failed'); return; }
+    if (!webappUrl) {
+      btn.textContent = '⚠';
+      btn.classList.add('failed');
+      if (cb.onError) cb.onError('Backend URL not configured.');
+      return;
+    }
     var clientId = (typeof tagClientId === 'function') ? tagClientId() : '';
     var q = '&action=tag_document'
           + '&project_id=' + encodeURIComponent(state.projectId)
@@ -6878,6 +6967,7 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
     fetch(webappUrl + q)
       .then(function(r) { return r.json(); })
       .then(function(res) {
+        btn.disabled = false;
         if (res && res.ok) {
           btn.textContent = res.status === 'active' ? '✓' : (res.status === 'url-only' ? '🔗' : '⚠');
           btn.classList.add('tagged');
@@ -6900,18 +6990,23 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
               });
             } catch(e) {}
           }
+          if (cb.onSuccess) cb.onSuccess(res);
         } else {
           btn.textContent = '⚠';
           btn.classList.add('failed');
-          btn.title = 'Tag failed: ' + ((res && res.error) || 'unknown');
+          var emsg = (res && res.error) || 'unknown';
+          btn.title = 'Tag failed: ' + emsg;
           announce('Tag failed.');
+          if (cb.onError) cb.onError('Tag failed: ' + emsg);
         }
       })
       .catch(function(err) {
+        btn.disabled = false;
         btn.textContent = '⚠';
         btn.classList.add('failed');
         btn.title = 'Network error: ' + err.message;
         announce('Tag failed: network error.');
+        if (cb.onError) cb.onError('Network error: ' + err.message);
       });
   }
 
@@ -6945,6 +7040,7 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
     renderMain();
     renderSidebar();
     renderProjectDropdown();
+    renderPasteAffordance();
     // Focus close button after open
     setTimeout(function() {
       var closeBtn = el('agenda-panel-close');
@@ -7230,6 +7326,9 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
         <ul id="agenda-panel-links" class="agenda-panel-links"></ul>
         <!-- Layer 2 extraction surface — populated by loadExtractedLinks() -->
         <div id="agenda-panel-extraction" class="agenda-panel-extraction"></div>
+        <!-- P58.5: dedicated paste-URL affordance — rendered on panel open
+             so it's always visible (doesn't wait for extraction). -->
+        <div id="agenda-panel-paste-container" class="agenda-panel-paste-container"></div>
         <div id="agenda-panel-create-hint" class="agenda-panel-create-hint" hidden>
           No tracked projects yet for this jurisdiction.
           <button id="agenda-panel-create-btn" class="agenda-panel-create-btn" type="button">+ Create one</button>

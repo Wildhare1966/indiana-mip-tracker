@@ -2111,6 +2111,89 @@ body.agenda-panel-locked { overflow: hidden; }
 [data-theme="light"] .agenda-panel-proxy-msg { color: #444; }
 [data-theme="light"] .agenda-panel-proxy-hint { color: #666; }
 
+/* ── P58.5 manual paste-URL affordance ─────────────────────────────── */
+.agenda-panel-paste {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(232, 160, 32, 0.18);
+  border-radius: 4px;
+  background: rgba(232, 160, 32, 0.04);
+}
+.agenda-panel-paste-label {
+  display: block;
+  font-size: 9px;
+  font-family: 'IBM Plex Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(232, 160, 32, 0.85);
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.agenda-panel-paste-row {
+  display: flex;
+  gap: 6px;
+}
+.agenda-panel-paste-input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-family: 'IBM Plex Mono', monospace;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  color: #eee;
+  outline: none;
+}
+.agenda-panel-paste-input:focus {
+  border-color: rgba(232, 160, 32, 0.6);
+  background: rgba(0, 0, 0, 0.45);
+}
+.agenda-panel-paste-input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 10px;
+}
+.agenda-panel-paste-btn {
+  padding: 6px 10px;
+  font-size: 11px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 600;
+  background: rgba(232, 160, 32, 0.15);
+  color: #e8a020;
+  border: 1px solid rgba(232, 160, 32, 0.4);
+  border-radius: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.agenda-panel-paste-btn:hover:not(:disabled) {
+  background: rgba(232, 160, 32, 0.25);
+  border-color: rgba(232, 160, 32, 0.6);
+}
+.agenda-panel-paste-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.agenda-panel-paste-hint {
+  font-size: 10px;
+  margin-top: 6px;
+  color: rgba(232, 160, 32, 0.7);
+  min-height: 13px;
+  letter-spacing: 0.02em;
+}
+.agenda-panel-paste-hint.warn {
+  color: #d9534f;
+}
+[data-theme="light"] .agenda-panel-paste {
+  background: rgba(232, 160, 32, 0.06);
+  border-color: rgba(232, 160, 32, 0.3);
+}
+[data-theme="light"] .agenda-panel-paste-input {
+  background: #fff;
+  color: #222;
+  border-color: rgba(0, 0, 0, 0.15);
+}
+[data-theme="light"] .agenda-panel-paste-input::placeholder { color: #999; }
+
 /* ── Sidebar ───────────────────────────────────────────────────────── */
 .agenda-panel-sidebar {
   border-left: 1px solid rgba(255, 255, 255, 0.08);
