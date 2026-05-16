@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p58.8r3 -->
+<!-- MIP build p58.8r4 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -3718,7 +3718,12 @@ function renderBodySection(bodyLabel, dates, muniId) {
       ytCell += `<a href="${escUrl(entry.youtube_url)}" target="_blank" class="hearing-link yt" data-doc-link="youtube" data-scraped-id="${escAttr(entry.meeting_id || '')}">▶ YouTube</a>`;
       ytCell += `<span id="${esc(summaryId)}">`;
       if (entry.summary_doc) {
-        ytCell += `<a href="${escUrl(entry.summary_doc)}" target="_blank" class="hearing-link doc" data-doc-link="summary" data-scraped-id="${escAttr(entry.meeting_id || '')}">✦ Summary</a>`;
+        // P58.8 r4: default Summary button color is yellow; when the meeting's
+        // summary has been flagged for review, the button shifts to orange
+        // (current accent) so the flag state is visible on the button itself,
+        // not only in a transient toast right after click.
+        const sumFlagCls = entry._summary_flagged ? ' summary-flagged' : '';
+        ytCell += `<a href="${escUrl(entry.summary_doc)}" target="_blank" class="hearing-link doc${sumFlagCls}" data-doc-link="summary" data-scraped-id="${escAttr(entry.meeting_id || '')}">✦ Summary</a>`;
       }
       ytCell += `</span>`;
       if (entry.summary_doc) {
@@ -3757,15 +3762,24 @@ function renderBodySection(bodyLabel, dates, muniId) {
         const agId = 'ag_' + muniId + '_' + rowIdx + '_' + si;
         const btnYId = 'agy_' + muniId + '_' + rowIdx + '_' + si;
         const btnNId = 'agn_' + muniId + '_' + rowIdx + '_' + si;
-        const status = window._agendaApprovalStatus[sd.id] || '';
+        // P58.8 r4: session memory wins over server (covers in-flight clicks
+        // before the next SCRAPED_DOCS fetch); falls back to the server-emitted
+        // approval_status so prior-session Yes/No selections persist on reload.
+        const status = window._agendaApprovalStatus[sd.id] || sd.approval_status || '';
         const cls = status === 'approved' ? ' ag-approved' : status === 'rejected' ? ' ag-rejected' : '';
         const curType = sd.meeting_type_override || sd.meeting_type || '';
         let h = `<div class="ag-item${cls}" id="${esc(agId)}">`;
         h += sdUrl ? `<a href="${escUrl(inlineViewerUrl(sdUrl))}" target="_blank" class="hearing-link ag" data-doc-link="agenda" data-scraped-id="${escAttr(sd.id || '')}">↓ Agenda</a>` : `<span class="hearing-link ag" style="cursor:default;">↓ Agenda</span>`;
-        if (!status) {
+        if (status === 'approved') {
+          // Persistent reviewed-state indicator. Disabled non-button so the
+          // visitor sees the prior decision without an accidental re-click.
+          h += `<span class="ag-reviewed-badge" title="You confirmed this agenda is correct">✓ Reviewed</span>`;
+        } else if (!status) {
           h += `<button class="ag-correct-btn yes" id="${esc(btnYId)}" onclick="agApprove('${escAttr(sd.id)}','${escAttr(sd.meeting_type||'')}','${escAttr(muniId)}','${escAttr(btnYId)}','${escAttr(btnNId)}','${escAttr(agId)}')">✓ Yes</button>`;
           h += `<button class="ag-correct-btn no" id="${esc(btnNId)}" onclick="agReject('${escAttr(sd.id)}','${escAttr(sd.meeting_type||'')}','${escAttr(muniId)}','${escAttr(btnYId)}','${escAttr(btnNId)}','${escAttr(agId)}')">✗ No</button>`;
         }
+        // status === 'rejected' branch: row is already filtered out at the
+        // backend (WebApp.js:529), so we won't reach this code for rejected rows.
         // P57 W5a: Change Type button removed per user request — the agenda
         // Yes/No already feeds classifier corrections via Override_Rules.
         h += `</div>`;
