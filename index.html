@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p60r1 -->
+<!-- MIP build p61r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -379,7 +379,7 @@
             <input id="tp-new-ord" type="text" placeholder="Ordinance #" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-page,#0d0d0d);color:inherit;border-radius:4px;font-size:12px;">
             <input id="tp-new-juris" type="text" placeholder="Jurisdiction (blank = all)" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-page,#0d0d0d);color:inherit;border-radius:4px;font-size:12px;">
             <input id="tp-new-petitioner" type="text" placeholder="Petitioner / applicant" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-page,#0d0d0d);color:inherit;border-radius:4px;font-size:12px;">
-            <input id="tp-new-aliases" type="text" placeholder="Aliases (comma-sep)" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-page,#0d0d0d);color:inherit;border-radius:4px;font-size:12px;">
+            <input id="tp-new-aliases" type="text" placeholder="Aliases / Additional Ord #s (comma-sep)" title="Add alternate project names or additional ordinance numbers (comma-separated). Each entry is matched against agenda items." style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-page,#0d0d0d);color:inherit;border-radius:4px;font-size:12px;">
             <input id="tp-new-mapurl" type="text" placeholder="Map URL (ArcGIS / parcel)" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-page,#0d0d0d);color:inherit;border-radius:4px;font-size:12px;">
           </div>
           <div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
@@ -393,6 +393,7 @@
           <table id="tp-table" style="width:100%;border-collapse:collapse;font-size:12px;">
             <thead>
               <tr style="background:var(--bg-card,#1a1a1a);text-align:left;">
+                <th style="padding:8px 4px;border-bottom:1px solid var(--border,#333);width:28px;"></th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Project</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Jurisdiction</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Petitioner</th>
@@ -1967,6 +1968,16 @@ var tprDescriptionsByProject = {};
 var tprDescExpandedByProject = {}; // { project_id: true } for "+N more" expanded
 var TPR_DESC_COLLAPSED_MAX = 5;
 
+// P61 task 3: per-project tagged-document inventory, fetched from
+// list_project_documents. Surfaces in the per-juris rail as active doc links
+// so visitors can click straight to the tagged file (mirrors the popup on
+// the global Tracked Projects tab). Map shape:
+//   { project_id: { state: 'loading'|'loaded'|'error', docs: [...] } }
+var tprDocsByProject = {};
+// Per-project collapse state for the doc list (same pattern as descriptions).
+var tprDocsExpandedByProject = {};
+var TPR_DOCS_COLLAPSED_MAX = 5;
+
 function renderTpRail(m) {
   var rail = document.getElementById('muni-tp-rail');
   if (!rail || !m) return;
@@ -2013,6 +2024,18 @@ function renderTpRail(m) {
 
   rail.innerHTML = header + addForm + cards;
 
+  // P61 task 3: lazy-fetch tagged-document inventories for each project with
+  // a non-zero doc count. tprDocsByProject caches per-project; we only fire
+  // once per project per session unless explicitly invalidated.
+  rows.forEach(function(p) {
+    var pid = p.projectId;
+    if (!pid) return;
+    var n = (typeof tpDocCounts !== 'undefined' && tpDocCounts[pid]) ? tpDocCounts[pid] : 0;
+    if (n <= 0) return;
+    if (tprDocsByProject[pid]) return; // already loading or loaded
+    _tprFetchProjectDocs(pid);
+  });
+
   // Restore focus to the alias input when the add form is open (re-renders
   // from chip-add steal focus otherwise).
   if (tprAddFormOpen) {
@@ -2043,7 +2066,7 @@ function _tprRenderAddForm(m) {
     +     ' oninput="tprAddName = this.value;">'
     +   '<div class="tpr-chip-input" onclick="document.getElementById(\'tpr-alias-draft\').focus();">'
     +     chips
-    +     '<input id="tpr-alias-draft" class="tpr-chip-input-field" type="text" placeholder="' + (tprAliasChips.length ? 'Add alias…' : 'Aliases (Enter to add)') + '"'
+    +     '<input id="tpr-alias-draft" class="tpr-chip-input-field" type="text" placeholder="' + (tprAliasChips.length ? 'Add alias / ord #…' : 'Aliases / Additional Ord #s (Enter to add)') + '"'
     +       ' value="' + escAttr(tprAliasDraft) + '"'
     +       ' oninput="tprAliasDraft = this.value;"'
     +       ' onkeydown="tprAliasKeyDown(event);">'
@@ -2084,6 +2107,9 @@ function _tprRenderProjectCard(p) {
   // Description list — session-only (commit 5a). Pre-existing descriptions
   // from the backend are not loaded yet.
   var descHtml = _tprRenderDescriptions(pid);
+  // P61 task 3: persistent tagged-document inventory with active links. Lazy-
+  // loaded via _tprFetchProjectDocs (fired from renderTpRail when count > 0).
+  var docsHtml = _tprRenderTaggedDocs(pid);
 
   return ''
     + '<div class="tpr-project" data-pid="' + pidEsc + '">'
@@ -2095,6 +2121,7 @@ function _tprRenderProjectCard(p) {
     +     '</button>'
     +   '</div>'
     +   metaHtml
+    +   docsHtml
     +   descHtml
     +   tagInputHtml
     + '</div>';
@@ -2141,6 +2168,74 @@ function _tprRenderDescriptions(projectId) {
 
 function tprToggleDescExpand(pid) {
   tprDescExpandedByProject[pid] = !tprDescExpandedByProject[pid];
+  if (currentMuni) renderTpRail(currentMuni);
+}
+
+// P61 task 3: fetch tagged documents for a project. Stores result in
+// tprDocsByProject[pid] and re-renders the rail. Called lazily from
+// renderTpRail when a project has >0 docs and no cached entry.
+function _tprFetchProjectDocs(pid) {
+  if (!pid) return;
+  var webappUrl = getWebAppUrl();
+  if (!webappUrl) return;
+  tprDocsByProject[pid] = { state: 'loading', docs: [] };
+  fetch(webappUrl + '&action=list_project_documents&project_id=' + encodeURIComponent(pid))
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (res && res.ok) {
+        tprDocsByProject[pid] = { state: 'loaded', docs: res.documents || [], folder_url: res.folder_url || '' };
+      } else {
+        tprDocsByProject[pid] = { state: 'error', docs: [] };
+      }
+      if (currentMuni) renderTpRail(currentMuni);
+    })
+    .catch(function(err) {
+      tprDocsByProject[pid] = { state: 'error', docs: [] };
+      console.error('_tprFetchProjectDocs error:', err);
+      if (currentMuni) renderTpRail(currentMuni);
+    });
+}
+
+// P61 task 3: render the tagged-documents list as active links. Mirrors the
+// global TP popup's anchor style (`.tp-doc-link`). Active rows only — archived
+// docs are skipped (matches list_project_documents's default behavior).
+function _tprRenderTaggedDocs(projectId) {
+  var entry = tprDocsByProject[projectId];
+  if (!entry) return ''; // not yet fetched (count was 0, or load not fired)
+  if (entry.state === 'loading') {
+    return '<div class="tpr-docs-list"><span class="tpr-docs-loading" style="font-size:10px;color:var(--muted,#888);">Loading docs…</span></div>';
+  }
+  if (entry.state === 'error') {
+    return '<div class="tpr-docs-list"><span class="tpr-docs-error" style="font-size:10px;color:#d65a5a;">Failed to load tagged docs.</span></div>';
+  }
+  // P61 task 3: include both 'active' (Drive-backed) and 'url-only' (off-allowlist /
+  // oversize / HTML-login) docs — mirrors the global TP popup at tpOpenDocsPopup.
+  // Skip only 'archived' rows so user-removed docs don't reappear.
+  var docs = (entry.docs || []).filter(function(d) { return (d.status || 'active') !== 'archived'; });
+  if (!docs.length) return '';
+  var expanded = !!tprDocsExpandedByProject[projectId];
+  var shown = (expanded || docs.length <= TPR_DOCS_COLLAPSED_MAX) ? docs : docs.slice(0, TPR_DOCS_COLLAPSED_MAX);
+
+  var items = shown.map(function(d) {
+    var href = d.drive_file_url || d.source_url || '';
+    if (!href) return '';
+    var label = d.filename || (d.source_url || '').split('/').pop() || 'Document';
+    var title = d.source_url ? d.source_url : label;
+    return '<a class="tp-doc-link tpr-doc-link" href="' + esc(href) + '" target="_blank" rel="noopener" data-no-tag title="' + escAttr(title) + '" style="display:inline-block;margin:1px 4px 1px 0;font-size:11px;">' + esc(label.length > 38 ? label.slice(0, 35) + '…' : label) + '</a>';
+  }).join('');
+
+  var moreBtn = '';
+  if (docs.length > TPR_DOCS_COLLAPSED_MAX) {
+    var pidAttr = escAttr(projectId);
+    moreBtn = expanded
+      ? '<button type="button" class="tpr-desc-more" onclick="tprToggleDocsExpand(\'' + pidAttr + '\')">show less</button>'
+      : '<button type="button" class="tpr-desc-more" onclick="tprToggleDocsExpand(\'' + pidAttr + '\')">+' + (docs.length - TPR_DOCS_COLLAPSED_MAX) + ' more</button>';
+  }
+  return '<div class="tpr-docs-list" style="margin-top:6px;line-height:1.6;">' + items + moreBtn + '</div>';
+}
+
+function tprToggleDocsExpand(pid) {
+  tprDocsExpandedByProject[pid] = !tprDocsExpandedByProject[pid];
   if (currentMuni) renderTpRail(currentMuni);
 }
 
@@ -4778,7 +4873,7 @@ function renderTrackedProjects(m) {
     <div class="tracked-new-form" id="tracked-form-${m.id}">
       <input id="tf-ord-${m.id}"    placeholder="Ordinance / Docket ID (e.g. ORD-2024-15)">
       <input id="tf-name-${m.id}"   placeholder="Project name (required)">
-      <input id="tf-alias-${m.id}"  placeholder="Aliases — comma-separated (optional)">
+      <input id="tf-alias-${m.id}"  placeholder="Aliases / Additional Ord #s — comma-separated (optional)">
       <div class="tracked-form-row">
         <button class="edit-save-btn"   onclick="submitNewProject('${m.id}','${m.name}')">Save &amp; Scan</button>
         <button class="edit-cancel-btn" onclick="cancelTrackedForm('${m.id}')">Cancel</button>
@@ -5152,9 +5247,11 @@ function tpRenderTable() {
   // P58.7 R13c: archived + closed rows are hidden from the visible list but
   // remain in the database (status_archive_filter). The dropdown lets users
   // flip a row to "archive" which sets status='archived' on the backend.
+  // P61 task 2: 'deleted' rows (soft-delete from the Edit dropdown) are also
+  // hidden — same pattern, recoverable via direct sheet edit if needed.
   var rows = tpProjects.filter(function(p) {
     var st = (p.status || 'active').toLowerCase();
-    if (st === 'archived' || st === 'closed') return false;
+    if (st === 'archived' || st === 'closed' || st === 'deleted') return false;
     if (jurisFilter && (p.jurisdiction||'').toLowerCase().indexOf(jurisFilter) === -1) return false;
     if (textFilter) {
       var hay = ((p.projectName||'') + ' ' + (p.ordinanceId||'') + ' ' + (p.petitionerApplicant||'') + ' ' + (p.aliases||'')).toLowerCase();
@@ -5166,7 +5263,7 @@ function tpRenderTable() {
   if (statusEl) statusEl.textContent = rows.length + ' project' + (rows.length === 1 ? '' : 's') + (tpProjects.length === rows.length ? '' : ' (of ' + tpProjects.length + ')');
 
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="10" style="padding:24px;text-align:center;color:var(--muted,#888);">No projects match the current filters.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" style="padding:24px;text-align:center;color:var(--muted,#888);">No projects match the current filters.</td></tr>';
     return;
   }
 
@@ -5199,10 +5296,15 @@ function tpRenderTable() {
         '<option value="archived"' + (status === 'archived' ? ' selected' : '') + '>Archive</option>' +
       '</select>';
 
+    // P61 task 2: Edit button + expanded inline edit row.
+    var isEditing = (tpEditingPid === p.projectId);
+    var editBtn = '<button class="refresh-btn" onclick="tpToggleEditRow(\'' + pidAttr + '\')" title="Edit project / aliases / delete" style="font-size:11px;padding:2px 7px;background:transparent;border:1px solid var(--border,#444);">' + (isEditing ? '×' : '✎') + '</button>';
     return '<tr data-project-id="' + pidAttr + '" style="border-bottom:1px solid var(--border,#2a2a2a);">' +
+      '<td style="padding:6px 4px;vertical-align:top;text-align:center;">' + editBtn + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' +
         '<div style="font-weight:600;">' + esc(p.projectName || '(untitled)') + '</div>' +
         (p.ordinanceId ? '<div style="font-size:10px;color:var(--muted,#888);">' + esc(p.ordinanceId) + '</div>' : '') +
+        (p.aliases ? '<div style="font-size:10px;color:var(--muted,#888);margin-top:2px;" title="Aliases / additional ordinance numbers">' + esc(p.aliases) + '</div>' : '') +
       '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' + esc(p.jurisdiction || '<i>all</i>') + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' +
@@ -5230,10 +5332,154 @@ function tpRenderTable() {
       '<td style="padding:8px 10px;vertical-align:top;text-align:right;">' +
         (isOperator() ? '<button class="refresh-btn" onclick="event.stopPropagation();tpCloseProject(\'' + pidAttr + '\', \'' + escAttr((p.projectName||'').replace(/\x27/g,"\\\x27")) + '\')" style="font-size:10px;padding:2px 6px;" title="Close tracking (operator only)">✕</button>' : '') +
       '</td>' +
-    '</tr>';
+    '</tr>' +
+    // P61 task 2: inline edit dropdown row. Only emitted when this row is the active edit target.
+    (isEditing ? _tpRenderEditDropdown(p, pidAttr) : '');
   }).join('');
   // Reapply R6 highlight to any newly-rendered tp-doc-link anchors.
   if (typeof mipReapplyLastDocBtn === 'function') mipReapplyLastDocBtn();
+}
+
+// P61 task 2: which project row currently has its Edit dropdown open.
+var tpEditingPid = '';
+
+function tpToggleEditRow(pid) {
+  tpEditingPid = (tpEditingPid === pid) ? '' : pid;
+  tpRenderTable();
+}
+
+// P61 task 2: the inline Edit dropdown row. Fields: project_name, ordinance_id,
+// aliases. Save uses update_tracked_project; Delete is soft (status='deleted').
+// Aliases are also where additional ordinance numbers go (task 1 — single
+// schema column, comma-separated, already participates in auto-scan matching).
+function _tpRenderEditDropdown(p, pidAttr) {
+  var pid = p.projectId || '';
+  return '<tr class="tp-edit-row" data-edit-pid="' + pidAttr + '" style="background:var(--bg-card,#1a1a1a);">' +
+    '<td colspan="11" style="padding:14px 18px;border-bottom:1px solid var(--border,#333);">' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;align-items:end;">' +
+        '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);">Project name' +
+          '<input id="tpe-name-' + pidAttr + '" type="text" value="' + escAttr(p.projectName || '') + '" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
+        '</label>' +
+        '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);">Ordinance # (primary)' +
+          '<input id="tpe-ord-' + pidAttr + '" type="text" value="' + escAttr(p.ordinanceId || '') + '" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
+        '</label>' +
+        '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);">Aliases / Additional Ord #s (comma-sep)' +
+          '<input id="tpe-alias-' + pidAttr + '" type="text" value="' + escAttr(p.aliases || '') + '" placeholder="ORD-2024-16, ORD-2024-17, alt project name" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
+        '</label>' +
+      '</div>' +
+      '<div style="margin-top:12px;display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;">' +
+        '<div style="display:flex;gap:8px;align-items:center;">' +
+          '<button class="refresh-btn" onclick="tpSaveEditRow(\'' + pidAttr + '\')" style="font-size:11px;">Save</button>' +
+          '<button class="refresh-btn" onclick="tpToggleEditRow(\'' + pidAttr + '\')" style="font-size:11px;background:transparent;">Cancel</button>' +
+          '<span id="tpe-msg-' + pidAttr + '" style="font-size:11px;color:var(--muted,#888);"></span>' +
+        '</div>' +
+        '<button class="refresh-btn" onclick="tpDeleteRow(\'' + pidAttr + '\', \'' + escAttr((p.projectName || '').replace(/\x27/g,"\\\x27")) + '\')" style="font-size:11px;background:rgba(220,80,80,0.15);color:#e07070;border:1px solid rgba(220,80,80,0.4);" title="Soft-delete (status=deleted) — hidden from views but recoverable">🗑 Delete record</button>' +
+      '</div>' +
+    '</td>' +
+  '</tr>';
+}
+
+// P61 task 2: persist the three edit fields via update_tracked_project.
+// Mirrors tpInlineSave but multi-field. Optimistic local update + rollback on error.
+function tpSaveEditRow(pid) {
+  var nameEl = document.getElementById('tpe-name-' + pid);
+  var ordEl  = document.getElementById('tpe-ord-' + pid);
+  var aliEl  = document.getElementById('tpe-alias-' + pid);
+  var msgEl  = document.getElementById('tpe-msg-' + pid);
+  if (!nameEl || !ordEl || !aliEl) return;
+  var current = tpProjects.find(function(p) { return p.projectId === pid; });
+  if (!current) return;
+  var name = (nameEl.value || '').trim();
+  var ord  = (ordEl.value || '').trim();
+  var ali  = (aliEl.value || '').trim();
+  if (!name) {
+    if (msgEl) { msgEl.textContent = 'Project name required.'; msgEl.style.color = '#d65a5a'; }
+    return;
+  }
+  var webappUrl = getWebAppUrl();
+  if (!webappUrl) return;
+  if (msgEl) { msgEl.textContent = 'Saving…'; msgEl.style.color = 'var(--muted,#888)'; }
+  // Optimistic local update
+  var prev = { projectName: current.projectName, ordinanceId: current.ordinanceId, aliases: current.aliases };
+  current.projectName = name;
+  current.ordinanceId = ord;
+  current.aliases     = ali;
+  var fields = { project_name: name, ordinance_id: ord, aliases: ali };
+  var body = 'action=update_tracked_project'
+           + '&project_id=' + encodeURIComponent(pid)
+           + '&fields=' + encodeURIComponent(JSON.stringify(fields))
+           + '&token=' + encodeURIComponent(DEFAULT_AUTH_TOKEN || '')
+           + '&client_id=' + encodeURIComponent((typeof tagClientId === 'function') ? tagClientId() : '');
+  fetch(webappUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (res && (res.ok || res.success)) {
+        if (msgEl) { msgEl.textContent = 'Saved ✓'; msgEl.style.color = '#4ac49a'; }
+        setTimeout(function() {
+          tpEditingPid = '';
+          tpRenderTable();
+        }, 500);
+      } else {
+        current.projectName = prev.projectName;
+        current.ordinanceId = prev.ordinanceId;
+        current.aliases     = prev.aliases;
+        if (msgEl) { msgEl.textContent = 'Failed: ' + ((res && res.error) || 'unknown'); msgEl.style.color = '#d65a5a'; }
+      }
+    })
+    .catch(function(err) {
+      current.projectName = prev.projectName;
+      current.ordinanceId = prev.ordinanceId;
+      current.aliases     = prev.aliases;
+      if (msgEl) { msgEl.textContent = 'Network error.'; msgEl.style.color = '#d65a5a'; }
+      console.error('tpSaveEditRow error:', err);
+    });
+}
+
+// P61 task 2: soft-delete (status='deleted'). Reuses update_tracked_project +
+// the same hide-by-status filter that already covers archived/closed. Requires
+// the user to retype the project name as a confirmation guard.
+function tpDeleteRow(pid, projectName) {
+  var typed = prompt('Soft-delete this record? It will be hidden from all views but recoverable from the sheet.\n\nType the project name to confirm:\n\n"' + projectName + '"');
+  if (typed === null) return;
+  if (typed.trim() !== (projectName || '').trim()) {
+    alert('Confirmation text did not match. Delete cancelled.');
+    return;
+  }
+  var webappUrl = getWebAppUrl();
+  if (!webappUrl) return;
+  var current = tpProjects.find(function(p) { return p.projectId === pid; });
+  if (!current) return;
+  var prevStatus = current.status || 'active';
+  current.status = 'deleted';
+  tpEditingPid = '';
+  tpRenderTable();
+  var body = 'action=update_tracked_project'
+           + '&project_id=' + encodeURIComponent(pid)
+           + '&fields=' + encodeURIComponent(JSON.stringify({ status: 'deleted' }))
+           + '&token=' + encodeURIComponent(DEFAULT_AUTH_TOKEN || '')
+           + '&client_id=' + encodeURIComponent((typeof tagClientId === 'function') ? tagClientId() : '');
+  fetch(webappUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (!res || !(res.ok || res.success)) {
+        current.status = prevStatus;
+        tpRenderTable();
+        alert('Delete failed: ' + ((res && res.error) || 'unknown'));
+      }
+    })
+    .catch(function(err) {
+      current.status = prevStatus;
+      tpRenderTable();
+      alert('Delete network error: ' + err.message);
+    });
 }
 
 // P58.7 R13a: walk PUBLIC_HEARINGS for the project's jurisdiction + meeting
