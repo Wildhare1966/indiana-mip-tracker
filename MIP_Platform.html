@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p58.8r5 -->
+<!-- MIP build p60r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1910,12 +1910,12 @@ function renderMuniPanel() {
 
     <div class="members-section">
       <div class="members-tabs">
-        <button class="members-tab ${currentTab==='council'?'active':''}" onclick="switchTab('council')">
+        ${(m.council||[]).length > 0 ? `<button class="members-tab ${currentTab==='council'?'active':''}" onclick="switchTab('council')">
           Council Members (${(m.council||[]).length})
-        </button>
-        <button class="members-tab ${currentTab==='pc'?'active':''}" onclick="switchTab('pc')">
+        </button>` : ''}
+        ${(m.pc||[]).length > 0 ? `<button class="members-tab ${currentTab==='pc'?'active':''}" onclick="switchTab('pc')">
           Plan Commission Members (${(m.pc||[]).length})
-        </button>
+        </button>` : ''}
         <button class="members-tab ${currentTab==='hearings'?'active':''}" onclick="switchTab('hearings')">
           Public Hearings (${(PUBLIC_HEARINGS[m.id]||[]).length})
         </button>
@@ -3322,8 +3322,23 @@ function renderHearingsContent(muniId) {
   if (councilPcDates.length > 0) {
     html += renderBodySection('Council & Plan Commission', councilPcDates, muniId);
   }
+  // P60 thread 2: group "Other Meetings" by distinct meeting_type so each body
+  // surfaces under its own section (e.g. Marion County renders MDC Hearing
+  // Examiner / Regional Center Hearing Examiner / MDC instead of one bucket).
+  // Fallback to "Other Meetings" for rows with blank/unknown body_type.
   if (otherDates.length > 0) {
-    html += renderBodySection('Other Meetings', otherDates, muniId);
+    const groupsByType = {};
+    const groupOrder = [];
+    otherDates.forEach(d => {
+      const key = (d.body_type && String(d.body_type).trim()) || 'Other Meetings';
+      if (!groupsByType[key]) { groupsByType[key] = []; groupOrder.push(key); }
+      groupsByType[key].push(d);
+    });
+    // Sort sections by count desc so the most-active body type renders first.
+    groupOrder.sort((a, b) => groupsByType[b].length - groupsByType[a].length);
+    groupOrder.forEach(key => {
+      html += renderBodySection(key, groupsByType[key], muniId);
+    });
   }
 
   if (!unified.length) {
