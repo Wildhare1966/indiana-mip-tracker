@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p58.8r4 -->
+<!-- MIP build p58.8r5 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -3060,9 +3060,56 @@ async function agReject(docId, meetingType, jurisdiction, btnYesId, btnNoId, row
   }
 }
 
-// P57 W5c — Minutes review-flag handlers. POST to `flag_minutes_review` and
-// optimistically update the DOM. localStorage mirror keeps the flag state
-// stable across re-renders before the SCRAPED_DOCS cache refresh rolls in.
+// P58.8 r5 — Minutes Yes/No now mirrors Agenda Yes/No. Minutes rows live in
+// Scraped_Documents, so we reuse the existing `approve_agenda` / `reject_agenda`
+// endpoints; they operate on any row by id regardless of document_type.
+window._minApprovalLocal = window._minApprovalLocal || {}; // mnSdId -> 'approved'|'rejected'
+
+async function mnApprove(docId, jurisdiction, btnYesId, btnNoId, rowId) {
+  const btnY = document.getElementById(btnYesId);
+  const btnN = document.getElementById(btnNoId);
+  if (btnY) { btnY.disabled = true; btnY.textContent = '…'; }
+  if (btnN) btnN.disabled = true;
+  try {
+    const url = getWebAppUrl() + '&action=approve_agenda'
+      + '&id=' + encodeURIComponent(docId)
+      + '&meeting_type=Minutes'
+      + '&jurisdiction=' + encodeURIComponent(jurisdiction);
+    await fetch(url);
+    window._minApprovalLocal[docId] = 'approved';
+    const row = document.getElementById(rowId);
+    if (row) row.classList.add('mn-approved');
+    if (btnY) btnY.style.display = 'none';
+    if (btnN) btnN.style.display = 'none';
+  } catch(e) {
+    if (btnY) { btnY.textContent = '✓ Yes'; btnY.disabled = false; }
+    if (btnN) btnN.disabled = false;
+  }
+}
+
+async function mnReject(docId, jurisdiction, btnYesId, btnNoId, rowId) {
+  const btnY = document.getElementById(btnYesId);
+  const btnN = document.getElementById(btnNoId);
+  if (btnN) { btnN.disabled = true; btnN.textContent = '…'; }
+  if (btnY) btnY.disabled = true;
+  try {
+    const url = getWebAppUrl() + '&action=reject_agenda'
+      + '&id=' + encodeURIComponent(docId)
+      + '&meeting_type=Minutes'
+      + '&jurisdiction=' + encodeURIComponent(jurisdiction);
+    await fetch(url);
+    window._minApprovalLocal[docId] = 'rejected';
+    const row = document.getElementById(rowId);
+    if (row) { row.classList.add('mn-rejected'); setTimeout(() => { if (row) row.style.display = 'none'; }, 1500); }
+  } catch(e) {
+    if (btnN) { btnN.textContent = '✗ No', btnN.disabled = false; }
+    if (btnY) btnY.disabled = false;
+  }
+}
+
+// P57 W5c — Legacy Minutes review-flag handlers (dead code after r5; kept
+// because the `review_flag` column write path may still be exercised by other
+// code paths or admin tools). Safe to delete in a later cleanup commit.
 window._minFlagLocal = window._minFlagLocal || {};
 
 async function _mnPostFlag(docId, flag) {
@@ -3497,7 +3544,7 @@ function buildUnifiedDateSet(muniId) {
       const k = key(date, bt);
       const url = sd.view_url || sd.pdf_url || '';
       if (!url) return;
-      const cand = { url, sd_id: sd.id || '', review_flag: sd.review_flag || '' };
+      const cand = { url, sd_id: sd.id || '', review_flag: sd.review_flag || '', approval_status: sd.approval_status || '' };
       let bucket = dateMap[k];
       if (!bucket) {
         bucket = findFuzzyAgendaMatch(dateMap, date, bt, 1, null, bt === 'Meeting');
@@ -3554,6 +3601,7 @@ function buildUnifiedDateSet(muniId) {
         // for the right document.
         e.minutes_sd_id = winners[0].sd_id || '';
         e.minutes_review_flag = winners[0].review_flag || '';
+        e.minutes_approval_status = winners[0].approval_status || '';
       } else {
         e.minutes_url = '';
       }
@@ -3770,11 +3818,10 @@ function renderBodySection(bodyLabel, dates, muniId) {
         const curType = sd.meeting_type_override || sd.meeting_type || '';
         let h = `<div class="ag-item${cls}" id="${esc(agId)}">`;
         h += sdUrl ? `<a href="${escUrl(inlineViewerUrl(sdUrl))}" target="_blank" class="hearing-link ag" data-doc-link="agenda" data-scraped-id="${escAttr(sd.id || '')}">↓ Agenda</a>` : `<span class="hearing-link ag" style="cursor:default;">↓ Agenda</span>`;
-        if (status === 'approved') {
-          // Persistent reviewed-state indicator. Disabled non-button so the
-          // visitor sees the prior decision without an accidental re-click.
-          h += `<span class="ag-reviewed-badge" title="You confirmed this agenda is correct">✓ Reviewed</span>`;
-        } else if (!status) {
+        // P58.8 r5: approved state is now signalled by the green button itself
+        // (CSS `.ag-item.ag-approved .hearing-link.ag`). No `.ag-reviewed-badge`
+        // span — Yes/No buttons simply disappear and the anchor turns green.
+        if (!status) {
           h += `<button class="ag-correct-btn yes" id="${esc(btnYId)}" onclick="agApprove('${escAttr(sd.id)}','${escAttr(sd.meeting_type||'')}','${escAttr(muniId)}','${escAttr(btnYId)}','${escAttr(btnNId)}','${escAttr(agId)}')">✓ Yes</button>`;
           h += `<button class="ag-correct-btn no" id="${esc(btnNId)}" onclick="agReject('${escAttr(sd.id)}','${escAttr(sd.meeting_type||'')}','${escAttr(muniId)}','${escAttr(btnYId)}','${escAttr(btnNId)}','${escAttr(agId)}')">✗ No</button>`;
         }
@@ -3796,23 +3843,24 @@ function renderBodySection(bodyLabel, dates, muniId) {
     let mnCell;
     if (entry.minutes_url) {
       const mnSdId = entry.minutes_sd_id || '';
-      // P57 W5c: server-persisted flag wins; per-tab localStorage override
-      // covers in-flight clicks before the SCRAPED_DOCS cache rolls forward.
-      const localFlag = (window._minFlagLocal && window._minFlagLocal[mnSdId]) || '';
-      const flagState = localFlag || entry.minutes_review_flag || '';
+      // P58.8 r5: Minutes Yes/No now mirrors Agenda Yes/No exactly — Yes turns
+      // the Minutes button green via `.mn-cell.mn-approved`, No removes the row
+      // (backend filters approval_status='rejected' from the wire). The old
+      // review_flag column on Scraped_Documents stays writable but is no longer
+      // surfaced here; the mnFlag* handlers below are kept as dead code.
+      const mnStatus = (window._minApprovalLocal && window._minApprovalLocal[mnSdId]) || entry.minutes_approval_status || '';
       const mnRowId = 'mn_' + muniId + '_' + rowIdx;
-      const flaggedCls = flagState === 'flagged' ? ' mn-flagged' : '';
-      mnCell = `<span id="${esc(mnRowId)}" class="mn-cell${flaggedCls}">`;
-      mnCell += `<a href="${escUrl(inlineViewerUrl(entry.minutes_url))}" target="_blank" class="hearing-link doc" data-doc-link="minutes" data-scraped-id="${escAttr(mnSdId || entry.meeting_id || '')}">↓ Minutes</a>`;
-      // Yes/No only if we have a Scraped_Documents id to flag against. Meetings-tab-
+      const mnBtnYId = 'mny_' + muniId + '_' + rowIdx;
+      const mnBtnNId = 'mnn_' + muniId + '_' + rowIdx;
+      const mnApprovedCls = mnStatus === 'approved' ? ' mn-approved' : mnStatus === 'rejected' ? ' mn-rejected' : '';
+      mnCell = `<span id="${esc(mnRowId)}" class="mn-cell${mnApprovedCls}">`;
+      mnCell += `<a href="${escUrl(inlineViewerUrl(entry.minutes_url))}" target="_blank" class="hearing-link min" data-doc-link="minutes" data-scraped-id="${escAttr(mnSdId || entry.meeting_id || '')}">↓ Minutes</a>`;
+      // Yes/No only if we have a Scraped_Documents id to act on. Meetings-tab-
       // sourced minutes (no sd_id) keep the operator ✕ remove path inline instead.
       if (mnSdId) {
-        if (flagState === 'flagged') {
-          mnCell += ` <span class="mn-flag-badge" title="Flagged for manual review">⚑ flagged</span>`;
-          mnCell += ` <button class="ag-correct-btn yes" onclick="mnClearFlag('${escAttr(mnSdId)}','${escAttr(mnRowId)}')" title="Clear review flag">↺ Clear</button>`;
-        } else {
-          mnCell += ` <button class="ag-correct-btn yes" onclick="mnFlagYes('${escAttr(mnSdId)}','${escAttr(mnRowId)}')" title="Minutes are correct">✓ Yes</button>`;
-          mnCell += ` <button class="ag-correct-btn no" onclick="mnFlagNo('${escAttr(mnSdId)}','${escAttr(mnRowId)}')" title="Flag for manual review">✗ No</button>`;
+        if (!mnStatus) {
+          mnCell += ` <button class="ag-correct-btn yes" id="${esc(mnBtnYId)}" onclick="mnApprove('${escAttr(mnSdId)}','${escAttr(muniId)}','${escAttr(mnBtnYId)}','${escAttr(mnBtnNId)}','${escAttr(mnRowId)}')">✓ Yes</button>`;
+          mnCell += ` <button class="ag-correct-btn no" id="${esc(mnBtnNId)}" onclick="mnReject('${escAttr(mnSdId)}','${escAttr(muniId)}','${escAttr(mnBtnYId)}','${escAttr(mnBtnNId)}','${escAttr(mnRowId)}')">✗ No</button>`;
         }
       } else if (entry.meeting_id) {
         // Meetings-tab-sourced URL — no scraped row to flag. Keep operator-only
