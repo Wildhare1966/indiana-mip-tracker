@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p61r1 -->
+<!-- MIP build p61r2 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -5404,17 +5404,14 @@ function tpSaveEditRow(pid) {
   current.projectName = name;
   current.ordinanceId = ord;
   current.aliases     = ali;
-  var fields = { project_name: name, ordinance_id: ord, aliases: ali };
-  var body = 'action=update_tracked_project'
-           + '&project_id=' + encodeURIComponent(pid)
-           + '&fields=' + encodeURIComponent(JSON.stringify(fields))
-           + '&token=' + encodeURIComponent(DEFAULT_AUTH_TOKEN || '')
-           + '&client_id=' + encodeURIComponent((typeof tagClientId === 'function') ? tagClientId() : '');
-  fetch(webappUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body
-  })
+  // P61 hotfix: doPost doesn't route update_tracked_project — use GET with
+  // individual field URL params (the proven pattern from tpInlineSave).
+  var q = '&action=update_tracked_project'
+        + '&project_id=' + encodeURIComponent(pid)
+        + '&project_name=' + encodeURIComponent(name)
+        + '&ordinance_id=' + encodeURIComponent(ord)
+        + '&aliases=' + encodeURIComponent(ali);
+  fetch(webappUrl + q)
     .then(function(r) { return r.json(); })
     .then(function(res) {
       if (res && (res.ok || res.success)) {
@@ -5457,16 +5454,11 @@ function tpDeleteRow(pid, projectName) {
   current.status = 'deleted';
   tpEditingPid = '';
   tpRenderTable();
-  var body = 'action=update_tracked_project'
-           + '&project_id=' + encodeURIComponent(pid)
-           + '&fields=' + encodeURIComponent(JSON.stringify({ status: 'deleted' }))
-           + '&token=' + encodeURIComponent(DEFAULT_AUTH_TOKEN || '')
-           + '&client_id=' + encodeURIComponent((typeof tagClientId === 'function') ? tagClientId() : '');
-  fetch(webappUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body
-  })
+  // P61 hotfix: GET (doPost doesn't route update_tracked_project).
+  var q = '&action=update_tracked_project'
+        + '&project_id=' + encodeURIComponent(pid)
+        + '&status=deleted';
+  fetch(webappUrl + q)
     .then(function(r) { return r.json(); })
     .then(function(res) {
       if (!res || !(res.ok || res.success)) {
@@ -5560,16 +5552,12 @@ function tpStatusChange(sel) {
 
   var webappUrl = getWebAppUrl();
   if (!webappUrl) return;
-  var body = 'action=update_tracked_project'
-           + '&project_id=' + encodeURIComponent(pid)
-           + '&fields=' + encodeURIComponent(JSON.stringify({ status: newStatus }))
-           + '&token=' + encodeURIComponent(DEFAULT_AUTH_TOKEN || '')
-           + '&client_id=' + encodeURIComponent((typeof tagClientId === 'function') ? tagClientId() : '');
-  fetch(webappUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body
-  })
+  // P61 hotfix: GET — doPost doesn't route update_tracked_project, so the
+  // POST/fields-JSON pattern that landed in P58.7 R13c was a silent no-op.
+  var q = '&action=update_tracked_project'
+        + '&project_id=' + encodeURIComponent(pid)
+        + '&status=' + encodeURIComponent(newStatus);
+  fetch(webappUrl + q)
     .then(function(r) { return r.json(); })
     .then(function(res) {
       if (!res || !res.ok) {
