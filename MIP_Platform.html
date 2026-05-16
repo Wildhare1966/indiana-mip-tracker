@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p61r2 -->
+<!-- MIP build p61r3 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -5304,7 +5304,17 @@ function tpRenderTable() {
       '<td style="padding:8px 10px;vertical-align:top;">' +
         '<div style="font-weight:600;">' + esc(p.projectName || '(untitled)') + '</div>' +
         (p.ordinanceId ? '<div style="font-size:10px;color:var(--muted,#888);">' + esc(p.ordinanceId) + '</div>' : '') +
-        (p.aliases ? '<div style="font-size:10px;color:var(--muted,#888);margin-top:2px;" title="Aliases / additional ordinance numbers">' + esc(p.aliases) + '</div>' : '') +
+        // P61 r3: chip-style aliases/additional-ord-numbers so multi-entry
+        // projects scan visually instead of running together as comma text.
+        (function() {
+          var raw = (p.aliases || '').trim();
+          if (!raw) return '';
+          var chips = raw.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+          if (!chips.length) return '';
+          return '<div class="tp-alias-chips" style="margin-top:4px;display:flex;flex-wrap:wrap;gap:3px;" title="Aliases / additional ordinance numbers">' +
+            chips.map(function(c) { return '<span class="tpr-chip">' + esc(c) + '</span>'; }).join('') +
+          '</div>';
+        })() +
       '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' + esc(p.jurisdiction || '<i>all</i>') + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' +
