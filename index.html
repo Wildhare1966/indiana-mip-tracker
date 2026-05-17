@@ -3418,22 +3418,31 @@ function renderHearingsContent(muniId) {
     html += renderBodySection('Council & Plan Commission', councilPcDates, muniId);
   }
   // P60 thread 2: group "Other Meetings" by distinct meeting_type so each body
-  // surfaces under its own section (e.g. Marion County renders MDC Hearing
-  // Examiner / Regional Center Hearing Examiner / MDC instead of one bucket).
+  // surfaces under its own section (e.g. Bargersville renders Utilities /
+  // Stormwater / Redev / BZA separately).
+  //
+  // P63 E2: Marion County is the exception — its 3 MDC-family bodies (MDC,
+  // MDC Hearing Examiner, Regional Center Hearing Examiner) belong in one
+  // chronological list per user request, not segregated sections.
   // Fallback to "Other Meetings" for rows with blank/unknown body_type.
   if (otherDates.length > 0) {
-    const groupsByType = {};
-    const groupOrder = [];
-    otherDates.forEach(d => {
-      const key = (d.body_type && String(d.body_type).trim()) || 'Other Meetings';
-      if (!groupsByType[key]) { groupsByType[key] = []; groupOrder.push(key); }
-      groupsByType[key].push(d);
-    });
-    // Sort sections by count desc so the most-active body type renders first.
-    groupOrder.sort((a, b) => groupsByType[b].length - groupsByType[a].length);
-    groupOrder.forEach(key => {
-      html += renderBodySection(key, groupsByType[key], muniId);
-    });
+    if (muniId === 'marion-county') {
+      const sorted = otherDates.slice().sort((a, b) => b.date.localeCompare(a.date));
+      html += renderBodySection('Other Meetings', sorted, muniId);
+    } else {
+      const groupsByType = {};
+      const groupOrder = [];
+      otherDates.forEach(d => {
+        const key = (d.body_type && String(d.body_type).trim()) || 'Other Meetings';
+        if (!groupsByType[key]) { groupsByType[key] = []; groupOrder.push(key); }
+        groupsByType[key].push(d);
+      });
+      // Sort sections by count desc so the most-active body type renders first.
+      groupOrder.sort((a, b) => groupsByType[b].length - groupsByType[a].length);
+      groupOrder.forEach(key => {
+        html += renderBodySection(key, groupsByType[key], muniId);
+      });
+    }
   }
 
   if (!unified.length) {
