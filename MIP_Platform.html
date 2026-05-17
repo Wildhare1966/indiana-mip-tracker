@@ -1716,12 +1716,32 @@ function updateOverviewStats(totalMembers) {
 // ═══════════════════════════════════════════════════════
 // SIDEBAR
 // ═══════════════════════════════════════════════════════
+// P67 R1: alpha-sort county groups (Other/Regional pinned last) and the munis
+// nested under each. Strip "City of "/"Town of " prefix before comparing so
+// "City of Carmel" sorts under C, not under "City".
+function _muniSortKey(m) {
+  return (m.name || '').replace(/^City of /i, '').replace(/^Town of /i, '').toLowerCase();
+}
+function _isOtherRegionalGroup(name) {
+  return /other|regional/i.test(name || '');
+}
+function _sortedCountyGroups() {
+  return COUNTY_GROUPS.slice().sort((a, b) => {
+    const aOther = _isOtherRegionalGroup(a.name);
+    const bOther = _isOtherRegionalGroup(b.name);
+    if (aOther !== bOther) return aOther ? 1 : -1;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+}
 function buildSidebar(filter='') {
   const container = document.getElementById('sidebar-content');
   container.innerHTML = '';
-  
-  COUNTY_GROUPS.forEach(group => {
-    const munis = group.munis.map(id => MUNICIPALITIES.find(m => m.id === id)).filter(Boolean);
+
+  _sortedCountyGroups().forEach(group => {
+    const munis = group.munis
+      .map(id => MUNICIPALITIES.find(m => m.id === id))
+      .filter(Boolean)
+      .sort((a, b) => _muniSortKey(a).localeCompare(_muniSortKey(b)));
     const filteredMusnis = filter ? munis.filter(m => m.name.toLowerCase().includes(filter.toLowerCase())) : munis;
     if (filteredMusnis.length === 0) return;
 
@@ -1801,8 +1821,11 @@ function switchView(name) {
 function buildCountyGrid() {
   const grid = document.getElementById('county-grid');
   grid.innerHTML = '';
-  COUNTY_GROUPS.forEach(group => {
-    const munis = group.munis.map(id => MUNICIPALITIES.find(m => m.id === id)).filter(Boolean);
+  _sortedCountyGroups().forEach(group => {
+    const munis = group.munis
+      .map(id => MUNICIPALITIES.find(m => m.id === id))
+      .filter(Boolean)
+      .sort((a, b) => _muniSortKey(a).localeCompare(_muniSortKey(b)));
     const profiles = [...new Set(munis.map(m=>m.profile))].sort();
     const memberCount = munis.reduce((s,m)=> s + (m.council||[]).length + (m.pc||[]).length, 0);
     const card = document.createElement('div');
@@ -3890,10 +3913,23 @@ function renderBodySection(bodyLabel, dates, muniId) {
         // (current accent) so the flag state is visible on the button itself,
         // not only in a transient toast right after click.
         const sumFlagCls = entry._summary_flagged ? ' summary-flagged' : '';
-        ytCell += `<a href="${escUrl(entry.summary_doc)}" target="_blank" class="hearing-link doc${sumFlagCls}" data-doc-link="summary" data-scraped-id="${escAttr(entry.meeting_id || '')}">✦ Summary</a>`;
+        // P67 R2: summary approved (visitor pressed Yes) → anchor goes green.
+        const sumApprovedLocal = window._summaryApprovedLocal && window._summaryApprovedLocal[String(entry.meeting_id || '')];
+        const sumConfirmedCls = (entry._summary_approved || sumApprovedLocal) ? ' summary-confirmed' : '';
+        const sumAnchorId = 'sum_a_' + muniId + '_' + bodyLabel.replace(/\s/g,'') + '_' + rowIdx;
+        ytCell += `<a id="${esc(sumAnchorId)}" href="${escUrl(entry.summary_doc)}" target="_blank" class="hearing-link doc${sumFlagCls}${sumConfirmedCls}" data-doc-link="summary" data-scraped-id="${escAttr(entry.meeting_id || '')}">✦ Summary</a>`;
       }
       ytCell += `</span>`;
       if (entry.summary_doc) {
+        // P67 R2: "Yes" button between Summary and Flag — turns Summary anchor
+        // green via .summary-confirmed (same green family as Agenda/Minutes Yes).
+        // Hidden once approved (mirrors agApprove/mnApprove pattern).
+        const sumApprovedLocal2 = window._summaryApprovedLocal && window._summaryApprovedLocal[String(entry.meeting_id || '')];
+        if (!entry._summary_approved && !sumApprovedLocal2) {
+          const yesId = 'sumyes_' + muniId + '_' + bodyLabel.replace(/\s/g,'') + '_' + rowIdx;
+          const anchorId2 = 'sum_a_' + muniId + '_' + bodyLabel.replace(/\s/g,'') + '_' + rowIdx;
+          ytCell += `<button class="ag-correct-btn yes" id="${esc(yesId)}" onclick="summaryApprove('${escAttr(entry.meeting_id || '')}','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(entry.meeting_type || '')}','${esc(yesId)}','${esc(anchorId2)}')">✓ Yes</button>`;
+        }
         // P31 R3: Replace "↻ Resubmit" with "⚑ Flag" for visitor reporting.
         // Operator runs batch resummarize against flagged meetings.
         if (entry._summary_flagged) {
@@ -4005,12 +4041,20 @@ function renderBodySection(bodyLabel, dates, muniId) {
     const cadenceConfirmed = _muniHasCadence(muniId) && _dateMatchesCadence(entry.date, muniId, entry.body_type);
     const dateClass = cadenceConfirmed ? 'hearings-td hearings-td-date cadence-confirmed' : 'hearings-td hearings-td-date';
     const cadenceTitle = cadenceConfirmed ? ' title="Date confirmed against published cadence"' : '';
-    return `<tr class="${rowClass}">
+    // P67 R3: visitor-facing Remove button. Confirm dialog then submit_manual_entry
+    // with entry_action=delete on Meetings (handler defined below as removeHearing).
+    // No meeting_id → no row to delete, so button is suppressed.
+    const removeBtnId = 'hrm_' + muniId + '_' + bodyLabel.replace(/\s/g,'') + '_' + (rowIdx - 1);
+    const removeCell = entry.meeting_id
+      ? `<button class="hearing-remove-btn" id="${esc(removeBtnId)}" onclick="removeHearing('${escAttr(entry.meeting_id)}','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(entry.meeting_type || '')}','${esc(removeBtnId)}')" title="Remove this hearing date">✕ Remove</button>`
+      : `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
+    return `<tr class="${rowClass}" data-meeting-id="${escAttr(entry.meeting_id || '')}">
       <td class="${dateClass}"${cadenceTitle}>${fmtHearingDate(entry.date)} ${statusBadge}</td>
       <td class="hearings-td hearings-td-type">${esc(entry.meeting_type || bodyLabel)}</td>
       <td class="hearings-td hearings-td-ag">${agCell}</td>
       <td class="hearings-td hearings-td-yt">${ytCell}</td>
       <td class="hearings-td hearings-td-mn">${mnCell}</td>
+      <td class="hearings-td hearings-td-actions">${removeCell}</td>
     </tr>`;
   }).join('');
 
@@ -4023,6 +4067,7 @@ function renderBodySection(bodyLabel, dates, muniId) {
         <th class="hearings-th">Agendas</th>
         <th class="hearings-th">YouTube Hearings</th>
         <th class="hearings-th">Minutes</th>
+        <th class="hearings-th">Actions</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
@@ -4257,6 +4302,84 @@ async function rollbackManualEntry(entryId) {
 }
 window.refreshRecentChanges = refreshRecentChanges;
 window.rollbackManualEntry = rollbackManualEntry;
+
+// P67 R3 — Remove hearing date row. Audit-trailed via submit_manual_entry
+// (entry_action=delete, target_table=Meetings). The overlay in
+// applyManualEntriesToHearings_ filters the row from future bootstrap reads.
+async function removeHearing(meetingId, muniId, date, meetingType, btnId) {
+  if (!meetingId) return;
+  if (!confirm('Are you sure you want to remove this hearing date?')) return;
+  const btn = document.getElementById(btnId);
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    // submit_manual_entry is dispatched in doGet only — use GET + URLSearchParams.
+    const params = new URLSearchParams({
+      action: 'submit_manual_entry',
+      entry_action: 'delete',
+      jurisdiction: muniId,
+      meeting_date: date || '',
+      meeting_type: meetingType || '',
+      target_table: 'Meetings',
+      target_row_id: meetingId,
+      client_id: getOrCreateClientId()
+    });
+    const resp = await fetch(getWebAppUrl() + '&' + params.toString());
+    const data = await resp.json();
+    if (data && data.ok) {
+      // Hide the row immediately. Reload will see it gone via Manual_Entries overlay.
+      const row = btn && btn.closest('tr');
+      if (row) { row.style.transition = 'opacity 0.3s'; row.style.opacity = '0'; setTimeout(() => row.remove(), 300); }
+    } else {
+      if (btn) { btn.disabled = false; btn.textContent = '✕ Remove'; }
+      alert('Could not remove hearing: ' + ((data && data.error) || 'unknown error'));
+    }
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = '✕ Remove'; }
+    alert('Network error removing hearing: ' + e.message);
+  }
+}
+window.removeHearing = removeHearing;
+
+// P67 R2 — Summary "Yes" button. Audit-trailed via submit_manual_entry
+// (entry_action=approve_summary). Optimistic FE update: anchor goes green
+// immediately, Yes button disappears. On reload the green state persists via
+// the Manual_Entries overlay (_summary_approved → .summary-confirmed).
+window._summaryApprovedLocal = window._summaryApprovedLocal || {}; // meeting_id -> true
+async function summaryApprove(meetingId, muniId, date, meetingType, btnId, summaryAnchorId) {
+  const btn = document.getElementById(btnId);
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  const anchor = document.getElementById(summaryAnchorId);
+  if (anchor) anchor.classList.add('summary-confirmed');
+  window._summaryApprovedLocal[String(meetingId)] = true;
+  try {
+    // submit_manual_entry is dispatched in doGet only — use GET + URLSearchParams
+    // (same pattern as submitManualUrlAdd / submitFlagSummary).
+    const params = new URLSearchParams({
+      action: 'submit_manual_entry',
+      entry_action: 'approve_summary',
+      jurisdiction: muniId,
+      meeting_date: date || '',
+      meeting_type: meetingType || '',
+      target_table: 'Meetings',
+      target_row_id: meetingId,
+      client_id: getOrCreateClientId()
+    });
+    const resp = await fetch(getWebAppUrl() + '&' + params.toString());
+    const data = await resp.json();
+    if (!data || !data.ok) {
+      if (anchor) anchor.classList.remove('summary-confirmed');
+      delete window._summaryApprovedLocal[String(meetingId)];
+      if (btn) { btn.disabled = false; btn.textContent = '✓ Yes'; }
+      return;
+    }
+    if (btn) btn.style.display = 'none';
+  } catch(e) {
+    if (anchor) anchor.classList.remove('summary-confirmed');
+    delete window._summaryApprovedLocal[String(meetingId)];
+    if (btn) { btn.disabled = false; btn.textContent = '✓ Yes'; }
+  }
+}
+window.summaryApprove = summaryApprove;
 
 // P31 R3 — Flag a YouTube summary as incomplete/inaccurate.
 // Submits action='flag_summary' to Manual_Entries; operator batches resummarize.
