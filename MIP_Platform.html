@@ -2686,32 +2686,26 @@ function switchTab(tab) {
     var a = ev.target && ev.target.closest
       && ev.target.closest('a.hearing-link[data-doc-link], a.ph-meeting-link[data-doc-link], a.tp-doc-link[data-doc-link]');
     if (!a) return;
-    // Modifier-clicks (Ctrl/Cmd/Shift) → let browser handle natively so
-    // power users can override the multi-monitor routing if they want.
-    if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button !== 0) {
-      setStored(a.getAttribute('href') || '');
-      reapply();
-      return;
-    }
-    var href = a.getAttribute('href') || '';
-    setStored(href);
+    // P68: only persist the "last-clicked" marker; let the native
+    // target="_blank" handle the new-tab open. Earlier versions routed
+    // through openOnExternalMonitor (Window Management API multi-monitor
+    // popup), which on some setups resulted in TWO windows opening
+    // (browser-native new-tab + external-monitor popup). Removing the
+    // preventDefault / window.open call here guarantees exactly one
+    // window per click.
+    setStored(a.getAttribute('href') || '');
     reapply();
-    // P58.7 R12: try to open on the external monitor. If the Window
-    // Management API is unavailable, openOnExternalMonitor falls back to
-    // a normal popup/new-tab; that is still a window.open call so the
-    // browser's anchor-default would otherwise also fire — preventDefault
-    // so we don't end up with two open windows.
-    if (href) {
-      ev.preventDefault();
-      ev.stopPropagation();
-      openOnExternalMonitor(href);
-    }
   }, true);
 
   window.mipReapplyLastDocBtn = reapply;
-  // Exposed so the Tracked Projects table (and other future surfaces) can
-  // wire this without re-declaring it.
-  window.mipOpenDoc = openOnExternalMonitor;
+  // P68: kept as a thin shim for callers (Tracked Projects table) that
+  // still reference window.mipOpenDoc. Simple new-tab open, no popup
+  // sizing / external-monitor routing.
+  window.mipOpenDoc = function(url) {
+    if (!url) return false;
+    try { window.open(url, '_blank', 'noopener,noreferrer'); } catch(e) {}
+    return true;
+  };
 
   // Reapply once on DOM ready (covers global PH page initial render where
   // renderMuniPanel doesn't fire).
