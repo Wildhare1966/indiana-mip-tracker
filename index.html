@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p63r1 -->
+<!-- MIP build p71r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com; img-src 'self' data:; frame-src https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p70r1">
+<link rel="stylesheet" href="styles.css?v=p71r1">
 </head>
 <body>
 
@@ -397,11 +397,12 @@
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Project</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Jurisdiction</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Petitioner</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Meeting Name</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Action Taken</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Latest YT</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Latest Agenda</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Tagged Docs</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Status</th>
-                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Action Taken</th>
-                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Latest Agenda</th>
-                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Latest YT</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Map</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);"></th>
               </tr>
@@ -5366,7 +5367,10 @@ function tpLoad(force) {
   }
   var statusEl = document.getElementById('tp-status');
   if (statusEl) statusEl.textContent = 'Loading…';
-  fetch(webappUrl + '&action=list_tracked_projects&jurisdiction=*')
+  // P71: detailed read joins TP ⋈ Project_References ⋈ Meetings ⋈ Agenda_Items
+  // so the global tab can render YT-sourced Petitioner / Meeting Name / Action.
+  // Per-juris rail + PH chips keep using the cheap legacy list_tracked_projects.
+  fetch(webappUrl + '&action=list_tracked_projects_detailed&jurisdiction=*')
     .then(function(r) { return r.json(); })
     .then(function(rows) {
       tpProjects = Array.isArray(rows) ? rows : [];
@@ -5419,7 +5423,7 @@ function tpRenderTable() {
   if (statusEl) statusEl.textContent = rows.length + ' project' + (rows.length === 1 ? '' : 's') + (tpProjects.length === rows.length ? '' : ' (of ' + tpProjects.length + ')');
 
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="11" style="padding:24px;text-align:center;color:var(--muted,#888);">No projects match the current filters.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="12" style="padding:24px;text-align:center;color:var(--muted,#888);">No projects match the current filters.</td></tr>';
     return;
   }
 
@@ -5438,10 +5442,40 @@ function tpRenderTable() {
       ? '<a class="tp-doc-link" href="' + esc(ytHref) + '" target="_blank" rel="noopener" data-doc-link="' + (summaryDocUrl ? 'summary' : 'youtube') + '">' + esc(ytLabel) + '</a>'
       : '<span style="color:var(--muted,#888);">—</span>';
     var when    = p.latestMeetingDate ? '<div style="font-size:10px;color:var(--muted,#888);">' + esc(p.latestMeetingDate) + '</div>' : '';
-    var nature  = p.lastNature || '';
-    var natureBadge = nature
-      ? '<span class="tracked-nature-badge nature-' + esc(nature.replace(' ','-')) + '">' + esc(nature) + '</span>'
+
+    // P71: Petitioner — YT-derived (Agenda_Items.item_summary "Petitioner:")
+    // takes precedence; manual petitioner_applicant is the fallback. When
+    // YT-sourced we show read-only display + small YT badge. When manual
+    // only, the existing editable input is preserved so users can correct.
+    var petCell;
+    if (p.petitionerSource === 'youtube' && p.petitionerDisplay) {
+      petCell = '<div title="Parsed from YouTube transcript summary" style="display:flex;align-items:center;gap:6px;">' +
+                  '<span>' + esc(p.petitionerDisplay) + '</span>' +
+                  '<span class="tp-yt-badge" title="Source: YouTube">YT</span>' +
+                '</div>';
+    } else {
+      petCell = '<input type="text" value="' + escAttr(p.petitionerApplicant || '') + '" data-field="petitioner_applicant" onblur="tpInlineSave(this)" style="width:140px;background:transparent;border:1px solid transparent;color:inherit;padding:2px 4px;font-size:12px;border-radius:3px;" onfocus="this.style.borderColor=\'var(--border,#444)\'">';
+    }
+
+    // P71: Meeting Name — Meetings.video_title, fallback to "meeting_type · date".
+    var meetingNameCell = p.latestMeetingName
+      ? '<div class="tp-meeting-name" title="' + escAttr(p.latestMeetingName) + '">' + esc(p.latestMeetingName) + '</div>'
       : '<span style="color:var(--muted,#888);">—</span>';
+
+    // P71: Action Taken — Agenda_Items.action_taken (full text), 2-line clamp
+    // with click-to-expand. Replaces the old nature badge.
+    var actionCell;
+    if (p.latestActionTaken) {
+      actionCell = '<div class="tp-action-cell" onclick="tpToggleAction(this)" title="Click to expand / collapse">' +
+                     '<div class="tp-action-text">' + esc(p.latestActionTaken) + '</div>' +
+                   '</div>' + when;
+    } else if (p.lastNature) {
+      // Legacy fallback when no Agenda_Items match — keep the classifier badge.
+      actionCell = '<span class="tracked-nature-badge nature-' + esc(p.lastNature.replace(' ','-')) + '">' + esc(p.lastNature) + '</span>' + when;
+    } else {
+      actionCell = '<span style="color:var(--muted,#888);">—</span>' + when;
+    }
+
     var status = (p.status || 'active').toLowerCase();
     // P58.7 R13c: dropdown replaces the static colored text. Only Active +
     // Archive are user-selectable here; "closed" rows are filtered out
@@ -5452,16 +5486,26 @@ function tpRenderTable() {
         '<option value="archived"' + (status === 'archived' ? ' selected' : '') + '>Archive</option>' +
       '</select>';
 
+    // P35: Tagged Docs cell.
+    var taggedCell = (function() {
+      var n = tpDocCounts[p.projectId] || 0;
+      var badge = n > 0
+        ? '<a href="javascript:void(0)" onclick="tpOpenDocsPopup(\'' + pidAttr + '\', this); return false;" title="View tagged documents" style="font-weight:600;color:#7e57c2;text-decoration:none;">' + n + ' doc' + (n===1?'':'s') + '</a>'
+        : '<span style="color:var(--muted,#888);">0 docs</span>';
+      var tagBtn = ' <button class="refresh-btn" onclick="tpEnterTagMode(\'' + pidAttr + '\')" style="font-size:10px;padding:1px 6px;margin-left:6px;" title="Enter tag mode for this project">+ Tag</button>';
+      return badge + tagBtn;
+    })();
+
     // P61 task 2: Edit button + expanded inline edit row.
     var isEditing = (tpEditingPid === p.projectId);
     var editBtn = '<button class="refresh-btn" onclick="tpToggleEditRow(\'' + pidAttr + '\')" title="Edit project / aliases / delete" style="font-size:11px;padding:2px 7px;background:transparent;border:1px solid var(--border,#444);">' + (isEditing ? '×' : '✎') + '</button>';
+    // P71: column order — Edit | Project | Juris | Petitioner | Meeting Name |
+    // Action Taken | Latest YT | Latest Agenda | Tagged Docs | Status | Map | Close-utility
     return '<tr data-project-id="' + pidAttr + '" style="border-bottom:1px solid var(--border,#2a2a2a);">' +
       '<td style="padding:6px 4px;vertical-align:top;text-align:center;">' + editBtn + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' +
         '<div style="font-weight:600;">' + esc(p.projectName || '(untitled)') + '</div>' +
         (p.ordinanceId ? '<div style="font-size:10px;color:var(--muted,#888);">' + esc(p.ordinanceId) + '</div>' : '') +
-        // P61 r3: chip-style aliases/additional-ord-numbers so multi-entry
-        // projects scan visually instead of running together as comma text.
         (function() {
           var raw = (p.aliases || '').trim();
           if (!raw) return '';
@@ -5473,24 +5517,13 @@ function tpRenderTable() {
         })() +
       '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' + esc(p.jurisdiction || '<i>all</i>') + '</td>' +
-      '<td style="padding:8px 10px;vertical-align:top;">' +
-        '<input type="text" value="' + escAttr(p.petitionerApplicant || '') + '" data-field="petitioner_applicant" onblur="tpInlineSave(this)" style="width:140px;background:transparent;border:1px solid transparent;color:inherit;padding:2px 4px;font-size:12px;border-radius:3px;" onfocus="this.style.borderColor=\'var(--border,#444)\'">' +
-      '</td>' +
-      // P35: Tagged Docs — count badge + Tag button (opens tag mode) + popup
-      '<td style="padding:8px 10px;vertical-align:top;white-space:nowrap;">' +
-        (function() {
-          var n = tpDocCounts[p.projectId] || 0;
-          var badge = n > 0
-            ? '<a href="javascript:void(0)" onclick="tpOpenDocsPopup(\'' + pidAttr + '\', this); return false;" title="View tagged documents" style="font-weight:600;color:#7e57c2;text-decoration:none;">' + n + ' doc' + (n===1?'':'s') + '</a>'
-            : '<span style="color:var(--muted,#888);">0 docs</span>';
-          var tagBtn = ' <button class="refresh-btn" onclick="tpEnterTagMode(\'' + pidAttr + '\')" style="font-size:10px;padding:1px 6px;margin-left:6px;" title="Enter tag mode for this project">+ Tag</button>';
-          return badge + tagBtn;
-        })() +
-      '</td>' +
-      '<td style="padding:8px 10px;vertical-align:top;">' + statusSelect + '</td>' +
-      '<td style="padding:8px 10px;vertical-align:top;">' + natureBadge + when + '</td>' +
-      '<td style="padding:8px 10px;vertical-align:top;">' + agenda + '</td>' +
+      '<td style="padding:8px 10px;vertical-align:top;">' + petCell + '</td>' +
+      '<td style="padding:8px 10px;vertical-align:top;max-width:220px;">' + meetingNameCell + '</td>' +
+      '<td style="padding:8px 10px;vertical-align:top;max-width:260px;">' + actionCell + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' + yt + '</td>' +
+      '<td style="padding:8px 10px;vertical-align:top;">' + agenda + '</td>' +
+      '<td style="padding:8px 10px;vertical-align:top;white-space:nowrap;">' + taggedCell + '</td>' +
+      '<td style="padding:8px 10px;vertical-align:top;">' + statusSelect + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' +
         '<input type="text" value="' + escAttr(p.mapUrl || '') + '" placeholder="ArcGIS / parcel URL" data-field="map_url" onblur="tpInlineSave(this)" style="width:160px;background:transparent;border:1px solid transparent;color:inherit;padding:2px 4px;font-size:12px;border-radius:3px;" onfocus="this.style.borderColor=\'var(--border,#444)\'">' +
         (p.mapUrl ? ' <a href="' + esc(p.mapUrl) + '" target="_blank" rel="noopener" title="Open map" data-no-tag>↗</a>' : '') +
@@ -5514,6 +5547,15 @@ function tpToggleEditRow(pid) {
   tpRenderTable();
 }
 
+// P71: expand / collapse the Action Taken cell. Click toggles the `.expanded`
+// class which removes the 2-line clamp so the full Agenda_Items.action_taken
+// text becomes visible (and wraps). Idempotent; safe on repeated clicks.
+function tpToggleAction(el) {
+  if (!el) return;
+  el.classList.toggle('expanded');
+}
+window.tpToggleAction = tpToggleAction;
+
 // P61 task 2: the inline Edit dropdown row. Fields: project_name, ordinance_id,
 // aliases. Save uses update_tracked_project; Delete is soft (status='deleted').
 // Aliases are also where additional ordinance numbers go (task 1 — single
@@ -5521,7 +5563,7 @@ function tpToggleEditRow(pid) {
 function _tpRenderEditDropdown(p, pidAttr) {
   var pid = p.projectId || '';
   return '<tr class="tp-edit-row" data-edit-pid="' + pidAttr + '" style="background:var(--bg-card,#1a1a1a);">' +
-    '<td colspan="11" style="padding:14px 18px;border-bottom:1px solid var(--border,#333);">' +
+    '<td colspan="12" style="padding:14px 18px;border-bottom:1px solid var(--border,#333);">' +
       '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;align-items:end;">' +
         '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);">Project name' +
           '<input id="tpe-name-' + pidAttr + '" type="text" value="' + escAttr(p.projectName || '') + '" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
