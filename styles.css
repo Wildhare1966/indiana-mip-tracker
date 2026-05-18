@@ -1031,7 +1031,9 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
     font-size: 11px;
-    max-width: 260px;
+    /* P71 R3: doubled (was 260px) so the full-screen TP table can use the
+       extra horizontal space; clamp still hides overflow until clicked. */
+    max-width: 520px;
   }
   .tp-action-cell.expanded .tp-action-text {
     display: block;
@@ -1040,6 +1042,22 @@
     white-space: pre-wrap;
   }
   .tp-action-cell:hover .tp-action-text { color: var(--accent, #e8a020); }
+  /* P71 R3 — Builder dropdown + split Meeting Type/Date cells. */
+  .tp-builder-select {
+    padding: 3px 6px;
+    background: var(--bg-page, #0d0d0d);
+    border: 1px solid var(--border, #444);
+    color: inherit;
+    border-radius: 3px;
+    font-size: 11px;
+    max-width: 140px;
+  }
+  .tp-meeting-type { font-size: 11px; line-height: 1.35; max-width: 160px; }
+  .tp-meeting-date {
+    font-size: 11px;
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--muted, #aaa);
+  }
   .nature-approved   { background: rgba(26,122,74,0.2);  color: #6dc49a; border: 1px solid rgba(26,122,74,0.35); }
   .nature-denied     { background: rgba(220,80,80,0.15); color: #e08888; border: 1px solid rgba(220,80,80,0.3); }
   .nature-tabled     { background: rgba(160,122,223,0.15); color: #c9a7f5; border: 1px solid rgba(160,122,223,0.3); }
