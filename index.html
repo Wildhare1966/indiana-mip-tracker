@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com; img-src 'self' data:; frame-src https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p69r1">
+<link rel="stylesheet" href="styles.css?v=p70r1">
 </head>
 <body>
 
@@ -2083,7 +2083,8 @@ function _tprRenderAddForm(m) {
     + '<div class="tpr-add-form">'
     +   '<input id="tpr-ord" class="tpr-input" type="text" placeholder="Ord# / Docket ID (optional)"'
     +     ' value="' + escAttr(tprAddOrd) + '"'
-    +     ' oninput="tprAddOrd = this.value;">'
+    +     ' oninput="tprAddOrd = this.value;"'
+    +     ' onblur="tprFetchAliasSuggestions();">'
     +   '<input id="tpr-name" class="tpr-input" type="text" placeholder="Project name (required)"'
     +     ' value="' + escAttr(tprAddName) + '"'
     +     ' oninput="tprAddName = this.value;">'
@@ -2293,6 +2294,34 @@ function tprToggleAddForm() {
     if (el) el.focus();
   }
 }
+
+// P70 W3 — fetch per-muni alias suggestions and pre-fill chips. Triggered
+// onblur of the ord input in the PH-rail popover. Uses currentMuni.id as the
+// jurisdiction key; backend reads Muni_Naming_Conventions and returns format
+// variants (year-width toggles, prefix variants). Never clobbers chips the
+// user already entered manually.
+async function tprFetchAliasSuggestions() {
+  try {
+    var ord = (tprAddOrd || '').trim();
+    if (!ord || !currentMuni || !currentMuni.id) return;
+    var url = getWebAppUrl()
+      + '&action=admin_run&fn=suggestAliases'
+      + '&muni=' + encodeURIComponent(currentMuni.id)
+      + '&ord_number=' + encodeURIComponent(ord);
+    var resp = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    var data = await resp.json();
+    if (!data || !data.ok || !data.result || !data.result.ok) return;
+    var suggestions = data.result.suggestions || [];
+    if (!suggestions.length) return;
+    var added = 0;
+    suggestions.forEach(function(s) {
+      var t = String(s).trim();
+      if (t && tprAliasChips.indexOf(t) === -1) { tprAliasChips.push(t); added++; }
+    });
+    if (added > 0 && currentMuni) renderTpRail(currentMuni);
+  } catch (e) { /* silent — non-critical UX enhancement */ }
+}
+window.tprFetchAliasSuggestions = tprFetchAliasSuggestions;
 
 function tprAliasKeyDown(ev) {
   if (ev.key === 'Enter' || ev.key === ',') {
@@ -5761,8 +5790,41 @@ function tpToggleAddForm() {
   if (f.style.display === 'block') {
     var n = document.getElementById('tp-new-name');
     if (n) n.focus();
+    // P70 W3: wire onblur for alias suggestions on the ord field.
+    // Idempotent — re-binding the same handler is harmless.
+    var o = document.getElementById('tp-new-ord');
+    if (o) o.onblur = tpFetchAliasSuggestions;
   }
 }
+
+// P70 W3 — global TP form alias suggestion. Reads jurisdiction from
+// tp-new-juris and ord from tp-new-ord; populates tp-new-aliases only if
+// empty (never clobbers user edits).
+async function tpFetchAliasSuggestions() {
+  try {
+    var ordEl = document.getElementById('tp-new-ord');
+    var jurEl = document.getElementById('tp-new-juris');
+    var aliEl = document.getElementById('tp-new-aliases');
+    if (!ordEl || !jurEl || !aliEl) return;
+    var ord = (ordEl.value || '').trim();
+    var jur = (jurEl.value || '').trim();
+    if (!ord || !jur) return;
+    if ((aliEl.value || '').trim() !== '') return; // don't clobber existing edits
+    var url = getWebAppUrl()
+      + '&action=admin_run&fn=suggestAliases'
+      + '&muni=' + encodeURIComponent(jur)
+      + '&ord_number=' + encodeURIComponent(ord);
+    var resp = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    var data = await resp.json();
+    if (!data || !data.ok || !data.result || !data.result.ok) return;
+    var suggestions = data.result.suggestions || [];
+    if (!suggestions.length) return;
+    aliEl.value = suggestions.join(', ');
+    aliEl.style.borderColor = '#4ac49a';
+    setTimeout(function() { aliEl.style.borderColor = ''; }, 1200);
+  } catch (e) { /* silent */ }
+}
+window.tpFetchAliasSuggestions = tpFetchAliasSuggestions;
 
 function tpSubmitNew() {
   var name = (document.getElementById('tp-new-name')||{}).value || '';
