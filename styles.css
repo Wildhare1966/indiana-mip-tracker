@@ -110,8 +110,8 @@
      on light background. P57 W6: bumped to 0.14 for palette A parity. */
   [data-theme="light"] .hearing-row { border-bottom-color: rgba(0,0,0,0.14); }
   [data-theme="light"] .hearings-table-row:hover { background: rgba(20,48,79,0.04); }
-  /* P68: YouTube button repainted from red to teal (matches Summary .hearing-link.doc palette). */
-  [data-theme="light"] .hearing-link.yt { background: rgba(20,140,140,0.1); color: #1a8080; border-color: rgba(20,140,140,0.3); }
+  /* P69: YouTube button repainted to match Agenda/Minutes default (blue palette). */
+  [data-theme="light"] .hearing-link.yt { background: rgba(42,95,165,0.1); color: #1e4570; border-color: rgba(42,95,165,0.25); }
   /* P58.8 r5: light-theme teal default / orange flagged for Summary. */
   [data-theme="light"] .hearing-link.doc { background: rgba(20,140,140,0.1); color: #1a8080; border-color: rgba(20,140,140,0.3); }
   [data-theme="light"] .hearing-link.doc.summary-flagged { background: rgba(154,95,0,0.14); color: #9a5f00; border-color: rgba(154,95,0,0.4); }
@@ -1090,8 +1090,8 @@
     white-space: nowrap;
   }
   .hearing-link:hover { opacity: 0.75; }
-  /* P68: YouTube button repainted from red to teal (matches Summary .hearing-link.doc palette). */
-  .hearing-link.yt  { background: rgba(20,140,140,0.2); color: #5fc8c8; border: 1px solid rgba(20,140,140,0.35); }
+  /* P69: YouTube button repainted to match Agenda/Minutes default (blue palette). */
+  .hearing-link.yt  { background: rgba(42,95,165,0.2); color: #7aacdf; border: 1px solid rgba(42,95,165,0.35); }
   .hearing-link.ag  { background: rgba(42,95,165,0.2);  color: #7aacdf; border: 1px solid rgba(42,95,165,0.35); }
   /* P58.8 r5: Minutes default repainted from green-tint to the Agenda blue —
      Minutes Yes/No now mirrors Agenda Yes/No (Yes → green, No → row removed),
