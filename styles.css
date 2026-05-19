@@ -114,7 +114,9 @@
   [data-theme="light"] .hearing-link.yt { background: rgba(42,95,165,0.1); color: #1e4570; border-color: rgba(42,95,165,0.25); }
   /* P58.8 r5: light-theme teal default / orange flagged for Summary. */
   [data-theme="light"] .hearing-link.doc { background: rgba(20,140,140,0.1); color: #1a8080; border-color: rgba(20,140,140,0.3); }
-  [data-theme="light"] .hearing-link.doc.summary-flagged { background: rgba(154,95,0,0.14); color: #9a5f00; border-color: rgba(154,95,0,0.4); }
+  /* P75: flagged Summary repainted from orange to red so the flag state is
+     unambiguous next to the orange-accent palette used elsewhere in the UI. */
+  [data-theme="light"] .hearing-link.doc.summary-flagged { background: rgba(180,30,30,0.12); color: #b41e1e; border-color: rgba(180,30,30,0.45); }
   /* P58.8 r5: Agenda+Minutes light defaults → blue (was green for Agenda; no
      rule existed for Minutes). Green is now the approved-state overlay only. */
   [data-theme="light"] .hearing-link.ag,
@@ -632,16 +634,18 @@
      should disappear. No extra rule needed; default behavior is correct. */
 
   /* P58.8 commit 4: Add Project button in rail header. P58.8 r3: allow text
-     to wrap to two lines when the rail is narrow ("+ Add" / "Project" stack). */
+     to wrap to two lines when the rail is narrow ("+ Add" / "Project" stack).
+     P75: repainted to green so the rail action is visually distinct from the
+     orange accent already used across other rail headers. */
   .tpr-add-btn {
     font-family: 'IBM Plex Mono', monospace;
     font-size: 10px;
     font-weight: 600;
     padding: 3px 8px;
     border-radius: 3px;
-    background: rgba(232,160,32,0.18);
-    color: var(--accent);
-    border: 1px solid rgba(232,160,32,0.4);
+    background: rgba(26,122,74,0.22);
+    color: #6dc49a;
+    border: 1px solid rgba(26,122,74,0.5);
     cursor: pointer;
     letter-spacing: 0.04em;
     white-space: normal;
@@ -650,8 +654,11 @@
     flex: 0 0 auto;
     max-width: 90px;
   }
-  .tpr-add-btn:hover:not(:disabled) { background: rgba(232,160,32,0.28); }
+  .tpr-add-btn:hover:not(:disabled) { background: rgba(26,122,74,0.34); }
   .tpr-add-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  /* P75 light-theme parity. */
+  [data-theme="light"] .tpr-add-btn { background: rgba(13,90,42,0.15); color: #0d5428; border-color: rgba(13,90,42,0.4); }
+  [data-theme="light"] .tpr-add-btn:hover:not(:disabled) { background: rgba(13,90,42,0.25); }
 
   /* P58.8 commit 4: Add-project form (chip input + ord + name). */
   .tpr-add-form {
@@ -1159,7 +1166,8 @@
   /* P58.8 r5: Summary default → teal (was yellow in r4). The orange-accent
      flagged state stays untouched so the flag signal still pops. */
   .hearing-link.doc { background: rgba(50,180,180,0.15); color: #5dd5d5; border: 1px solid rgba(50,180,180,0.4); }
-  .hearing-link.doc.summary-flagged { background: rgba(232,160,32,0.18); color: var(--accent); border-color: rgba(232,160,32,0.5); }
+  /* P75: flagged Summary repainted from orange to red — see light-theme rule above. */
+  .hearing-link.doc.summary-flagged { background: rgba(220,40,40,0.18); color: #e07070; border-color: rgba(220,40,40,0.5); }
   /* P58.8 r5: Approved-state green for the Agenda + Minutes anchor buttons
      themselves — replaces the r4 `.ag-reviewed-badge` span. The button
      becoming green is the persistent indicator the visitor's Yes click was

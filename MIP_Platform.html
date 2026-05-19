@@ -371,6 +371,13 @@
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
             <input id="tp-filter-juris" type="search" placeholder="Filter jurisdiction…" oninput="tpRenderTable()" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-card,#1a1a1a);color:inherit;border-radius:4px;font-size:12px;width:180px;">
             <input id="tp-filter-text" type="search" placeholder="Filter project / ordinance / petitioner…" oninput="tpRenderTable()" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-card,#1a1a1a);color:inherit;border-radius:4px;font-size:12px;width:280px;">
+            <select id="tp-sort-key" onchange="tpRenderTable()" title="Sort projects" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-card,#1a1a1a);color:inherit;border-radius:4px;font-size:12px;">
+              <option value="">Sort: default</option>
+              <option value="project">Sort: Project</option>
+              <option value="jurisdiction">Sort: Jurisdiction</option>
+              <option value="petitioner">Sort: Petitioner</option>
+              <option value="status">Sort: Status</option>
+            </select>
             <button class="refresh-btn" onclick="tpLoad(true)" title="Re-fetch from backend">↺ Refresh</button>
             <button class="export-btn" onclick="tpToggleAddForm()">+ Track Project</button>
           </div>
@@ -403,6 +410,7 @@
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Meeting Type</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Meeting Date</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Action Taken</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Notes</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Latest YT</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Latest Agenda</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Tagged Docs</th>
@@ -3199,7 +3207,32 @@ async function agReject(docId, meetingType, jurisdiction, btnYesId, btnNoId, row
     await fetch(url);
     window._agendaApprovalStatus[docId] = 'rejected';
     const row = document.getElementById(rowId);
-    if (row) { row.classList.add('ag-rejected'); setTimeout(() => { if (row) row.style.display = 'none'; }, 1500); }
+    if (row) {
+      row.classList.add('ag-rejected');
+      setTimeout(() => {
+        if (!row) return;
+        row.style.display = 'none';
+        // P75: if the rejected row was the last visible agenda in this cell,
+        // drop a "+ Add Agenda" button in its place so visitors can submit a
+        // corrected URL without waiting for the next SCRAPED_DOCS refresh.
+        const parent = row.parentNode;
+        if (!parent) return;
+        const remaining = Array.from(parent.querySelectorAll('.ag-item'))
+          .filter(el => el.style.display !== 'none');
+        if (remaining.length) return;
+        // Already inserted on a prior reject? Don't stack.
+        if (parent.querySelector('.add-url-btn[data-post-reject="1"]')) return;
+        const mDate = row.getAttribute('data-meeting-date') || '';
+        const mType = row.getAttribute('data-meeting-type') || meetingType || '';
+        const muni  = row.getAttribute('data-muni-id') || jurisdiction;
+        const btn   = document.createElement('button');
+        btn.className     = 'add-url-btn';
+        btn.dataset.postReject = '1';
+        btn.textContent   = '+ Add Agenda';
+        btn.onclick = function() { showAddUrlPopover(btn, 'agenda', muni, mDate, mType); };
+        parent.appendChild(btn);
+      }, 1500);
+    }
   } catch(e) {
     if (btnN) { btnN.textContent = 'Err'; btnN.disabled = false; }
     if (btnY) btnY.disabled = false;
@@ -3999,7 +4032,9 @@ function renderBodySection(bodyLabel, dates, muniId) {
         const status = window._agendaApprovalStatus[sd.id] || sd.approval_status || '';
         const cls = status === 'approved' ? ' ag-approved' : status === 'rejected' ? ' ag-rejected' : '';
         const curType = sd.meeting_type_override || sd.meeting_type || '';
-        let h = `<div class="ag-item${cls}" id="${esc(agId)}">`;
+        // P75: stash meeting metadata on the wrapper so agReject can wire
+        // the post-rejection "+ Add Agenda" fallback without re-deriving them.
+        let h = `<div class="ag-item${cls}" id="${esc(agId)}" data-meeting-date="${escAttr(entry.date)}" data-meeting-type="${escAttr(sd.meeting_type || entry.meeting_type || '')}" data-muni-id="${escAttr(muniId)}">`;
         h += sdUrl ? `<a href="${escUrl(inlineViewerUrl(sdUrl))}" target="_blank" class="hearing-link ag" data-doc-link="agenda" data-scraped-id="${escAttr(sd.id || '')}">↓ Agenda</a>` : `<span class="hearing-link ag" style="cursor:default;">↓ Agenda</span>`;
         // P58.8 r5: approved state is now signalled by the green button itself
         // (CSS `.ag-item.ag-approved .hearing-link.ag`). No `.ag-reviewed-badge`
@@ -5466,10 +5501,31 @@ function tpRenderTable() {
     return true;
   });
 
+  // P75: optional client-side sort. Empty string = backend default (most recent
+  // ref first). Petitioner uses display value (YT-parsed first, manual fallback)
+  // so the sort matches what the user sees in the cell.
+  var sortKey = (document.getElementById('tp-sort-key')||{}).value || '';
+  if (sortKey) {
+    var keyFn = {
+      project:      function(p){ return (p.projectName || '').toLowerCase(); },
+      jurisdiction: function(p){ return (p.jurisdiction || '').toLowerCase(); },
+      petitioner:   function(p){ return (p.petitionerDisplay || p.petitionerApplicant || '').toLowerCase(); },
+      status:       function(p){ return (p.status || 'active').toLowerCase(); }
+    }[sortKey];
+    if (keyFn) {
+      rows.sort(function(a, b) {
+        var av = keyFn(a), bv = keyFn(b);
+        if (av < bv) return -1;
+        if (av > bv) return 1;
+        return 0;
+      });
+    }
+  }
+
   if (statusEl) statusEl.textContent = rows.length + ' project' + (rows.length === 1 ? '' : 's') + (tpProjects.length === rows.length ? '' : ' (of ' + tpProjects.length + ')');
 
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="14" style="padding:24px;text-align:center;color:var(--muted,#888);">No projects match the current filters.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="15" style="padding:24px;text-align:center;color:var(--muted,#888);">No projects match the current filters.</td></tr>';
     return;
   }
 
@@ -5539,6 +5595,15 @@ function tpRenderTable() {
       actionCell = '<span style="color:var(--muted,#888);">—</span>' + when;
     }
 
+    // P75: Notes — Agenda_Items.additional_notes (Summarizer "AdditionalBulletPoints"),
+    // same truncate-with-click-to-expand affordance as Action Taken. Empty for
+    // historical rows summarized before P75 — they populate on next summarize.
+    var notesCell = p.latestAdditionalNotes
+      ? '<div class="tp-action-cell" onclick="tpToggleAction(this)" title="Click to expand / collapse">' +
+          '<div class="tp-action-text">' + esc(p.latestAdditionalNotes) + '</div>' +
+        '</div>'
+      : '<span style="color:var(--muted,#888);">—</span>';
+
     var status = (p.status || 'active').toLowerCase();
     // P58.7 R13c: dropdown replaces the static colored text. Only Active +
     // Archive are user-selectable here; "closed" rows are filtered out
@@ -5570,15 +5635,6 @@ function tpRenderTable() {
       '<td style="padding:8px 10px;vertical-align:top;">' +
         '<div style="font-weight:600;">' + esc(p.projectName || '(untitled)') + '</div>' +
         (p.ordinanceId ? '<div style="font-size:10px;color:var(--muted,#888);">' + esc(p.ordinanceId) + '</div>' : '') +
-        (function() {
-          var raw = (p.aliases || '').trim();
-          if (!raw) return '';
-          var chips = raw.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
-          if (!chips.length) return '';
-          return '<div class="tp-alias-chips" style="margin-top:4px;display:flex;flex-wrap:wrap;gap:3px;" title="Aliases / additional ordinance numbers">' +
-            chips.map(function(c) { return '<span class="tpr-chip">' + esc(c) + '</span>'; }).join('') +
-          '</div>';
-        })() +
       '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' + esc(p.jurisdiction || '<i>all</i>') + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' + petCell + '</td>' +
@@ -5586,6 +5642,7 @@ function tpRenderTable() {
       '<td style="padding:8px 10px;vertical-align:top;">' + meetingTypeCell + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;white-space:nowrap;">' + meetingDateCell + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;max-width:520px;">' + actionCell + '</td>' +
+      '<td style="padding:8px 10px;vertical-align:top;max-width:520px;">' + notesCell + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' + yt + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' + agenda + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;white-space:nowrap;">' + taggedCell + '</td>' +
@@ -5629,7 +5686,7 @@ window.tpToggleAction = tpToggleAction;
 function _tpRenderEditDropdown(p, pidAttr) {
   var pid = p.projectId || '';
   return '<tr class="tp-edit-row" data-edit-pid="' + pidAttr + '" style="background:var(--bg-card,#1a1a1a);">' +
-    '<td colspan="14" style="padding:14px 18px;border-bottom:1px solid var(--border,#333);">' +
+    '<td colspan="15" style="padding:14px 18px;border-bottom:1px solid var(--border,#333);">' +
       '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;align-items:end;">' +
         '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);">Project name' +
           '<input id="tpe-name-' + pidAttr + '" type="text" value="' + escAttr(p.projectName || '') + '" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
