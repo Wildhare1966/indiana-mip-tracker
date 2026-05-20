@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p71r3 -->
+<!-- MIP build p77r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com; img-src 'self' data:; frame-src https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p71r3">
+<link rel="stylesheet" href="styles.css?v=p77r1">
 </head>
 <body>
 
@@ -3961,12 +3961,19 @@ function renderBodySection(bodyLabel, dates, muniId) {
     const statusBadge = entry.status === 'confirmed' ? '<span class="status-badge confirmed">confirmed</span>' : '';
 
     // YouTube cell
+    // P77: outer gate widened to (youtube_url || summary_doc). Marion County
+    // (and any future muni with no YT) writes summary_doc to Meetings.agenda_extracted
+    // via P76's processMarionResultsPdfs but has no youtube_url — the old gate
+    // hid the Summary anchor for those rows. YT anchor itself stays gated on
+    // youtube_url; only the "Generate Summary" branch needs YT as a source.
     let ytCell = '';
-    if (entry.youtube_url) {
+    if (entry.youtube_url || entry.summary_doc) {
       const summaryId = 'yts_' + muniId + '_' + bodyLabel.replace(/\s/g,'') + '_' + rowIdx;
       const btnId = 'ytrs_' + muniId + '_' + bodyLabel.replace(/\s/g,'') + '_' + rowIdx;
       ytCell = `<div class="yt-hearing-item">`;
-      ytCell += `<a href="${escUrl(entry.youtube_url)}" target="_blank" class="hearing-link yt" data-doc-link="youtube" data-scraped-id="${escAttr(entry.meeting_id || '')}">▶ YouTube</a>`;
+      if (entry.youtube_url) {
+        ytCell += `<a href="${escUrl(entry.youtube_url)}" target="_blank" class="hearing-link yt" data-doc-link="youtube" data-scraped-id="${escAttr(entry.meeting_id || '')}">▶ YouTube</a>`;
+      }
       ytCell += `<span id="${esc(summaryId)}">`;
       if (entry.summary_doc) {
         // P58.8 r4: default Summary button color is yellow; when the meeting's
@@ -3998,8 +4005,9 @@ function renderBodySection(bodyLabel, dates, muniId) {
         } else {
           ytCell += `<button class="yt-resubmit-btn" id="${esc(btnId)}" onclick="showFlagSummaryPopover(this,'${escAttr(entry.meeting_id || '')}','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(entry.meeting_type || '')}')">⚑ Flag</button>`;
         }
-      } else {
+      } else if (entry.youtube_url) {
         // No summary yet — keep the existing Generate path (operator-facing).
+        // P77: Generate requires a YT source URL, so it only fires when youtube_url exists.
         ytCell += `<button class="yt-resubmit-btn" id="${esc(btnId)}" onclick="ytResubmit('${escAttr(entry.youtube_url)}','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(btnId)}','${escAttr(summaryId)}')">↻ Generate Summary</button>`;
       }
       // P57 W5b: ✕ remove-YouTube-URL button removed per user request. The
