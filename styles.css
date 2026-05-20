@@ -1049,6 +1049,56 @@
     white-space: pre-wrap;
   }
   .tp-action-cell:hover .tp-action-text { color: var(--accent, #e8a020); }
+  /* P79 A3 — Petitioner cell: narrowed (max-width 80px) + truncate-with-
+     click-to-expand. Mirrors .tp-action-cell behavior but with a much
+     smaller default max-width since petitioner names are usually short. */
+  .tp-pet-cell { cursor: pointer; position: relative; line-height: 1.35; max-width: 80px; }
+  .tp-pet-cell .tp-action-text {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  .tp-pet-cell.expanded { max-width: 280px; }
+  .tp-pet-cell.expanded .tp-action-text {
+    display: block;
+    -webkit-line-clamp: unset;
+    overflow: visible;
+    white-space: pre-wrap;
+  }
+  .tp-pet-cell:hover .tp-action-text { color: var(--accent, #e8a020); }
+  /* P79 B1 — Aggregate/Segregated toggle on the per-juris Public Hearings
+     Council & Plan Commission section. Sits as a right-aligned toolbar above
+     the section header(s) so it visually pairs with the title line. */
+  .cpc-controls {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 6px;
+    margin: 6px 0 -8px 0;
+    font-size: 11px;
+  }
+  .cpc-controls-label { color: var(--muted, #888); font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .cpc-toggle-btn {
+    padding: 3px 10px;
+    background: transparent;
+    color: var(--text, #ddd);
+    border: 1px solid var(--border, #444);
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+    font-family: inherit;
+  }
+  .cpc-toggle-btn.active {
+    background: var(--accent, #e8a020);
+    color: #1a1a1a;
+    border-color: var(--accent, #e8a020);
+    font-weight: 600;
+  }
+  .cpc-toggle-btn:not(.active):hover { border-color: var(--accent, #e8a020); color: var(--accent, #e8a020); }
   /* P71 R3 — Builder dropdown + split Meeting Type/Date cells. */
   .tp-builder-select {
     padding: 3px 6px;

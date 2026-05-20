@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p78r1 -->
+<!-- MIP build p79r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -375,7 +375,8 @@
               <option value="">Sort: default</option>
               <option value="project">Sort: Project</option>
               <option value="jurisdiction">Sort: Jurisdiction</option>
-              <option value="petitioner">Sort: Petitioner</option>
+              <option value="builder">Sort: Builder</option>
+              <option value="meeting_date">Sort: Meeting Date (newest)</option>
               <option value="status">Sort: Status</option>
             </select>
             <button class="refresh-btn" onclick="tpLoad(true)" title="Re-fetch from backend">↺ Refresh</button>
@@ -404,6 +405,7 @@
               <tr style="background:var(--bg-card,#1a1a1a);text-align:left;">
                 <th style="padding:8px 4px;border-bottom:1px solid var(--border,#333);width:28px;"></th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Project</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;" title="Total lots / homesites in proposed residential project — Gemini-extracted, manually editable">Lots</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Jurisdiction</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Petitioner</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Builder</th>
@@ -3414,6 +3416,17 @@ async function submitChangeType(docId, muniId, agId) {
 window.showChangeTypePopover = showChangeTypePopover;
 window.submitChangeType = submitChangeType;
 
+// P79 B1: persist Aggregate/Segregated choice for the per-juris Council+PC
+// section and trigger a re-render. Mirrors the post-edit re-render pattern
+// at line ~3404 (submitChangeType → grid.innerHTML = renderHearingsContent).
+function setPhLayout(mode, muniId) {
+  if (mode !== 'aggregate' && mode !== 'segregated') return;
+  localStorage.setItem('mip_ph_layout', mode);
+  var grid = document.getElementById('members-grid');
+  if (grid) grid.innerHTML = renderHearingsContent(muniId);
+}
+window.setPhLayout = setPhLayout;
+
 function renderHearingsContent(muniId) {
   let unified = buildUnifiedDateSet(muniId);
   const ref = JURISDICTION_REFS[muniId] || {};
@@ -3498,8 +3511,25 @@ function renderHearingsContent(muniId) {
   // (populated by getMunicipalitiesJSON via Muni_Data + scraper-config fallback).
   html += renderLandingPageButtons(muniId);
 
+  // P79 B1: Aggregate (default — merged chronological) vs Segregated (PC first,
+  // then Council, in separate sections). Choice persists in localStorage and
+  // applies fleet-wide so the user doesn't reset it per-juris.
   if (councilPcDates.length > 0) {
-    html += renderBodySection('Council & Plan Commission', councilPcDates, muniId);
+    var phMode = (localStorage.getItem('mip_ph_layout') === 'segregated') ? 'segregated' : 'aggregate';
+    var phToolbar = '<div class="cpc-controls" data-cpc-toolbar="' + escAttr(muniId) + '">' +
+      '<span class="cpc-controls-label">View:</span>' +
+      '<button type="button" class="cpc-toggle-btn' + (phMode === 'aggregate'  ? ' active' : '') + '" onclick="setPhLayout(\'aggregate\',\''  + escAttr(muniId) + '\')" title="Council and Plan Commission merged chronologically">Aggregate</button>' +
+      '<button type="button" class="cpc-toggle-btn' + (phMode === 'segregated' ? ' active' : '') + '" onclick="setPhLayout(\'segregated\',\'' + escAttr(muniId) + '\')" title="Plan Commission and Council in separate sections (PC first)">Segregated</button>' +
+    '</div>';
+    html += phToolbar;
+    if (phMode === 'segregated') {
+      var pcDates = councilPcDates.filter(function(d) { return isPlanCommissionType(d.body_type); });
+      var cDates  = councilPcDates.filter(function(d) { return !isPlanCommissionType(d.body_type); });
+      if (pcDates.length) html += renderBodySection('Plan Commission', pcDates, muniId);
+      if (cDates.length)  html += renderBodySection('Council', cDates, muniId);
+    } else {
+      html += renderBodySection('Council & Plan Commission', councilPcDates, muniId);
+    }
   }
   // P60 thread 2: group "Other Meetings" by distinct meeting_type so each body
   // surfaces under its own section (e.g. Bargersville renders Utilities /
@@ -5510,30 +5540,43 @@ function tpRenderTable() {
   });
 
   // P75: optional client-side sort. Empty string = backend default (most recent
-  // ref first). Petitioner uses display value (YT-parsed first, manual fallback)
-  // so the sort matches what the user sees in the cell.
+  // ref first).
+  // P79 A2: Petitioner sort removed (user request — col is narrowed in this
+  // pass and not a primary sort axis). Builder + Meeting Date added; Meeting
+  // Date sorts DESC (newest first) per user spec.
   var sortKey = (document.getElementById('tp-sort-key')||{}).value || '';
   if (sortKey) {
-    var keyFn = {
-      project:      function(p){ return (p.projectName || '').toLowerCase(); },
-      jurisdiction: function(p){ return (p.jurisdiction || '').toLowerCase(); },
-      petitioner:   function(p){ return (p.petitionerDisplay || p.petitionerApplicant || '').toLowerCase(); },
-      status:       function(p){ return (p.status || 'active').toLowerCase(); }
-    }[sortKey];
-    if (keyFn) {
+    if (sortKey === 'meeting_date') {
       rows.sort(function(a, b) {
-        var av = keyFn(a), bv = keyFn(b);
-        if (av < bv) return -1;
-        if (av > bv) return 1;
-        return 0;
+        // Empty dates sort last; otherwise newest first.
+        var ad = a.latestRefDate || a.latestMeetingDate || '';
+        var bd = b.latestRefDate || b.latestMeetingDate || '';
+        var at = ad ? new Date(ad).getTime() : -Infinity;
+        var bt = bd ? new Date(bd).getTime() : -Infinity;
+        return bt - at;
       });
+    } else {
+      var keyFn = {
+        project:      function(p){ return (p.projectName || '').toLowerCase(); },
+        jurisdiction: function(p){ return (p.jurisdiction || '').toLowerCase(); },
+        builder:      function(p){ return (p.builder || '').toLowerCase(); },
+        status:       function(p){ return (p.status || 'active').toLowerCase(); }
+      }[sortKey];
+      if (keyFn) {
+        rows.sort(function(a, b) {
+          var av = keyFn(a), bv = keyFn(b);
+          if (av < bv) return -1;
+          if (av > bv) return 1;
+          return 0;
+        });
+      }
     }
   }
 
   if (statusEl) statusEl.textContent = rows.length + ' project' + (rows.length === 1 ? '' : 's') + (tpProjects.length === rows.length ? '' : ' (of ' + tpProjects.length + ')');
 
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="15" style="padding:24px;text-align:center;color:var(--muted,#888);">No projects match the current filters.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="16" style="padding:24px;text-align:center;color:var(--muted,#888);">No projects match the current filters.</td></tr>';
     return;
   }
 
@@ -5553,18 +5596,20 @@ function tpRenderTable() {
       : '<span style="color:var(--muted,#888);">—</span>';
     var when    = p.latestMeetingDate ? '<div style="font-size:10px;color:var(--muted,#888);">' + esc(p.latestMeetingDate) + '</div>' : '';
 
-    // P71: Petitioner — YT-derived (Agenda_Items.item_summary "Petitioner:")
-    // takes precedence; manual petitioner_applicant is the fallback. When
-    // YT-sourced we show read-only display + small YT badge. When manual
-    // only, the existing editable input is preserved so users can correct.
+    // P71: Petitioner cell.
+    // P79 A3: column ~50% narrower (140px → 70px max) with truncate-on-overflow
+    // + click-to-expand (mirrors the existing tp-action-cell pattern at
+    // line ~5597 for Action Taken).
+    // P79 A4: precedence flipped at P71_TrackedProjectsDetailed.js:166 — manual
+    // wins over YT-derived when set, so an edit in the dropdown is visible
+    // after save. petitionerSource='manual' takes the input branch.
     var petCell;
     if (p.petitionerSource === 'youtube' && p.petitionerDisplay) {
-      petCell = '<div title="Parsed from YouTube transcript summary" style="display:flex;align-items:center;gap:6px;">' +
-                  '<span>' + esc(p.petitionerDisplay) + '</span>' +
-                  '<span class="tp-yt-badge" title="Source: YouTube">YT</span>' +
+      petCell = '<div class="tp-pet-cell" onclick="tpToggleAction(this)" title="Parsed from YouTube transcript summary. Click to expand.">' +
+                  '<div class="tp-action-text">' + esc(p.petitionerDisplay) + ' <span class="tp-yt-badge" title="Source: YouTube">YT</span></div>' +
                 '</div>';
     } else {
-      petCell = '<input type="text" value="' + escAttr(p.petitionerApplicant || '') + '" data-field="petitioner_applicant" onblur="tpInlineSave(this)" style="width:140px;background:transparent;border:1px solid transparent;color:inherit;padding:2px 4px;font-size:12px;border-radius:3px;" onfocus="this.style.borderColor=\'var(--border,#444)\'">';
+      petCell = '<input type="text" value="' + escAttr(p.petitionerApplicant || '') + '" data-field="petitioner_applicant" onblur="tpInlineSave(this)" style="width:70px;background:transparent;border:1px solid transparent;color:inherit;padding:2px 4px;font-size:12px;border-radius:3px;" onfocus="this.style.borderColor=\'var(--border,#444)\';this.style.width=\'180px\'" title="Click to edit petitioner">';
     }
 
     // P71 R3: Builder dropdown — manually set by the user. Static option list
@@ -5639,12 +5684,21 @@ function tpRenderTable() {
     // P71 R3: column order — Edit | Project | Juris | Petitioner | Builder |
     // Meeting Type | Meeting Date | Action Taken | Latest YT | Latest Agenda |
     // Tagged Docs | Status | Map | Close-utility (14 cells)
+    // P79 A1: Lots — Gemini-extracted from YouTube summary (carry-forward R2);
+    // manual override via Edit dropdown lives at Tracked_Projects.lots col 18.
+    // For now, value reads from p.lots (P71 wire field added in this same arc).
+    var lotsVal = (p.lots == null || p.lots === '') ? '' : String(p.lots);
+    var lotsCell = lotsVal
+      ? '<span style="font-weight:600;">' + esc(lotsVal) + '</span>'
+      : '<span style="color:var(--muted,#888);">—</span>';
+
     return '<tr data-project-id="' + pidAttr + '" style="border-bottom:1px solid var(--border,#2a2a2a);">' +
       '<td style="padding:6px 4px;vertical-align:top;text-align:center;">' + editBtn + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' +
         '<div style="font-weight:600;">' + esc(p.projectName || '(untitled)') + '</div>' +
         (p.ordinanceId ? '<div style="font-size:10px;color:var(--muted,#888);">' + esc(p.ordinanceId) + '</div>' : '') +
       '</td>' +
+      '<td style="padding:8px 10px;vertical-align:top;text-align:center;">' + lotsCell + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' + esc(p.jurisdiction || '<i>all</i>') + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' + petCell + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' + builderCell + '</td>' +
@@ -5695,7 +5749,7 @@ window.tpToggleAction = tpToggleAction;
 function _tpRenderEditDropdown(p, pidAttr) {
   var pid = p.projectId || '';
   return '<tr class="tp-edit-row" data-edit-pid="' + pidAttr + '" style="background:var(--bg-card,#1a1a1a);">' +
-    '<td colspan="15" style="padding:14px 18px;border-bottom:1px solid var(--border,#333);">' +
+    '<td colspan="16" style="padding:14px 18px;border-bottom:1px solid var(--border,#333);">' +
       '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;align-items:end;">' +
         '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);">Project name' +
           '<input id="tpe-name-' + pidAttr + '" type="text" value="' + escAttr(p.projectName || '') + '" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
@@ -5706,11 +5760,18 @@ function _tpRenderEditDropdown(p, pidAttr) {
         '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);">Aliases / Additional Ord #s (comma-sep)' +
           '<input id="tpe-alias-' + pidAttr + '" type="text" value="' + escAttr(p.aliases || '') + '" placeholder="ORD-2024-16, ORD-2024-17, alt project name" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
         '</label>' +
-        // P71 R3: Petitioner editable in the Edit dropdown. Writes to
-        // Tracked_Projects.petitioner_applicant; YT-derived value still wins
-        // at render time when present (see tpRenderTable petCell branch).
+        // P71 R3: Petitioner editable in the Edit dropdown.
+        // P79 A4: precedence flipped — when this field is non-empty, the
+        // manual value WINS over the YT-derived petitionerDisplay so saves
+        // are visible in the table on next render.
         '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);">Petitioner / Applicant' +
-          '<input id="tpe-petitioner-' + pidAttr + '" type="text" value="' + escAttr(p.petitionerApplicant || '') + '" placeholder="Manual override (YT-derived value wins when set)" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
+          '<input id="tpe-petitioner-' + pidAttr + '" type="text" value="' + escAttr(p.petitionerApplicant || '') + '" placeholder="Manual value wins over YT-derived (P79)" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
+        '</label>' +
+        // P79 A1: Lots — total lots/homesites in proposed residential project.
+        // Gemini extracts from YouTube summary transcript (carry-forward R2);
+        // manual override here persists to Tracked_Projects.lots col 18.
+        '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);">Lots (homesites)' +
+          '<input id="tpe-lots-' + pidAttr + '" type="text" inputmode="numeric" value="' + escAttr(p.lots == null ? '' : String(p.lots)) + '" placeholder="e.g. 124" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
         '</label>' +
       '</div>' +
       '<div style="margin-top:12px;display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;">' +
@@ -5733,6 +5794,8 @@ function tpSaveEditRow(pid) {
   var aliEl  = document.getElementById('tpe-alias-' + pid);
   // P71 R3: petitioner field added to the edit dropdown.
   var petEl  = document.getElementById('tpe-petitioner-' + pid);
+  // P79 A1: lots field added to the edit dropdown.
+  var lotsEl = document.getElementById('tpe-lots-' + pid);
   var msgEl  = document.getElementById('tpe-msg-' + pid);
   if (!nameEl || !ordEl || !aliEl) return;
   var current = tpProjects.find(function(p) { return p.projectId === pid; });
@@ -5740,7 +5803,8 @@ function tpSaveEditRow(pid) {
   var name = (nameEl.value || '').trim();
   var ord  = (ordEl.value || '').trim();
   var ali  = (aliEl.value || '').trim();
-  var pet  = petEl ? (petEl.value || '').trim() : (current.petitionerApplicant || '');
+  var pet  = petEl  ? (petEl.value  || '').trim() : (current.petitionerApplicant || '');
+  var lots = lotsEl ? (lotsEl.value || '').trim() : (current.lots == null ? '' : String(current.lots));
   if (!name) {
     if (msgEl) { msgEl.textContent = 'Project name required.'; msgEl.style.color = '#d65a5a'; }
     return;
@@ -5749,19 +5813,22 @@ function tpSaveEditRow(pid) {
   if (!webappUrl) return;
   if (msgEl) { msgEl.textContent = 'Saving…'; msgEl.style.color = 'var(--muted,#888)'; }
   // Optimistic local update
-  var prev = { projectName: current.projectName, ordinanceId: current.ordinanceId, aliases: current.aliases, petitionerApplicant: current.petitionerApplicant };
+  var prev = { projectName: current.projectName, ordinanceId: current.ordinanceId, aliases: current.aliases, petitionerApplicant: current.petitionerApplicant, lots: current.lots };
   current.projectName         = name;
   current.ordinanceId         = ord;
   current.aliases             = ali;
   current.petitionerApplicant = pet;
+  current.lots                = lots;
   // P61 hotfix: doPost doesn't route update_tracked_project — use GET with
   // individual field URL params (the proven pattern from tpInlineSave).
+  // P79 A1: lots param joins the persisted fields.
   var q = '&action=update_tracked_project'
         + '&project_id=' + encodeURIComponent(pid)
         + '&project_name=' + encodeURIComponent(name)
         + '&ordinance_id=' + encodeURIComponent(ord)
         + '&aliases=' + encodeURIComponent(ali)
-        + '&petitioner_applicant=' + encodeURIComponent(pet);
+        + '&petitioner_applicant=' + encodeURIComponent(pet)
+        + '&lots=' + encodeURIComponent(lots);
   fetch(webappUrl + q)
     .then(function(r) { return r.json(); })
     .then(function(res) {
