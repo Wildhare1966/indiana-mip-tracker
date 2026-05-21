@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p79r1 -->
+<!-- MIP build p80r3 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -26,6 +26,9 @@
     <button class="topbar-btn" onclick="switchView('tracked')" id="nav-tracked">Tracked Projects</button>
     <button class="topbar-btn" onclick="switchView('schedule')" id="nav-schedule">Schedule & Requirements</button>
     <button class="topbar-btn" onclick="switchView('settings')" id="nav-settings">⚙ Settings</button>
+    <!-- P80 Stage 1.8: operator-only review queue. Hidden until isOperator()
+         flips it visible at boot. -->
+    <button class="topbar-btn" onclick="switchView('reviewqueue')" id="nav-reviewqueue" style="display:none;">⚑ Review Queue</button>
   </div>
   <div class="topbar-right">
     <span class="topbar-badge">Central Indiana · 9 Counties</span>
@@ -523,6 +526,38 @@
           <div id="sched-assumptions" class="sched-section"></div>
         </div>
 
+      </div>
+    </div>
+
+    <!-- P80 Stage 1.8: REVIEW QUEUE VIEW (operator-only) -->
+    <div id="view-reviewqueue" class="view">
+      <div style="padding:24px 32px;max-width:1400px;margin:0 auto;width:100%;">
+        <div style="margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:16px;">
+          <div>
+            <div class="overview-title">Review Queue</div>
+            <div class="overview-sub">Summaries the recovery loop couldn't auto-resolve. Operator decides the terminal state.</div>
+          </div>
+          <button class="refresh-btn" onclick="loadReviewQueue()" id="rq-refresh-btn">↺ Reload</button>
+        </div>
+        <div id="rq-status" style="font-size:11px;color:var(--text-dim);margin-bottom:10px;"></div>
+        <div id="rq-table-wrap" style="overflow-x:auto;">
+          <table id="rq-table" style="width:100%;border-collapse:collapse;font-size:11px;">
+            <thead>
+              <tr style="text-align:left;border-bottom:1px solid var(--border);">
+                <th style="padding:8px 6px;">Meeting ID</th>
+                <th style="padding:8px 6px;">Jurisdiction</th>
+                <th style="padding:8px 6px;">Date</th>
+                <th style="padding:8px 6px;">Attempts</th>
+                <th style="padding:8px 6px;">Last Retry</th>
+                <th style="padding:8px 6px;">Exhaustion / Strategy</th>
+                <th style="padding:8px 6px;">Video</th>
+                <th style="padding:8px 6px;">Summary</th>
+                <th style="padding:8px 6px;text-align:right;">Decision</th>
+              </tr>
+            </thead>
+            <tbody id="rq-tbody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -1994,6 +2029,7 @@ var tprAddMsg      = '';
 var tprAddMsgKind  = ''; // '' | 'warn' | 'ok'
 var tprActiveTagPid = null;
 var tprTagUrl       = '';
+var tprTagDisplayName = '';
 var tprTagMsg       = '';
 var tprTagMsgKind   = '';
 
@@ -2132,6 +2168,9 @@ function _tprRenderProjectCard(p) {
   var tagMsg = (tagOpen && tprTagMsg) ? '<div class="tpr-form-msg' + msgCls + '">' + esc(tprTagMsg) + '</div>' : '';
   var tagInputHtml = tagOpen
     ? '<div class="tpr-tag-input">'
+        + '<input id="tpr-name-' + pidEsc + '" class="tpr-input" type="text" placeholder="Document name (optional — skips auto-naming)"'
+          + ' value="' + escAttr(tprTagDisplayName) + '"'
+          + ' oninput="tprTagDisplayName = this.value;">'
         + '<input id="tpr-url-' + pidEsc + '" class="tpr-input" type="url" placeholder="Paste document URL (https://…)"'
           + ' value="' + escAttr(tprTagUrl) + '"'
           + ' oninput="tprTagUrl = this.value;">'
@@ -2424,20 +2463,21 @@ function tprSubmitProject() {
 function tprToggleTagInput(pid) {
   if (tprActiveTagPid === pid) {
     tprActiveTagPid = null;
-    tprTagUrl = ''; tprTagMsg = ''; tprTagMsgKind = '';
+    tprTagUrl = ''; tprTagDisplayName = ''; tprTagMsg = ''; tprTagMsgKind = '';
   } else {
     tprActiveTagPid = pid;
-    tprTagUrl = ''; tprTagMsg = ''; tprTagMsgKind = '';
+    tprTagUrl = ''; tprTagDisplayName = ''; tprTagMsg = ''; tprTagMsgKind = '';
   }
   if (currentMuni) renderTpRail(currentMuni);
   if (tprActiveTagPid) {
-    var el = document.getElementById('tpr-url-' + pid);
+    var el = document.getElementById('tpr-name-' + pid);
     if (el) el.focus();
   }
 }
 
 function tprSubmitTag(pid) {
   var url = (tprTagUrl || '').trim();
+  var displayName = (tprTagDisplayName || '').trim();
   if (!url) {
     tprTagMsg = 'Paste a document URL first.'; tprTagMsgKind = 'warn';
     if (currentMuni) renderTpRail(currentMuni);
@@ -2463,15 +2503,17 @@ function tprSubmitTag(pid) {
         + '&scraped_doc_id='
         + '&source_url=' + encodeURIComponent(url)
         + '&client_id=' + encodeURIComponent(cid);
+  if (displayName) q += '&display_name=' + encodeURIComponent(displayName);
   fetch(webappUrl + q)
     .then(function(r) { return r.json(); })
     .then(function(res) {
       if (res && res.ok) {
         var status  = res.status  || 'tagged';
         var docId   = res.doc_id  || '';
-        var filename = res.filename || (url.split('/').pop() || 'Document').replace(/[?#].*$/, '');
+        var filename = res.filename || displayName || (url.split('/').pop() || 'Document').replace(/[?#].*$/, '');
         tprTagMsg = 'Tagged ✓ (' + status + ')'; tprTagMsgKind = 'ok';
         tprTagUrl = '';
+        tprTagDisplayName = '';
         if (typeof tpDocCounts !== 'undefined') {
           tpDocCounts[pid] = (tpDocCounts[pid] || 0) + 1;
         }
@@ -2479,14 +2521,25 @@ function tprSubmitTag(pid) {
         // describe_document. Only fires when status is 'active' (a real
         // Drive-backed row exists); url-only / skipped statuses get a
         // permanent "Skipped" row so the user sees what happened.
+        // When the user supplied a name, skip Gemini and seed the row with
+        // their text so the rail shows it immediately.
         if (!tprDescriptionsByProject[pid]) tprDescriptionsByProject[pid] = [];
-        var descStatus = (status === 'active') ? 'analyzing' : 'skipped';
+        var descStatus;
+        var descText = '';
+        var descDateIso = '';
+        if (displayName) {
+          descStatus = 'manual';
+          descText = displayName;
+          descDateIso = new Date().toISOString();
+        } else {
+          descStatus = (status === 'active') ? 'analyzing' : 'skipped';
+        }
         tprDescriptionsByProject[pid].unshift({
           doc_id: docId,
           filename: filename,
-          description: '',
+          description: descText,
           description_status: descStatus,
-          description_date_iso: ''
+          description_date_iso: descDateIso
         });
         if (currentMuni) renderTpRail(currentMuni);
         if (descStatus === 'analyzing' && docId) {
@@ -3742,6 +3795,10 @@ function buildUnifiedDateSet(muniId) {
       dateMap[k]._summary_flagged = true;
       dateMap[k]._summary_flag_entry_id = h._summary_flag_entry_id || '';
     }
+    // P80 Stage 1.9: carry coverage_state + coverage_pct through the merge so
+    // the muni-page Summary cell can branch on retry/partial/no-source states.
+    if (h.coverage_state) dateMap[k].coverage_state = h.coverage_state;
+    if (h.coverage_pct !== undefined && h.coverage_pct !== null) dateMap[k].coverage_pct = h.coverage_pct;
   });
 
   // 3. Scraped docs overlay (agendas) — honor meeting_type_override if set (P18)
@@ -4005,7 +4062,21 @@ function renderBodySection(bodyLabel, dates, muniId) {
         ytCell += `<a href="${escUrl(entry.youtube_url)}" target="_blank" class="hearing-link yt" data-doc-link="youtube" data-scraped-id="${escAttr(entry.meeting_id || '')}">▶ YouTube</a>`;
       }
       ytCell += `<span id="${esc(summaryId)}">`;
-      if (entry.summary_doc) {
+      // P80 Stage 1.9: coverage_state branching.
+      const covState = (entry.coverage_state || '').toLowerCase();
+      const isCovPending = covState === 'retry_queued'
+                        || covState.indexOf('retry_attempt_') === 0
+                        || covState === 'needs_human_review'
+                        || covState === 'force_redraft';
+      const isCovPartialAccept = covState === 'accept_as_partial';
+      const isCovPartialNoSrc  = covState === 'no_better_source';
+      let covLabelSuffix = '';
+      let covClsSuffix = '';
+      if (isCovPartialAccept) { covLabelSuffix = ' (partial)';              covClsSuffix = ' summary-partial-accept'; }
+      else if (isCovPartialNoSrc) { covLabelSuffix = ' (recording incomplete)'; covClsSuffix = ' summary-partial-nosrc';  }
+      if (isCovPending) {
+        ytCell += `<span class="summary-pending-placeholder" title="Recovery loop is retrying this summary. coverage_state=${esc(covState)}">Summary pending review</span>`;
+      } else if (entry.summary_doc) {
         // P58.8 r4: default Summary button color is yellow; when the meeting's
         // summary has been flagged for review, the button shifts to orange
         // (current accent) so the flag state is visible on the button itself,
@@ -4015,10 +4086,10 @@ function renderBodySection(bodyLabel, dates, muniId) {
         const sumApprovedLocal = window._summaryApprovedLocal && window._summaryApprovedLocal[String(entry.meeting_id || '')];
         const sumConfirmedCls = (entry._summary_approved || sumApprovedLocal) ? ' summary-confirmed' : '';
         const sumAnchorId = 'sum_a_' + muniId + '_' + bodyLabel.replace(/\s/g,'') + '_' + rowIdx;
-        ytCell += `<a id="${esc(sumAnchorId)}" href="${escUrl(entry.summary_doc)}" target="_blank" class="hearing-link doc${sumFlagCls}${sumConfirmedCls}" data-doc-link="summary" data-scraped-id="${escAttr(entry.meeting_id || '')}">✦ Summary</a>`;
+        ytCell += `<a id="${esc(sumAnchorId)}" href="${escUrl(entry.summary_doc)}" target="_blank" class="hearing-link doc${sumFlagCls}${sumConfirmedCls}${covClsSuffix}" data-doc-link="summary" data-scraped-id="${escAttr(entry.meeting_id || '')}">✦ Summary${covLabelSuffix}</a>`;
       }
       ytCell += `</span>`;
-      if (entry.summary_doc) {
+      if (entry.summary_doc && !isCovPending) {
         // P67 R2: "Yes" button between Summary and Flag — turns Summary anchor
         // green via .summary-confirmed (same green family as Agenda/Minutes Yes).
         // Hidden once approved (mirrors agApprove/mnApprove pattern).
@@ -4035,7 +4106,7 @@ function renderBodySection(bodyLabel, dates, muniId) {
         } else {
           ytCell += `<button class="yt-resubmit-btn" id="${esc(btnId)}" onclick="showFlagSummaryPopover(this,'${escAttr(entry.meeting_id || '')}','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(entry.meeting_type || '')}')">⚑ Flag</button>`;
         }
-      } else if (entry.youtube_url) {
+      } else if (entry.youtube_url && !isCovPending) {
         // No summary yet — keep the existing Generate path (operator-facing).
         // P77: Generate requires a YT source URL, so it only fires when youtube_url exists.
         ytCell += `<button class="yt-resubmit-btn" id="${esc(btnId)}" onclick="ytResubmit('${escAttr(entry.youtube_url)}','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(btnId)}','${escAttr(summaryId)}')">↻ Generate Summary</button>`;
@@ -6929,9 +7000,28 @@ function phRenderWeeklyHearings() {
         var agLink = agUrl
           ? '<a href="' + escUrl(inlineViewerUrl(agUrl)) + '" target="_blank" class="ph-meeting-link ag" title="Agenda" data-doc-link="agenda" data-scraped-id="' + escAttr(agScrapedId) + '">Agenda</a>'
           : '<span class="ph-meeting-link ag disabled" title="No agenda">Agenda</span>';
-        var sumLink = e.summary_doc
-          ? '<a href="' + escUrl(e.summary_doc) + '" target="_blank" class="ph-meeting-link yt" title="YouTube summary" data-doc-link="summary" data-scraped-id="' + escAttr(e.meeting_id || '') + '">Summary</a>'
-          : '<span class="ph-meeting-link yt disabled" title="No summary">Summary</span>';
+        // P80 Stage 1.9: coverage_state branching (parallel to per-juris muni page).
+        var phCovState = (e.coverage_state || '').toLowerCase();
+        var phIsCovPending = phCovState === 'retry_queued'
+                          || phCovState.indexOf('retry_attempt_') === 0
+                          || phCovState === 'needs_human_review'
+                          || phCovState === 'force_redraft';
+        var phIsPartialAccept = phCovState === 'accept_as_partial';
+        var phIsPartialNoSrc  = phCovState === 'no_better_source';
+        var phCovLabel = phIsPartialAccept ? ' (partial)'
+                       : phIsPartialNoSrc  ? ' (recording incomplete)'
+                       : '';
+        var phCovCls = phIsPartialAccept ? ' summary-partial-accept'
+                     : phIsPartialNoSrc  ? ' summary-partial-nosrc'
+                     : '';
+        var sumLink;
+        if (phIsCovPending) {
+          sumLink = '<span class="summary-pending-placeholder" title="Recovery loop is retrying. coverage_state=' + esc(phCovState) + '">Summary pending review</span>';
+        } else if (e.summary_doc) {
+          sumLink = '<a href="' + escUrl(e.summary_doc) + '" target="_blank" class="ph-meeting-link yt' + phCovCls + '" title="YouTube summary" data-doc-link="summary" data-scraped-id="' + escAttr(e.meeting_id || '') + '">Summary' + phCovLabel + '</a>';
+        } else {
+          sumLink = '<span class="ph-meeting-link yt disabled" title="No summary">Summary</span>';
+        }
         var mnLink = e.minutes_url
           ? '<a href="' + escUrl(inlineViewerUrl(e.minutes_url)) + '" target="_blank" class="ph-meeting-link mn" title="Minutes" data-doc-link="minutes" data-scraped-id="' + escAttr(e.meeting_id || '') + '">Minutes</a>'
           : '<span class="ph-meeting-link mn disabled" title="No minutes">Minutes</span>';
@@ -7936,6 +8026,133 @@ function copyScheduleToClipboard() {
 
 // P21-M3: Register lazy init for Schedule view (replaces monkey-patch)
 registerViewInit('schedule', initScheduleView);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// P80 Stage 1.8 — REVIEW QUEUE (operator-only)
+// ═══════════════════════════════════════════════════════════════════════════
+// Nav button is hidden by default and revealed at boot when isOperator() is
+// true (localStorage.mip_operator marker). Backend endpoints are token-gated
+// independent of this — the DOM gate is UX-only.
+
+function _rqEscape(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+    return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+  });
+}
+
+function loadReviewQueue() {
+  var tbody = document.getElementById('rq-tbody');
+  var status = document.getElementById('rq-status');
+  if (!tbody || !status) return;
+  status.textContent = 'Loading…';
+  tbody.innerHTML = '';
+  var webapp = getWebAppUrl();
+  if (!webapp) { status.textContent = 'No webapp URL configured.'; return; }
+  fetch(webapp + '&action=review_queue')
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (!res || !res.ok) {
+        status.textContent = 'Error: ' + ((res && res.error) || 'unknown');
+        return;
+      }
+      var items = res.items || [];
+      status.textContent = items.length + ' row' + (items.length === 1 ? '' : 's') + ' awaiting review.';
+      if (!items.length) {
+        tbody.innerHTML = '<tr><td colspan="9" style="padding:14px 6px;color:var(--text-dim);">Queue is empty.</td></tr>';
+        return;
+      }
+      var html = '';
+      for (var i = 0; i < items.length; i++) {
+        var it = items[i];
+        var midAttr = _rqEscape(it.meeting_id);
+        var videoCell = it.video_url
+          ? '<a href="' + _rqEscape(it.video_url) + '" target="_blank" rel="noopener">video</a>'
+          : '<span style="color:var(--text-dim);">—</span>';
+        var summaryCell = it.summary_doc_url
+          ? '<a href="' + _rqEscape(it.summary_doc_url) + '" target="_blank" rel="noopener">doc</a>'
+          : '<span style="color:var(--text-dim);">—</span>';
+        var lastRetry = it.last_retry_at ? String(it.last_retry_at).slice(0, 19).replace('T', ' ') : '';
+        html += '<tr data-meeting-id="' + midAttr + '" style="border-bottom:1px solid var(--border);">' +
+          '<td style="padding:7px 6px;font-family:monospace;font-size:10px;">' + _rqEscape(it.meeting_id) + '</td>' +
+          '<td style="padding:7px 6px;">' + _rqEscape(it.jurisdiction) + '</td>' +
+          '<td style="padding:7px 6px;">' + _rqEscape(it.meeting_date) + '</td>' +
+          '<td style="padding:7px 6px;text-align:center;">' + _rqEscape(it.retry_attempt_count) + '</td>' +
+          '<td style="padding:7px 6px;font-size:10px;color:var(--text-dim);">' + _rqEscape(lastRetry) + '</td>' +
+          '<td style="padding:7px 6px;font-size:10px;">' + _rqEscape(it.retry_strategy) + '</td>' +
+          '<td style="padding:7px 6px;">' + videoCell + '</td>' +
+          '<td style="padding:7px 6px;">' + summaryCell + '</td>' +
+          '<td style="padding:7px 6px;text-align:right;white-space:nowrap;">' +
+            '<button class="refresh-btn" style="font-size:10px;padding:3px 7px;margin-left:4px;" onclick="resolveReview(\'' + midAttr + '\',\'accept_as_partial\')" title="Accept current summary as partial">Accept Partial</button>' +
+            '<button class="refresh-btn" style="font-size:10px;padding:3px 7px;margin-left:4px;" onclick="resolveReview(\'' + midAttr + '\',\'force_redraft\')" title="Mark for redraft (Stage 1.10 wires the redraft path)">Force Redraft</button>' +
+            '<button class="refresh-btn" style="font-size:10px;padding:3px 7px;margin-left:4px;" onclick="resolveReview(\'' + midAttr + '\',\'no_better_source\')" title="Recording itself is incomplete; no retry can recover">No Better Source</button>' +
+          '</td>' +
+          '</tr>';
+      }
+      tbody.innerHTML = html;
+    })
+    .catch(function(err) { status.textContent = 'Network error: ' + err.message; });
+}
+
+function resolveReview(meetingId, decision) {
+  if (!meetingId || !decision) return;
+  var row = document.querySelector('#rq-tbody tr[data-meeting-id="' + meetingId.replace(/"/g, '\\"') + '"]');
+  if (row) { row.style.opacity = '0.4'; row.style.pointerEvents = 'none'; }
+  var webapp = getWebAppUrl();
+  if (!webapp) return;
+  var url = webapp + '&action=resolve_review'
+          + '&meeting_id=' + encodeURIComponent(meetingId)
+          + '&decision=' + encodeURIComponent(decision);
+  fetch(url)
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (!res || !res.ok) {
+        if (row) { row.style.opacity = '1'; row.style.pointerEvents = 'auto'; }
+        var status = document.getElementById('rq-status');
+        if (status) status.textContent = 'Resolve failed: ' + ((res && res.error) || 'unknown');
+        return;
+      }
+      if (row) {
+        row.style.transition = 'opacity 0.25s';
+        row.style.opacity = '0';
+        setTimeout(function() {
+          if (row.parentNode) row.parentNode.removeChild(row);
+          var remaining = document.querySelectorAll('#rq-tbody tr[data-meeting-id]').length;
+          var status = document.getElementById('rq-status');
+          if (status) status.textContent = remaining + ' row' + (remaining === 1 ? '' : 's') + ' awaiting review.';
+          if (!remaining) {
+            var tbody = document.getElementById('rq-tbody');
+            if (tbody) tbody.innerHTML = '<tr><td colspan="9" style="padding:14px 6px;color:var(--text-dim);">Queue is empty.</td></tr>';
+          }
+        }, 280);
+      }
+    })
+    .catch(function(err) {
+      if (row) { row.style.opacity = '1'; row.style.pointerEvents = 'auto'; }
+      var status = document.getElementById('rq-status');
+      if (status) status.textContent = 'Network error: ' + err.message;
+    });
+}
+
+registerViewInit('reviewqueue', loadReviewQueue);
+
+(function _rqOperatorGate() {
+  function _show() {
+    try {
+      if (typeof isOperator === 'function' && isOperator()) {
+        var btn = document.getElementById('nav-reviewqueue');
+        if (btn) btn.style.display = '';
+      }
+    } catch (e) {}
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _show);
+  } else {
+    _show();
+  }
+})();
+
+window.loadReviewQueue = loadReviewQueue;
+window.resolveReview = resolveReview;
 
 window.runScheduleGeneration = runScheduleGeneration;
 window.exportScheduleDoc = exportScheduleDoc;
