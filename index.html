@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p80r3 -->
+<!-- MIP build p80r4 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -2030,6 +2030,7 @@ var tprAddMsgKind  = ''; // '' | 'warn' | 'ok'
 var tprActiveTagPid = null;
 var tprTagUrl       = '';
 var tprTagDisplayName = '';
+var tprTagFile      = null;  // File object from <input type="file">, never re-rendered
 var tprTagMsg       = '';
 var tprTagMsgKind   = '';
 
@@ -2166,6 +2167,7 @@ function _tprRenderProjectCard(p) {
   var tagOpen = (tprActiveTagPid === pid);
   var msgCls = tprTagMsgKind === 'warn' ? ' tpr-form-msg-warn' : (tprTagMsgKind === 'ok' ? ' tpr-form-msg-ok' : '');
   var tagMsg = (tagOpen && tprTagMsg) ? '<div class="tpr-form-msg' + msgCls + '">' + esc(tprTagMsg) + '</div>' : '';
+  var fileLabel = tprTagFile ? ('Selected: ' + tprTagFile.name + ' (' + Math.round(tprTagFile.size / 1024) + ' KB)') : '';
   var tagInputHtml = tagOpen
     ? '<div class="tpr-tag-input">'
         + '<input id="tpr-name-' + pidEsc + '" class="tpr-input" type="text" placeholder="Document name (optional — skips auto-naming)"'
@@ -2174,6 +2176,11 @@ function _tprRenderProjectCard(p) {
         + '<input id="tpr-url-' + pidEsc + '" class="tpr-input" type="url" placeholder="Paste document URL (https://…)"'
           + ' value="' + escAttr(tprTagUrl) + '"'
           + ' oninput="tprTagUrl = this.value;">'
+        + '<div class="tpr-file-row" style="display:flex;align-items:center;gap:6px;margin-top:4px;">'
+          + '<input id="tpr-file-' + pidEsc + '" type="file" accept=".pdf,application/pdf" onchange="tprSelectFile(this)" style="font-size:11px;flex:1;">'
+          + (tprTagFile ? '<button type="button" class="tpr-cancel-btn" onclick="tprClearFile()" title="Remove selected file" style="padding:2px 6px;">✕</button>' : '')
+        + '</div>'
+        + (fileLabel ? '<div class="tpr-file-label" style="font-size:10px;color:var(--muted,#888);margin-top:2px;">' + esc(fileLabel) + '</div>' : '')
         + '<div class="tpr-form-row">'
           + '<button class="tpr-save-btn" onclick="tprSubmitTag(\'' + pidEsc + '\')">Save</button>'
           + '<button class="tpr-cancel-btn" onclick="tprToggleTagInput(\'' + pidEsc + '\')">Cancel</button>'
@@ -2463,10 +2470,10 @@ function tprSubmitProject() {
 function tprToggleTagInput(pid) {
   if (tprActiveTagPid === pid) {
     tprActiveTagPid = null;
-    tprTagUrl = ''; tprTagDisplayName = ''; tprTagMsg = ''; tprTagMsgKind = '';
+    tprTagUrl = ''; tprTagDisplayName = ''; tprTagFile = null; tprTagMsg = ''; tprTagMsgKind = '';
   } else {
     tprActiveTagPid = pid;
-    tprTagUrl = ''; tprTagDisplayName = ''; tprTagMsg = ''; tprTagMsgKind = '';
+    tprTagUrl = ''; tprTagDisplayName = ''; tprTagFile = null; tprTagMsg = ''; tprTagMsgKind = '';
   }
   if (currentMuni) renderTpRail(currentMuni);
   if (tprActiveTagPid) {
@@ -2475,15 +2482,37 @@ function tprToggleTagInput(pid) {
   }
 }
 
-function tprSubmitTag(pid) {
-  var url = (tprTagUrl || '').trim();
-  var displayName = (tprTagDisplayName || '').trim();
-  if (!url) {
-    tprTagMsg = 'Paste a document URL first.'; tprTagMsgKind = 'warn';
+function tprSelectFile(input) {
+  var f = input && input.files && input.files[0];
+  if (!f) { tprTagFile = null; return; }
+  var maxBytes = 25 * 1024 * 1024;
+  if (f.size > maxBytes) {
+    tprTagFile = null;
+    input.value = '';
+    tprTagMsg = 'File too large (' + Math.round(f.size / (1024 * 1024)) + ' MB) — cap is 25 MB.';
+    tprTagMsgKind = 'warn';
     if (currentMuni) renderTpRail(currentMuni);
     return;
   }
-  if (!/^https?:\/\//i.test(url)) {
+  tprTagFile = f;
+  if (currentMuni) renderTpRail(currentMuni);
+}
+
+function tprClearFile() {
+  tprTagFile = null;
+  if (currentMuni) renderTpRail(currentMuni);
+}
+
+function tprSubmitTag(pid) {
+  var url = (tprTagUrl || '').trim();
+  var displayName = (tprTagDisplayName || '').trim();
+  var file = tprTagFile;
+  if (!url && !file) {
+    tprTagMsg = 'Paste a document URL or pick a PDF first.'; tprTagMsgKind = 'warn';
+    if (currentMuni) renderTpRail(currentMuni);
+    return;
+  }
+  if (url && !file && !/^https?:\/\//i.test(url)) {
     tprTagMsg = 'URL must start with http:// or https://';
     tprTagMsgKind = 'warn';
     if (currentMuni) renderTpRail(currentMuni);
@@ -2495,9 +2524,51 @@ function tprSubmitTag(pid) {
     if (currentMuni) renderTpRail(currentMuni);
     return;
   }
-  tprTagMsg = 'Tagging…'; tprTagMsgKind = '';
+  tprTagMsg = file ? ('Uploading ' + file.name + '…') : 'Tagging…';
+  tprTagMsgKind = '';
   if (currentMuni) renderTpRail(currentMuni);
   var cid = (typeof tagClientId === 'function') ? tagClientId() : '';
+
+  if (file) {
+    var reader = new FileReader();
+    reader.onerror = function() {
+      tprTagMsg = 'Could not read file.'; tprTagMsgKind = 'warn';
+      if (currentMuni) renderTpRail(currentMuni);
+    };
+    reader.onload = function(ev) {
+      var dataUrl = String(ev.target.result || '');
+      var commaIdx = dataUrl.indexOf(',');
+      var b64 = commaIdx >= 0 ? dataUrl.slice(commaIdx + 1) : '';
+      if (!b64) {
+        tprTagMsg = 'Empty file read.'; tprTagMsgKind = 'warn';
+        if (currentMuni) renderTpRail(currentMuni);
+        return;
+      }
+      var payload = {
+        project_id: pid,
+        file_b64: b64,
+        file_mime: file.type || 'application/pdf',
+        file_name: file.name,
+        display_name: displayName,
+        client_id: cid
+      };
+      fetch(webappUrl + '&action=tag_document_upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      })
+        .then(function(r) { return r.json(); })
+        .then(function(res) { _tprFinishTagSuccess(pid, res, displayName, url); })
+        .catch(function(err) {
+          tprTagMsg = 'Upload failed: ' + (err && err.message ? err.message : err);
+          tprTagMsgKind = 'warn';
+          if (currentMuni) renderTpRail(currentMuni);
+        });
+    };
+    reader.readAsDataURL(file);
+    return;
+  }
+
   var q = '&action=tag_document'
         + '&project_id=' + encodeURIComponent(pid)
         + '&scraped_doc_id='
@@ -2506,56 +2577,56 @@ function tprSubmitTag(pid) {
   if (displayName) q += '&display_name=' + encodeURIComponent(displayName);
   fetch(webappUrl + q)
     .then(function(r) { return r.json(); })
-    .then(function(res) {
-      if (res && res.ok) {
-        var status  = res.status  || 'tagged';
-        var docId   = res.doc_id  || '';
-        var filename = res.filename || displayName || (url.split('/').pop() || 'Document').replace(/[?#].*$/, '');
-        tprTagMsg = 'Tagged ✓ (' + status + ')'; tprTagMsgKind = 'ok';
-        tprTagUrl = '';
-        tprTagDisplayName = '';
-        if (typeof tpDocCounts !== 'undefined') {
-          tpDocCounts[pid] = (tpDocCounts[pid] || 0) + 1;
-        }
-        // P58.8 commit 5a: push optimistic Analyzing… row and fire
-        // describe_document. Only fires when status is 'active' (a real
-        // Drive-backed row exists); url-only / skipped statuses get a
-        // permanent "Skipped" row so the user sees what happened.
-        // When the user supplied a name, skip Gemini and seed the row with
-        // their text so the rail shows it immediately.
-        if (!tprDescriptionsByProject[pid]) tprDescriptionsByProject[pid] = [];
-        var descStatus;
-        var descText = '';
-        var descDateIso = '';
-        if (displayName) {
-          descStatus = 'manual';
-          descText = displayName;
-          descDateIso = new Date().toISOString();
-        } else {
-          descStatus = (status === 'active') ? 'analyzing' : 'skipped';
-        }
-        tprDescriptionsByProject[pid].unshift({
-          doc_id: docId,
-          filename: filename,
-          description: descText,
-          description_status: descStatus,
-          description_date_iso: descDateIso
-        });
-        if (currentMuni) renderTpRail(currentMuni);
-        if (descStatus === 'analyzing' && docId) {
-          _tprFireDescribe(pid, docId);
-        }
-      } else {
-        tprTagMsg = 'Tag failed: ' + ((res && res.error) || 'unknown');
-        tprTagMsgKind = 'warn';
-        if (currentMuni) renderTpRail(currentMuni);
-      }
-    })
+    .then(function(res) { _tprFinishTagSuccess(pid, res, displayName, url); })
     .catch(function(err) {
       tprTagMsg = 'Network error: ' + err.message;
       tprTagMsgKind = 'warn';
       if (currentMuni) renderTpRail(currentMuni);
     });
+}
+
+function _tprFinishTagSuccess(pid, res, displayName, fallbackUrl) {
+  if (!(res && res.ok)) {
+    tprTagMsg = 'Tag failed: ' + ((res && res.error) || 'unknown');
+    tprTagMsgKind = 'warn';
+    if (currentMuni) renderTpRail(currentMuni);
+    return;
+  }
+  var status  = res.status  || 'tagged';
+  var docId   = res.doc_id  || '';
+  var filename = res.filename
+                 || displayName
+                 || (tprTagFile && tprTagFile.name)
+                 || ((fallbackUrl || '').split('/').pop() || 'Document').replace(/[?#].*$/, '');
+  tprTagMsg = 'Tagged ✓ (' + status + ')'; tprTagMsgKind = 'ok';
+  tprTagUrl = '';
+  tprTagDisplayName = '';
+  tprTagFile = null;
+  if (typeof tpDocCounts !== 'undefined') {
+    tpDocCounts[pid] = (tpDocCounts[pid] || 0) + 1;
+  }
+  if (!tprDescriptionsByProject[pid]) tprDescriptionsByProject[pid] = [];
+  var descStatus;
+  var descText = '';
+  var descDateIso = '';
+  if (displayName) {
+    descStatus = 'manual';
+    descText = displayName;
+    descDateIso = new Date().toISOString();
+  } else {
+    descStatus = (status === 'active') ? 'analyzing' : 'skipped';
+  }
+  tprDescriptionsByProject[pid].unshift({
+    doc_id: docId,
+    filename: filename,
+    description: descText,
+    description_status: descStatus,
+    description_date_iso: descDateIso
+  });
+  if (currentMuni) renderTpRail(currentMuni);
+  if (descStatus === 'analyzing' && docId) {
+    _tprFireDescribe(pid, docId);
+  }
 }
 
 // P58.8 commit 5a: chain describe_document after a successful tag. On
