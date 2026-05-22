@@ -26,123 +26,128 @@
     --intel-bg: #0a1520;
   }
 
-  /* P57 W6 — Light Mode Palette A · High-contrast neutral (WCAG-AAA-leaning).
-     Picked from 3-way mockup; replaces the pre-P57 light theme. Key shifts:
-       - Page bg pure white (#fff) — was off-blue (#eef1f5)
-       - Borders darkened 0.12 -> 0.16 alpha; row dividers 0.06/0.08 -> 0.14
-       - Section accents switched from amber (#9a5f00) to navy (#14304f) so
-         section labels match the table header color; amber retained as
-         --accent-warn for callouts (review-flag badge, etc.)
-       - Text deepened 1 step for AAA contrast against the whiter bg. */
+  /* P86 — Light Mode "Cool Slate Elevated" · replaces P57 Palette A.
+     Picked from p86_light_palette_revision.html mockup. Key shifts vs Palette A:
+       - Page bg pure-white (#fff) → cool slate (#e8ecf2) so white panels lift
+       - Sidebar bg #eef1f5 → #d8dee8 (deeper slate, parity with new bg gap)
+       - Borders rgba(0,0,0,0.16) → rgba(30,41,59,0.22) — table grids actually visible
+       - Stat-box / card bg #f5f7fa → #ffffff with --card-shadow elevation
+       - Crimson #b91c1c replaces blood-red #8a1e1e for ✗ No / Reject CTAs
+       - Navy restored to #1e3a5f (dark-theme parity) — was #14304f Palette A
+       - Text deepened to #0a0e1a (cool near-black) for AAA contrast
+       - --card-shadow new variable — `0 1px 3px ... 0 1px 2px ...` lift */
   [data-theme="light"] {
-    --bg: #ffffff;
+    --bg: #e8ecf2;
     --panel: #ffffff;
-    --panel-hover: #f4f6f8;
-    --border: rgba(0,0,0,0.16);
-    --text: #0f1419;
-    --text-dim: #475467;
-    --intel-bg: #eef1f5;
-    --navy: #14304f;
-    --navy-dark: #0d1e33;
-    --navy-mid: #1e4570;
-    --navy-light: #2a5a8c;
-    --accent: #14304f;
-    --accent-light: #1e4570;
-    --accent-warn: #9a5f00;
-    --white: #0f1419;
-    --gray-100: #e0e4ea;
-    --gray-200: #c8ced8;
-    --gray-400: #475467;
-    --gray-600: #2c3340;
-    --success: #0a4d22;
-    --warn: #7a3a00;
-    --profile-a: #14408a;
-    --profile-b: #0d5428;
-    --profile-c: #6a1e1e;
+    --panel-hover: #f0f4fa;
+    --border: rgba(30,41,59,0.22);
+    --text: #0a0e1a;
+    --text-dim: #334155;
+    --intel-bg: #d8dee8;
+    --navy: #1e3a5f;
+    --navy-dark: #14304f;
+    --navy-mid: #2a4f7c;
+    --navy-light: #3d6494;
+    --accent: #1e3a5f;
+    --accent-light: #2a4f7c;
+    --accent-warn: #b45309;
+    --white: #0a0e1a;
+    --gray-100: #cdd5e0;
+    --gray-200: #94a3b8;
+    --gray-400: #334155;
+    --gray-600: #1e293b;
+    --success: #15803d;
+    --warn: #b45309;
+    --profile-a: #1e3a8a;
+    --profile-b: #15803d;
+    --profile-c: #b91c1c;
+    --card-shadow: 0 1px 3px rgba(15,23,42,0.10), 0 1px 2px rgba(15,23,42,0.06);
   }
   /* ── Topbar ── */
-  [data-theme="light"] .topbar { background: #14304f; }
-  [data-theme="light"] .topbar-badge { background: rgba(255,255,255,0.15); }
-  [data-theme="light"] .refresh-btn { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.2); }
-  [data-theme="light"] .export-btn { background: #9a5f00; color: #fff; }
+  [data-theme="light"] .topbar { background: #1e3a5f; }
+  [data-theme="light"] .topbar-badge { background: rgba(255,255,255,0.18); }
+  [data-theme="light"] .refresh-btn { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.22); }
+  [data-theme="light"] .export-btn { background: #1e3a5f; color: #fff; }
   /* ── Sidebar ── */
-  /* P57 W6: lightened sidebar (was #dce1e8) to match palette A. */
-  [data-theme="light"] .sidebar { background: #eef1f5; border-right-color: rgba(0,0,0,0.16); }
-  [data-theme="light"] .sidebar .county-header { color: #14304f; }
-  [data-theme="light"] .sidebar .muni-item { color: #1a2a40; }
-  [data-theme="light"] .sidebar .muni-item:hover { background: rgba(20,48,79,0.1); }
-  [data-theme="light"] .sidebar .muni-item.active { background: rgba(20,48,79,0.15); color: #0d1e33; font-weight: 600; }
-  [data-theme="light"] #sidebar-search { background: #fff; border-color: rgba(0,0,0,0.15); color: #111820; }
+  [data-theme="light"] .sidebar { background: #d8dee8; border-right-color: rgba(30,41,59,0.22); }
+  [data-theme="light"] .sidebar .county-header { color: #1e3a5f; }
+  [data-theme="light"] .sidebar .muni-item { color: #14304f; }
+  [data-theme="light"] .sidebar .muni-item:hover { background: rgba(30,58,95,0.10); }
+  [data-theme="light"] .sidebar .muni-item.active { background: rgba(30,58,95,0.18); color: #0a1424; font-weight: 600; }
+  [data-theme="light"] #sidebar-search { background: #fff; border-color: rgba(30,41,59,0.22); color: #0a0e1a; }
   /* ── Overview ── */
-  [data-theme="light"] .overview-title { color: #0d1e33; }
-  [data-theme="light"] .overview-sub { color: #3a4555; }
-  [data-theme="light"] .stat-box { background: #f5f7fa; border: 1px solid rgba(0,0,0,0.08); }
-  [data-theme="light"] .stat-value { color: #14304f; }
-  [data-theme="light"] .stat-label { color: #4a5568; }
-  [data-theme="light"] .county-card { background: #ffffff; border-color: rgba(0,0,0,0.1); }
-  [data-theme="light"] .county-card .county-card-title { color: #14304f; }
+  [data-theme="light"] .overview-title { color: #0a1424; }
+  [data-theme="light"] .overview-sub { color: #334155; }
+  /* Panels elevate off the slate bg via shadow rather than tinted bg. */
+  [data-theme="light"] .stat-box { background: #ffffff; border: 1px solid rgba(30,41,59,0.16); box-shadow: var(--card-shadow); }
+  [data-theme="light"] .stat-value { color: #1e3a5f; }
+  [data-theme="light"] .stat-label { color: #334155; }
+  [data-theme="light"] .county-card { background: #ffffff; border-color: rgba(30,41,59,0.16); box-shadow: var(--card-shadow); }
+  [data-theme="light"] .county-card .county-card-title { color: #1e3a5f; }
   /* ── Members view ── */
-  [data-theme="light"] .muni-title { color: #0d1e33; }
-  [data-theme="light"] .muni-county { color: #3a4555; }
-  [data-theme="light"] .muni-summary-card { background: #f8f9fb; border-color: rgba(0,0,0,0.1); }
-  [data-theme="light"] .member-card { background: #ffffff; border-color: rgba(0,0,0,0.1); }
-  [data-theme="light"] .member-card:hover { background: #f0f3f7; border-color: rgba(20,48,79,0.25); }
-  [data-theme="light"] .member-name { color: #0d1e33; }
-  [data-theme="light"] .member-role { color: #3a4555; }
-  [data-theme="light"] .member-detail { background: #f3f5f8; border-left-color: rgba(0,0,0,0.1); }
-  [data-theme="light"] .member-detail .member-detail-name { color: #0d1e33; }
-  [data-theme="light"] .members-tab { color: #4a5568; }
-  [data-theme="light"] .members-tab:hover { color: #14304f; }
-  [data-theme="light"] .members-tab.active { color: #9a5f00; border-bottom-color: #9a5f00; }
-  [data-theme="light"] .members-tabs { border-bottom-color: rgba(0,0,0,0.1); }
-  [data-theme="light"] .profile-badge { border-color: rgba(0,0,0,0.2); }
+  [data-theme="light"] .muni-title { color: #0a1424; }
+  [data-theme="light"] .muni-county { color: #334155; }
+  [data-theme="light"] .muni-summary-card { background: #ffffff; border-color: rgba(30,41,59,0.16); box-shadow: var(--card-shadow); }
+  [data-theme="light"] .member-card { background: #ffffff; border-color: rgba(30,41,59,0.16); box-shadow: var(--card-shadow); }
+  [data-theme="light"] .member-card:hover { background: #f0f4fa; border-color: rgba(30,58,95,0.32); }
+  [data-theme="light"] .member-name { color: #0a1424; }
+  [data-theme="light"] .member-role { color: #334155; }
+  [data-theme="light"] .member-detail { background: #f0f4fa; border-left-color: rgba(30,41,59,0.18); }
+  [data-theme="light"] .member-detail .member-detail-name { color: #0a1424; }
+  [data-theme="light"] .members-tab { color: #334155; }
+  [data-theme="light"] .members-tab:hover { color: #1e3a5f; }
+  [data-theme="light"] .members-tab.active { color: #b45309; border-bottom-color: #b45309; }
+  [data-theme="light"] .members-tabs { border-bottom-color: rgba(30,41,59,0.18); }
+  [data-theme="light"] .profile-badge { border-color: rgba(30,41,59,0.28); }
   /* ── Settings ── */
-  [data-theme="light"] .settings-card { background: #ffffff; border-color: rgba(0,0,0,0.1); }
-  [data-theme="light"] .settings-card-title { color: #14304f; }
+  [data-theme="light"] .settings-card { background: #ffffff; border-color: rgba(30,41,59,0.16); box-shadow: var(--card-shadow); }
+  [data-theme="light"] .settings-card-title { color: #1e3a5f; }
   [data-theme="light"] .settings-input,
-  [data-theme="light"] .settings-select { background: #f0f2f5; border-color: rgba(0,0,0,0.15); color: #111820; }
-  [data-theme="light"] .settings-save-btn { background: #14304f; color: #fff; }
+  [data-theme="light"] .settings-select { background: #ffffff; border-color: rgba(30,41,59,0.22); color: #0a0e1a; }
+  [data-theme="light"] .settings-save-btn { background: #1e3a5f; color: #fff; }
   /* ── Public Hearings ── */
-  /* P57 W6: darker TH bg + dividers per palette A high-contrast direction. */
-  [data-theme="light"] .hearings-th { background: #d8dee5; color: #0d1e33; border-bottom: 2px solid rgba(0,0,0,0.20); }
-  [data-theme="light"] .hearings-td { color: #0f1419; border-bottom-color: rgba(0,0,0,0.14); }
-  /* P57 W3: dark-mode .hearing-row uses a white-tinted alpha border — invisible
-     on light background. P57 W6: bumped to 0.14 for palette A parity. */
-  [data-theme="light"] .hearing-row { border-bottom-color: rgba(0,0,0,0.14); }
-  [data-theme="light"] .hearings-table-row:hover { background: rgba(20,48,79,0.04); }
+  [data-theme="light"] .hearings-th { background: #cdd5e0; color: #0a1424; border-bottom: 2px solid rgba(30,41,59,0.26); }
+  [data-theme="light"] .hearings-td { color: #0a0e1a; border-bottom-color: rgba(30,41,59,0.18); }
+  [data-theme="light"] .hearing-row { border-bottom-color: rgba(30,41,59,0.18); }
+  [data-theme="light"] .hearings-table-row:hover { background: rgba(30,58,95,0.06); }
   /* P69: YouTube button repainted to match Agenda/Minutes default (blue palette). */
-  [data-theme="light"] .hearing-link.yt { background: rgba(42,95,165,0.1); color: #1e4570; border-color: rgba(42,95,165,0.25); }
+  [data-theme="light"] .hearing-link.yt { background: rgba(30,58,95,0.10); color: #1e3a5f; border-color: rgba(30,58,95,0.32); }
   /* P58.8 r5: light-theme teal default / orange flagged for Summary. */
-  [data-theme="light"] .hearing-link.doc { background: rgba(20,140,140,0.1); color: #1a8080; border-color: rgba(20,140,140,0.3); }
-  /* P75: flagged Summary repainted from orange to red so the flag state is
-     unambiguous next to the orange-accent palette used elsewhere in the UI. */
-  [data-theme="light"] .hearing-link.doc.summary-flagged { background: rgba(180,30,30,0.12); color: #b41e1e; border-color: rgba(180,30,30,0.45); }
-  /* P58.8 r5: Agenda+Minutes light defaults → blue (was green for Agenda; no
-     rule existed for Minutes). Green is now the approved-state overlay only. */
+  [data-theme="light"] .hearing-link.doc { background: rgba(20,140,140,0.10); color: #14706b; border-color: rgba(20,140,140,0.32); }
+  /* P75: flagged Summary repainted to crimson per Option 3 CTA palette. */
+  [data-theme="light"] .hearing-link.doc.summary-flagged { background: rgba(185,28,28,0.12); color: #991b1b; border-color: rgba(185,28,28,0.45); }
+  /* P80 Stage 1.9: coverage_state visitor palette (light theme). */
+  [data-theme="light"] .hearing-link.doc.summary-partial-accept,
+  [data-theme="light"] .ph-meeting-link.yt.summary-partial-accept { background: rgba(180,83,9,0.12); color: #92400e; border-color: rgba(180,83,9,0.36); }
+  [data-theme="light"] .hearing-link.doc.summary-partial-nosrc,
+  [data-theme="light"] .ph-meeting-link.yt.summary-partial-nosrc { background: rgba(100,116,139,0.12); color: #475569; border-color: rgba(100,116,139,0.32); }
+  [data-theme="light"] .summary-pending-placeholder { color: #64748b; font-style: italic; font-size: 10px; }
+  /* P58.8 r5: Agenda+Minutes light defaults → blue. Green is approved-state overlay. */
   [data-theme="light"] .hearing-link.ag,
-  [data-theme="light"] .hearing-link.min { background: rgba(42,95,165,0.1); color: #1e4570; border-color: rgba(42,95,165,0.25); }
+  [data-theme="light"] .hearing-link.min { background: rgba(30,58,95,0.10); color: #1e3a5f; border-color: rgba(30,58,95,0.32); }
   [data-theme="light"] .ag-item.ag-approved .hearing-link.ag,
   [data-theme="light"] .mn-cell.mn-approved .hearing-link.min,
-  [data-theme="light"] .hearing-link.doc.summary-confirmed { background: rgba(13,90,42,0.15); color: #0d5428; border-color: rgba(13,90,42,0.35); }
-  [data-theme="light"] .yt-resubmit-btn { background: rgba(20,48,79,0.08); border-color: rgba(20,48,79,0.2); color: #1e4570; }
-  [data-theme="light"] .ag-correct-btn.yes { background: rgba(13,90,42,0.1); border-color: rgba(13,90,42,0.25); color: #0d5428; }
-  [data-theme="light"] .ag-correct-btn.no { background: rgba(160,30,30,0.1); border-color: rgba(160,30,30,0.25); color: #8a1e1e; }
-  [data-theme="light"] .ph-review-btn { background: rgba(20,48,79,0.08); border-color: rgba(20,48,79,0.2); color: #3a4555; }
-  [data-theme="light"] .ph-review-btn.done { background: rgba(13,90,42,0.1); border-color: rgba(13,90,42,0.25); color: #0d5428; }
+  [data-theme="light"] .hearing-link.doc.summary-confirmed { background: rgba(21,128,61,0.14); color: #15803d; border-color: rgba(21,128,61,0.38); }
+  [data-theme="light"] .yt-resubmit-btn { background: rgba(30,58,95,0.08); border-color: rgba(30,58,95,0.26); color: #1e3a5f; }
+  [data-theme="light"] .ag-correct-btn.yes { background: rgba(21,128,61,0.10); border-color: rgba(21,128,61,0.32); color: #15803d; }
+  /* P86: crimson CTA — was #8a1e1e (dark blood red), now slate-palette crimson. */
+  [data-theme="light"] .ag-correct-btn.no { background: rgba(185,28,28,0.10); border-color: rgba(185,28,28,0.32); color: #b91c1c; }
+  [data-theme="light"] .ph-review-btn { background: rgba(30,58,95,0.08); border-color: rgba(30,58,95,0.26); color: #334155; }
+  [data-theme="light"] .ph-review-btn.done { background: rgba(21,128,61,0.10); border-color: rgba(21,128,61,0.32); color: #15803d; }
   /* ── Intel Feed ── */
-  [data-theme="light"] .intel-item { background: #ffffff; border-color: rgba(0,0,0,0.08); }
-  [data-theme="light"] .tag-filter-btn { background: rgba(20,48,79,0.08); border-color: rgba(20,48,79,0.15); color: #3a4555; }
+  [data-theme="light"] .intel-item { background: #ffffff; border-color: rgba(30,41,59,0.14); box-shadow: var(--card-shadow); }
+  [data-theme="light"] .tag-filter-btn { background: rgba(30,58,95,0.08); border-color: rgba(30,58,95,0.22); color: #334155; }
   /* ── Gemini chat ── */
-  [data-theme="light"] .gemini-chat-header { background: rgba(20,48,79,0.08); color: #14304f; }
-  [data-theme="light"] .gemini-chat-input { background: #f0f2f5; border-color: rgba(0,0,0,0.15); color: #111820; }
+  [data-theme="light"] .gemini-chat-header { background: rgba(30,58,95,0.10); color: #1e3a5f; }
+  [data-theme="light"] .gemini-chat-input { background: #ffffff; border-color: rgba(30,41,59,0.22); color: #0a0e1a; }
   /* ── Tracked projects ── */
-  [data-theme="light"] .tracked-project-card { background: #ffffff; border-color: rgba(0,0,0,0.1); }
+  [data-theme="light"] .tracked-project-card { background: #ffffff; border-color: rgba(30,41,59,0.16); box-shadow: var(--card-shadow); }
   /* ── Schedule ── */
-  [data-theme="light"] .sched-step { border-left-color: #9a5f00; }
-  [data-theme="light"] .sched-step::before { background: #9a5f00; }
-  [data-theme="light"] .sched-step-date { color: #9a5f00; }
+  [data-theme="light"] .sched-step { border-left-color: #b45309; }
+  [data-theme="light"] .sched-step::before { background: #b45309; }
+  [data-theme="light"] .sched-step-date { color: #b45309; }
   /* ── Warning banner ── */
-  [data-theme="light"] .muni-warn-banner { background: rgba(180,80,0,0.08); border-color: rgba(180,80,0,0.2); color: #8a4000; }
+  [data-theme="light"] .muni-warn-banner { background: rgba(180,83,9,0.10); border-color: rgba(180,83,9,0.28); color: #92400e; }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
   
@@ -1218,6 +1223,14 @@
   .hearing-link.doc { background: rgba(50,180,180,0.15); color: #5dd5d5; border: 1px solid rgba(50,180,180,0.4); }
   /* P75: flagged Summary repainted from orange to red — see light-theme rule above. */
   .hearing-link.doc.summary-flagged { background: rgba(220,40,40,0.18); color: #e07070; border-color: rgba(220,40,40,0.5); }
+  /* P80 Stage 1.9: coverage_state visitor palette (dark theme).
+     accept_as_partial → muted amber; no_better_source → neutral grey;
+     retry_*/needs_human_review/force_redraft → render placeholder span. */
+  .hearing-link.doc.summary-partial-accept,
+  .ph-meeting-link.yt.summary-partial-accept { background: rgba(200,150,40,0.16); color: #d8b35e; border-color: rgba(200,150,40,0.45); }
+  .hearing-link.doc.summary-partial-nosrc,
+  .ph-meeting-link.yt.summary-partial-nosrc { background: rgba(140,140,140,0.18); color: #b0b0b0; border-color: rgba(140,140,140,0.35); }
+  .summary-pending-placeholder { color: var(--text-dim); font-style: italic; font-size: 10px; }
   /* P58.8 r5: Approved-state green for the Agenda + Minutes anchor buttons
      themselves — replaces the r4 `.ag-reviewed-badge` span. The button
      becoming green is the persistent indicator the visitor's Yes click was
