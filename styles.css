@@ -63,11 +63,29 @@
     --profile-c: #b91c1c;
     --card-shadow: 0 1px 3px rgba(15,23,42,0.10), 0 1px 2px rgba(15,23,42,0.06);
   }
-  /* ── Topbar ── */
-  [data-theme="light"] .topbar { background: #1e3a5f; }
-  [data-theme="light"] .topbar-badge { background: rgba(255,255,255,0.18); }
-  [data-theme="light"] .refresh-btn { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.22); }
-  [data-theme="light"] .export-btn { background: #1e3a5f; color: #fff; }
+  /* ── Topbar ──
+     The topbar bg is dark navy in BOTH themes (an "inverted island").
+     Foreground colors must therefore be light regardless of page theme,
+     so override every interior text/icon color explicitly. */
+  [data-theme="light"] .topbar { background: #1e3a5f; border-bottom-color: rgba(255,255,255,0.12); }
+  [data-theme="light"] .topbar-logo { color: #f0b84a; }
+  [data-theme="light"] .topbar-logo span { color: rgba(255,255,255,0.65); }
+  [data-theme="light"] .topbar-btn { color: rgba(255,255,255,0.78); }
+  [data-theme="light"] .topbar-btn:hover { background: rgba(255,255,255,0.10); color: #ffffff; }
+  [data-theme="light"] .topbar-btn.active { background: rgba(240,184,74,0.18); color: #f0b84a; }
+  [data-theme="light"] .topbar-badge {
+    background: rgba(255,255,255,0.14);
+    border-color: rgba(255,255,255,0.24);
+    color: #cfe1f5;
+  }
+  [data-theme="light"] .refresh-btn {
+    background: rgba(255,255,255,0.10);
+    border-color: rgba(255,255,255,0.24);
+    color: rgba(255,255,255,0.85);
+  }
+  [data-theme="light"] .refresh-btn:hover { background: rgba(255,255,255,0.18); color: #ffffff; border-color: rgba(255,255,255,0.35); }
+  [data-theme="light"] .export-btn { background: #b45309; color: #ffffff; }
+  [data-theme="light"] .export-btn:hover { background: #c2410c; }
   /* ── Sidebar ── */
   [data-theme="light"] .sidebar { background: #d8dee8; border-right-color: rgba(30,41,59,0.22); }
   [data-theme="light"] .sidebar .county-header { color: #1e3a5f; }
