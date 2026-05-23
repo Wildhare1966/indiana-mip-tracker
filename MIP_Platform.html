@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com; img-src 'self' data:; frame-src https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p86r2">
+<link rel="stylesheet" href="styles.css?v=p87r1">
 </head>
 <body>
 
@@ -5600,9 +5600,9 @@ var tpLoadedAt = 0;
 // (Lennar, Pulte, Arbor, etc). Backed by Tracked_Projects.builder column,
 // patched via update_tracked_project.
 var TP_BUILDERS = [
-  'Lennar','Pulte','Arbor','MI Homes','DR Horton','Beazer','Fischer Homes',
-  'Drees','Onyx_East','Ryan/NVR','Davis','Estridge','David Weekley','Epcon',
-  'Old Town','Olthof','Taylor Morris'
+  'Arbor','Beazer','David Weekley','Davis','DR Horton','Drees','Epcon',
+  'Estridge','Fischer Homes','Lennar','MI Homes','Old Town','Olthof',
+  'Onyx_East','Pulte','Ryan/NVR','Taylor Morris'
 ];
 
 // P71 R3: persist Builder dropdown change via update_tracked_project. Optimistic
