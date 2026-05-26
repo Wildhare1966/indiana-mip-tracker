@@ -714,6 +714,22 @@ function inlineViewerUrl(url) {
   return 'https://docs.google.com/viewer?url=' + encodeURIComponent(s) + '&embedded=false';
 }
 
+// P90: Google Docs Viewer rejects PDFs >25 MB with "Couldn't preview file
+// — too large to preview." Westfield APC packet PDFs often exceed this
+// (e.g. fileId=3148 is 41.8 MB). For any URL that inlineViewerUrl() wraps,
+// emit a small sidecar `↓` link to the raw URL so the user can fall through
+// to the browser's native PDF handler when the viewer fails. Always-on,
+// additive — zero regression for the 80% of files that render fine inline.
+function isInlineViewerWrapped(url) {
+  if (!url) return false;
+  var FORCE_DOWNLOAD_RE = /(\.civicclerk\.com\/v1\/Meetings\/GetMeetingFileStream)|(^https?:\/\/(www\.)?greenfield\.in\.gov\/[^?#]*\?[^#]*\bdownload=)/i;
+  return FORCE_DOWNLOAD_RE.test(String(url));
+}
+function downloadSiblingHtml(url) {
+  if (!isInlineViewerWrapped(url)) return '';
+  return ' <a class="dl-sibling" href="' + escUrl(url) + '" target="_blank" rel="noopener" title="Download original PDF (use this if inline preview says &quot;too large&quot;)">⤓</a>';
+}
+
 // ── GEMINI CLIENT (P13: all calls proxied through Apps Script backend) ────────────────────────────
 // Project key lives ONLY in Apps Script Script Properties. The Settings "Gemini API Key" field
 // is now OPTIONAL — if set, it's forwarded to the proxy as a per-request override.
@@ -938,7 +954,7 @@ async function updateMemberVoteHistory(memberId, memberName, muniName, muniId, b
       if (!result) { if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Update Vote History'; } return; }
       memberVoteCache[memberId] = { text: result, sources: docs, timestamp: new Date().toLocaleDateString() };
       if (containerEl) {
-        const sourceLinks = docs.map(d => `<a href="${escUrl(inlineViewerUrl(d.url))}" target="_blank" data-doc-link="agenda" data-scraped-id="${escAttr(d.id || '')}">${esc(d.date)}</a>`).join(' · ');
+        const sourceLinks = docs.map(d => `<a href="${escUrl(inlineViewerUrl(d.url))}" target="_blank" data-doc-link="agenda" data-scraped-id="${escAttr(d.id || '')}">${esc(d.date)}</a>${downloadSiblingHtml(d.url)}`).join(' · ');
         containerEl.innerHTML = `
           <div class="vote-history-title">Vote / Position History — ${esc(memberName)}</div>
           <div class="vote-history-item" style="white-space:pre-wrap;">${esc(result)}</div>
@@ -4215,7 +4231,7 @@ function renderBodySection(bodyLabel, dates, muniId) {
         // P75: stash meeting metadata on the wrapper so agReject can wire
         // the post-rejection "+ Add Agenda" fallback without re-deriving them.
         let h = `<div class="ag-item${cls}" id="${esc(agId)}" data-meeting-date="${escAttr(entry.date)}" data-meeting-type="${escAttr(sd.meeting_type || entry.meeting_type || '')}" data-muni-id="${escAttr(muniId)}">`;
-        h += sdUrl ? `<a href="${escUrl(inlineViewerUrl(sdUrl))}" target="_blank" class="hearing-link ag" data-doc-link="agenda" data-scraped-id="${escAttr(sd.id || '')}">↓ Agenda</a>` : `<span class="hearing-link ag" style="cursor:default;">↓ Agenda</span>`;
+        h += sdUrl ? `<a href="${escUrl(inlineViewerUrl(sdUrl))}" target="_blank" class="hearing-link ag" data-doc-link="agenda" data-scraped-id="${escAttr(sd.id || '')}">↓ Agenda</a>${downloadSiblingHtml(sdUrl)}` : `<span class="hearing-link ag" style="cursor:default;">↓ Agenda</span>`;
         // P58.8 r5: approved state is now signalled by the green button itself
         // (CSS `.ag-item.ag-approved .hearing-link.ag`). No `.ag-reviewed-badge`
         // span — Yes/No buttons simply disappear and the anchor turns green.
@@ -4252,7 +4268,7 @@ function renderBodySection(bodyLabel, dates, muniId) {
       const mnBtnNId = 'mnn_' + muniId + '_' + rowIdx;
       const mnApprovedCls = mnStatus === 'approved' ? ' mn-approved' : mnStatus === 'rejected' ? ' mn-rejected' : '';
       mnCell = `<span id="${esc(mnRowId)}" class="mn-cell${mnApprovedCls}">`;
-      mnCell += `<a href="${escUrl(inlineViewerUrl(entry.minutes_url))}" target="_blank" class="hearing-link min" data-doc-link="minutes" data-scraped-id="${escAttr(mnSdId || entry.meeting_id || '')}">↓ Minutes</a>`;
+      mnCell += `<a href="${escUrl(inlineViewerUrl(entry.minutes_url))}" target="_blank" class="hearing-link min" data-doc-link="minutes" data-scraped-id="${escAttr(mnSdId || entry.meeting_id || '')}">↓ Minutes</a>${downloadSiblingHtml(entry.minutes_url)}`;
       // Yes/No only if we have a Scraped_Documents id to act on. Meetings-tab-
       // sourced minutes (no sd_id) keep the operator ✕ remove path inline instead.
       if (mnSdId) {
@@ -5731,7 +5747,7 @@ function tpRenderTable() {
     var ytHref = summaryDocUrl || p.latestYtSummaryUrl || '';
     var ytLabel = summaryDocUrl ? 'Summary' : (p.latestYtSummaryUrl ? 'YouTube' : '');
     var agenda  = p.latestAgendaUrl
-      ? '<a class="tp-doc-link" href="' + esc(inlineViewerUrl(p.latestAgendaUrl)) + '" target="_blank" rel="noopener" data-doc-link="agenda">Agenda</a>'
+      ? '<a class="tp-doc-link" href="' + esc(inlineViewerUrl(p.latestAgendaUrl)) + '" target="_blank" rel="noopener" data-doc-link="agenda">Agenda</a>' + downloadSiblingHtml(p.latestAgendaUrl)
       : '<span style="color:var(--muted,#888);">—</span>';
     var yt = ytHref
       ? '<a class="tp-doc-link" href="' + esc(ytHref) + '" target="_blank" rel="noopener" data-doc-link="' + (summaryDocUrl ? 'summary' : 'youtube') + '">' + esc(ytLabel) + '</a>'
@@ -7069,7 +7085,7 @@ function phRenderWeeklyHearings() {
           if (u) { agUrl = u; agScrapedId = sd.id || ''; break; }
         }
         var agLink = agUrl
-          ? '<a href="' + escUrl(inlineViewerUrl(agUrl)) + '" target="_blank" class="ph-meeting-link ag" title="Agenda" data-doc-link="agenda" data-scraped-id="' + escAttr(agScrapedId) + '">Agenda</a>'
+          ? '<a href="' + escUrl(inlineViewerUrl(agUrl)) + '" target="_blank" class="ph-meeting-link ag" title="Agenda" data-doc-link="agenda" data-scraped-id="' + escAttr(agScrapedId) + '">Agenda</a>' + downloadSiblingHtml(agUrl)
           : '<span class="ph-meeting-link ag disabled" title="No agenda">Agenda</span>';
         // P80 Stage 1.9: coverage_state branching (parallel to per-juris muni page).
         var phCovState = (e.coverage_state || '').toLowerCase();
@@ -7094,7 +7110,7 @@ function phRenderWeeklyHearings() {
           sumLink = '<span class="ph-meeting-link yt disabled" title="No summary">Summary</span>';
         }
         var mnLink = e.minutes_url
-          ? '<a href="' + escUrl(inlineViewerUrl(e.minutes_url)) + '" target="_blank" class="ph-meeting-link mn" title="Minutes" data-doc-link="minutes" data-scraped-id="' + escAttr(e.meeting_id || '') + '">Minutes</a>'
+          ? '<a href="' + escUrl(inlineViewerUrl(e.minutes_url)) + '" target="_blank" class="ph-meeting-link mn" title="Minutes" data-doc-link="minutes" data-scraped-id="' + escAttr(e.meeting_id || '') + '">Minutes</a>' + downloadSiblingHtml(e.minutes_url)
           : '<span class="ph-meeting-link mn disabled" title="No minutes">Minutes</span>';
 
         // P38 C.3: mirror per-muni inline YT title — visible truncated, click

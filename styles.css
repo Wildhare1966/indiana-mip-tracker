@@ -3249,3 +3249,30 @@ body.agenda-panel-locked { overflow: hidden; }
   .agenda-panel-project { max-width: 100%; flex: 1 1 100%; }
   .agenda-panel-tag-btn { width: 44px; height: 44px; } /* touch target */
 }
+
+/* P90: sidecar "↓" link appears next to any Agenda/Minutes link whose URL
+   would be wrapped through Google Docs Viewer (CivicClerk, Greenfield).
+   Provides a manual fallback when the viewer rejects large PDFs (>25 MB)
+   with "Couldn't preview file — too large to preview." */
+.dl-sibling {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 4px;
+  font-size: 11px;
+  line-height: 1;
+  text-decoration: none;
+  color: var(--text-dim, #888);
+  border: 1px solid transparent;
+  border-radius: 3px;
+  opacity: 0.7;
+  vertical-align: baseline;
+  cursor: pointer;
+}
+.dl-sibling:hover {
+  opacity: 1;
+  color: var(--text, #ddd);
+  border-color: var(--border, rgba(255,255,255,0.15));
+  background: var(--surface-hover, rgba(255,255,255,0.04));
+}
+[data-theme="light"] .dl-sibling { color: #666; }
+[data-theme="light"] .dl-sibling:hover { color: #1e3a5f; border-color: rgba(30,58,95,0.32); background: rgba(30,58,95,0.06); }
