@@ -2440,8 +2440,12 @@ function tprSubmitProject() {
     return;
   }
   // Duplicate detection (same logic as phAddProject — match ord or name).
+  // Skip archived/closed/deleted rows so they don't block re-adding a name the
+  // operator can no longer see in the rail or on the TP page (P91 filter-mismatch fix).
   var rows = (typeof tpProjects !== 'undefined' && Array.isArray(tpProjects)) ? tpProjects : [];
   var dup = rows.find(function(p) {
+    var st = (p.status || 'active').toLowerCase();
+    if (st === 'archived' || st === 'closed' || st === 'deleted') return false;
     if (ord && p.ordinanceId && p.ordinanceId.toLowerCase() === ord.toLowerCase()) return true;
     if ((p.projectName || '').toLowerCase() === name.toLowerCase()) return true;
     return false;
@@ -6754,8 +6758,14 @@ function phSaveReviewed() {
 
 // Active projects from the shared cache. Empty array if tpLoad hasn't run yet.
 function phTrackedRows() {
+  // P91: align with tpRenderTable display filter — archived/closed/deleted are
+  // hidden everywhere users can see, so dup-detection must hide them too.
+  // Without this, a deleted project becomes invisible-but-unreplaceable.
   var rows = (typeof tpProjects !== 'undefined' && Array.isArray(tpProjects)) ? tpProjects : [];
-  return rows.filter(function(p) { return (p.status || 'active') !== 'closed'; });
+  return rows.filter(function(p) {
+    var st = (p.status || 'active').toLowerCase();
+    return st !== 'archived' && st !== 'closed' && st !== 'deleted';
+  });
 }
 
 function phAddProject() {
