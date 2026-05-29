@@ -577,6 +577,11 @@
      right-side member-detail pane so the muni-panel expands full-width. */
   .muni-view-inner.hide-member-detail .member-detail { display: none; }
 
+  /* P91 r3: when on the Council Members or Plan Commission Members sub-tab,
+     hide the Tracked Projects rail so the Member profile rail can take its
+     place on the right. Tab-driven via applyMuniDetailVisibility. */
+  .muni-view-inner.hide-tp-rail .muni-tp-rail { display: none; }
+
   /* P58.8: Tracked Projects rail. Sticky right column on per-juris page,
      populated by renderTpRail(). Sits between muni-panel and member-detail.
      Has its own inner scroll so the muni-panel scroll stays independent.

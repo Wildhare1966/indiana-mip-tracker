@@ -2716,11 +2716,20 @@ function toggleMuniSummary(muniId) {
 
 // P58.7 R7: hide member-detail pane when on the Public Hearings sub-tab so
 // the per-juris content gets full width for the hearings table.
+// P91 r3: also swap rails — Council/PC tabs hide the Tracked Projects rail
+// and show the Member profile rail, Public Hearings tab keeps the rail and
+// hides member-detail (pre-existing behavior).
 function applyMuniDetailVisibility() {
   var inner = document.querySelector('#view-muni .muni-view-inner');
   if (!inner) return;
-  if (currentTab === 'hearings') inner.classList.add('hide-member-detail');
-  else inner.classList.remove('hide-member-detail');
+  if (currentTab === 'hearings') {
+    inner.classList.add('hide-member-detail');
+    inner.classList.remove('hide-tp-rail');
+  } else {
+    // council / pc — member profile rail visible, TP rail hidden
+    inner.classList.remove('hide-member-detail');
+    inner.classList.add('hide-tp-rail');
+  }
 }
 
 // P58.7 R2: Report Issue submit — POSTs to Apps Script submit_issue_report.
