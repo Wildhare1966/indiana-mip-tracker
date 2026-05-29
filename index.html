@@ -2069,6 +2069,20 @@ var tprDocsByProject = {};
 var tprDocsExpandedByProject = {};
 var TPR_DOCS_COLLAPSED_MAX = 5;
 
+// P91: jurisdiction-name normalizer for rail vs Tracked_Projects.jurisdiction
+// equality. Older TP rows were written with bare muni names ("Noblesville"),
+// newer rows carry "City of Noblesville" / "Town of Avon" / ", Indiana"
+// suffixes — the backend list_tracked_projects substring-matches so they
+// reach the FE, but the rail's strict-equality filter strands the legacy form.
+// Strip the well-known prefixes/suffix on both sides before comparing.
+function _normJurisName(s) {
+  return String(s || '').toLowerCase()
+    .replace(/^city of\s+/, '')
+    .replace(/^town of\s+/, '')
+    .replace(/,\s*indiana$/, '')
+    .trim();
+}
+
 function renderTpRail(m) {
   var rail = document.getElementById('muni-tp-rail');
   if (!rail || !m) return;
@@ -2085,11 +2099,22 @@ function renderTpRail(m) {
     return;
   }
 
-  var muniName = (m.name || '').toLowerCase();
+  // P91: normalize on both sides so rows written with the bare muni name
+  // ("Noblesville") still match a currentMuni.name carrying a "City of " /
+  // "Town of " prefix or ", Indiana" suffix. Without this, legacy TP rows
+  // get stranded — visible on the TP page (substring filter) but invisible
+  // on the rail (exact-match filter). Surfaced by Bending Branch reappearing
+  // after restore but not on the Noblesville rail.
+  var muniName = _normJurisName(m.name);
   var rows = tpProjects.filter(function(p) {
     var st = (p.status || 'active').toLowerCase();
-    if (st === 'closed' || st === 'archived') return false;
-    return (p.jurisdiction || '').toLowerCase() === muniName;
+    // P91: align with tpRenderTable (line ~5691) — `deleted` was previously
+    // missing from this filter, so soft-deleted rows leaked back into the rail
+    // once the juris normalization fix above let them through the equality
+    // gate. The display contract is: archived / closed / deleted are hidden
+    // wherever the user can see project lists.
+    if (st === 'closed' || st === 'archived' || st === 'deleted') return false;
+    return _normJurisName(p.jurisdiction) === muniName;
   });
 
   var keyOf = function(p) {
@@ -5857,7 +5882,7 @@ function tpRenderTable() {
     return '<tr data-project-id="' + pidAttr + '" style="border-bottom:1px solid var(--border,#2a2a2a);">' +
       '<td style="padding:6px 4px;vertical-align:top;text-align:center;">' + editBtn + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' +
-        '<div style="font-weight:600;">' + esc(p.projectName || '(untitled)') + '</div>' +
+        '<div class="tp-project-name">' + esc(p.projectName || '(untitled)') + '</div>' +
         (p.ordinanceId ? '<div style="font-size:10px;color:var(--muted,#888);">' + esc(p.ordinanceId) + '</div>' : '') +
       '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;text-align:center;">' + lotsCell + '</td>' +

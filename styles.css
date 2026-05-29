@@ -636,10 +636,20 @@
   .tpr-project-name {
     flex: 1; min-width: 0;
     font-weight: 600;
-    color: var(--text);
+    /* P91: bright teal — Tailwind teal-500 dark / teal-700 light. Shared with
+       .tp-project-name on the global Tracked Projects page. */
+    color: #14b8a6;
     line-height: 1.3;
     word-break: break-word;
   }
+  [data-theme="light"] .tpr-project-name { color: #0f766e; }
+
+  /* P91: matching rule for the global Tracked Projects page project-name cell. */
+  .tp-project-name {
+    font-weight: 600;
+    color: #14b8a6;
+  }
+  [data-theme="light"] .tp-project-name { color: #0f766e; }
   .tpr-project-ord {
     font-weight: 400;
     color: var(--text-dim);
