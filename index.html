@@ -25,7 +25,7 @@
     <button class="topbar-btn" onclick="switchView('publichearings')" id="nav-publichearings">Hearing Schedule</button>
     <button class="topbar-btn" onclick="switchView('tracked')" id="nav-tracked">Tracked Projects</button>
     <button class="topbar-btn" onclick="switchView('schedule')" id="nav-schedule">Schedule & Requirements</button>
-    <button class="topbar-btn" onclick="switchView('market')" id="nav-market">Market Intel</button>
+    <button class="topbar-btn" onclick="switchView('market')" id="nav-market">Zonda</button>
     <button class="topbar-btn" onclick="switchView('settings')" id="nav-settings">⚙ Settings</button>
     <!-- P80 Stage 1.8: operator-only review queue. Hidden until isOperator()
          flips it visible at boot. -->
@@ -1886,6 +1886,11 @@ function switchView(name) {
   var navEl = document.getElementById('nav-' + name);
   if (viewEl) viewEl.classList.add('active');
   if (navEl) navEl.classList.add('active');
+  // Zonda (Market Intel) is a full-bleed embedded dashboard — hide the global
+  // county/muni sidebar so the iframe spans the full content width. Restored
+  // (style.display='') for every other view.
+  var sb = document.querySelector('.sidebar');
+  if (sb) sb.style.display = (name === 'market') ? 'none' : '';
   // Always-run per-open init for settings (reads fresh state)
   if (name === 'settings') initSettings();
   // One-shot init for lazy-initialized views (PH, Schedule)
