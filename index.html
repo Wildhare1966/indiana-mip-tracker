@@ -25,6 +25,7 @@
     <button class="topbar-btn" onclick="switchView('publichearings')" id="nav-publichearings">Hearing Schedule</button>
     <button class="topbar-btn" onclick="switchView('tracked')" id="nav-tracked">Tracked Projects</button>
     <button class="topbar-btn" onclick="switchView('schedule')" id="nav-schedule">Schedule & Requirements</button>
+    <button class="topbar-btn" onclick="switchView('market')" id="nav-market">Market Intel</button>
     <button class="topbar-btn" onclick="switchView('settings')" id="nav-settings">⚙ Settings</button>
     <!-- P80 Stage 1.8: operator-only review queue. Hidden until isOperator()
          flips it visible at boot. -->
@@ -559,6 +560,14 @@
           </table>
         </div>
       </div>
+    </div>
+
+    <!-- MARKET INTEL VIEW — embedded Zonda dashboard (iframe, visuals self-contained).
+         Lazy-loaded: iframe src is set on first open via registerViewInit('market', …). -->
+    <div id="view-market" class="view" style="padding:0;">
+      <iframe id="market-frame" title="Market Intel — Indianapolis New Home Market"
+              style="width:100%;height:calc(100vh - 52px);border:0;display:block;"
+              referrerpolicy="no-referrer"></iframe>
     </div>
 
   </div>
@@ -1864,6 +1873,12 @@ var _viewInited = {};
 function registerViewInit(name, fn) {
   _viewInitRegistry[name] = fn;
 }
+// Market Intel: defer loading the embedded dashboard (and its ~22MB of CSVs)
+// until the operator first opens the page. Theme-follow wiring added in Phase 3.
+registerViewInit('market', function () {
+  var f = document.getElementById('market-frame');
+  if (f && !f.src) f.src = 'dashboard.html';
+});
 function switchView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.topbar-btn').forEach(b => b.classList.remove('active'));

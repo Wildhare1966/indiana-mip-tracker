@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Zonda Dashboard — Indianapolis New Home Market</title>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#f1f4f8; --panel:#ffffff; --ink:#1f2733; --muted:#6b7785;
+    --line:#dfe5ec; --brand:#1b4965; --brand2:#2c7da0; --accent:#e8a30c;
+    --good:#2e8b57; --bad:#c0392b; --shadow:0 1px 3px rgba(16,30,54,.08),0 1px 2px rgba(16,30,54,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--ink);font-size:14px;line-height:1.4}
+  header.app{background:var(--brand);color:#fff;padding:10px 20px;display:flex;flex-wrap:wrap;
+    align-items:center;justify-content:space-between;gap:10px 16px;box-shadow:var(--shadow);position:sticky;top:0;z-index:30}
+  header.app h1{font-size:17px;margin:0;font-weight:700;letter-spacing:.2px;white-space:nowrap}
+  header.app .sub{font-size:12px;opacity:.85;font-weight:400}
+  .compare-center{flex:1 1 auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center}
+  .compare-center .lbl{font-size:12px;text-transform:uppercase;letter-spacing:.7px;font-weight:700;opacity:.9}
+  .hdr-actions{display:flex;gap:8px;align-items:center}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+  .seg button{border:none;background:#fff;padding:7px 13px;font-size:13px;font-weight:600;cursor:pointer;color:var(--muted)}
+  .seg button+button{border-left:1px solid var(--line)}
+  .seg button.active{background:var(--brand2);color:#fff}
+  .seg.dark{border-color:rgba(255,255,255,.5)}
+  .seg.dark button{background:transparent;color:#eaf2f7}
+  .seg.dark button+button{border-left-color:rgba(255,255,255,.35)}
+  .seg.dark button.active{background:#fff;color:var(--brand)}
+  .layout{display:flex;align-items:stretch;min-height:calc(100vh - 52px)}
+  aside.filters{width:288px;flex:0 0 288px;background:var(--panel);border-right:1px solid var(--line);
+    padding:16px;overflow-y:auto;max-height:calc(100vh - 52px);position:sticky;top:52px;transition:flex-basis .15s,width .15s}
+  aside.filters.collapsed{width:46px;flex:0 0 46px;padding:14px 6px;overflow:visible}
+  aside.filters.collapsed #railBody{display:none}
+  main.content{flex:1;padding:18px 22px;overflow-x:hidden;min-width:0}
+  .rail-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .rail-head .rh-title{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:700}
+  .rail-toggle{border:1px solid var(--line);background:#fff;border-radius:6px;cursor:pointer;padding:4px 9px;font-size:13px;color:var(--brand2);font-weight:800;line-height:1}
+  aside.filters.collapsed .rail-head{justify-content:center}
+  aside.filters.collapsed .rh-title{display:none}
+  .view-seg{display:flex;width:100%;margin-bottom:14px}
+  .view-seg button{flex:1}
+  .filters h2{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:14px 0 4px;font-weight:700}
+  .match-count{font-size:13px;color:var(--ink);margin:2px 0 14px}
+  .match-count b{color:var(--brand2);font-size:16px}
+  .fgroup{margin-bottom:12px}
+  .fgroup>label{display:block;font-size:12px;font-weight:600;color:var(--ink);margin-bottom:4px}
+  #smLevelGroup .seg{width:100%}
+  #smLevelGroup .seg button{flex:1;font-size:12px;padding:7px 4px}
+  .ms{position:relative}
+  .ms-btn{width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:6px;
+    padding:7px 28px 7px 10px;font-size:13px;cursor:pointer;color:var(--ink);position:relative;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ms-btn:after{content:"▾";position:absolute;right:9px;top:7px;color:var(--muted);font-size:11px}
+  .ms-btn.has-sel{border-color:var(--brand2);background:#f3f9fc}
+  .ms-panel{display:none;position:absolute;left:0;right:0;top:calc(100% + 3px);background:#fff;
+    border:1px solid var(--line);border-radius:6px;box-shadow:var(--shadow);z-index:20;max-height:260px;overflow:hidden;flex-direction:column}
+  .ms-panel.open{display:flex}
+  .ms-search{border:none;border-bottom:1px solid var(--line);padding:7px 10px;font-size:13px;outline:none}
+  .ms-tools{display:flex;gap:8px;padding:5px 10px;border-bottom:1px solid var(--line);font-size:11px}
+  .ms-tools a{color:var(--brand2);cursor:pointer;text-decoration:none;font-weight:600}
+  .ms-list{overflow-y:auto;padding:4px 0}
+  .ms-opt{display:flex;align-items:center;gap:8px;padding:5px 10px;font-size:13px;cursor:pointer}
+  .ms-opt:hover{background:#f3f9fc}
+  .ms-opt input{margin:0}
+  .ms-opt span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .period-row{display:flex;gap:8px}
+  .period-row select{flex:1;min-width:0}
+  select.sel,input.sel{width:100%;border:1px solid var(--line);border-radius:6px;padding:7px 10px;font-size:13px;background:#fff}
+  .btn{border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:6px;padding:7px 12px;
+    font-size:13px;cursor:pointer;font-weight:600;transition:background .12s,border-color .12s,box-shadow .12s}
+  .btn:hover{background:#f3f9fc;border-color:var(--brand2)}
+  .btn.primary{background:var(--brand2);border-color:var(--brand2);color:#fff}
+  .btn.primary:hover{background:#256a87}
+  .btn.ghost{background:transparent;border-color:rgba(255,255,255,.5);color:#fff}
+  .btn.ghost:hover{background:rgba(255,255,255,.12)}
+  .btn.sm{padding:5px 9px;font-size:12px}
+  .btn.on{background:var(--brand2);color:#fff;border-color:var(--brand2)}
+  .btn.on:hover{background:#256a87}
+  .btn.dirty{box-shadow:0 0 0 3px rgba(232,163,12,.45)}
+  .btn-row{display:flex;gap:8px;margin-top:6px}
+  .kpi-bar{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .kpi-bar button{border:none;background:none;color:var(--muted);font-weight:700;font-size:12px;cursor:pointer;text-transform:uppercase;letter-spacing:.5px;padding:2px 4px}
+  .kpi-bar button:hover{color:var(--brand)}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;box-shadow:var(--shadow)}
+  .kpi .label{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700}
+  .kpi .value{font-size:23px;font-weight:750;margin-top:5px;color:var(--brand);line-height:1.1}
+  .kpi .value.sm{font-size:19px}
+  .tabs{display:flex;flex-wrap:wrap;gap:4px;border-bottom:2px solid var(--line)}
+  .tab{padding:9px 14px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border:none;background:none;border-bottom:3px solid transparent;margin-bottom:-2px}
+  .tab:hover{color:var(--ink)}
+  .tab.active{color:var(--brand);border-bottom-color:var(--accent)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;box-shadow:var(--shadow)}
+  #graphicsView .chart-card{border-top:none;border-radius:0 0 10px 10px}
+  #gTableCard{margin-top:16px}
+  .chart-top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+  .chart-title{font-size:16px;font-weight:700;color:var(--ink)}
+  .chart-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .chart-note{font-size:11px;color:var(--muted);margin-top:8px;min-height:14px}
+  .chart-wrap{position:relative;height:500px;width:100%}
+  .table-wrap{overflow:auto;max-height:calc(100vh - 230px);margin-top:6px}
+  .table-wrap.ref{max-height:320px}
+  table.data{width:100%;border-collapse:collapse;font-size:13px;background:#fff}
+  table.data th,table.data td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+  table.data th{background:#f7f9fc;cursor:pointer;user-select:none;font-weight:700;color:var(--ink);position:sticky;top:0;z-index:2}
+  table.data th:hover{background:#eef3f9}
+  table.data th .arr{color:var(--brand2);font-size:11px}
+  table.data th[data-col]{cursor:grab}
+  table.data th[data-col]:active{cursor:grabbing}
+  table.data th.drag-over{box-shadow:inset 3px 0 0 var(--accent)}
+  table.data th.dragging{opacity:.55}
+  table.data td.num,table.data th.num{text-align:right}
+  table.data th.chk,table.data td.chk{text-align:center;cursor:default;width:34px;position:sticky;left:0;background:#fff;z-index:1}
+  table.data th.chk{background:#f7f9fc;z-index:3}
+  table.data tr:hover td{background:#f3f9fc}
+  table.data tr.excluded td{opacity:.45}
+  table.data input[type=checkbox]{width:15px;height:15px;cursor:pointer}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700}
+  .pill.Active{background:#e3f3ea;color:var(--good)}
+  .pill.Upcoming{background:#fdf1d6;color:#9a6b00}
+  .pill.other{background:#eef1f5;color:var(--muted)}
+  #overlay{position:fixed;inset:0;background:rgba(241,244,248,.97);z-index:100;display:flex;align-items:center;justify-content:center;padding:24px}
+  .ov-card{background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);max-width:520px;width:100%;padding:28px}
+  .ov-card h2{margin:0 0 6px;font-size:18px;color:var(--brand)}
+  .ov-card p{margin:6px 0;color:var(--muted);font-size:13px}
+  .spinner{width:34px;height:34px;border:4px solid var(--line);border-top-color:var(--brand2);border-radius:50%;animation:spin 1s linear infinite;margin:8px 0 14px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .load-list{list-style:none;padding:0;margin:12px 0;font-size:13px}
+  .load-list li{padding:4px 0;display:flex;align-items:center;gap:8px}
+  .load-list .st{width:18px;text-align:center}
+  .err{background:#fdecea;border:1px solid #f5c6c0;color:var(--bad);border-radius:8px;padding:12px 14px;margin:10px 0;font-size:13px}
+  .picker{margin-top:16px;border-top:1px solid var(--line);padding-top:16px}
+  input[type=file]{display:none}
+  .muted{color:var(--muted)}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+
+<div id="overlay">
+  <div class="ov-card">
+    <h2>Zonda Dashboard</h2>
+    <p class="sub">Indianapolis New Home Market</p>
+    <div id="ov-loading">
+      <div class="spinner"></div>
+      <p>Loading data files…</p>
+      <ul class="load-list" id="loadList"></ul>
+    </div>
+    <div id="ov-picker" class="picker hidden">
+      <div class="err" id="pickerErr">
+        Could not automatically load the data files. This usually happens when the page is
+        opened directly from a folder (Chrome blocks reading local files for security).
+      </div>
+      <p><b>To continue, point the dashboard at your data:</b></p>
+      <p class="muted">Choose the folder that contains the CSV files (recommended), or select the CSV files individually.</p>
+      <div class="btn-row">
+        <button class="btn primary" id="pickFolderBtn">Select Data Folder…</button>
+        <button class="btn" id="pickFilesBtn">Select CSV Files…</button>
+      </div>
+      <p class="muted" id="pickerStatus" style="margin-top:10px"></p>
+      <input type="file" id="folderInput" webkitdirectory directory multiple />
+      <input type="file" id="filesInput" multiple accept=".csv" />
+    </div>
+  </div>
+</div>
+
+<header class="app">
+  <div><h1>Zonda Dashboard <span class="sub">· Indianapolis New Home Market</span></h1></div>
+  <div class="compare-center">
+    <span class="lbl">Compare</span>
+    <div class="seg dark" id="modeSeg">
+      <button data-mode="submarket">Submarket</button>
+      <button data-mode="communities">Communities</button>
+      <button data-mode="fpp">Floor Plan Pricing</button>
+    </div>
+  </div>
+  <div class="hdr-actions">
+    <button class="btn ghost sm" id="exportCsvBtn">Download Filtered Data (CSV)</button>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="filters" id="rail">
+    <div class="rail-head">
+      <span class="rh-title">Controls</span>
+      <button class="rail-toggle" id="railToggle" title="Collapse panel">«</button>
+    </div>
+    <div id="railBody">
+      <div class="seg view-seg" id="viewSeg">
+        <button data-view="table">Table</button>
+        <button data-view="graphics">Graphics</button>
+      </div>
+      <div class="fgroup hidden" id="smLevelGroup">
+        <label>Submarket level</label>
+        <div class="seg" id="smLevelSeg">
+          <button data-lvl="City">City</button>
+          <button data-lvl="County">County</button>
+          <button data-lvl="School District">School</button>
+        </div>
+      </div>
+      <h2>Filters</h2>
+      <div class="match-count">Matching communities: <b id="matchCount">0</b></div>
+      <div id="filterControls"></div>
+      <div class="btn-row" style="margin-top:14px"><button class="btn primary" id="applyFiltersBtn" style="flex:1">Apply Filter</button></div>
+      <div class="btn-row"><button class="btn" id="clearFiltersBtn" style="flex:1">Clear All Filters</button></div>
+    </div>
+  </aside>
+
+  <main class="content">
+    <div class="kpi-bar"><button id="kpiToggle">▾ Hide stats</button></div>
+    <div class="kpis" id="kpis"></div>
+
+    <!-- TABLE VIEW -->
+    <div id="tableView">
+      <div class="card">
+        <div class="chart-top"><div class="chart-title" id="tableTitle">Table</div><div class="muted" id="tableMeta"></div></div>
+        <div class="table-wrap"><table class="data" id="dataTable"></table></div>
+      </div>
+    </div>
+
+    <!-- GRAPHICS VIEW -->
+    <div id="graphicsView" class="hidden">
+      <div class="tabs" id="gtabs"></div>
+      <div class="card chart-card">
+        <div class="chart-top"><div class="chart-title" id="chartTitle"></div><div class="chart-controls" id="chartControls"></div></div>
+        <div class="chart-wrap" id="chartWrap"><canvas id="mainChart"></canvas></div>
+        <div class="chart-note" id="chartNote"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+"use strict";
+/* ============================================================= *
+ *  Zonda Dashboard — Compare (Submarket / Communities / Floor Plan Pricing)
+ * ============================================================= */
+const FILES={details:"ProjectDetails.csv",sales:"ProjectSalesHistory.csv",
+  priceHist:"ProjectPriceHistory.csv",fpDetails:"ProjectFloorplanDetails.csv",fpPrice:"ProjectFloorplanPriceHistory.csv"};
+const OPTIONAL_FILES={exist:"ExistingTransactions.csv"};
+const LABELS={...FILES,...OPTIONAL_FILES};
+const DB={details:[],sales:[],priceHist:[],fpDetails:[],fpPrice:[],exist:[],
+  byId:new Map(),salesById:new Map(),priceById:new Map(),fpById:new Map(),fpPriceById:new Map(),
+  existByCity:new Map(),existByCounty:new Map(),existBySchool:new Map(),hasExist:false,
+  priceHistPeriodField:"Avg. List Price",monthKeys:[]};
+const COLORS=["#1b4965","#2c7da0","#e8a30c","#2e8b57","#c0392b","#7b5ea7","#d36f9a","#0a9396",
+  "#bb8588","#52796f","#ee9b00","#5c677d","#9b2226","#386641","#168aad","#b56576","#6a994e","#bc6c25","#4361ee","#8338ec"];
+const color=i=>COLORS[i%COLORS.length];
+
+function num(v){ if(v===null||v===undefined||v==="")return null;
+  if(typeof v==="number")return isNaN(v)?null:v; const n=Number(String(v).replace(/[$,%\s]/g,"")); return isNaN(n)?null:n; }
+function str(v){ return (v===null||v===undefined)?"":String(v).trim(); }
+const fmtInt=n=>n==null?"—":Math.round(n).toLocaleString("en-US");
+const fmtMoney=n=>n==null?"—":"$"+Math.round(n).toLocaleString("en-US");
+const fmtMoneyK=n=>n==null?"—":"$"+Math.round(n/1000)+"k";
+const fmt1=n=>n==null?"—":(Math.round(n*100)/100).toLocaleString("en-US",{maximumFractionDigits:2});
+const MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function parsePeriod(v){ const s=str(v); if(!s)return null; const p=s.split(/[\/\-]/).map(x=>parseInt(x,10));
+  if(p.length<3||p.some(isNaN))return null; let y,m; if(p[0]>31){y=p[0];m=p[1];}else{m=p[0];y=p[2];}
+  if(m<1||m>12)return null; return {monthKey:y*100+m,label:MON[m-1]+" "+y}; }
+const monthLabel=mk=>mk==null?"":MON[((mk%100)-1+12)%12]+" "+Math.floor(mk/100);
+/* existing-transaction helpers */
+function isNewTxn(t){ const v=t["New Construction"]; return v===true || str(v).toLowerCase()==="true"; }
+function validTxn(t){ const p=num(t["Sale Price"]); return p!=null && p>=20000 && p<=5000000; }
+function txnInPeriod(t){ const p=parsePeriod(t["Sale Date"]); return p && inPeriod(p.monthKey); }
+
+/* ============================================================= *
+ *  Loading
+ * ============================================================= */
+const loadListEl=document.getElementById("loadList");
+function renderLoadList(states){ loadListEl.innerHTML=Object.keys(LABELS).map(k=>{
+  const st=states[k]||"…"; const icon=st==="ok"?"✅":st==="err"?"❌":st==="skip"?"➖":"⏳";
+  return `<li><span class="st">${icon}</span>${LABELS[k]}${OPTIONAL_FILES[k]?' <span class="muted">(optional)</span>':''}</li>`; }).join(""); }
+function papaParse(input){ return new Promise((resolve,reject)=>{
+  Papa.parse(input,{header:true,dynamicTyping:true,skipEmptyLines:"greedy",transformHeader:h=>h.trim(),complete:resolve,error:reject}); }); }
+async function tryFetch(name){ const dirs=["Data/","data/","./"]; let lastErr;
+  for(const d of dirs){ try{ const res=await fetch(d+name,{cache:"no-store"}); if(!res.ok)throw new Error("HTTP "+res.status);
+    const text=await res.text(); if(/^\s*<!doctype|^\s*<html/i.test(text))throw new Error("not a CSV"); return text;
+  }catch(e){ lastErr=e; } } throw lastErr||new Error("fetch failed"); }
+async function autoLoad(){ const states={}; renderLoadList(states); const texts={};
+  for(const k of Object.keys(FILES)){ try{ texts[k]=await tryFetch(FILES[k]); states[k]="ok"; }
+    catch(e){ states[k]="err"; renderLoadList(states); throw {file:k,err:e}; } renderLoadList(states); }
+  const parsed={}; for(const k of Object.keys(FILES)) parsed[k]=await papaParse(texts[k]);
+  for(const k of Object.keys(OPTIONAL_FILES)){ try{ const t=await tryFetch(OPTIONAL_FILES[k]); parsed[k]=await papaParse(t); states[k]="ok"; }
+    catch(e){ states[k]="skip"; } renderLoadList(states); }
+  finishLoad(parsed); }
+function showPicker(failedFile){ document.getElementById("ov-loading").classList.add("hidden"); document.getElementById("ov-picker").classList.remove("hidden");
+  if(failedFile) document.getElementById("pickerErr").innerHTML="Could not automatically load <b>"+LABELS[failedFile]+
+    "</b>. This usually happens when the page is opened directly from a folder (Chrome blocks reading local files for security)."; }
+function matchFile(fileList){ const wanted={}; for(const k in LABELS) wanted[k]=LABELS[k].toLowerCase(); const found={};
+  for(const f of fileList){ const name=f.name.toLowerCase(); for(const k in wanted){ if(name===wanted[k]||name.endsWith("/"+wanted[k])) found[k]=f; } } return found; }
+async function loadFromFiles(fileList){ const status=document.getElementById("pickerStatus"); const found=matchFile(fileList);
+  const missing=Object.keys(FILES).filter(k=>!found[k]);
+  if(missing.length){ status.innerHTML='<span style="color:var(--bad)">Missing: '+missing.map(k=>LABELS[k]).join(", ")+'. Select a folder with all five core files.</span>'; return; }
+  status.textContent="Parsing files…";
+  try{ const parsed={}; for(const k of Object.keys(FILES)) parsed[k]=await papaParse(found[k]);
+    for(const k of Object.keys(OPTIONAL_FILES)) if(found[k]) parsed[k]=await papaParse(found[k]); finishLoad(parsed); }
+  catch(e){ status.innerHTML='<span style="color:var(--bad)">Failed to parse files: '+e+'</span>'; } }
+document.getElementById("pickFolderBtn").onclick=()=>document.getElementById("folderInput").click();
+document.getElementById("pickFilesBtn").onclick=()=>document.getElementById("filesInput").click();
+document.getElementById("folderInput").onchange=e=>loadFromFiles(e.target.files);
+document.getElementById("filesInput").onchange=e=>loadFromFiles(e.target.files);
+
+/* ============================================================= *
+ *  Index & derive
+ * ============================================================= */
+function finishLoad(parsed){
+  DB.details=parsed.details.data.filter(r=>str(r["Universal ID"]));
+  DB.sales=parsed.sales.data; DB.priceHist=parsed.priceHist.data;
+  DB.fpDetails=parsed.fpDetails.data; DB.fpPrice=parsed.fpPrice.data;
+  const pf=parsed.priceHist.meta.fields||[]; const dup=pf.find(f=>f!=="Avg. List Price" && /^Avg\. List Price/.test(f));
+  DB.priceHistPeriodField=dup||"Avg. List Price";
+  DB.byId.clear(); for(const r of DB.details) DB.byId.set(str(r["Universal ID"]),r);
+  const idx=(arr,key,map)=>{ map.clear(); for(const r of arr){ const id=str(r[key]); if(!id)continue; (map.get(id)||map.set(id,[]).get(id)).push(r);} };
+  idx(DB.sales,"Universal ID",DB.salesById); idx(DB.priceHist,"Universal ID",DB.priceById);
+  idx(DB.fpDetails,"Project Universal ID",DB.fpById); idx(DB.fpPrice,"Project Universal ID",DB.fpPriceById);
+  // ExistingTransactions (optional)
+  DB.exist=(parsed.exist&&parsed.exist.data?parsed.exist.data:[]).filter(validTxn);
+  DB.existByCity=new Map(); DB.existByCounty=new Map(); DB.existBySchool=new Map();
+  const pushTo=(m,k,v)=>{ if(!k)return; (m.get(k)||m.set(k,[]).get(k)).push(v); };
+  for(const t of DB.exist){ pushTo(DB.existByCity,str(t["City"]).toLowerCase(),t);
+    pushTo(DB.existByCounty,str(t["County"]).toLowerCase(),t); pushTo(DB.existBySchool,str(t["School District"]).toLowerCase(),t); }
+  DB.hasExist=DB.exist.length>0;
+  const mk=new Set(); const collect=arr=>{ for(const r of arr){ const p=parsePeriod(r["Period"]); if(p)mk.add(p.monthKey); } };
+  collect(DB.sales); collect(DB.priceHist); collect(DB.fpPrice);
+  if(DB.hasExist){ for(const t of DB.exist){ const p=parsePeriod(t["Sale Date"]); if(p)mk.add(p.monthKey); } }
+  DB.monthKeys=[...mk].sort((a,b)=>a-b);
+  buildFilters(); appl=cloneApplied(); setMode("submarket",true); setView("table",true);
+  document.getElementById("overlay").classList.add("hidden"); applyAndRender();
+}
+
+/* ============================================================= *
+ *  App state
+ * ============================================================= */
+const ST={ mode:"submarket", view:"table", smLevel:"City", excluded:new Set(), gtab:"avgprice",
+  sort:{key:null,dir:1}, allHomesDrill:null, fppAddNew:false, fppAddResale:false, colOrder:{},
+  ctl:{ salesMode:"agg", priceMode:"agg", scToggle:"annual", lpToggle:"inv",
+    labels:{ avgprice:true, allhomes:true, sc:true, lot:true } } };
+let kpiVisible=true, railCollapsed=false, dirty=false;
+
+/* ============================================================= *
+ *  Filters
+ * ============================================================= */
+const FILTER_DEFS=[
+  {id:"County",field:"County",label:"County",scope:"geo"},
+  {id:"City",field:"City",label:"City",scope:"geo",dependsOn:"County"},
+  {id:"School District",field:"School District",label:"School District",scope:"geo"},
+  {id:"Status",field:"Status",label:"Status",scope:"base"},
+  {id:"Builders",field:"Builders",label:"Builder",scope:"ext"},
+  {id:"Parent Builder",field:"Parent Builder",label:"Parent Builder",scope:"ext"},
+  {id:"Product Type",field:"Product Type",label:"Product Type",scope:"ext"},
+  {id:"Product Style",field:"Product Style",label:"Product Style",scope:"ext"},
+];
+const filterState={}; FILTER_DEFS.forEach(f=>filterState[f.id]=new Set());
+const pend={ from:null, to:null, minMoS:null };
+let appl={ sets:{}, from:null, to:null, minMoS:null };
+function cloneApplied(){ const sets={}; FILTER_DEFS.forEach(f=>sets[f.id]=new Set(filterState[f.id])); return {sets,from:pend.from,to:pend.to,minMoS:pend.minMoS}; }
+function scopeVisible(scope){ if(scope==="base")return true; if(scope==="geo"||scope==="ext")return ST.mode!=="submarket"; if(scope==="fpp")return ST.mode==="fpp"; return true; }
+function uniqueValues(field,restrictByCounty){ const set=new Set();
+  for(const r of DB.details){ if(restrictByCounty && filterState["County"].size && !filterState["County"].has(str(r["County"]))) continue;
+    const v=str(r[field]); if(v) set.add(v); } return [...set].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})); }
+function buildFilters(){
+  const host=document.getElementById("filterControls"); host.innerHTML="";
+  FILTER_DEFS.forEach(def=>{ const g=document.createElement("div"); g.className="fgroup"; g.dataset.scope=def.scope; g.dataset.fid=def.id;
+    g.innerHTML=`<label>${def.label}</label>`; g.appendChild(buildMultiSelect(def)); host.appendChild(g); });
+  const g=document.createElement("div"); g.className="fgroup"; g.dataset.scope="base"; g.innerHTML=`<label>Time Period (history charts)</label>`;
+  const row=document.createElement("div"); row.className="period-row";
+  const fromSel=document.createElement("select"); fromSel.className="sel"; fromSel.id="periodFrom";
+  const toSel=document.createElement("select"); toSel.className="sel"; toSel.id="periodTo";
+  DB.monthKeys.forEach(k=>{ const o1=document.createElement("option"); o1.value=k; o1.textContent=monthLabel(k); fromSel.appendChild(o1);
+    const o2=document.createElement("option"); o2.value=k; o2.textContent=monthLabel(k); toSel.appendChild(o2); });
+  pend.from=DB.monthKeys[0]; pend.to=DB.monthKeys[DB.monthKeys.length-1]; fromSel.value=pend.from; toSel.value=pend.to;
+  fromSel.onchange=()=>{ pend.from=+fromSel.value; if(pend.from>pend.to){pend.to=pend.from;toSel.value=pend.to;} markDirty(); };
+  toSel.onchange=()=>{ pend.to=+toSel.value; if(pend.to<pend.from){pend.from=pend.to;fromSel.value=pend.from;} markDirty(); };
+  row.appendChild(fromSel); row.appendChild(toSel); g.appendChild(row); host.appendChild(g);
+  const g2=document.createElement("div"); g2.className="fgroup"; g2.dataset.scope="fpp"; g2.innerHTML=`<label>Minimum Mo. Supply</label>`;
+  const inp=document.createElement("input"); inp.type="number"; inp.className="sel"; inp.id="minMoS"; inp.min="0"; inp.step="0.5"; inp.placeholder="e.g. 6";
+  inp.oninput=()=>{ pend.minMoS=(inp.value===""?null:num(inp.value)); markDirty(); }; g2.appendChild(inp); host.appendChild(g2);
+}
+function buildMultiSelect(def){
+  const wrap=document.createElement("div"); wrap.className="ms"; wrap.dataset.id=def.id;
+  const btn=document.createElement("button"); btn.className="ms-btn"; btn.type="button";
+  const panel=document.createElement("div"); panel.className="ms-panel";
+  const search=document.createElement("input"); search.className="ms-search"; search.placeholder="Search…";
+  const tools=document.createElement("div"); tools.className="ms-tools"; tools.innerHTML=`<a data-act="all">Select all</a><a data-act="none">Clear</a>`;
+  const list=document.createElement("div"); list.className="ms-list";
+  panel.appendChild(search); panel.appendChild(tools); panel.appendChild(list); wrap.appendChild(btn); wrap.appendChild(panel);
+  function renderOptions(){ const values=uniqueValues(def.field, def.id==="City");
+    [...filterState[def.id]].forEach(v=>{ if(!values.includes(v)) filterState[def.id].delete(v); });
+    const q=search.value.toLowerCase(); list.innerHTML="";
+    values.filter(v=>!q||v.toLowerCase().includes(q)).forEach(v=>{ const row=document.createElement("label"); row.className="ms-opt";
+      const cb=document.createElement("input"); cb.type="checkbox"; cb.checked=filterState[def.id].has(v);
+      cb.onchange=()=>{ cb.checked?filterState[def.id].add(v):filterState[def.id].delete(v); updateBtn(); afterChange(def); };
+      const span=document.createElement("span"); span.textContent=v; row.appendChild(cb); row.appendChild(span); list.appendChild(row); });
+    if(!list.children.length) list.innerHTML='<div class="ms-opt muted">No options</div>'; }
+  function updateBtn(){ const n=filterState[def.id].size; btn.textContent=n===0?"All":n===1?[...filterState[def.id]][0]:n+" selected"; btn.classList.toggle("has-sel",n>0); }
+  btn.onclick=e=>{ e.stopPropagation(); document.querySelectorAll(".ms-panel.open").forEach(p=>{if(p!==panel)p.classList.remove("open");});
+    panel.classList.toggle("open"); if(panel.classList.contains("open")){renderOptions();search.focus();} };
+  search.oninput=renderOptions; search.onclick=e=>e.stopPropagation(); panel.onclick=e=>e.stopPropagation();
+  tools.querySelector('[data-act="all"]').onclick=()=>{ uniqueValues(def.field,def.id==="City").filter(v=>{const q=search.value.toLowerCase();return !q||v.toLowerCase().includes(q);}).forEach(v=>filterState[def.id].add(v)); renderOptions(); updateBtn(); afterChange(def); };
+  tools.querySelector('[data-act="none"]').onclick=()=>{ filterState[def.id].clear(); renderOptions(); updateBtn(); afterChange(def); };
+  wrap._render=renderOptions; wrap._updateBtn=updateBtn; updateBtn(); return wrap;
+}
+function afterChange(def){ if(def.id==="County"){ const c=document.querySelector('.ms[data-id="City"]'); if(c){c._render();c._updateBtn();} } markDirty(); }
+document.addEventListener("click",()=>document.querySelectorAll(".ms-panel.open").forEach(p=>p.classList.remove("open")));
+function markDirty(){ dirty=true; document.getElementById("applyFiltersBtn").classList.add("dirty"); }
+function applyFilters(){ appl=cloneApplied(); dirty=false; ST.allHomesDrill=null; document.getElementById("applyFiltersBtn").classList.remove("dirty"); applyAndRender(); }
+document.getElementById("applyFiltersBtn").onclick=applyFilters;
+document.getElementById("clearFiltersBtn").onclick=()=>{
+  FILTER_DEFS.forEach(f=>filterState[f.id].clear());
+  pend.from=DB.monthKeys[0]; pend.to=DB.monthKeys[DB.monthKeys.length-1]; pend.minMoS=null;
+  const ff=document.getElementById("periodFrom"),tt=document.getElementById("periodTo"),mm=document.getElementById("minMoS");
+  if(ff)ff.value=pend.from; if(tt)tt.value=pend.to; if(mm)mm.value="";
+  document.querySelectorAll(".ms").forEach(w=>{ if(w._updateBtn)w._updateBtn(); });
+  ST.excluded.clear(); applyFilters();
+};
+function updateFilterVisibility(){
+  document.querySelectorAll(".fgroup[data-scope]").forEach(g=>{ if(g.dataset.scope==="base")return; g.classList.toggle("hidden",!scopeVisible(g.dataset.scope)); });
+  document.getElementById("smLevelGroup").classList.toggle("hidden",ST.mode!=="submarket");
+}
+
+/* ============================================================= *
+ *  Mode / View / collapse
+ * ============================================================= */
+function setMode(mode,silent){ ST.mode=mode; ST.excluded.clear(); ST.sort={key:null,dir:1}; ST.allHomesDrill=null;
+  if(mode==="fpp") ST.gtab="scatter"; else if(!["sales","avgprice","allhomes","sc","lot","price"].includes(ST.gtab)) ST.gtab="avgprice";
+  document.querySelectorAll("#modeSeg button").forEach(b=>b.classList.toggle("active",b.dataset.mode===mode));
+  document.querySelectorAll("#smLevelSeg button").forEach(b=>b.classList.toggle("active",b.dataset.lvl===ST.smLevel));
+  updateFilterVisibility(); if(!silent) applyAndRender(); }
+function setView(view,silent){ ST.view=view;
+  document.querySelectorAll("#viewSeg button").forEach(b=>b.classList.toggle("active",b.dataset.view===view));
+  document.getElementById("tableView").classList.toggle("hidden",view!=="table");
+  document.getElementById("graphicsView").classList.toggle("hidden",view!=="graphics");
+  if(!silent) applyAndRender(); }
+document.querySelectorAll("#modeSeg button").forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
+document.querySelectorAll("#viewSeg button").forEach(b=>b.onclick=()=>setView(b.dataset.view));
+document.querySelectorAll("#smLevelSeg button").forEach(b=>b.onclick=()=>{ ST.smLevel=b.dataset.lvl; ST.excluded.clear(); ST.sort={key:null,dir:1}; ST.allHomesDrill=null;
+  document.querySelectorAll("#smLevelSeg button").forEach(x=>x.classList.toggle("active",x===b)); applyAndRender(); });
+document.getElementById("railToggle").onclick=()=>{ railCollapsed=!railCollapsed; document.getElementById("rail").classList.toggle("collapsed",railCollapsed);
+  document.getElementById("railToggle").textContent=railCollapsed?"»":"«"; document.getElementById("railToggle").title=railCollapsed?"Expand panel":"Collapse panel"; };
+document.getElementById("kpiToggle").onclick=()=>{ kpiVisible=!kpiVisible; document.getElementById("kpis").classList.toggle("hidden",!kpiVisible);
+  document.getElementById("kpiToggle").textContent=kpiVisible?"▾ Hide stats":"▸ Show stats"; if(ST.view==="graphics") sizeChartWrap(); };
+window.addEventListener("resize",()=>{ if(ST.view==="graphics") sizeChartWrap(); });
+
+/* ============================================================= *
+ *  Filtering + active set
+ * ============================================================= */
+let filteredDetails=[], filteredIds=new Set();
+function computeFiltered(){
+  filteredDetails=DB.details.filter(r=>{
+    for(const def of FILTER_DEFS){ if(!scopeVisible(def.scope))continue; const sel=appl.sets[def.id]; if(sel&&sel.size && !sel.has(str(r[def.field]))) return false; }
+    if(ST.mode==="fpp" && appl.minMoS!=null){ const m=num(r["Inventory Months of Supply"]); if(m==null||m<appl.minMoS) return false; }
+    return true;
+  });
+  filteredIds=new Set(filteredDetails.map(r=>str(r["Universal ID"])));
+}
+const inPeriod=mk=>mk!=null && mk>=appl.from && mk<=appl.to;
+function submarketGroups(){ const field=ST.smLevel; const map=new Map();
+  for(const r of filteredDetails){ const v=str(r[field])||"(Unknown)"; let o=map.get(v); if(!o){o={ids:[],rows:[]}; map.set(v,o);} o.ids.push(str(r["Universal ID"])); o.rows.push(r); } return map; }
+function activeIds(){ if(ST.mode==="submarket"){ const ids=new Set(); for(const [v,o] of submarketGroups()){ if(!ST.excluded.has(v)) o.ids.forEach(id=>ids.add(id)); } return ids; }
+  const ids=new Set(); for(const r of filteredDetails){ const id=str(r["Universal ID"]); if(ST.mode==="fpp" && !(DB.fpById.get(id)||[]).length) continue; if(!ST.excluded.has(id)) ids.add(id); } return ids; }
+function activeDetails(){ const ids=activeIds(); return filteredDetails.filter(r=>ids.has(str(r["Universal ID"]))); }
+function activeGroups(){ if(ST.mode==="submarket"){ const arr=[]; for(const [v,o] of submarketGroups()){ if(!ST.excluded.has(v)) arr.push({label:v,ids:o.ids}); } return arr; }
+  const arr=[]; for(const r of filteredDetails){ const id=str(r["Universal ID"]); if(!ST.excluded.has(id)) arr.push({label:str(r["Project Name"])||id, ids:[id]}); } return arr; }
+function sumField(ids,field){ let s=0; for(const id of ids){ const r=DB.byId.get(id); if(!r)continue; const v=num(r[field]); if(v!=null)s+=v; } return s; }
+const grainNoun=()=>ST.mode==="submarket"?"submarket":"project";
+function existIndexForLevel(){ return ST.smLevel==="City"?DB.existByCity: ST.smLevel==="County"?DB.existByCounty: DB.existBySchool; }
+
+/* ============================================================= *
+ *  KPIs
+ * ============================================================= */
+function renderKpis(){
+  const d=filteredDetails;
+  const sum=f=>{let s=0,a=false;for(const r of d){const v=num(r[f]);if(v!=null){s+=v;a=true;}}return a?s:null;};
+  const avg=f=>{let s=0,n=0;for(const r of d){const v=num(r[f]);if(v!=null){s+=v;n++;}}return n?s/n:null;};
+  let latestMk=null; for(const id of filteredIds){ for(const r of (DB.salesById.get(id)||[])){ const p=parsePeriod(r["Period"]); if(p&&inPeriod(p.monthKey)&&(latestMk==null||p.monthKey>latestMk)) latestMk=p.monthKey; } }
+  let monthlySales=null; if(latestMk!=null){ monthlySales=0; for(const id of filteredIds){ for(const r of (DB.salesById.get(id)||[])){ const p=parsePeriod(r["Period"]); if(p&&p.monthKey===latestMk){ const v=num(r["Monthly Sales"]); if(v!=null)monthlySales+=v; } } } }
+  const tiles=[
+    {label:"Communities",value:fmtInt(d.length)},{label:"Units Planned",value:fmtInt(sum("Total Units Planned"))},
+    {label:"Units Sold",value:fmtInt(sum("Total Units Sold"))},{label:"Units Remaining",value:fmtInt(sum("Total Units Remaining"))},
+    {label:"Avg Sales Rate / mo",value:fmt1(avg("Sales Rate"))},{label:"Avg List Price",value:fmtMoney(avg("Avg. List Price")),sm:true},
+    {label:"Monthly Sales"+(latestMk!=null?" · "+monthLabel(latestMk):""),value:fmtInt(monthlySales)},{label:"Avg Months of Supply",value:fmt1(avg("Inventory Months of Supply"))},
+  ];
+  document.getElementById("kpis").innerHTML=tiles.map(t=>`<div class="kpi"><div class="label">${t.label}</div><div class="value${t.sm?' sm':''}">${t.value}</div></div>`).join("");
+}
+
+/* ============================================================= *
+ *  TABLE builders
+ * ============================================================= */
+function statusPill(v){ const s=str(v); const cls=(s==="Active"||s==="Upcoming")?s:"other"; return `<span class="pill ${cls}">${s||"—"}</span>`; }
+function buildSubmarketTable(){
+  const cols=[{id:"name",label:ST.smLevel,type:"str"},{id:"comm",label:"Communities",type:"num",default:"desc"},
+    {id:"planned",label:"Units Planned",type:"num"},{id:"sold",label:"Units Sold",type:"num"},{id:"remaining",label:"Units Remaining",type:"num"},
+    {id:"avgPrice",label:"Avg New Home Price",type:"num"},{id:"avgRate",label:"Avg Sales Rate",type:"num"},
+    {id:"starts",label:"Annual Starts",type:"num"},{id:"closings",label:"Annual Closings",type:"num"},{id:"avgMoS",label:"Avg Months of Supply",type:"num"}];
+  const rows=[];
+  for(const [v,o] of submarketGroups()){
+    const sum=f=>{let s=0,a=false;for(const r of o.rows){const x=num(r[f]);if(x!=null){s+=x;a=true;}}return a?s:null;};
+    const avg=f=>{let s=0,n=0;for(const r of o.rows){const x=num(r[f]);if(x!=null){s+=x;n++;}}return n?s/n:null;};
+    const val={name:v,comm:o.rows.length,planned:sum("Total Units Planned"),sold:sum("Total Units Sold"),remaining:sum("Total Units Remaining"),
+      avgPrice:avg("Avg. List Price"),avgRate:avg("Sales Rate"),starts:sum("Annual Starts"),closings:sum("Annual Closings"),avgMoS:avg("Inventory Months of Supply")};
+    rows.push({key:v,values:val,display:{name:v,comm:fmtInt(val.comm),planned:fmtInt(val.planned),sold:fmtInt(val.sold),remaining:fmtInt(val.remaining),
+      avgPrice:fmtMoney(val.avgPrice),avgRate:fmt1(val.avgRate),starts:fmtInt(val.starts),closings:fmtInt(val.closings),avgMoS:fmt1(val.avgMoS)}});
+  }
+  return {cols,rows};
+}
+function buildCommunitiesTable(){
+  const cols=[{id:"name",label:"Project Name",type:"str"},{id:"builder",label:"Builder",type:"str"},{id:"parent",label:"Parent Builder",type:"str"},
+    {id:"status",label:"Status",type:"str"},{id:"city",label:"City",type:"str"},{id:"county",label:"County",type:"str"},{id:"school",label:"School District",type:"str"},
+    {id:"ptype",label:"Product Type",type:"str"},{id:"pstyle",label:"Product Style",type:"str"},{id:"avgPrice",label:"Avg New Home Price",type:"num",default:"desc"},
+    {id:"minPrice",label:"Min Price",type:"num"},{id:"maxPrice",label:"Max Price",type:"num"},{id:"rate",label:"Sales Rate",type:"num"},{id:"l3m",label:"Last 3M Avg Sales",type:"num"},
+    {id:"planned",label:"Units Planned",type:"num"},{id:"sold",label:"Units Sold",type:"num"},{id:"remaining",label:"Units Remaining",type:"num"},
+    {id:"astarts",label:"Annual Starts",type:"num"},{id:"aclos",label:"Annual Closings",type:"num"},{id:"qstarts",label:"Qtr Starts",type:"num"},{id:"qclos",label:"Qtr Closings",type:"num"},
+    {id:"fvac",label:"Finished Vacant",type:"num"},{id:"future",label:"Future Inventory",type:"num"},{id:"qmis",label:"QMIs",type:"num"},{id:"size",label:"Avg Unit Size",type:"num"},
+    {id:"mos",label:"Months of Supply",type:"num"},{id:"open",label:"Open Date",type:"str"}];
+  const rows=filteredDetails.map(r=>{
+    const v={name:str(r["Project Name"]),builder:str(r["Builders"]),parent:str(r["Parent Builder"]),status:str(r["Status"]),city:str(r["City"]),county:str(r["County"]),
+      school:str(r["School District"]),ptype:str(r["Product Type"]),pstyle:str(r["Product Style"]),avgPrice:num(r["Avg. List Price"]),minPrice:num(r["Min. List Price"]),
+      maxPrice:num(r["Max. List Price"]),rate:num(r["Sales Rate"]),l3m:num(r["Last 3M Avg. Sales"]),planned:num(r["Total Units Planned"]),sold:num(r["Total Units Sold"]),
+      remaining:num(r["Total Units Remaining"]),astarts:num(r["Annual Starts"]),aclos:num(r["Annual Closings"]),qstarts:num(r["Quarterly Starts"]),qclos:num(r["Quarterly Closings"]),
+      fvac:num(r["Finished Vacant Count"]),future:num(r["Future Inventory Count"]),qmis:num(r["Total QMIs"]),size:num(r["Avg. Unit Size"]),mos:num(r["Inventory Months of Supply"]),open:str(r["Open Date"])};
+    return {key:str(r["Universal ID"]),values:v,display:{name:v.name||"—",builder:v.builder||"—",parent:v.parent||"—",status:statusPill(v.status),city:v.city||"—",county:v.county||"—",
+      school:v.school||"—",ptype:v.ptype||"—",pstyle:v.pstyle||"—",avgPrice:fmtMoney(v.avgPrice),minPrice:fmtMoney(v.minPrice),maxPrice:fmtMoney(v.maxPrice),rate:fmt1(v.rate),
+      l3m:fmt1(v.l3m),planned:fmtInt(v.planned),sold:fmtInt(v.sold),remaining:fmtInt(v.remaining),astarts:fmtInt(v.astarts),aclos:fmtInt(v.aclos),qstarts:fmtInt(v.qstarts),
+      qclos:fmtInt(v.qclos),fvac:fmtInt(v.fvac),future:fmtInt(v.future),qmis:fmtInt(v.qmis),size:fmtInt(v.size),mos:fmt1(v.mos),open:v.open||"—"}};
+  });
+  return {cols,rows};
+}
+function buildFppTable(){
+  const cols=[{id:"name",label:"Project Name",type:"str"},{id:"builder",label:"Builder",type:"str"},{id:"city",label:"City",type:"str"},{id:"county",label:"County",type:"str"},
+    {id:"status",label:"Status",type:"str"},{id:"fpCount",label:"# Floorplans",type:"num",default:"desc"},{id:"avgPrice",label:"Avg List Price",type:"num"},{id:"minPrice",label:"Min Price",type:"num"},
+    {id:"maxPrice",label:"Max Price",type:"num"},{id:"minSqft",label:"Min Sqft",type:"num"},{id:"avgSqft",label:"Avg Sqft",type:"num"},{id:"maxSqft",label:"Max Sqft",type:"num"},{id:"mos",label:"Months of Supply",type:"num"}];
+  const rows=[];
+  for(const r of filteredDetails){ const id=str(r["Universal ID"]); const fps=DB.fpById.get(id)||[]; if(!fps.length)continue;
+    const prices=fps.map(f=>num(f["List Price"])).filter(x=>x!=null); const sizes=fps.map(f=>num(f["Unit Size"])).filter(x=>x!=null); const mean=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
+    const v={name:str(r["Project Name"]),builder:str(r["Builders"]),city:str(r["City"]),county:str(r["County"]),status:str(r["Status"]),fpCount:fps.length,avgPrice:mean(prices),
+      minPrice:prices.length?Math.min(...prices):null,maxPrice:prices.length?Math.max(...prices):null,minSqft:sizes.length?Math.min(...sizes):null,avgSqft:mean(sizes),maxSqft:sizes.length?Math.max(...sizes):null,mos:num(r["Inventory Months of Supply"])};
+    rows.push({key:id,values:v,display:{name:v.name||"—",builder:v.builder||"—",city:v.city||"—",county:v.county||"—",status:statusPill(v.status),fpCount:fmtInt(v.fpCount),
+      avgPrice:fmtMoney(v.avgPrice),minPrice:fmtMoney(v.minPrice),maxPrice:fmtMoney(v.maxPrice),minSqft:fmtInt(v.minSqft),avgSqft:fmtInt(v.avgSqft),maxSqft:fmtInt(v.maxSqft),mos:fmt1(v.mos)}});
+  }
+  return {cols,rows};
+}
+function buildTableModel(){ if(ST.mode==="submarket")return buildSubmarketTable(); if(ST.mode==="fpp")return buildFppTable(); return buildCommunitiesTable(); }
+
+/* ============================================================= *
+ *  Generic table renderer (sortable + include/exclude checkboxes)
+ * ============================================================= */
+function orderedCols(model){ const order=ST.colOrder[ST.mode]; if(!order) return model.cols;
+  const byId={}; model.cols.forEach(c=>byId[c.id]=c); const res=[];
+  order.forEach(id=>{ if(byId[id]){res.push(byId[id]); delete byId[id];} });
+  model.cols.forEach(c=>{ if(byId[c.id]) res.push(c); }); return res; }
+function reorderCols(cols,srcId,dstId){ if(srcId===dstId)return; const ids=cols.map(c=>c.id);
+  const from=ids.indexOf(srcId); if(from<0)return; ids.splice(from,1); const at=ids.indexOf(dstId); if(at<0)return; ids.splice(at,0,srcId); ST.colOrder[ST.mode]=ids; }
+function renderTableInto(cfg){
+  const model=buildTableModel(); const cols=orderedCols(model);
+  const titleText = ST.mode==="submarket" ? `Submarkets by ${ST.smLevel}` : ST.mode==="fpp" ? "Communities — Floor Plan Pricing" : "Communities";
+  if(cfg.titleEl) cfg.titleEl.textContent=titleText;
+  if(!ST.sort.key){ const dc=cols.find(c=>c.default)||cols[0]; ST.sort={key:dc.id,dir:dc.default==="desc"?-1:1}; }
+  const colById=Object.fromEntries(cols.map(c=>[c.id,c])); const sc=colById[ST.sort.key]||cols[0];
+  const rows=[...model.rows].sort((a,a2)=>{ if(sc.type==="num"){ let va=a.values[sc.id],vb=a2.values[sc.id]; va=va==null?-Infinity:va; vb=vb==null?-Infinity:vb; return (va-vb)*ST.sort.dir; }
+    const va=String(a.values[sc.id]||"").toLowerCase(), vb=String(a2.values[sc.id]||"").toLowerCase(); return va<vb?-1*ST.sort.dir:va>vb?1*ST.sort.dir:0; });
+  const allIncluded=rows.filter(r=>!ST.excluded.has(r.key)).length===rows.length && rows.length>0;
+  const tbl=cfg.tableEl;
+  const head=`<thead><tr><th class="chk"><input type="checkbox" class="chkAll" ${allIncluded?"checked":""} title="Include / exclude all"></th>`+
+    cols.map(c=>{ const arr=ST.sort.key===c.id?(ST.sort.dir>0?" ▲":" ▼"):" ⇅"; return `<th class="${c.type==='num'?'num':''}" data-col="${c.id}" title="Click to sort · drag to reorder">${c.label}<span class="arr">${arr}</span></th>`; }).join("")+`</tr></thead>`;
+  const body=`<tbody>`+rows.map(r=>{ const inc=!ST.excluded.has(r.key);
+    return `<tr class="${inc?'':'excluded'}" data-key="${encodeURIComponent(r.key)}"><td class="chk"><input type="checkbox" class="rowchk" ${inc?"checked":""}></td>`+
+      cols.map(c=>`<td class="${c.type==='num'?'num':''}">${r.display[c.id]}</td>`).join("")+`</tr>`; }).join("")+`</tbody>`;
+  tbl.innerHTML=head+body;
+  function updateMeta(){ const inc=model.rows.filter(r=>!ST.excluded.has(r.key)).length;
+    if(cfg.metaEl) cfg.metaEl.textContent=`${inc} of ${model.rows.length} `+(ST.mode==='submarket'?ST.smLevel.toLowerCase()+'(s)':'community/ies')+` included in graphics`+(ST.mode==='fpp'?" · checked communities feed the scatter":""); }
+  let dragId=null, didDrag=false;
+  tbl.querySelectorAll("th[data-col]").forEach(th=>{
+    th.setAttribute("draggable","true");
+    th.addEventListener("mousedown",()=>{ didDrag=false; });
+    th.addEventListener("dragstart",e=>{ dragId=th.dataset.col; didDrag=true; th.classList.add("dragging"); e.dataTransfer.effectAllowed="move"; try{e.dataTransfer.setData("text/plain",dragId);}catch(_){} });
+    th.addEventListener("dragover",e=>{ e.preventDefault(); e.dataTransfer.dropEffect="move"; if(th.dataset.col!==dragId) th.classList.add("drag-over"); });
+    th.addEventListener("dragleave",()=>th.classList.remove("drag-over"));
+    th.addEventListener("drop",e=>{ e.preventDefault(); th.classList.remove("drag-over"); const dst=th.dataset.col; if(dragId&&dst&&dragId!==dst){ reorderCols(cols,dragId,dst); renderTableInto(cfg); } });
+    th.addEventListener("dragend",()=>{ th.classList.remove("dragging"); tbl.querySelectorAll("th.drag-over").forEach(x=>x.classList.remove("drag-over")); });
+    th.onclick=()=>{ if(didDrag){ didDrag=false; return; } const id=th.dataset.col; if(ST.sort.key===id) ST.sort.dir*=-1; else { ST.sort.key=id; ST.sort.dir=(colById[id].default==="desc"?-1:1); } renderTableInto(cfg); };
+  });
+  tbl.querySelectorAll("tr[data-key]").forEach(tr=>{ const key=decodeURIComponent(tr.dataset.key); const cb=tr.querySelector(".rowchk");
+    cb.onchange=()=>{ if(cb.checked)ST.excluded.delete(key); else ST.excluded.add(key); tr.classList.toggle("excluded",!cb.checked); updateMeta();
+      const a=tbl.querySelector(".chkAll"); if(a) a.checked=(model.rows.filter(r=>!ST.excluded.has(r.key)).length===model.rows.length); cfg.onToggle&&cfg.onToggle(); }; });
+  tbl.querySelector(".chkAll").onchange=e=>{ if(e.target.checked) rows.forEach(r=>ST.excluded.delete(r.key)); else rows.forEach(r=>ST.excluded.add(r.key)); renderTableInto(cfg); cfg.onToggle&&cfg.onToggle(); };
+  updateMeta();
+}
+function renderTableView(){ renderTableInto({tableEl:document.getElementById("dataTable"),titleEl:document.getElementById("tableTitle"),metaEl:document.getElementById("tableMeta"),onToggle:null}); }
+
+/* ============================================================= *
+ *  Charts
+ * ============================================================= */
+let chart=null; const ctx=document.getElementById("mainChart");
+const whiteBg={id:"whiteBg",beforeDraw(c){const x=c.ctx;x.save();x.globalCompositeOperation="destination-over";x.fillStyle="#ffffff";x.fillRect(0,0,c.width,c.height);x.restore();}};
+Chart.register(whiteBg);
+/* bar-total label plugin (horizontal bars): draws the per-bar total at the right end when enabled */
+let barLabels={enabled:false,fmt:fmtInt};
+const barTotalsPlugin={ id:"barTotals", afterDatasetsDraw(chart){
+  if(!barLabels.enabled) return; const xs=chart.scales.x; const meta0=chart.getDatasetMeta(0);
+  if(!xs||!meta0||!meta0.data) return; const ctx2=chart.ctx;
+  ctx2.save(); ctx2.font='700 11px -apple-system,"Segoe UI",Roboto,Arial,sans-serif'; ctx2.fillStyle="#1f2733"; ctx2.textBaseline="middle"; ctx2.textAlign="left";
+  for(let i=0;i<meta0.data.length;i++){ let total=0; chart.data.datasets.forEach(ds=>{ const v=ds.data[i]; if(typeof v==="number") total+=v; });
+    if(!total) continue; const bar=meta0.data[i]; ctx2.fillText(barLabels.fmt(total), xs.getPixelForValue(total)+5, bar.y); }
+  ctx2.restore();
+} };
+Chart.register(barTotalsPlugin);
+Chart.defaults.font.size=13; Chart.defaults.font.family='-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif'; Chart.defaults.color="#1f2733";
+function destroyChart(){ if(chart){chart.destroy();chart=null;} }
+function setNote(t){ document.getElementById("chartNote").textContent=t||""; }
+const baseOpts=(extra={})=>Object.assign({responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:14,font:{size:12}}},tooltip:{enabled:true}}},extra);
+const CAP=12;
+
+/* a. Sales Trend */
+function chartSalesTrend(){
+  destroyChart();
+  if(ST.ctl.salesMode==="agg"){
+    const ids=activeIds(); const byMonth=new Map();
+    for(const id of ids){ for(const r of (DB.salesById.get(id)||[])){ const p=parsePeriod(r["Period"]); if(!p||!inPeriod(p.monthKey))continue; const v=num(r["Monthly Sales"]); if(v==null)continue; byMonth.set(p.monthKey,(byMonth.get(p.monthKey)||0)+v); }}
+    const keys=[...byMonth.keys()].sort((a,b)=>a-b);
+    chart=new Chart(ctx,{type:"line",data:{labels:keys.map(monthLabel),datasets:[{label:"Total Monthly Sales",data:keys.map(k=>byMonth.get(k)),borderColor:color(0),backgroundColor:"rgba(27,73,101,.12)",fill:true,tension:.25,pointRadius:keys.length>40?0:3,borderWidth:2.5}]},
+      options:baseOpts({scales:{y:{beginAtZero:true,title:{display:true,text:"Units sold / month"}},x:{ticks:{maxRotation:60,autoSkip:true,maxTicksLimit:24}}}})});
+    setNote(`Total units sold per month across all included ${grainNoun()}s.`);
+  } else {
+    let series=activeGroups().map(g=>{ const byMonth=new Map();
+      for(const id of g.ids){ for(const r of (DB.salesById.get(id)||[])){ const p=parsePeriod(r["Period"]); if(!p||!inPeriod(p.monthKey))continue; const v=num(r["Monthly Sales"]); if(v==null)continue; byMonth.set(p.monthKey,(byMonth.get(p.monthKey)||0)+v); }}
+      return {label:g.label,byMonth,n:byMonth.size}; }).filter(s=>s.n);
+    series.sort((a,b)=>b.n-a.n); let note=`Monthly sales per ${grainNoun()}.`;
+    if(series.length>CAP){ note=`Showing ${CAP} of ${series.length} ${grainNoun()}s (most history).`; series=series.slice(0,CAP); }
+    const allKeys=[...new Set(series.flatMap(s=>[...s.byMonth.keys()]))].sort((a,b)=>a-b);
+    const datasets=series.map((s,i)=>({label:s.label,data:allKeys.map(k=>s.byMonth.has(k)?s.byMonth.get(k):null),borderColor:color(i),backgroundColor:color(i),tension:.2,borderWidth:2,pointRadius:2,spanGaps:true}));
+    chart=new Chart(ctx,{type:"line",data:{labels:allKeys.map(monthLabel),datasets},options:baseOpts({scales:{y:{beginAtZero:true,title:{display:true,text:"Units sold / month"}},x:{ticks:{maxRotation:60,autoSkip:true,maxTicksLimit:24}}},plugins:{legend:{labels:{boxWidth:12,font:{size:11}}}}})});
+    setNote(note);
+  }
+}
+/* Avg New Home Price */
+function chartAvgPrice(){
+  destroyChart();
+  let rows=activeGroups().map(g=>{ let s=0,n=0; for(const id of g.ids){ const r=DB.byId.get(id); const v=num(r&&r["Avg. List Price"]); if(v!=null){s+=v;n++;} } return {label:g.label,val:n?s/n:null}; }).filter(r=>r.val!=null).sort((a,b)=>b.val-a.val);
+  let note=`Average new-home price by ${grainNoun()} (field: Avg Price / Avg. List Price).`;
+  if(rows.length>30){ note+=` Showing top 30 of ${rows.length}.`; rows=rows.slice(0,30); }
+  const labelsOn=!!ST.ctl.labels.avgprice; barLabels.enabled=labelsOn; barLabels.fmt=fmtMoneyK;
+  chart=new Chart(ctx,{type:"bar",data:{labels:rows.map(r=>r.label),datasets:[{label:"Avg New Home Price",data:rows.map(r=>r.val),backgroundColor:rows.map((_,i)=>color(i)),borderWidth:0}]},
+    options:baseOpts({indexAxis:"y",layout:{padding:{right:labelsOn?64:8}},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmtMoney(c.raw)}}},
+      scales:{x:{beginAtZero:true,title:{display:true,text:"Avg price ($)"},ticks:{callback:v=>"$"+(v/1000).toFixed(0)+"k"}},y:{ticks:{font:{size:11},autoSkip:false}}}})});
+  setNote(note+(labelsOn?" Labels show each bar's average price.":""));
+}
+/* Price History */
+function chartPriceHistory(){
+  const field=DB.priceHistPeriodField; destroyChart();
+  if(ST.ctl.priceMode==="agg"){
+    const ids=activeIds(); const byMonth=new Map();
+    for(const id of ids){ for(const r of (DB.priceById.get(id)||[])){ const p=parsePeriod(r["Period"]); if(!p||!inPeriod(p.monthKey))continue; const v=num(r[field]); if(v==null)continue; const o=byMonth.get(p.monthKey)||{s:0,n:0}; o.s+=v;o.n++; byMonth.set(p.monthKey,o); }}
+    const keys=[...byMonth.keys()].sort((a,b)=>a-b);
+    chart=new Chart(ctx,{type:"line",data:{labels:keys.map(monthLabel),datasets:[{label:"Avg List Price (included avg)",data:keys.map(k=>byMonth.get(k).s/byMonth.get(k).n),borderColor:color(1),backgroundColor:"rgba(44,125,160,.12)",fill:true,tension:.25,borderWidth:2.5,pointRadius:keys.length>40?0:3}]},
+      options:baseOpts({scales:{y:{title:{display:true,text:"Avg list price ($)"},ticks:{callback:v=>"$"+(v/1000).toFixed(0)+"k"}},x:{ticks:{maxRotation:60,autoSkip:true,maxTicksLimit:24}}}})});
+    setNote("Average list price per month across included communities.");
+  } else {
+    let series=activeGroups().map(g=>{ const byMonth=new Map();
+      for(const id of g.ids){ for(const r of (DB.priceById.get(id)||[])){ const p=parsePeriod(r["Period"]); if(!p||!inPeriod(p.monthKey))continue; const v=num(r[field]); if(v==null)continue; const o=byMonth.get(p.monthKey)||{s:0,n:0}; o.s+=v;o.n++; byMonth.set(p.monthKey,o); }}
+      return {label:g.label,byMonth,n:byMonth.size}; }).filter(s=>s.n);
+    series.sort((a,b)=>b.n-a.n); let note=`List price history by ${grainNoun()}.`;
+    if(series.length>CAP){ note=`Showing ${CAP} of ${series.length} ${grainNoun()}s (most history).`; series=series.slice(0,CAP); }
+    const allKeys=[...new Set(series.flatMap(s=>[...s.byMonth.keys()]))].sort((a,b)=>a-b);
+    const datasets=series.map((s,i)=>({label:s.label,data:allKeys.map(k=>s.byMonth.has(k)?s.byMonth.get(k).s/s.byMonth.get(k).n:null),borderColor:color(i),backgroundColor:color(i),tension:.2,borderWidth:2,pointRadius:2,spanGaps:true}));
+    chart=new Chart(ctx,{type:"line",data:{labels:allKeys.map(monthLabel),datasets},options:baseOpts({scales:{y:{title:{display:true,text:"Avg list price ($)"},ticks:{callback:v=>"$"+(v/1000).toFixed(0)+"k"}},x:{ticks:{maxRotation:60,autoSkip:true,maxTicksLimit:24}}},plugins:{legend:{labels:{boxWidth:12,font:{size:11}}}}})});
+    setNote(note);
+  }
+}
+/* Generic stacked bar over groups */
+function stackedOverGroups(specBottomToTop,baseNote,labelsOn){
+  const groups=activeGroups();
+  let rows=groups.map(g=>{ const vals=specBottomToTop.map(p=>sumField(g.ids,p.field)); return {label:g.label,vals,total:vals.reduce((a,b)=>a+b,0)}; }).filter(r=>r.total>0).sort((a,b)=>b.total-a.total);
+  let note=baseNote; if(rows.length>30){ note+=` · showing top 30 of ${rows.length}`; rows=rows.slice(0,30); }
+  barLabels.enabled=!!labelsOn; barLabels.fmt=fmtInt; destroyChart();
+  chart=new Chart(ctx,{type:"bar",data:{labels:rows.map(r=>r.label),datasets:specBottomToTop.map((p,i)=>({label:p.label,data:rows.map(r=>r.vals[i]),backgroundColor:p.color,borderWidth:0,stack:"s"}))},
+    options:baseOpts({indexAxis:"y",layout:{padding:{right:labelsOn?56:8}},scales:{x:{stacked:true,beginAtZero:true,title:{display:true,text:"Units"}},y:{stacked:true,ticks:{font:{size:11},autoSkip:false}}}})});
+  setNote(note+(labelsOn?" Labels show each bar's total.":""));
+}
+function chartStartsClosings(){
+  const annual=ST.ctl.scToggle==="annual";
+  const spec=annual?[{label:"Annual Closings",field:"Annual Closings",color:color(3)},{label:"Annual Starts",field:"Annual Starts",color:color(0)}]
+    :[{label:"Quarterly Closings",field:"Quarterly Closings",color:color(3)},{label:"Quarterly Starts",field:"Quarterly Starts",color:color(0)}];
+  stackedOverGroups(spec,`${annual?"Annual":"Quarterly"} starts (top) & closings (bottom) by ${grainNoun()}.`,ST.ctl.labels.sc);
+}
+function chartLotPipeline(){
+  const inv = ST.mode==="submarket" ? true : (ST.ctl.lpToggle==="inv");  // submarket: no quarterly toggle
+  const spec=inv?[{label:"Finished Vacant",field:"Finished Vacant Count",color:color(1)},{label:"Future Inventory",field:"Future Inventory Count",color:color(5)}]
+    :[{label:"Quarterly Closings",field:"Quarterly Closings",color:color(3)},{label:"Quarterly Starts",field:"Quarterly Starts",color:color(0)}];
+  stackedOverGroups(spec, inv?`Finished vacant & future inventory by ${grainNoun()}.`:`Quarterly starts (top) & closings (bottom) by ${grainNoun()}.`,ST.ctl.labels.lot);
+}
+/* All Home Sales (submarket): New vs Resale, drill to $10k bands */
+function chartAllHomes(){
+  destroyChart();
+  if(ST.allHomesDrill==null){
+    const groups=activeGroups(); const idx=existIndexForLevel();
+    let rows=groups.map(g=>{ const txns=(idx.get(g.label.toLowerCase())||[]).filter(txnInPeriod); let nw=0,rs=0; for(const t of txns){ if(isNewTxn(t))nw++; else rs++; } return {label:g.label,nw,rs,total:nw+rs}; }).filter(r=>r.total>0).sort((a,b)=>b.total-a.total);
+    if(!rows.length){ chart=new Chart(ctx,{type:"bar",data:{labels:[],datasets:[]},options:baseOpts()}); setNote(`No existing-transaction matches for the selected submarkets (matched on ${ST.smLevel}).`); return; }
+    let note=`All home sales by ${ST.smLevel} — New (top) vs Resale (bottom). Click a bar to drill into $10k price bands.`;
+    if(rows.length>30){ note+=` Showing top 30 of ${rows.length}.`; rows=rows.slice(0,30); }
+    const labelsOn=!!ST.ctl.labels.allhomes; barLabels.enabled=labelsOn; barLabels.fmt=fmtInt;
+    chart=new Chart(ctx,{type:"bar",data:{labels:rows.map(r=>r.label),datasets:[{label:"Resale",data:rows.map(r=>r.rs),backgroundColor:"#9aa6b2",borderWidth:0,stack:"h"},{label:"New",data:rows.map(r=>r.nw),backgroundColor:color(7),borderWidth:0,stack:"h"}]},
+      options:baseOpts({indexAxis:"y",layout:{padding:{right:labelsOn?56:8}},
+        scales:{x:{stacked:true,beginAtZero:true,title:{display:true,text:"Transactions"}},y:{stacked:true,ticks:{font:{size:11},autoSkip:false}}},
+        onClick:(e,els)=>{ if(!els.length)return; ST.allHomesDrill=rows[els[0].index].label; renderGraphicsView(); }})});
+    setNote(note+(labelsOn?" Labels show New + Resale total.":""));
+  } else {
+    barLabels.enabled=false;
+    const V=ST.allHomesDrill; const txns=(existIndexForLevel().get(V.toLowerCase())||[]).filter(txnInPeriod);
+    const TOP=1000000, band=10000;                                  // bottom axis always tops out at $1,000,000
+    let minP=Infinity; for(const t of txns){ const p=num(t["Sale Price"]); if(p!=null) minP=Math.min(minP,p); }
+    let low=isFinite(minP)?Math.floor(Math.min(minP,TOP-band)/band)*band:0; low=Math.max(0,low);
+    const keys=[]; for(let b=low;b<TOP;b+=band) keys.push(b);
+    const bins=new Map(keys.map(k=>[k,{nw:0,rs:0}]));
+    for(const t of txns){ const p=num(t["Sale Price"]); if(p==null)continue; let b=Math.floor(p/band)*band; if(b>=TOP)b=TOP-band; if(b<low)b=low; const o=bins.get(b); if(o){ if(isNewTxn(t))o.nw++; else o.rs++; } }
+    const lastKey=TOP-band; const over=txns.filter(t=>{const p=num(t["Sale Price"]);return p!=null&&p>=TOP;}).length;
+    chart=new Chart(ctx,{type:"bar",data:{labels:keys.map(k=>k===lastKey?"$990k–1M":"$"+(k/1000)+"k"),datasets:[{label:"Resale",data:keys.map(k=>bins.get(k).rs),backgroundColor:"#9aa6b2",borderWidth:0,stack:"h"},{label:"New",data:keys.map(k=>bins.get(k).nw),backgroundColor:color(7),borderWidth:0,stack:"h"}]},
+      options:baseOpts({scales:{x:{stacked:true,title:{display:true,text:"Sale price ($10k bands · max $1,000,000)"},ticks:{maxRotation:60,minRotation:45,font:{size:10},autoSkip:true,maxTicksLimit:40}},y:{stacked:true,beginAtZero:true,title:{display:true,text:"Transactions"}}}})});
+    setNote(`${V} — all home sales by $10,000 price band (axis max $1,000,000). New (top) vs Resale (bottom). ${txns.length} transactions${over?`, incl. ${over} ≥ $1M grouped in the top band`:""}. Use “← Back to submarkets”.`);
+  }
+}
+/* FPP — price vs sqft lines + optional existing-transaction overlays */
+function chartFppLines(){
+  destroyChart(); const ids=[...activeIds()]; const fpDatasets=[];
+  ids.forEach((id,i)=>{ const name=str((DB.byId.get(id)||{})["Project Name"])||id;
+    const pts=(DB.fpById.get(id)||[]).map(fp=>{ const x=num(fp["Unit Size"]),y=num(fp["List Price"]); if(x==null||y==null)return null; return {x,y,plan:str(fp["Plan Name"]),proj:name,bed:num(fp["Bedrooms"])}; }).filter(Boolean).sort((a,b)=>a.x-b.x);
+    if(pts.length) fpDatasets.push({label:name,data:pts,backgroundColor:color(i),borderColor:color(i),pointRadius:5,pointHoverRadius:8,showLine:true,borderWidth:2,tension:0}); });
+  const overlays=[];
+  if(DB.hasExist && (ST.fppAddNew||ST.fppAddResale)){
+    const cities=new Set(); for(const id of ids){ const r=DB.byId.get(id); const c=str(r&&r["City"]).toLowerCase(); if(c)cities.add(c); }
+    const pool=[]; for(const c of cities){ for(const t of (DB.existByCity.get(c)||[])){ if(txnInPeriod(t))pool.push(t); } }
+    const mk=(isNew,label,col)=>{ const pts=pool.filter(t=>isNewTxn(t)===isNew).map(t=>{ const x=num(t["Unit Size"]),y=num(t["Sale Price"]); if(x==null||y==null)return null; return {x,y,addr:str(t["Address"]),city:str(t["City"])}; }).filter(Boolean);
+      return {label,data:pts,backgroundColor:"rgba(0,0,0,0)",borderColor:col,borderWidth:1.5,pointRadius:4,pointHoverRadius:6,pointStyle:"circle",showLine:false}; };
+    if(ST.fppAddResale) overlays.push(mk(false,"Resale (existing)","rgba(120,128,138,0.5)"));
+    if(ST.fppAddNew) overlays.push(mk(true,"New (existing)","rgba(6,182,196,0.6)"));
+  }
+  const datasets=[...overlays,...fpDatasets];   // overlays first => drawn behind
+  if(!datasets.length){ chart=new Chart(ctx,{type:"scatter",data:{datasets:[]},options:baseOpts()}); setNote("No floorplans for the checked communities. Check communities in the reference table below."); return; }
+  chart=new Chart(ctx,{type:"scatter",data:{datasets},
+    options:baseOpts({plugins:{legend:{position:"bottom",labels:{boxWidth:12,font:{size:11}}},
+      tooltip:{callbacks:{label:c=>{const d=c.raw; if(d.proj!==undefined) return `${d.proj} · ${d.plan} · ${d.bed?d.bed+'bd · ':''}${fmtInt(d.x)} sqft · ${fmtMoney(d.y)}`; return `${c.dataset.label} · ${d.city} · ${fmtInt(d.x)} sqft · ${fmtMoney(d.y)}`;}}}},
+      scales:{x:{min:1000,max:4000,title:{display:true,text:"Square footage (sqft)"},ticks:{callback:v=>fmtInt(v)}},y:{min:100000,max:800000,title:{display:true,text:"List / sale price ($)"},ticks:{callback:v=>"$"+(v/1000).toFixed(0)+"k"}}}})});
+  const fpPts=fpDatasets.reduce((a,d)=>a+d.data.length,0); const ovPts=overlays.reduce((a,d)=>a+d.data.length,0);
+  setNote(`${fpDatasets.length} community/communities · ${fpPts} floorplan(s)${overlays.length?` · ${ovPts} existing-sale point(s) overlaid (behind)`:""}. Lines connect each community's floorplans by size.`);
+}
+
+/* ============================================================= *
+ *  Graphics view: tabs + controls
+ * ============================================================= */
+const TAB_DEFS={
+  sales:{id:"sales",label:"Sales Trend",title:"Monthly Sales Trend",render:chartSalesTrend},
+  avgprice:{id:"avgprice",label:"Avg New Home Price",title:"Average New Home Price",render:chartAvgPrice},
+  allhomes:{id:"allhomes",label:"All Home Sales",title:"All Home Sales (New vs Resale)",render:chartAllHomes},
+  sc:{id:"sc",label:"Starts and Closings",title:"Starts and Closings",render:chartStartsClosings},
+  lot:{id:"lot",label:"Lot Pipeline",title:"Lot Pipeline",render:chartLotPipeline},
+  price:{id:"price",label:"Price History",title:"List Price History",render:chartPriceHistory},
+  scatter:{id:"scatter",label:"Price vs Sq Ft",title:"Floor Plan Pricing — Price vs Square Footage",render:chartFppLines},
+};
+function currentGtabs(){
+  if(ST.mode==="fpp") return [TAB_DEFS.scatter];
+  const ids=ST.mode==="submarket"
+    ? ["avgprice","sc",...(DB.hasExist?["allhomes"]:[]),"lot","price","sales"]
+    : ["avgprice","sc","lot","price","sales"];
+  return ids.map(i=>TAB_DEFS[i]);
+}
+function sizeChartWrap(){ const w=document.getElementById("chartWrap"); if(!w) return;
+  const top=w.getBoundingClientRect().top; w.style.height=Math.max(360,Math.round(window.innerHeight-top-64))+"px"; if(chart) chart.resize(); }
+function renderGraphicsView(){
+  const tabs=currentGtabs(); if(!tabs.find(t=>t.id===ST.gtab)) ST.gtab=tabs[0].id;
+  const host=document.getElementById("gtabs"); host.innerHTML="";
+  tabs.forEach(t=>{ const b=document.createElement("button"); b.className="tab"+(t.id===ST.gtab?" active":""); b.textContent=t.label;
+    b.onclick=()=>{ ST.gtab=t.id; ST.allHomesDrill=null; renderGraphicsView(); }; host.appendChild(b); });
+  const tab=tabs.find(t=>t.id===ST.gtab);
+  document.getElementById("chartTitle").textContent=tab.title;
+  buildChartControls(tab);
+  barLabels.enabled=false;
+  sizeChartWrap();          // maximize chart to fill the browser window (no table in graphics view)
+  tab.render();
+}
+function buildChartControls(tab){
+  const host=document.getElementById("chartControls"); host.innerHTML="";
+  const byLabel=ST.mode==="submarket"?"By Submarket":"By Project";
+  const seg=(opts,cur,onSel)=>{ const s=document.createElement("div"); s.className="seg";
+    opts.forEach(o=>{ const b=document.createElement("button"); b.textContent=o.label; b.className=o.val===cur?"active":""; b.onclick=()=>{ onSel(o.val); renderGraphicsView(); }; s.appendChild(b); }); return s; };
+  if(tab.id==="sales") host.appendChild(seg([{label:"Aggregate",val:"agg"},{label:byLabel,val:"seg"}],ST.ctl.salesMode,v=>ST.ctl.salesMode=v));
+  if(tab.id==="price") host.appendChild(seg([{label:"Aggregate",val:"agg"},{label:byLabel,val:"seg"}],ST.ctl.priceMode,v=>ST.ctl.priceMode=v));
+  if(tab.id==="sc") host.appendChild(seg([{label:"Annual",val:"annual"},{label:"Quarterly",val:"quarterly"}],ST.ctl.scToggle,v=>ST.ctl.scToggle=v));
+  if(tab.id==="lot" && ST.mode==="communities") host.appendChild(seg([{label:"Vacant & Future",val:"inv"},{label:"Quarterly Starts/Closings",val:"quarterly"}],ST.ctl.lpToggle,v=>ST.ctl.lpToggle=v));
+  if(tab.id==="allhomes" && ST.allHomesDrill!=null){ const back=document.createElement("button"); back.className="btn sm"; back.textContent="← Back to submarkets"; back.onclick=()=>{ ST.allHomesDrill=null; renderGraphicsView(); }; host.appendChild(back); }
+  if(["avgprice","sc","lot"].includes(tab.id) || (tab.id==="allhomes" && ST.allHomesDrill==null)){
+    const on=!!ST.ctl.labels[tab.id]; const b=document.createElement("button"); b.className="btn sm"+(on?" on":""); b.textContent=on?"Remove Labels":"Add Labels";
+    b.onclick=()=>{ ST.ctl.labels[tab.id]=!ST.ctl.labels[tab.id]; renderGraphicsView(); }; host.appendChild(b);
+  }
+  if(tab.id==="scatter" && DB.hasExist){
+    const tgl=(label,on,toggle)=>{ const b=document.createElement("button"); b.className="btn sm"+(on?" on":""); b.textContent=label; b.onclick=()=>{ toggle(); renderGraphicsView(); }; return b; };
+    host.appendChild(tgl("Add New",ST.fppAddNew,()=>ST.fppAddNew=!ST.fppAddNew));
+    host.appendChild(tgl("Add Resale",ST.fppAddResale,()=>ST.fppAddResale=!ST.fppAddResale));
+  }
+  const b=document.createElement("button"); b.className="btn sm"; b.textContent="Export PNG"; b.onclick=exportPng; host.appendChild(b);
+}
+function exportPng(){ if(!chart)return; const url=chart.toBase64Image("image/png",1); const a=document.createElement("a"); a.href=url; a.download="zonda_"+ST.mode+"_"+ST.gtab+".png"; a.click(); }
+
+document.getElementById("exportCsvBtn").onclick=()=>{
+  if(!filteredDetails.length){ alert("No communities match the current filters."); return; }
+  const csv=Papa.unparse(filteredDetails); const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="zonda_filtered_communities.csv"; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+};
+
+function applyAndRender(){
+  computeFiltered(); document.getElementById("matchCount").textContent=filteredIds.size; renderKpis();
+  if(ST.view==="table") renderTableView(); else renderGraphicsView();
+}
+autoLoad().catch(e=>{ showPicker(e&&e.file); });
+</script>
+</body>
+</html>
