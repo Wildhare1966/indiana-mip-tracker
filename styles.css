@@ -567,6 +567,27 @@
   [data-theme="light"] a.tp-doc-link { color: #b87a08; text-decoration-color: rgba(184,122,8,0.5); }
   [data-theme="light"] a.tp-doc-link:hover { color: #8b5a00; }
 
+  /* P94 item 2: Summary / Agenda links on the GLOBAL Tracked Projects page take
+     the teal the project names used to be (#14b8a6 dark / #0f766e light). Scoped
+     class so the shared .tp-doc-link surfaces elsewhere keep the accent color.
+     Equal specificity to a.tp-doc-link — source order (later) makes these win. */
+  a.tp-page-doc-link { color: #14b8a6; text-decoration-color: rgba(20,184,166,0.5); }
+  a.tp-page-doc-link:hover { color: #36cfbf; text-decoration-color: #14b8a6; }
+  a.tp-page-doc-link:visited { color: #14b8a6; }
+  [data-theme="light"] a.tp-page-doc-link { color: #0f766e; text-decoration-color: rgba(15,118,110,0.5); }
+  [data-theme="light"] a.tp-page-doc-link:hover { color: #0b5a54; }
+  [data-theme="light"] a.tp-page-doc-link:visited { color: #0f766e; }
+
+  /* P94 item 3: tagged-document links in the per-muni Tracked Projects RAIL take
+     the same purple used for the Tagged Docs column on the global TP page
+     (#7e57c2). The rail anchors carry .tp-doc-link too, so override here. */
+  a.tpr-doc-link { color: #7e57c2; text-decoration-color: rgba(126,87,194,0.5); }
+  a.tpr-doc-link:hover { color: #9575cd; text-decoration-color: #7e57c2; }
+  a.tpr-doc-link:visited { color: #7e57c2; }
+  [data-theme="light"] a.tpr-doc-link { color: #673ab7; text-decoration-color: rgba(103,58,183,0.5); }
+  [data-theme="light"] a.tpr-doc-link:hover { color: #512da8; }
+  [data-theme="light"] a.tpr-doc-link:visited { color: #673ab7; }
+
   /* P58.7 R13c: status dropdown in the Tracked Projects table. */
   .tp-status-select {
     background: var(--intel-bg, #1a2540);
@@ -649,20 +670,20 @@
   .tpr-project-name {
     flex: 1; min-width: 0;
     font-weight: 600;
-    /* P91: bright teal — Tailwind teal-500 dark / teal-700 light. Shared with
-       .tp-project-name on the global Tracked Projects page. */
-    color: #14b8a6;
+    /* P94: project names now use the page accent (matches the +Track Project
+       button) — #4a9fc4 light-blue in dark, #1b4965 navy in light. var(--accent)
+       theme-switches on its own, so no separate light override is needed.
+       Shared with .tp-project-name on the global Tracked Projects page. */
+    color: var(--accent);
     line-height: 1.3;
     word-break: break-word;
   }
-  [data-theme="light"] .tpr-project-name { color: #0f766e; }
 
-  /* P91: matching rule for the global Tracked Projects page project-name cell. */
+  /* P94: matching rule for the global Tracked Projects page project-name cell. */
   .tp-project-name {
     font-weight: 600;
-    color: #14b8a6;
+    color: var(--accent);
   }
-  [data-theme="light"] .tp-project-name { color: #0f766e; }
   .tpr-project-ord {
     font-weight: 400;
     color: var(--text-dim);

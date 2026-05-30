@@ -422,6 +422,7 @@
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Tagged Docs</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Status</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Map</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;" title="ArcGIS record key — manually entered unique ID matching the corresponding ArcGIS record (for future MRD→ArcGIS upload/sync)">MapID</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);"></th>
               </tr>
             </thead>
@@ -5809,10 +5810,10 @@ function tpRenderTable() {
     var ytHref = summaryDocUrl || p.latestYtSummaryUrl || '';
     var ytLabel = summaryDocUrl ? 'Summary' : (p.latestYtSummaryUrl ? 'YouTube' : '');
     var agenda  = p.latestAgendaUrl
-      ? '<a class="tp-doc-link" href="' + esc(inlineViewerUrl(p.latestAgendaUrl)) + '" target="_blank" rel="noopener" data-doc-link="agenda">Agenda</a>' + downloadSiblingHtml(p.latestAgendaUrl)
+      ? '<a class="tp-doc-link tp-page-doc-link" href="' + esc(inlineViewerUrl(p.latestAgendaUrl)) + '" target="_blank" rel="noopener" data-doc-link="agenda">Agenda</a>' + downloadSiblingHtml(p.latestAgendaUrl)
       : '<span style="color:var(--muted,#888);">—</span>';
     var yt = ytHref
-      ? '<a class="tp-doc-link" href="' + esc(ytHref) + '" target="_blank" rel="noopener" data-doc-link="' + (summaryDocUrl ? 'summary' : 'youtube') + '">' + esc(ytLabel) + '</a>'
+      ? '<a class="tp-doc-link tp-page-doc-link" href="' + esc(ytHref) + '" target="_blank" rel="noopener" data-doc-link="' + (summaryDocUrl ? 'summary' : 'youtube') + '">' + esc(ytLabel) + '</a>'
       : '<span style="color:var(--muted,#888);">—</span>';
     var when    = p.latestMeetingDate ? '<div style="font-size:10px;color:var(--muted,#888);">' + esc(p.latestMeetingDate) + '</div>' : '';
 
@@ -5903,7 +5904,7 @@ function tpRenderTable() {
     var editBtn = '<button class="refresh-btn" onclick="tpToggleEditRow(\'' + pidAttr + '\')" title="Edit project / aliases / delete" style="font-size:11px;padding:2px 7px;background:transparent;border:1px solid var(--border,#444);">' + (isEditing ? '×' : '✎') + '</button>';
     // P71 R3: column order — Edit | Project | Juris | Petitioner | Builder |
     // Meeting Type | Meeting Date | Action Taken | Latest YT | Latest Agenda |
-    // Tagged Docs | Status | Map | Close-utility (14 cells)
+    // Tagged Docs | Status | Map | MapID | Close-utility (P94: MapID added far right)
     // P79 A1: Lots — Gemini-extracted from YouTube summary (carry-forward R2);
     // manual override via Edit dropdown lives at Tracked_Projects.lots col 18.
     // For now, value reads from p.lots (P71 wire field added in this same arc).
@@ -5933,6 +5934,11 @@ function tpRenderTable() {
       '<td style="padding:8px 10px;vertical-align:top;">' +
         '<input type="text" value="' + escAttr(p.mapUrl || '') + '" placeholder="ArcGIS / parcel URL" data-field="map_url" onblur="tpInlineSave(this)" style="width:160px;background:transparent;border:1px solid transparent;color:inherit;padding:2px 4px;font-size:12px;border-radius:3px;" onfocus="this.style.borderColor=\'var(--border,#444)\'">' +
         (p.mapUrl ? ' <a href="' + esc(p.mapUrl) + '" target="_blank" rel="noopener" title="Open map" data-no-tag>↗</a>' : '') +
+      '</td>' +
+      // P94 item 4: MapID — manually-entered ArcGIS record key (Tracked_Projects
+      // col S / map_id). Persists via the same inline-save path as map_url.
+      '<td style="padding:8px 10px;vertical-align:top;">' +
+        '<input type="text" value="' + escAttr(p.mapId || '') + '" placeholder="ArcGIS ID" data-field="map_id" onblur="tpInlineSave(this)" style="width:120px;background:transparent;border:1px solid transparent;color:inherit;padding:2px 4px;font-size:12px;border-radius:3px;" onfocus="this.style.borderColor=\'var(--border,#444)\'" title="Unique ID matching the ArcGIS record">' +
       '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;text-align:right;">' +
         (isOperator() ? '<button class="refresh-btn" onclick="event.stopPropagation();tpCloseProject(\'' + pidAttr + '\', \'' + escAttr((p.projectName||'').replace(/\x27/g,"\\\x27")) + '\')" style="font-size:10px;padding:2px 6px;" title="Close tracking (operator only)">✕</button>' : '') +
@@ -5969,7 +5975,7 @@ window.tpToggleAction = tpToggleAction;
 function _tpRenderEditDropdown(p, pidAttr) {
   var pid = p.projectId || '';
   return '<tr class="tp-edit-row" data-edit-pid="' + pidAttr + '" style="background:var(--bg-card,#1a1a1a);">' +
-    '<td colspan="16" style="padding:14px 18px;border-bottom:1px solid var(--border,#333);">' +
+    '<td colspan="17" style="padding:14px 18px;border-bottom:1px solid var(--border,#333);">' +
       '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;align-items:end;">' +
         '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);">Project name' +
           '<input id="tpe-name-' + pidAttr + '" type="text" value="' + escAttr(p.projectName || '') + '" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
@@ -6226,6 +6232,7 @@ function tpInlineSave(inputEl) {
   if (!current) return;
   var oldVal = (field === 'petitioner_applicant') ? (current.petitionerApplicant || '')
              : (field === 'map_url')              ? (current.mapUrl || '')
+             : (field === 'map_id')               ? (current.mapId || '')
              : '';
   var newVal = inputEl.value || '';
   if (newVal === oldVal) {
@@ -6245,6 +6252,7 @@ function tpInlineSave(inputEl) {
         inputEl.style.borderColor = '#4ac49a';
         if (field === 'petitioner_applicant') current.petitionerApplicant = newVal;
         if (field === 'map_url')              current.mapUrl = newVal;
+        if (field === 'map_id')               current.mapId = newVal;
         setTimeout(function() { inputEl.style.borderColor = 'transparent'; }, 800);
       } else {
         inputEl.style.borderColor = 'rgba(220,80,80,0.6)';
