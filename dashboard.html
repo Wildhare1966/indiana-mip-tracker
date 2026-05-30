@@ -137,7 +137,44 @@
   input[type=file]{display:none}
   .muted{color:var(--muted)}
   .hidden{display:none!important}
+  /* P93 Phase 3 — optional DARK variant, activated only via ?theme=dark when
+     embedded in MRD. Default (no param) light look is completely unchanged. */
+  html[data-theme="dark"]{
+    --bg:#0e2233;--panel:#143247;--ink:#cdd9e4;--muted:#8198ab;--line:rgba(255,255,255,.12);
+    --brand:#1b4965;--brand2:#2c7da0;--accent:#e8a30c;--good:#3fa06a;--bad:#d4615a;
+    --shadow:0 1px 3px rgba(0,0,0,.45),0 1px 2px rgba(0,0,0,.35);--panel2:#1b3a52;--hover:#1b4060;
+  }
+  html[data-theme="dark"] .seg button{background:var(--panel);color:var(--muted)}
+  html[data-theme="dark"] .seg button.active{background:var(--brand2);color:#fff}
+  html[data-theme="dark"] .ms-btn,html[data-theme="dark"] .ms-panel,html[data-theme="dark"] select.sel,
+  html[data-theme="dark"] input.sel,html[data-theme="dark"] .btn,html[data-theme="dark"] .ms-search{background:var(--panel);color:var(--ink)}
+  html[data-theme="dark"] .ms-btn.has-sel,html[data-theme="dark"] .ms-opt:hover,
+  html[data-theme="dark"] .btn:hover,html[data-theme="dark"] table.data tr:hover td{background:var(--hover)}
+  html[data-theme="dark"] table.data{background:var(--panel)}
+  html[data-theme="dark"] table.data th,html[data-theme="dark"] table.data th.chk{background:var(--panel2);color:var(--ink)}
+  html[data-theme="dark"] table.data th:hover{background:var(--hover)}
+  html[data-theme="dark"] table.data td.chk{background:var(--panel)}
+  html[data-theme="dark"] .kpi .value{color:#4a9fc4}
+  html[data-theme="dark"] .tab.active{color:#cdd9e4}
+  html[data-theme="dark"] #overlay{background:rgba(14,34,51,.97)}
+  html[data-theme="dark"] .ov-card{background:var(--panel)}
+  html[data-theme="dark"] .pill.Active{background:rgba(63,160,106,.18);color:#7fd0a3}
+  html[data-theme="dark"] .pill.Upcoming{background:rgba(232,163,12,.18);color:#e8b94a}
+  html[data-theme="dark"] .pill.other{background:rgba(129,152,171,.18);color:var(--muted)}
+  html[data-theme="dark"] .err{background:rgba(212,97,90,.15);color:#e88}
 </style>
+<script>
+/* P93 Phase 3 — read the theme MRD passes via ?theme=dark|light and apply it
+   before paint. Chart.js axis/legend/grid colors primed for dark legibility. */
+(function(){
+  var t = new URLSearchParams(location.search).get('theme') === 'dark' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', t);
+  if (t === 'dark' && window.Chart) {
+    Chart.defaults.color = '#cdd9e4';
+    Chart.defaults.borderColor = 'rgba(255,255,255,0.12)';
+  }
+})();
+</script>
 </head>
 <body>
 
@@ -609,7 +646,7 @@ const barTotalsPlugin={ id:"barTotals", afterDatasetsDraw(chart){
   ctx2.restore();
 } };
 Chart.register(barTotalsPlugin);
-Chart.defaults.font.size=13; Chart.defaults.font.family='-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif'; Chart.defaults.color="#1f2733";
+Chart.defaults.font.size=13; Chart.defaults.font.family='-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif'; Chart.defaults.color = document.documentElement.getAttribute('data-theme')==='dark' ? '#cdd9e4' : '#1f2733';
 function destroyChart(){ if(chart){chart.destroy();chart=null;} }
 function setNote(t){ document.getElementById("chartNote").textContent=t||""; }
 const baseOpts=(extra={})=>Object.assign({responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:14,font:{size:12}}},tooltip:{enabled:true}}},extra);

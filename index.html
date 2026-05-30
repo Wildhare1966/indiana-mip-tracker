@@ -1677,6 +1677,10 @@ function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
   const btn = document.getElementById('theme-toggle-btn');
   if (btn) btn.textContent = theme === 'light' ? '☾' : '☀';
+  // Phase 3: keep the embedded Zonda dashboard in sync with MRD's theme.
+  // Only re-point once it's been opened (src set); first open is themed by registerViewInit.
+  const mf = document.getElementById('market-frame');
+  if (mf && mf.src) mf.src = 'dashboard.html?theme=' + theme;
 }
 function toggleTheme() {
   const current = document.documentElement.getAttribute('data-theme') || 'dark';
@@ -1877,7 +1881,7 @@ function registerViewInit(name, fn) {
 // until the operator first opens the page. Theme-follow wiring added in Phase 3.
 registerViewInit('market', function () {
   var f = document.getElementById('market-frame');
-  if (f && !f.src) f.src = 'dashboard.html';
+  if (f && !f.src) f.src = 'dashboard.html?theme=' + (document.documentElement.getAttribute('data-theme') || 'dark');
 });
 function switchView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
