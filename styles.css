@@ -11,6 +11,10 @@
     --accent: #4a9fc4;
     --accent-light: #6bb6d4;
     --accent-warn: #e8a30c;
+    /* P94 r3: brighter/fluorescent name color (TP names + county rail names) and
+       fluorescent yellow (rail tagged-doc links + per-project + button). Dark. */
+    --tp-bright: #3be3ff;
+    --tp-yellow: #ffe81a;
     --white: #f4f6f9;
     --gray-100: #e3e9f0;
     --gray-200: #c2ccd9;
@@ -59,6 +63,10 @@
     --accent: #1b4965;
     --accent-light: #2c7da0;
     --accent-warn: #e8a30c;
+    /* P94 r3: light-theme variants — vivid but legible on white (pure
+       fluorescent values would wash out on a light bg). */
+    --tp-bright: #0891b2;
+    --tp-yellow: #9a7b0a;
     --white: #1f2733;
     --gray-100: #dfe5ec;
     --gray-200: #b8c2cf;
@@ -331,7 +339,8 @@
     font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
     font-size: 10px;
     font-weight: 600;
-    color: var(--accent);
+    /* P94 r3: brighter/fluorescent for legibility (matches TP names). */
+    color: var(--tp-bright);
     letter-spacing: 0.08em;
     text-transform: uppercase;
   }
@@ -578,15 +587,16 @@
   [data-theme="light"] a.tp-page-doc-link:hover { color: #0b5a54; }
   [data-theme="light"] a.tp-page-doc-link:visited { color: #0f766e; }
 
-  /* P94 item 3: tagged-document links in the per-muni Tracked Projects RAIL take
-     the same purple used for the Tagged Docs column on the global TP page
-     (#7e57c2). The rail anchors carry .tp-doc-link too, so override here. */
-  a.tpr-doc-link { color: #7e57c2; text-decoration-color: rgba(126,87,194,0.5); }
-  a.tpr-doc-link:hover { color: #9575cd; text-decoration-color: #7e57c2; }
-  a.tpr-doc-link:visited { color: #7e57c2; }
-  [data-theme="light"] a.tpr-doc-link { color: #673ab7; text-decoration-color: rgba(103,58,183,0.5); }
-  [data-theme="light"] a.tpr-doc-link:hover { color: #512da8; }
-  [data-theme="light"] a.tpr-doc-link:visited { color: #673ab7; }
+  /* P94 r3: tagged-document links in the per-muni Tracked Projects RAIL recolored
+     to bright/fluorescent yellow (var(--tp-yellow): #ffe81a dark / #9a7b0a light —
+     pure yellow is illegible on the light bg). The rail anchors carry .tp-doc-link
+     too, so override here. */
+  a.tpr-doc-link { color: var(--tp-yellow); text-decoration-color: rgba(255,232,26,0.45); }
+  a.tpr-doc-link:hover { color: #fff05a; text-decoration-color: var(--tp-yellow); }
+  a.tpr-doc-link:visited { color: var(--tp-yellow); }
+  [data-theme="light"] a.tpr-doc-link { color: var(--tp-yellow); text-decoration-color: rgba(154,123,10,0.5); }
+  [data-theme="light"] a.tpr-doc-link:hover { color: #7d6408; }
+  [data-theme="light"] a.tpr-doc-link:visited { color: var(--tp-yellow); }
 
   /* P58.7 R13c: status dropdown in the Tracked Projects table. */
   .tp-status-select {
@@ -670,19 +680,18 @@
   .tpr-project-name {
     flex: 1; min-width: 0;
     font-weight: 600;
-    /* P94: project names now use the page accent (matches the +Track Project
-       button) — #4a9fc4 light-blue in dark, #1b4965 navy in light. var(--accent)
-       theme-switches on its own, so no separate light override is needed.
-       Shared with .tp-project-name on the global Tracked Projects page. */
-    color: var(--accent);
+    /* P94 r3: brighter/fluorescent for legibility — fluorescent cyan #3be3ff in
+       dark, vivid cyan #0891b2 in light (var(--tp-bright)). Shared with
+       .tp-project-name on the global Tracked Projects page + .county-name rail. */
+    color: var(--tp-bright);
     line-height: 1.3;
     word-break: break-word;
   }
 
-  /* P94: matching rule for the global Tracked Projects page project-name cell. */
+  /* P94 r3: matching rule for the global Tracked Projects page project-name cell. */
   .tp-project-name {
     font-weight: 600;
-    color: var(--accent);
+    color: var(--tp-bright);
   }
   .tpr-project-ord {
     font-weight: 400;
@@ -844,7 +853,8 @@
     line-height: 1;
     border-radius: 3px;
     background: rgba(232,160,32,0.12);
-    color: var(--accent);
+    /* P94 r3: + glyph in bright/fluorescent yellow to match the rail doc links. */
+    color: var(--tp-yellow);
     border: 1px solid rgba(232,160,32,0.3);
     cursor: pointer;
     font-size: 14px;
