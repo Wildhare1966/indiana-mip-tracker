@@ -36,7 +36,7 @@
     <span class="topbar-badge">Apr 2026</span>
     <button class="refresh-btn" id="theme-toggle-btn" onclick="toggleTheme()" title="Switch light/dark theme" style="font-size:14px;padding:4px 10px;">☀</button>
     <div id="gemini-key-banner" onclick="switchView('settings');setTimeout(()=>{const b=document.getElementById('api-keys-body');if(b&&b.style.display==='none')toggleSettingsSection('api-keys-body');const i=document.getElementById('gemini-key-input');if(i){i.focus();i.scrollIntoView({behavior:'smooth',block:'center'});}},150);"
-         style="display:none;align-items:center;gap:6px;background:rgba(232,160,32,0.15);border:1px solid rgba(232,160,32,0.4);border-radius:4px;padding:3px 10px;cursor:pointer;font-family:'IBM Plex Mono',monospace;font-size:10px;color:#e8a020;letter-spacing:0.04em;">
+         style="display:none;align-items:center;gap:6px;background:rgba(232,160,32,0.15);border:1px solid rgba(232,160,32,0.4);border-radius:4px;padding:3px 10px;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:10px;color:#e8a020;letter-spacing:0.04em;">
       ⚠ Gemini key not set — click to add
     </div>
     <button class="refresh-btn" id="refresh-btn" onclick="refreshHearings()" title="Re-fetch hearing records from Google Sheets">↺ Refresh Hearings</button>
@@ -238,7 +238,7 @@
                   <option value="168">7 days</option>
                 </select>
               </div>
-              <div id="profile-stats-box" style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:4px;padding:10px;margin:10px 0;font-size:11px;color:var(--text-dim);font-family:'IBM Plex Mono',monospace;">
+              <div id="profile-stats-box" style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:4px;padding:10px;margin:10px 0;font-size:11px;color:var(--text-dim);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
                 No profile data loaded.
               </div>
               <div style="display:flex;gap:8px;margin-bottom:8px;">
@@ -273,7 +273,7 @@
                 Run near end of year when jurisdictions publish new schedules. Uses Gemini to extract dates from schedule pages.
                 Jurisdictions with schedule URLs (pcScheduleUrl, bzaScheduleUrl, councilScheduleUrl) will be scraped.
               </div>
-              <div id="scrape-stats-box" style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:4px;padding:10px;margin:10px 0;font-size:11px;color:var(--text-dim);font-family:'IBM Plex Mono',monospace;">
+              <div id="scrape-stats-box" style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:4px;padding:10px;margin:10px 0;font-size:11px;color:var(--text-dim);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
                 No scrape data. Click below to run.
               </div>
               <button class="settings-save-btn" style="width:100%;" id="scrape-all-btn" onclick="runScheduleScrapeAll()">Scrape All Schedules</button>
@@ -301,7 +301,7 @@
                 <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
                   <input id="gemini-key-input" type="password" placeholder="AIza... (leave blank to use project default)"
                     style="flex:1;background:var(--panel);border:1px solid var(--border);color:var(--text);
-                    font-family:'IBM Plex Mono',monospace;font-size:11px;padding:6px 10px;border-radius:4px;outline:none;"
+                    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;padding:6px 10px;border-radius:4px;outline:none;"
                     oninput="saveGeminiKey(this.value)">
                   <span id="gemini-key-status" style="font-size:10px;color:var(--text-dim);">Using project default</span>
                 </div>
@@ -352,7 +352,7 @@
               <div style="display:flex;gap:8px;margin-bottom:8px;">
                 <button class="settings-save-btn" style="flex:1;margin-top:0;" onclick="refreshRecentChanges()">Refresh</button>
               </div>
-              <div id="recent-changes-list" style="font-size:11px;color:var(--text-dim);font-family:'IBM Plex Mono',monospace;max-height:480px;overflow-y:auto;">
+              <div id="recent-changes-list" style="font-size:11px;color:var(--text-dim);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;max-height:480px;overflow-y:auto;">
                 Click Refresh to load.
               </div>
             </div>
@@ -479,7 +479,7 @@
               <div class="settings-card-title">Additional Details</div>
               <div class="settings-card-sub">Provide project-specific details to fine-tune the schedule and requirements.</div>
               <textarea id="sched-detail" class="settings-input" rows="3"
-                style="width:100%;resize:vertical;font-family:'IBM Plex Mono',monospace;font-size:11px;line-height:1.5;"
+                style="width:100%;resize:vertical;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;line-height:1.5;"
                 placeholder="e.g., 80-lot single-family subdivision, currently zoned AG, requesting R-2 density"></textarea>
             </div>
           </div>
@@ -504,7 +504,7 @@
 
         <div id="sched-loading" style="display:none;text-align:center;padding:40px 0;">
           <div class="sched-loading-spinner"></div>
-          <div id="sched-loading-text" style="color:var(--accent);font-family:'IBM Plex Mono',monospace;font-size:12px;margin-top:12px;">
+          <div id="sched-loading-text" style="color:var(--accent);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;margin-top:12px;">
             Generating schedule...
           </div>
         </div>
@@ -1110,7 +1110,7 @@ function renderProfileResearch(el, text, memberName) {
   };
 
   el.innerHTML = `
-    <div style="font-size:9px;color:var(--text-dim);font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">AI Research · ${esc(ts)}</div>
+    <div style="font-size:9px;color:var(--text-dim);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">AI Research · ${esc(ts)}</div>
     <div style="margin-bottom:8px;">
       <div class="detail-section-label">Professional Background</div>
       <div style="font-size:11px;color:var(--text);line-height:1.5;">${esc(profBg)}</div>
@@ -1743,7 +1743,7 @@ function checkMuniDataBanner() {
   if (MUNICIPALITIES.length === 0) {
     const banner = document.createElement('div');
     banner.id = 'muni-data-banner';
-    banner.style.cssText = 'background:#1a1a2e;border:1px solid #e74c3c;color:#e74c3c;padding:12px 20px;text-align:center;font-size:13px;font-family:IBM Plex Mono,monospace;';
+    banner.style.cssText = 'background:#1a1a2e;border:1px solid #e74c3c;color:#e74c3c;padding:12px 20px;text-align:center;font-size:13px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;';
     banner.innerHTML = '⚠ Data temporarily unavailable — try refreshing the page.';
     const main = document.querySelector('.main-content') || document.body;
     main.prepend(banner);
@@ -3034,7 +3034,7 @@ function renderMemberDetail(mem) {
 
     <div class="detail-section">
       <div class="detail-section-label">Relationship Notes</div>
-      <textarea id="member-notes-input" style="width:100%;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:11px;padding:7px;resize:vertical;min-height:64px;outline:none;" placeholder="Add team notes, relationship context, past interactions...">${esc(savedNotes)}</textarea>
+      <textarea id="member-notes-input" style="width:100%;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;padding:7px;resize:vertical;min-height:64px;outline:none;" placeholder="Add team notes, relationship context, past interactions...">${esc(savedNotes)}</textarea>
       <button class="settings-add-btn" style="margin-top:4px;" onclick="saveMemberNotes('${escAttr(notesKey)}')">Save Notes</button>
     </div>
 
@@ -3046,7 +3046,7 @@ function renderMemberDetail(mem) {
     <div class="detail-section">
       <div class="detail-section-label">Professional Background</div>
       <div style="color:var(--text-dim);font-size:11px;margin-bottom:6px;">${esc(mem.professional_background) || 'No professional background on record.'}</div>
-      <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Employment History</div>
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Employment History</div>
       ${mem.employment_history && mem.employment_history.length
         ? `<div class="affiliation-list">${mem.employment_history.map(e=>`<div class="affiliation-item">${esc(e)}</div>`).join('')}</div>`
         : `<div style="color:var(--text-dim);font-size:11px;">No employment history on record.</div>`}
@@ -3070,14 +3070,14 @@ function renderMemberDetail(mem) {
     </div>
 
     ${mem._last_researched ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">
-      <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);letter-spacing:0.05em;">
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:9px;color:var(--text-dim);letter-spacing:0.05em;">
         PROFILE RESEARCHED: ${esc(new Date(mem._last_researched).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}))}
         <span style="opacity:0.6;margin-left:6px;">${esc(mem._profile_confidence || '')} confidence</span>
       </div>
     </div>` : ''}
 
     <div style="border-top:1px solid var(--border);padding-top:10px;">
-      <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);letter-spacing:0.05em;text-transform:uppercase;margin-bottom:6px;">Profile Archetype</div>
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:9px;color:var(--text-dim);letter-spacing:0.05em;text-transform:uppercase;margin-bottom:6px;">Profile Archetype</div>
       <span class="profile-badge badge-${esc((currentMuni?.profile||'a').toLowerCase())}">Profile ${esc(currentMuni?.profile||'—')} · ${esc(currentMuni?.archetype||'')}</span>
     </div>
 
@@ -3177,7 +3177,7 @@ function renderFeed(items) {
           <span class="intel-date">${esc(item.date)}</span>
           <span class="intel-muni">${esc(item.muni)}</span>
           <span class="intel-tag itag-${esc(item.type)}">${esc((item.type||'').toUpperCase())}</span>
-          <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);">${esc(item.county)} Co.</span>
+          <span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:9px;color:var(--text-dim);">${esc(item.county)} Co.</span>
           ${sourceLabel}
         </div>
       </div>
@@ -7957,7 +7957,7 @@ function renderScheduleRefLinks(results) {
   if (ref.bzaScheduleUrl) links.push({ label: 'BZA Meeting Schedule', url: ref.bzaScheduleUrl });
   if (!links.length) return;
   const html = `<div id="sched-ref-links" style="margin-bottom:16px;background:rgba(42,95,124,0.1);border:1px solid rgba(42,95,124,0.25);border-radius:6px;padding:12px 16px;">
-    <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">Reference Documents</div>
+    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">Reference Documents</div>
     <div style="display:flex;flex-wrap:wrap;gap:8px;">
       ${links.map(l => `<a href="${l.url}" target="_blank" rel="noopener" style="font-size:11px;color:var(--accent);text-decoration:none;background:rgba(232,160,32,0.08);border:1px solid rgba(232,160,32,0.2);border-radius:4px;padding:4px 10px;transition:all 0.15s;" onmouseover="this.style.background='rgba(232,160,32,0.15)'" onmouseout="this.style.background='rgba(232,160,32,0.08)'">${l.label} ↗</a>`).join('')}
     </div>
