@@ -8,10 +8,11 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
   :root{
-    --bg:#f1f4f8; --panel:#ffffff; --ink:#1f2733; --muted:#6b7785;
-    --line:#dfe5ec; --brand:#1b4965; --brand2:#2c7da0; --accent:#e8a30c;
+    --bg:#f1f4f8; --panel:#ffffff; --ink:#15202b; --muted:#4a5560;
+    --line:#dfe5ec; --brand:#1b4965; --brand2:#236a87; --accent:#e8a30c;
     --good:#2e8b57; --bad:#c0392b; --shadow:0 1px 3px rgba(16,30,54,.08),0 1px 2px rgba(16,30,54,.06);
   }
+  :root{color-scheme:light}
   *{box-sizing:border-box}
   html,body{margin:0;height:100%}
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
@@ -137,10 +138,10 @@
   input[type=file]{display:none}
   .muted{color:var(--muted)}
   .hidden{display:none!important}
-  /* P93 Phase 3 — optional DARK variant, activated only via ?theme=dark when
-     embedded in MRD. Default (no param) light look is completely unchanged. */
+  /* ---- DARK variant — activated only via ?theme=dark (MRD embed). Light look unchanged. ---- */
   html[data-theme="dark"]{
-    --bg:#0e2233;--panel:#143247;--ink:#cdd9e4;--muted:#8198ab;--line:rgba(255,255,255,.12);
+    color-scheme:dark;
+    --bg:#0e2233;--panel:#143247;--ink:#e6eef6;--muted:#a8bccc;--line:rgba(255,255,255,.14);
     --brand:#1b4965;--brand2:#2c7da0;--accent:#e8a30c;--good:#3fa06a;--bad:#d4615a;
     --shadow:0 1px 3px rgba(0,0,0,.45),0 1px 2px rgba(0,0,0,.35);--panel2:#1b3a52;--hover:#1b4060;
   }
@@ -154,8 +155,11 @@
   html[data-theme="dark"] table.data th,html[data-theme="dark"] table.data th.chk{background:var(--panel2);color:var(--ink)}
   html[data-theme="dark"] table.data th:hover{background:var(--hover)}
   html[data-theme="dark"] table.data td.chk{background:var(--panel)}
-  html[data-theme="dark"] .kpi .value{color:#4a9fc4}
-  html[data-theme="dark"] .tab.active{color:#cdd9e4}
+  html[data-theme="dark"] .kpi .value{color:#6fbce0}
+  html[data-theme="dark"] .tab{color:var(--muted)}
+  html[data-theme="dark"] .tab.active{color:#e6eef6}
+  html[data-theme="dark"] .kpi-bar button,html[data-theme="dark"] .rh-title{color:var(--muted)}
+  html[data-theme="dark"] .rail-toggle{background:var(--panel);color:#9fd0e6}
   html[data-theme="dark"] #overlay{background:rgba(14,34,51,.97)}
   html[data-theme="dark"] .ov-card{background:var(--panel)}
   html[data-theme="dark"] .pill.Active{background:rgba(63,160,106,.18);color:#7fd0a3}
@@ -164,16 +168,9 @@
   html[data-theme="dark"] .err{background:rgba(212,97,90,.15);color:#e88}
 </style>
 <script>
-/* P93 Phase 3 — read the theme MRD passes via ?theme=dark|light and apply it
-   before paint. Chart.js axis/legend/grid colors primed for dark legibility. */
-(function(){
-  var t = new URLSearchParams(location.search).get('theme') === 'dark' ? 'dark' : 'light';
-  document.documentElement.setAttribute('data-theme', t);
-  if (t === 'dark' && window.Chart) {
-    Chart.defaults.color = '#cdd9e4';
-    Chart.defaults.borderColor = 'rgba(255,255,255,0.12)';
-  }
-})();
+/* Read the theme MRD passes via ?theme=dark|light and apply it before paint. */
+(function(){ var t=new URLSearchParams(location.search).get('theme')==='dark'?'dark':'light';
+  document.documentElement.setAttribute('data-theme',t); })();
 </script>
 </head>
 <body>
@@ -375,8 +372,8 @@ function finishLoad(parsed){
  * ============================================================= */
 const ST={ mode:"submarket", view:"table", smLevel:"City", excluded:new Set(), gtab:"avgprice",
   sort:{key:null,dir:1}, allHomesDrill:null, fppAddNew:false, fppAddResale:false, colOrder:{},
-  ctl:{ salesMode:"agg", priceMode:"agg", scToggle:"annual", lpToggle:"inv",
-    labels:{ avgprice:true, allhomes:true, sc:true, lot:true } } };
+  ctl:{ salesMode:"agg", priceMode:"agg", scToggle:"annual", lpToggle:"inv", deltaYears:1,
+    labels:{ avgprice:true, allhomes:true, sc:true, lot:true, pricedelta:true } } };
 let kpiVisible=true, railCollapsed=false, dirty=false;
 
 /* ============================================================= *
@@ -464,7 +461,7 @@ function updateFilterVisibility(){
  *  Mode / View / collapse
  * ============================================================= */
 function setMode(mode,silent){ ST.mode=mode; ST.excluded.clear(); ST.sort={key:null,dir:1}; ST.allHomesDrill=null;
-  if(mode==="fpp") ST.gtab="scatter"; else if(!["sales","avgprice","allhomes","sc","lot","price"].includes(ST.gtab)) ST.gtab="avgprice";
+  if(mode==="fpp") ST.gtab="scatter"; else if(!["sales","avgprice","pricedelta","allhomes","sc","lot","price"].includes(ST.gtab)) ST.gtab="avgprice";
   document.querySelectorAll("#modeSeg button").forEach(b=>b.classList.toggle("active",b.dataset.mode===mode));
   document.querySelectorAll("#smLevelSeg button").forEach(b=>b.classList.toggle("active",b.dataset.lvl===ST.smLevel));
   updateFilterVisibility(); if(!silent) applyAndRender(); }
@@ -633,20 +630,36 @@ function renderTableView(){ renderTableInto({tableEl:document.getElementById("da
  *  Charts
  * ============================================================= */
 let chart=null; const ctx=document.getElementById("mainChart");
-const whiteBg={id:"whiteBg",beforeDraw(c){const x=c.ctx;x.save();x.globalCompositeOperation="destination-over";x.fillStyle="#ffffff";x.fillRect(0,0,c.width,c.height);x.restore();}};
-Chart.register(whiteBg);
+/* theme-aware chart colors (dark plot + bright text when ?theme=dark) */
+const IS_DARK=document.documentElement.getAttribute("data-theme")==="dark";
+const CHART_INK=IS_DARK?"#e9f1f8":"#0e1722";
+const CHART_BG=IS_DARK?"#143247":"#ffffff";
+const CHART_GRID=IS_DARK?"rgba(255,255,255,.20)":"rgba(20,30,45,.14)";
+const chartBgPlugin={id:"chartBg",beforeDraw(c){const x=c.ctx;x.save();x.globalCompositeOperation="destination-over";x.fillStyle=CHART_BG;x.fillRect(0,0,c.width,c.height);x.restore();}};
+Chart.register(chartBgPlugin);
 /* bar-total label plugin (horizontal bars): draws the per-bar total at the right end when enabled */
 let barLabels={enabled:false,fmt:fmtInt};
 const barTotalsPlugin={ id:"barTotals", afterDatasetsDraw(chart){
   if(!barLabels.enabled) return; const xs=chart.scales.x; const meta0=chart.getDatasetMeta(0);
   if(!xs||!meta0||!meta0.data) return; const ctx2=chart.ctx;
-  ctx2.save(); ctx2.font='700 11px -apple-system,"Segoe UI",Roboto,Arial,sans-serif'; ctx2.fillStyle="#1f2733"; ctx2.textBaseline="middle"; ctx2.textAlign="left";
+  ctx2.save(); ctx2.font='800 12px -apple-system,"Segoe UI",Roboto,Arial,sans-serif'; ctx2.fillStyle=CHART_INK; ctx2.textBaseline="middle";
   for(let i=0;i<meta0.data.length;i++){ let total=0; chart.data.datasets.forEach(ds=>{ const v=ds.data[i]; if(typeof v==="number") total+=v; });
-    if(!total) continue; const bar=meta0.data[i]; ctx2.fillText(barLabels.fmt(total), xs.getPixelForValue(total)+5, bar.y); }
+    if(!total) continue; const bar=meta0.data[i]; const px=xs.getPixelForValue(total);
+    if(total>=0){ ctx2.textAlign="left"; ctx2.fillText(barLabels.fmt(total), px+5, bar.y); }
+    else { ctx2.textAlign="right"; ctx2.fillText(barLabels.fmt(total), px-5, bar.y); } }
   ctx2.restore();
 } };
 Chart.register(barTotalsPlugin);
-Chart.defaults.font.size=13; Chart.defaults.font.family='-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif'; Chart.defaults.color = document.documentElement.getAttribute('data-theme')==='dark' ? '#cdd9e4' : '#1f2733';
+Chart.defaults.font.size=13.5; Chart.defaults.font.family='-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif';
+Chart.defaults.font.weight=600; Chart.defaults.color=CHART_INK;
+Chart.defaults.plugins.legend.labels.color=CHART_INK;
+Chart.defaults.scale.ticks.color=CHART_INK;
+Chart.defaults.scale.title.color=CHART_INK;
+Chart.defaults.scale.title.font={weight:700,size:13};
+Chart.defaults.scale.grid.color=CHART_GRID;
+Chart.defaults.borderColor=CHART_GRID;
+Chart.defaults.plugins.tooltip.titleColor="#ffffff"; Chart.defaults.plugins.tooltip.bodyColor="#ffffff";
+Chart.defaults.plugins.tooltip.backgroundColor="rgba(8,18,30,.95)";
 function destroyChart(){ if(chart){chart.destroy();chart=null;} }
 function setNote(t){ document.getElementById("chartNote").textContent=t||""; }
 const baseOpts=(extra={})=>Object.assign({responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:14,font:{size:12}}},tooltip:{enabled:true}}},extra);
@@ -685,6 +698,31 @@ function chartAvgPrice(){
     options:baseOpts({indexAxis:"y",layout:{padding:{right:labelsOn?64:8}},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmtMoney(c.raw)}}},
       scales:{x:{beginAtZero:true,title:{display:true,text:"Avg price ($)"},ticks:{callback:v=>"$"+(v/1000).toFixed(0)+"k"}},y:{ticks:{font:{size:11},autoSkip:false}}}})});
   setNote(note+(labelsOn?" Labels show each bar's average price.":""));
+}
+/* Avg Price Change (delta vs 5 / 3 / 1 years ago) */
+function deltaSeries(id){ const field=DB.priceHistPeriodField;
+  const arr=(DB.priceById.get(id)||[]).map(r=>{ const p=parsePeriod(r["Period"]); return {mk:p&&p.monthKey,v:num(r[field])}; }).filter(x=>x.mk!=null&&x.v!=null&&inPeriod(x.mk));
+  arr.sort((a,b)=>a.mk-b.mk); return arr; }
+function subYears(mk,n){ return (Math.floor(mk/100)-n)*100+(mk%100); }
+function monthsBetween(a,b){ return (Math.floor(a/100)-Math.floor(b/100))*12 + ((a%100)-(b%100)); }
+function communityDelta(id,years){ const arr=deltaSeries(id); if(arr.length<2) return null;
+  const recent=arr[arr.length-1]; const target=subYears(recent.mk,years);
+  let oldV=null; for(const e of arr){ if(e.mk<=target) oldV=e.v; else break; }
+  if(oldV==null){ const first=arr[0]; if(first.mk>target && monthsBetween(first.mk,target)<=6) oldV=first.v; } // ~N yrs (earliest within 6 mo of target)
+  if(oldV==null) return null; return recent.v-oldV; }
+function groupDelta(ids,years){ let s=0,n=0; for(const id of ids){ const d=communityDelta(id,years); if(d!=null){s+=d;n++;} } return n?s/n:null; }
+function chartPriceDelta(){
+  destroyChart(); const years=ST.ctl.deltaYears;
+  let rows=activeGroups().map(g=>({label:g.label,val:groupDelta(g.ids,years)})).filter(r=>r.val!=null).sort((a,b)=>b.val-a.val);
+  let note=`Change in average price: most recent period minus ~${years} year(s) prior (avg across ${grainNoun()}s' communities with ${years}+ yrs of history).`;
+  if(!rows.length){ barLabels.enabled=false; chart=new Chart(ctx,{type:"bar",data:{labels:[],datasets:[]},options:baseOpts()});
+    setNote(note+` No ${grainNoun()}s have ${years}+ years of price history within the selected Time Period.`); return; }
+  if(rows.length>30){ note+=` Showing top 30 of ${rows.length}.`; rows=rows.slice(0,30); }
+  const labelsOn=!!ST.ctl.labels.pricedelta; barLabels.enabled=labelsOn; barLabels.fmt=v=>(v>=0?"+$":"−$")+Math.round(Math.abs(v)/1000)+"k";
+  chart=new Chart(ctx,{type:"bar",data:{labels:rows.map(r=>r.label),datasets:[{label:`Δ Avg Price (${years}yr)`,data:rows.map(r=>r.val),backgroundColor:rows.map(r=>r.val>=0?"#2e8b57":"#c0392b"),borderWidth:0}]},
+    options:baseOpts({indexAxis:"y",layout:{padding:{right:labelsOn?64:8,left:labelsOn?54:8}},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>(c.raw>=0?"+":"−")+fmtMoney(Math.abs(c.raw))}}},
+      scales:{x:{title:{display:true,text:`Δ avg price vs ${years}yr ago ($)`},ticks:{callback:v=>(v>0?"+":v<0?"−":"")+"$"+Math.abs(v/1000).toFixed(0)+"k"}},y:{ticks:{font:{size:11},autoSkip:false}}}})});
+  setNote(note+(labelsOn?" Labels show the price change (green = up, red = down).":""));
 }
 /* Price History */
 function chartPriceHistory(){
@@ -791,6 +829,7 @@ function chartFppLines(){
 const TAB_DEFS={
   sales:{id:"sales",label:"Sales Trend",title:"Monthly Sales Trend",render:chartSalesTrend},
   avgprice:{id:"avgprice",label:"Avg New Home Price",title:"Average New Home Price",render:chartAvgPrice},
+  pricedelta:{id:"pricedelta",label:"Avg Price Change",title:"Average Price Change",render:chartPriceDelta},
   allhomes:{id:"allhomes",label:"All Home Sales",title:"All Home Sales (New vs Resale)",render:chartAllHomes},
   sc:{id:"sc",label:"Starts and Closings",title:"Starts and Closings",render:chartStartsClosings},
   lot:{id:"lot",label:"Lot Pipeline",title:"Lot Pipeline",render:chartLotPipeline},
@@ -800,8 +839,8 @@ const TAB_DEFS={
 function currentGtabs(){
   if(ST.mode==="fpp") return [TAB_DEFS.scatter];
   const ids=ST.mode==="submarket"
-    ? ["avgprice","sc",...(DB.hasExist?["allhomes"]:[]),"lot","price","sales"]
-    : ["avgprice","sc","lot","price","sales"];
+    ? ["avgprice","pricedelta","sc",...(DB.hasExist?["allhomes"]:[]),"lot","price","sales"]
+    : ["avgprice","pricedelta","sc","lot","price","sales"];
   return ids.map(i=>TAB_DEFS[i]);
 }
 function sizeChartWrap(){ const w=document.getElementById("chartWrap"); if(!w) return;
@@ -827,8 +866,9 @@ function buildChartControls(tab){
   if(tab.id==="price") host.appendChild(seg([{label:"Aggregate",val:"agg"},{label:byLabel,val:"seg"}],ST.ctl.priceMode,v=>ST.ctl.priceMode=v));
   if(tab.id==="sc") host.appendChild(seg([{label:"Annual",val:"annual"},{label:"Quarterly",val:"quarterly"}],ST.ctl.scToggle,v=>ST.ctl.scToggle=v));
   if(tab.id==="lot" && ST.mode==="communities") host.appendChild(seg([{label:"Vacant & Future",val:"inv"},{label:"Quarterly Starts/Closings",val:"quarterly"}],ST.ctl.lpToggle,v=>ST.ctl.lpToggle=v));
+  if(tab.id==="pricedelta") host.appendChild(seg([{label:"5 yr",val:5},{label:"3 yr",val:3},{label:"1 yr",val:1}],ST.ctl.deltaYears,v=>ST.ctl.deltaYears=v));
   if(tab.id==="allhomes" && ST.allHomesDrill!=null){ const back=document.createElement("button"); back.className="btn sm"; back.textContent="← Back to submarkets"; back.onclick=()=>{ ST.allHomesDrill=null; renderGraphicsView(); }; host.appendChild(back); }
-  if(["avgprice","sc","lot"].includes(tab.id) || (tab.id==="allhomes" && ST.allHomesDrill==null)){
+  if(["avgprice","pricedelta","sc","lot"].includes(tab.id) || (tab.id==="allhomes" && ST.allHomesDrill==null)){
     const on=!!ST.ctl.labels[tab.id]; const b=document.createElement("button"); b.className="btn sm"+(on?" on":""); b.textContent=on?"Remove Labels":"Add Labels";
     b.onclick=()=>{ ST.ctl.labels[tab.id]=!ST.ctl.labels[tab.id]; renderGraphicsView(); }; host.appendChild(b);
   }
