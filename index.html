@@ -180,29 +180,44 @@
       <div class="settings-wrap">
 
         <div class="settings-col">
-          <!-- P21-L5: DIAGNOSTICS / SMOKE TESTS -->
+          <!-- P21-L5: DIAGNOSTICS / SMOKE TESTS (P96: collapsible, default collapsed) -->
           <div class="settings-card">
-            <div class="settings-card-title">Diagnostics</div>
+            <div class="settings-card-title" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;" onclick="toggleSettingsSection('diagnostics-body')">
+              Diagnostics
+              <span id="diagnostics-body-toggle" style="font-size:10px;color:var(--text-dim);transition:transform 0.2s;">▶</span>
+            </div>
             <div class="settings-card-sub">Live integration smoke tests for auth, sanitizers, and SSRF protection. Opens in a new tab.</div>
-            <a href="tests/smoke.html" target="_blank" style="display:inline-block;margin-top:8px;padding:7px 14px;background:rgba(232,160,32,0.15);color:#e8a020;border:1px solid rgba(232,160,32,0.4);border-radius:4px;text-decoration:none;font-size:12px;font-weight:600;">▶ Run smoke tests</a>
+            <div id="diagnostics-body" style="display:none;margin-top:10px;">
+              <a href="tests/smoke.html" target="_blank" style="display:inline-block;padding:7px 14px;background:rgba(232,160,32,0.15);color:#e8a020;border:1px solid rgba(232,160,32,0.4);border-radius:4px;text-decoration:none;font-size:12px;font-weight:600;">▶ Run smoke tests</a>
+            </div>
           </div>
 
-          <!-- RESEARCH SOURCES -->
+          <!-- RESEARCH SOURCES (P96: collapsible, default collapsed) -->
           <div class="settings-card">
-            <div class="settings-card-title">Research Sources</div>
+            <div class="settings-card-title" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;" onclick="toggleSettingsSection('research-sources-body')">
+              Research Sources
+              <span id="research-sources-body-toggle" style="font-size:10px;color:var(--text-dim);transition:transform 0.2s;">▶</span>
+            </div>
             <div class="settings-card-sub">Sources used when running AI member profiling. Free sources are always included. Paid sources require credentials.</div>
-            <div id="sources-list"></div>
-            <button class="settings-add-btn" onclick="addSourceRow()">+ Add Source</button>
+            <div id="research-sources-body" style="display:none;margin-top:10px;">
+              <div id="sources-list"></div>
+              <button class="settings-add-btn" onclick="addSourceRow()">+ Add Source</button>
+            </div>
           </div>
 
-          <!-- KEYWORD FEED FILTERS -->
+          <!-- KEYWORD FEED FILTERS (P96: collapsible, default collapsed) -->
           <div class="settings-card">
-            <div class="settings-card-title">Intelligence Feed Categories</div>
+            <div class="settings-card-title" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;" onclick="toggleSettingsSection('intel-categories-body')">
+              Intelligence Feed Categories
+              <span id="intel-categories-body-toggle" style="font-size:10px;color:var(--text-dim);transition:transform 0.2s;">▶</span>
+            </div>
             <div class="settings-card-sub">Manage the tag categories used to classify feed items. Default categories cannot be removed.</div>
-            <div id="tag-categories-list"></div>
-            <div style="display:flex;gap:8px;margin-top:10px;">
-              <input class="settings-input" id="new-tag-input" type="text" placeholder="New category name..." style="flex:1;">
-              <button class="settings-add-btn" style="margin-top:0;" onclick="addTagCategory()">+ Add</button>
+            <div id="intel-categories-body" style="display:none;margin-top:10px;">
+              <div id="tag-categories-list"></div>
+              <div style="display:flex;gap:8px;margin-top:10px;">
+                <input class="settings-input" id="new-tag-input" type="text" placeholder="New category name..." style="flex:1;">
+                <button class="settings-add-btn" style="margin-top:0;" onclick="addTagCategory()">+ Add</button>
+              </div>
             </div>
           </div>
 
@@ -305,10 +320,14 @@
             </div>
           </div>
 
-          <!-- RESEARCH SCHEDULE -->
+          <!-- RESEARCH SCHEDULE (P96: collapsible, default collapsed) -->
           <div class="settings-card">
-            <div class="settings-card-title">Research Schedule</div>
+            <div class="settings-card-title" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;" onclick="toggleSettingsSection('research-schedule-body')">
+              Research Schedule
+              <span id="research-schedule-body-toggle" style="font-size:10px;color:var(--text-dim);transition:transform 0.2s;">▶</span>
+            </div>
             <div class="settings-card-sub">Automated profile research runs when the app is open in a browser tab.</div>
+            <div id="research-schedule-body" style="display:none;margin-top:10px;">
             <div class="settings-row">
               <span class="settings-label">Batch Research Day</span>
               <select class="settings-select" id="sched-day">
@@ -329,6 +348,7 @@
               </select>
             </div>
             <button class="settings-save-btn" onclick="saveSchedule()">Save Schedule</button>
+            </div>
           </div>
 
           <!-- RECENT CHANGES (P31) -->
@@ -2111,7 +2131,7 @@ function renderTpRail(m) {
     // once the juris normalization fix above let them through the equality
     // gate. The display contract is: archived / closed / deleted are hidden
     // wherever the user can see project lists.
-    if (st === 'closed' || st === 'archived' || st === 'deleted') return false;
+    if (st === 'closed' || st === 'archived' || st === 'deleted' || st === 'competitor_active') return false;
     return _normJurisName(p.jurisdiction) === muniName;
   });
 
@@ -2468,7 +2488,7 @@ function tprSubmitProject() {
   var rows = (typeof tpProjects !== 'undefined' && Array.isArray(tpProjects)) ? tpProjects : [];
   var dup = rows.find(function(p) {
     var st = (p.status || 'active').toLowerCase();
-    if (st === 'archived' || st === 'closed' || st === 'deleted') return false;
+    if (st === 'archived' || st === 'closed' || st === 'deleted' || st === 'competitor_active') return false;
     if (ord && p.ordinanceId && p.ordinanceId.toLowerCase() === ord.toLowerCase()) return true;
     if ((p.projectName || '').toLowerCase() === name.toLowerCase()) return true;
     return false;
@@ -5627,13 +5647,14 @@ window.submitTagDocForm         = submitTagDocForm;
 var tpProjects = [];
 var tpLoadedAt = 0;
 
-// P71 R3: manually-set Builder dropdown options. Source: Downloads/Builder.csv
-// (Lennar, Pulte, Arbor, etc). Backed by Tracked_Projects.builder column,
-// patched via update_tracked_project.
+// P96: Builder dropdown options now mirror the ArcGIS "Builder" coded-value
+// domain (List, 19 values) exactly, sorted A-Z, so values written here match an
+// allowed AGO domain value 1:1 (see arcgis-tracked-projects-sync). Backed by
+// Tracked_Projects.builder column, patched via update_tracked_project.
 var TP_BUILDERS = [
-  'Lennar','Pulte','Arbor','MI Homes','DR Horton','Beazer','Fischer Homes',
-  'Drees','Onyx_East','Ryan/NVR','Davis','Estridge','David Weekley','Epcon',
-  'Old Town','Olthof','Taylor Morris'
+  'Arbor','Beazer','Custom','David Weekly','Davis','DR Horton','Drees',
+  'Epcon','Estridge','Fischer Homes','Forestar','Hallmark','MI Homes',
+  'Old Town','Olthof','Onyx_East','Pulte','Ryan','Taylor Morris'
 ];
 
 // P71 R3: persist Builder dropdown change via update_tracked_project. Optimistic
@@ -5724,7 +5745,7 @@ function tpRenderTable() {
   // hidden — same pattern, recoverable via direct sheet edit if needed.
   var rows = tpProjects.filter(function(p) {
     var st = (p.status || 'active').toLowerCase();
-    if (st === 'archived' || st === 'closed' || st === 'deleted') return false;
+    if (st === 'archived' || st === 'closed' || st === 'deleted' || st === 'competitor_active') return false;
     if (jurisFilter && (p.jurisdiction||'').toLowerCase().indexOf(jurisFilter) === -1) return false;
     if (textFilter) {
       var hay = ((p.projectName||'') + ' ' + (p.ordinanceId||'') + ' ' + (p.petitionerApplicant||'') + ' ' + (p.aliases||'')).toLowerCase();
@@ -5847,13 +5868,19 @@ function tpRenderTable() {
       : '<span style="color:var(--muted,#888);">—</span>';
 
     var status = (p.status || 'active').toLowerCase();
-    // P58.7 R13c: dropdown replaces the static colored text. Only Active +
-    // Archive are user-selectable here; "closed" rows are filtered out
-    // above so the legacy state never reaches this branch.
+    // P96: deal-pipeline labels. Stored values keep the existing lifecycle so
+    // archive/visibility/ArcGIS-sync semantics are unchanged:
+    //   Competitor Proposed = 'active'  (visible in the active list, synced to ArcGIS)
+    //   Competitor Active    = 'competitor_active'  (terminal; hidden + not synced)
+    //   Archive              = 'archived'  (terminal; hidden + not synced)
+    // Competitor Active and Archive are behaviorally identical (same hide/no-sync
+    // workflow) — the two labels exist only to record which terminal state the
+    // operator chose. "closed"/"deleted" legacy rows are filtered out above.
     var statusSelect =
       '<select class="tp-status-select" data-status-select="' + pidAttr + '" onchange="tpStatusChange(this)">' +
-        '<option value="active"'   + (status === 'active' ? ' selected' : '')   + '>Active</option>' +
-        '<option value="archived"' + (status === 'archived' ? ' selected' : '') + '>Archive</option>' +
+        '<option value="active"'            + (status === 'active' ? ' selected' : '')            + '>Competitor Proposed</option>' +
+        '<option value="competitor_active"' + (status === 'competitor_active' ? ' selected' : '') + '>Competitor Active</option>' +
+        '<option value="archived"'          + (status === 'archived' ? ' selected' : '')          + '>Archive</option>' +
       '</select>';
 
     // P35: Tagged Docs cell.
