@@ -187,9 +187,53 @@
               Diagnostics
               <span id="diagnostics-body-toggle" style="font-size:10px;color:var(--text-dim);transition:transform 0.2s;">▶</span>
             </div>
-            <div class="settings-card-sub">Runs a quick behind-the-scenes self-check that confirms the dashboard is properly connected to its information and that its security protections are working. The results open in a new tab — all green means everything is healthy.</div>
+            <div class="settings-card-sub">Behind-the-scenes checks on the dashboard's health and data. Use the reports below to spot meetings that need a person to look at them, see what's still being processed, and confirm the automatic background jobs are running — without opening the technical tools.</div>
             <div id="diagnostics-body" style="display:none;margin-top:10px;">
-              <a href="tests/smoke.html" target="_blank" style="display:inline-block;padding:7px 14px;background:rgba(232,160,32,0.15);color:#e8a020;border:1px solid rgba(232,160,32,0.4);border-radius:4px;text-decoration:none;font-size:12px;font-weight:600;">▶ Run smoke tests</a>
+              <a href="tests/smoke.html" target="_blank" style="display:inline-block;padding:7px 14px;background:rgba(232,160,32,0.15);color:#e8a020;border:1px solid rgba(232,160,32,0.4);border-radius:4px;text-decoration:none;font-size:12px;font-weight:600;">▶ Run security self-test</a>
+
+              <!-- P96: in-app operator diagnostics (so routine review doesn't require Apps Script) -->
+              <div style="border-top:1px solid var(--border);margin:14px 0 10px;"></div>
+
+              <!-- System Health -->
+              <div style="margin-bottom:16px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                  <span style="font-weight:600;font-size:12px;">System Health</span>
+                  <button class="refresh-btn" style="font-size:10px;padding:3px 9px;" onclick="diagLoadHealth()">↻ Check now</button>
+                </div>
+                <div style="font-size:10px;color:var(--text-dim);margin:2px 0 6px;">Confirms the automatic background jobs are running and the AI service has capacity.</div>
+                <div id="diag-health" style="font-size:11px;color:var(--text-dim);">Click "Check now" to run.</div>
+              </div>
+
+              <!-- Meetings Needing Review (complete, uncapped — review_queue) -->
+              <div style="margin-bottom:16px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                  <span style="font-weight:600;font-size:12px;">Meetings Needing Review</span>
+                  <button class="refresh-btn" style="font-size:10px;padding:3px 9px;" onclick="diagLoadReview()">↻ Refresh</button>
+                </div>
+                <div style="font-size:10px;color:var(--text-dim);margin:2px 0 6px;">Meetings whose summary couldn't be finished automatically and need a person to decide what to do. Open the video or draft summary to check it, then choose an outcome.</div>
+                <div id="diag-review" style="font-size:11px;color:var(--text-dim);">Click Refresh to load.</div>
+              </div>
+
+              <!-- Processing Queue -->
+              <div style="margin-bottom:16px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                  <span style="font-weight:600;font-size:12px;">Processing Queue</span>
+                  <button class="refresh-btn" style="font-size:10px;padding:3px 9px;" onclick="diagLoadQueue()">↻ Refresh</button>
+                </div>
+                <div style="font-size:10px;color:var(--text-dim);margin:2px 0 6px;">Meetings still waiting to be summarized, or that need another attempt. Empty means everything has been processed.</div>
+                <div id="diag-queue" style="font-size:11px;color:var(--text-dim);">Click Refresh to load.</div>
+              </div>
+
+              <!-- Summary Coverage (deep check: missing / failed) -->
+              <div>
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                  <span style="font-weight:600;font-size:12px;">Summary Coverage</span>
+                  <button class="refresh-btn" style="font-size:10px;padding:3px 9px;" onclick="diagLoadSummaryAudit(this)">↻ Run audit</button>
+                </div>
+                <div style="font-size:10px;color:var(--text-dim);margin:2px 0 6px;">Deep check of every meeting video to confirm each has a finished summary, and to surface any that are missing or failed. Because it checks every record, it can take up to a minute.</div>
+                <div id="diag-audit-summary" style="font-size:11px;color:var(--text-dim);margin-bottom:6px;">Click "Run audit" to check.</div>
+                <div id="diag-missing"></div>
+              </div>
             </div>
           </div>
 
@@ -8256,6 +8300,122 @@ function resolveReview(meetingId, decision) {
       if (status) status.textContent = 'Network error: ' + err.message;
     });
 }
+
+// ── P96: in-app operator diagnostics (Diagnostics card) ──────────────────────
+// Surface the admin_run diagnostic endpoints as on-page tables so routine
+// verification doesn't require opening Apps Script. Calls reuse getWebAppUrl()
+// (already token-bearing) exactly like tprFetchAliasSuggestions; admin_run wraps
+// responses as {ok, fn, result}, so we read .result.
+function _diagEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function _diagYt(id){ return 'https://www.youtube.com/watch?v=' + encodeURIComponent(id); }
+
+function diagLoadHealth(){
+  var el=document.getElementById('diag-health'); if(!el) return;
+  el.textContent='Checking…';
+  var base=getWebAppUrl(); if(!base){ el.textContent='No dashboard connection configured.'; return; }
+  Promise.all([
+    fetch(base+'&action=admin_run&fn=listTriggers').then(function(r){return r.json();}).catch(function(){return null;}),
+    fetch(base+'&action=admin_run&fn=geminiQuotaStatus').then(function(r){return r.json();}).catch(function(){return null;}),
+    fetch(base+'&action=admin_run&fn=probePendingGate&max=0').then(function(r){return r.json();}).catch(function(){return null;})
+  ]).then(function(res){
+    var trig=res[0]&&res[0].result, q=res[1]&&res[1].result, gate=res[2]&&res[2].result;
+    var rows=[];
+    if(trig) rows.push(['Background jobs running', (trig.count||0)+' active']);
+    if(q) rows.push(['AI service (Gemini)', q.active ? '⚠ Catching up (temporarily throttled)' : '✓ Healthy']);
+    if(gate&&gate.counts){ var n=gate.counts.gate_match||0; rows.push(['Meetings waiting to process', n===0?'✓ None — all caught up':(n+' in queue')]); }
+    if(!rows.length){ el.textContent='Could not reach the system — please try again.'; return; }
+    var jobs=trig&&trig.triggers?trig.triggers.map(function(t){return _diagEsc(t.handler);}).join(', '):'';
+    el.innerHTML='<table style="width:100%;border-collapse:collapse;">'+rows.map(function(r){return '<tr><td style="padding:3px 0;color:var(--text-dim);">'+_diagEsc(r[0])+'</td><td style="padding:3px 0;text-align:right;font-weight:600;">'+_diagEsc(r[1])+'</td></tr>';}).join('')+'</table>'+(jobs?'<div style="font-size:9px;color:var(--text-dim);margin-top:6px;">Active jobs: '+jobs+'</div>':'');
+  });
+}
+window.diagLoadHealth=diagLoadHealth;
+
+function diagLoadQueue(){
+  var el=document.getElementById('diag-queue'); if(!el) return;
+  el.textContent='Loading…';
+  var base=getWebAppUrl(); if(!base){ el.textContent='No dashboard connection configured.'; return; }
+  fetch(base+'&action=admin_run&fn=probePendingGate&max=25').then(function(r){return r.json();}).then(function(res){
+    var rr=res&&res.result; if(!rr||!rr.counts){ el.textContent='Could not load the queue.'; return; }
+    var c=rr.counts, s=rr.samples||[];
+    var summary='<div style="margin-bottom:6px;"><b>'+(c.gate_match||0)+'</b> waiting &nbsp;·&nbsp; '+(c.is_fresh_pending||0)+' new &nbsp;·&nbsp; '+(c.is_coverage_retry||0)+' retry</div>';
+    if(!s.length){ el.innerHTML=summary+'<div style="color:var(--text-dim);">No meetings are waiting — everything has been processed. ✓</div>'; return; }
+    var body=s.map(function(x){return '<tr style="border-top:1px solid var(--border);"><td style="padding:3px 6px;">'+_diagEsc(x.jurisdiction)+'</td><td style="padding:3px 6px;">'+_diagEsc(x.meeting_date)+'</td><td style="padding:3px 6px;">'+_diagEsc(x.status||x.coverage_state)+'</td><td style="padding:3px 6px;"><a href="'+_diagYt(x.meeting_id)+'" target="_blank" rel="noopener">video</a></td></tr>';}).join('');
+    el.innerHTML=summary+'<table style="width:100%;border-collapse:collapse;font-size:11px;"><tr style="text-align:left;color:var(--text-dim);"><th style="padding:3px 6px;">Jurisdiction</th><th style="padding:3px 6px;">Date</th><th style="padding:3px 6px;">Status</th><th style="padding:3px 6px;"></th></tr>'+body+'</table>';
+  }).catch(function(e){ el.textContent='Network error: '+e.message; });
+}
+window.diagLoadQueue=diagLoadQueue;
+
+// #1 Meetings Needing Review — complete, uncapped list via review_queue (the
+// auditMissingSummaries per-muni samples cap at 25 and under-report this set).
+function diagLoadReview(){
+  var el=document.getElementById('diag-review'); if(!el) return;
+  el.textContent='Loading…';
+  var base=getWebAppUrl(); if(!base){ el.textContent='No dashboard connection configured.'; return; }
+  fetch(base+'&action=review_queue').then(function(r){return r.json();}).then(function(res){
+    if(!res||!res.ok){ el.textContent='Could not load: '+((res&&res.error)||'unknown'); return; }
+    var items=res.items||[];
+    if(!items.length){ el.innerHTML='<div style="color:var(--text-dim);">No meetings are waiting for review. ✓</div>'; return; }
+    var head='<tr style="text-align:left;color:var(--text-dim);"><th style="padding:3px 6px;">Jurisdiction</th><th style="padding:3px 6px;">Date</th><th style="padding:3px 6px;">Links</th><th style="padding:3px 6px;text-align:right;">Decision</th></tr>';
+    var body=items.map(function(it){
+      var mid=_diagEsc(it.meeting_id);
+      var vid=it.video_url?'<a href="'+_diagEsc(it.video_url)+'" target="_blank" rel="noopener">video</a>':'';
+      var doc=it.summary_doc_url?' · <a href="'+_diagEsc(it.summary_doc_url)+'" target="_blank" rel="noopener">draft</a>':'';
+      var acts='<button class="refresh-btn" style="font-size:9px;padding:2px 5px;margin-left:3px;" title="Keep the current partial summary as final" onclick="diagResolveReview(\''+mid+'\',\'accept_as_partial\',this)">Accept</button>'+
+               '<button class="refresh-btn" style="font-size:9px;padding:2px 5px;margin-left:3px;" title="Mark for another summary attempt" onclick="diagResolveReview(\''+mid+'\',\'force_redraft\',this)">Redraft</button>'+
+               '<button class="refresh-btn" style="font-size:9px;padding:2px 5px;margin-left:3px;" title="The recording itself is incomplete; nothing more can be recovered" onclick="diagResolveReview(\''+mid+'\',\'no_better_source\',this)">No Better Source</button>';
+      return '<tr data-diag-mid="'+mid+'" style="border-top:1px solid var(--border);"><td style="padding:3px 6px;">'+_diagEsc(it.jurisdiction)+'</td><td style="padding:3px 6px;">'+_diagEsc(it.meeting_date)+'</td><td style="padding:3px 6px;white-space:nowrap;">'+vid+doc+'</td><td style="padding:3px 6px;text-align:right;white-space:nowrap;">'+acts+'</td></tr>';
+    }).join('');
+    el.innerHTML='<div style="margin-bottom:6px;"><b>'+items.length+'</b> meeting'+(items.length===1?'':'s')+' awaiting review</div><table style="width:100%;border-collapse:collapse;font-size:11px;">'+head+body+'</table>';
+  }).catch(function(e){ el.textContent='Network error: '+e.message; });
+}
+window.diagLoadReview=diagLoadReview;
+
+function diagResolveReview(meetingId, decision, btn){
+  if(!meetingId||!decision) return;
+  var row=document.querySelector('#diag-review tr[data-diag-mid="'+String(meetingId).replace(/"/g,'\\"')+'"]');
+  if(row){ row.style.opacity='0.4'; row.style.pointerEvents='none'; }
+  var base=getWebAppUrl(); if(!base) return;
+  fetch(base+'&action=resolve_review&meeting_id='+encodeURIComponent(meetingId)+'&decision='+encodeURIComponent(decision)).then(function(r){return r.json();}).then(function(res){
+    if(!res||!res.ok){ if(row){ row.style.opacity='1'; row.style.pointerEvents='auto'; } if(btn) btn.textContent='Failed'; return; }
+    if(row&&row.parentNode) row.parentNode.removeChild(row);
+    var left=document.querySelectorAll('#diag-review tr[data-diag-mid]').length;
+    if(!left){ var el=document.getElementById('diag-review'); if(el) el.innerHTML='<div style="color:var(--text-dim);">No meetings are waiting for review. ✓</div>'; }
+  }).catch(function(){ if(row){ row.style.opacity='1'; row.style.pointerEvents='auto'; } });
+}
+window.diagResolveReview=diagResolveReview;
+
+// #5 Summary Coverage — deep audit; report coverage + any missing/failed.
+function _diagMissingTable(rows){
+  if(!rows.length) return '<div style="font-size:10px;color:var(--text-dim);margin:6px 0;">Missing or failed summaries: none ✓</div>';
+  var head='<tr style="text-align:left;color:var(--text-dim);"><th style="padding:3px 6px;">Jurisdiction</th><th style="padding:3px 6px;">Date</th><th style="padding:3px 6px;">Type</th><th style="padding:3px 6px;">Links</th></tr>';
+  var body=rows.map(function(r){
+    var vid=r.id?'<a href="'+_diagYt(r.id)+'" target="_blank" rel="noopener">video</a>':'';
+    var doc=r.doc?' · <a href="'+_diagEsc(r.doc)+'" target="_blank" rel="noopener">summary</a>':'';
+    return '<tr style="border-top:1px solid var(--border);"><td style="padding:3px 6px;">'+_diagEsc(r.muni)+'</td><td style="padding:3px 6px;">'+_diagEsc(r.date)+'</td><td style="padding:3px 6px;">'+_diagEsc(r.type)+'</td><td style="padding:3px 6px;">'+vid+doc+'</td></tr>';
+  }).join('');
+  return '<div style="font-weight:600;font-size:11px;margin:8px 0 2px;">Missing or failed summaries ('+rows.length+')</div><table style="width:100%;border-collapse:collapse;font-size:11px;">'+head+body+'</table>';
+}
+
+function diagLoadSummaryAudit(btn){
+  var sEl=document.getElementById('diag-audit-summary'), mEl=document.getElementById('diag-missing');
+  if(!sEl) return;
+  sEl.textContent='Running audit… this checks every meeting and can take up to a minute.';
+  if(mEl) mEl.innerHTML='';
+  if(btn){ btn.disabled=true; }
+  var base=getWebAppUrl(); if(!base){ sEl.textContent='No dashboard connection configured.'; if(btn) btn.disabled=false; return; }
+  fetch(base+'&action=admin_run&fn=auditMissingSummaries&include_samples=true').then(function(r){return r.json();}).then(function(res){
+    if(btn) btn.disabled=false;
+    var rr=res&&res.result; if(!rr||!rr.totals){ sEl.textContent='Could not run the audit.'; return; }
+    var t=rr.totals, miss=(t.missing_pending||0)+(t.missing_awaiting||0)+(t.missing_error||0)+(t.missing_other||0);
+    sEl.innerHTML='<b>'+(t.has_summary||0)+'</b> of <b>'+(t.meetings_with_yt||0)+'</b> meetings have a summary &nbsp;·&nbsp; <b>'+miss+'</b> missing or failed';
+    var missing=[], bm=rr.by_muni||{};
+    Object.keys(bm).forEach(function(mn){ (bm[mn].samples||[]).forEach(function(x){
+      if(x.bucket&&x.bucket.indexOf('missing_')===0) missing.push({muni:mn,date:x.date,type:x.meeting_type,id:x.meeting_id,doc:x.summary_url});
+    }); });
+    if(mEl) mEl.innerHTML=_diagMissingTable(missing);
+  }).catch(function(e){ if(btn) btn.disabled=false; sEl.textContent='Network error: '+e.message; });
+}
+window.diagLoadSummaryAudit=diagLoadSummaryAudit;
 
 registerViewInit('reviewqueue', loadReviewQueue);
 
