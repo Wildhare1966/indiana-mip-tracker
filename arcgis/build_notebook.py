@@ -42,14 +42,16 @@ def parse_cells(text):
 
 def to_nb(cells):
     nb_cells = []
-    for kind, src in cells:
+    for i, (kind, src) in enumerate(cells):
         lines = src.split("\n")
         source = [ln + "\n" for ln in lines[:-1]] + [lines[-1]] if lines else []
+        cell_id = "cell-%02d" % i          # required by nbformat 4.5 (minor 5)
         if kind == "markdown":
-            nb_cells.append({"cell_type": "markdown", "metadata": {}, "source": source})
+            nb_cells.append({"cell_type": "markdown", "id": cell_id,
+                             "metadata": {}, "source": source})
         else:
             nb_cells.append({
-                "cell_type": "code", "metadata": {},
+                "cell_type": "code", "id": cell_id, "metadata": {},
                 "execution_count": None, "outputs": [], "source": source,
             })
     return {
