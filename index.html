@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p80r4 -->
+<!-- MIP build p99r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -4466,13 +4466,16 @@ async function submitManualUrlAdd(urlType, muniId, date, meetingType) {
     });
     const endpoint = getWebAppUrl() + '&' + params.toString();
 
-    if (pop) pop.innerHTML = `<span style="color:var(--accent);font-size:11px;">${urlType === 'youtube' ? 'Adding & generating summary...' : 'Adding...'}</span>`;
+    // P99 item 3: clearer in-process / saved indication for manual adds.
+    if (pop) pop.innerHTML = `<span style="color:var(--accent);font-size:11px;">⏳ ${urlType === 'youtube' ? 'Saving & generating summary…' : 'Saving ' + urlType + '…'}</span>`;
     const resp = await fetch(endpoint);
     const data = await resp.json();
 
     if (data.ok) {
-      if (pop) pop.innerHTML = `<span style="color:#6dc49a;font-size:11px;">Added · entry ${esc(data.entry_id.slice(0,8))}</span>`;
-      setTimeout(() => { if (pop) pop.remove(); refreshHearings(); }, 1500);
+      // Hold the "saved" confirmation long enough to be seen, and tell the operator
+      // the row will update on the refresh that follows.
+      if (pop) pop.innerHTML = `<span style="color:#6dc49a;font-size:11px;">✓ Saved${data.entry_id ? ' · entry ' + esc(data.entry_id.slice(0,8)) : ''} — updating list…</span>`;
+      setTimeout(() => { if (pop) pop.remove(); refreshHearings(); }, 2500);
     } else {
       if (pop) pop.innerHTML = `<span style="color:#e08888;font-size:11px;">Error: ${esc(data.error || 'Unknown')}</span>`;
     }
@@ -5904,8 +5907,15 @@ function tpRenderTable() {
       '<td style="padding:8px 10px;vertical-align:top;white-space:nowrap;">' + taggedCell + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' + statusSelect + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' +
-        '<input type="text" value="' + escAttr(p.mapUrl || '') + '" placeholder="URL" data-field="map_url" onblur="tpInlineSave(this)" style="width:80px;background:transparent;border:1px solid transparent;color:inherit;padding:2px 4px;font-size:12px;border-radius:3px;" onfocus="this.style.borderColor=\'var(--border,#444)\';this.style.width=\'160px\'" title="ArcGIS / parcel URL">' +
-        (p.mapUrl ? ' <a href="' + esc(p.mapUrl) + '" target="_blank" rel="noopener" title="Open map" data-no-tag>↗</a>' : '') +
+        // P99 item 2: once a Map URL exists, render the cell as a real clickable
+        // link (not a bare text input that swallows clicks) + a ✎ edit affordance.
+        // tpEditMap swaps back to the input; tpInlineSave re-renders on save so the
+        // link appears immediately after a URL is pasted.
+        ((p.mapUrl && tpMapEditPid !== p.projectId)
+          ? '<a href="' + escUrl(p.mapUrl) + '" target="_blank" rel="noopener" data-no-tag title="' + escAttr(p.mapUrl) + '" style="color:#6ab7ff;text-decoration:underline;font-size:12px;">Map ↗</a>' +
+            ' <button class="refresh-btn" onclick="tpEditMap(\'' + pidAttr + '\')" title="Edit map URL" style="font-size:10px;padding:1px 5px;margin-left:4px;background:transparent;border:1px solid var(--border,#444);">✎</button>'
+          : '<input type="text" value="' + escAttr(p.mapUrl || '') + '" placeholder="URL" data-field="map_url" onblur="tpInlineSave(this)" style="width:80px;background:transparent;border:1px solid transparent;color:inherit;padding:2px 4px;font-size:12px;border-radius:3px;" onfocus="this.style.borderColor=\'var(--border,#444)\';this.style.width=\'160px\'" title="ArcGIS / parcel URL">'
+        ) +
       '</td>' +
       // P94 item 4: MapID — manually-entered ArcGIS record key (Tracked_Projects
       // col S / map_id). Persists via the same inline-save path as map_url.
@@ -5965,6 +5975,22 @@ function tpToggleEditRow(pid) {
   tpEditingPid = (tpEditingPid === pid) ? '' : pid;
   tpRenderTable();
 }
+
+// P99 item 2: which project row's Map cell is in edit mode (input shown instead
+// of the link). Cleared on save (tpInlineSave) so the cell flips back to a link.
+var tpMapEditPid = '';
+
+function tpEditMap(pid) {
+  tpMapEditPid = pid;
+  tpRenderTable();
+  // Focus + select the freshly-rendered input so the operator can paste/edit.
+  setTimeout(function() {
+    var tr = document.querySelector('tr[data-project-id="' + pid + '"]');
+    var inp = tr && tr.querySelector('input[data-field="map_url"]');
+    if (inp) { inp.focus(); inp.select(); }
+  }, 0);
+}
+window.tpEditMap = tpEditMap;
 
 // P71: expand / collapse the Action Taken cell. Click toggles the `.expanded`
 // class which removes the 2-line clamp so the full Agenda_Items.action_taken
@@ -6244,6 +6270,8 @@ function tpInlineSave(inputEl) {
   var newVal = inputEl.value || '';
   if (newVal === oldVal) {
     inputEl.style.borderColor = 'transparent';
+    // P99 item 2: leaving the Map input unchanged should still restore the link view.
+    if (field === 'map_url' && tpMapEditPid) { tpMapEditPid = ''; if (typeof tpRenderTable === 'function') tpRenderTable(); }
     return;
   }
   var webappUrl = getWebAppUrl();
@@ -6258,8 +6286,13 @@ function tpInlineSave(inputEl) {
       if (res && res.success) {
         inputEl.style.borderColor = '#4ac49a';
         if (field === 'petitioner_applicant') current.petitionerApplicant = newVal;
-        if (field === 'map_url')              current.mapUrl = newVal;
         if (field === 'map_id')               current.mapId = newVal;
+        if (field === 'map_url') {
+          current.mapUrl = newVal;
+          // P99 item 2: flip the cell back to a clickable link now that it's saved.
+          tpMapEditPid = '';
+          if (typeof tpRenderTable === 'function') { tpRenderTable(); return; }
+        }
         setTimeout(function() { inputEl.style.borderColor = 'transparent'; }, 800);
       } else {
         inputEl.style.borderColor = 'rgba(220,80,80,0.6)';
