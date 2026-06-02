@@ -844,20 +844,20 @@ function chartFppLines(){
   destroyChart(); const ids=[...activeIds()]; const fpDatasets=[];
   ids.forEach((id,i)=>{ const name=str((DB.byId.get(id)||{})["Project Name"])||id;
     const pts=(DB.fpById.get(id)||[]).map(fp=>{ const x=num(fp["Unit Size"]),y=num(fp["List Price"]); if(x==null||y==null)return null; return {x,y,plan:str(fp["Plan Name"]),proj:name,bed:num(fp["Bedrooms"])}; }).filter(Boolean).sort((a,b)=>a.x-b.x);
-    if(pts.length) fpDatasets.push({label:name,data:pts,backgroundColor:color(i),borderColor:color(i),pointRadius:5,pointHoverRadius:8,showLine:true,borderWidth:2,tension:0}); });
+    if(pts.length) fpDatasets.push({label:name,data:pts,backgroundColor:color(i),borderColor:color(i),pointRadius:5,pointHoverRadius:8,showLine:true,borderWidth:2,tension:0,order:2}); });
   const overlays=[];
   if(DB.hasExist && (ST.fppAddNew||ST.fppAddResale)){
     const cities=new Set(); for(const id of ids){ const r=DB.byId.get(id); const c=str(r&&r["City"]).toLowerCase(); if(c)cities.add(c); }
     const pool=[]; for(const c of cities){ for(const t of (DB.existByCity.get(c)||[])){ if(txnInPeriod(t))pool.push(t); } }
     const mk=(isNew,label,col)=>{ const pts=pool.filter(t=>isNewTxn(t)===isNew).map(t=>{ const x=num(t["Unit Size"]),y=num(t["Sale Price"]); if(x==null||y==null)return null; return {x,y,addr:str(t["Address"]),city:str(t["City"])}; }).filter(Boolean);
-      return {label,data:pts,backgroundColor:"rgba(0,0,0,0)",borderColor:col,borderWidth:1.5,pointRadius:4,pointHoverRadius:6,pointStyle:"circle",showLine:false}; };
+      return {label,data:pts,backgroundColor:"rgba(0,0,0,0)",borderColor:col,borderWidth:1.5,pointRadius:4,pointHoverRadius:6,pointStyle:"circle",showLine:false,order:3}; };
     if(ST.fppAddResale) overlays.push(mk(false,"Resale (existing)","rgba(120,128,138,0.5)"));
     if(ST.fppAddNew) overlays.push(mk(true,"New (existing)","rgba(6,182,196,0.6)"));
   }
   // user-entered builder plan series (from "Add Plans"), drawn on top, connected by lines
   const planDatasets=[];
   PLAN_SERIES.forEach(s=>{ const pts=s.plans.map((p,i)=>{ const price=ST.planPrices[s.series+"#"+i]; if(price==null)return null; return {x:p.sqft,y:price,name:p.name,series:s.series}; }).filter(Boolean).sort((a,b)=>a.x-b.x);
-    if(pts.length) planDatasets.push({label:s.series,data:pts,borderColor:SERIES_COLOR[s.series],backgroundColor:SERIES_COLOR[s.series],pointRadius:7,pointHoverRadius:9,pointStyle:"rectRot",showLine:true,borderWidth:2.5,tension:0}); });
+    if(pts.length) planDatasets.push({label:s.series,data:pts,borderColor:SERIES_COLOR[s.series],backgroundColor:SERIES_COLOR[s.series],pointRadius:7,pointHoverRadius:9,pointStyle:"rectRot",showLine:true,borderWidth:2.5,tension:0,order:1}); });
   const datasets=[...overlays,...fpDatasets,...planDatasets];   // overlays behind, communities, plan series on top
   if(!datasets.length){ chart=new Chart(ctx,{type:"scatter",data:{datasets:[]},options:baseOpts()}); setNote('No floorplans for the checked communities. Check communities in the table, or use "Add Plans" to enter your own.'); return; }
   chart=new Chart(ctx,{type:"scatter",data:{datasets},
