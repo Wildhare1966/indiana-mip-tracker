@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p99r1 -->
+<!-- MIP build p100r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -2231,29 +2231,8 @@ function _tprRenderProjectCard(p) {
   var metaHtml = meta.length ? '<div class="tpr-project-meta">' + meta.join(' · ') + '</div>' : '';
 
   var tagOpen = (tprActiveTagPid === pid);
-  var msgCls = tprTagMsgKind === 'warn' ? ' tpr-form-msg-warn' : (tprTagMsgKind === 'ok' ? ' tpr-form-msg-ok' : '');
-  var tagMsg = (tagOpen && tprTagMsg) ? '<div class="tpr-form-msg' + msgCls + '">' + esc(tprTagMsg) + '</div>' : '';
-  var fileLabel = tprTagFile ? ('Selected: ' + tprTagFile.name + ' (' + Math.round(tprTagFile.size / 1024) + ' KB)') : '';
-  var tagInputHtml = tagOpen
-    ? '<div class="tpr-tag-input">'
-        + '<input id="tpr-name-' + pidEsc + '" class="tpr-input" type="text" placeholder="Document name (optional — skips auto-naming)"'
-          + ' value="' + escAttr(tprTagDisplayName) + '"'
-          + ' oninput="tprTagDisplayName = this.value;">'
-        + '<input id="tpr-url-' + pidEsc + '" class="tpr-input" type="url" placeholder="Paste document URL (https://…)"'
-          + ' value="' + escAttr(tprTagUrl) + '"'
-          + ' oninput="tprTagUrl = this.value;">'
-        + '<div class="tpr-file-row" style="display:flex;align-items:center;gap:6px;margin-top:4px;">'
-          + '<input id="tpr-file-' + pidEsc + '" type="file" accept=".pdf,application/pdf" onchange="tprSelectFile(this)" style="font-size:11px;flex:1;">'
-          + (tprTagFile ? '<button type="button" class="tpr-cancel-btn" onclick="tprClearFile()" title="Remove selected file" style="padding:2px 6px;">✕</button>' : '')
-        + '</div>'
-        + (fileLabel ? '<div class="tpr-file-label" style="font-size:10px;color:var(--muted,#888);margin-top:2px;">' + esc(fileLabel) + '</div>' : '')
-        + '<div class="tpr-form-row">'
-          + '<button class="tpr-save-btn" onclick="tprSubmitTag(\'' + pidEsc + '\')">Save</button>'
-          + '<button class="tpr-cancel-btn" onclick="tprToggleTagInput(\'' + pidEsc + '\')">Cancel</button>'
-        + '</div>'
-        + tagMsg
-      + '</div>'
-    : '';
+  // P100: shared markup helper (also used by the Tracked Projects table tag row).
+  var tagInputHtml = tagOpen ? _tprRenderTagForm(pid) : '';
 
   // Description list — session-only (commit 5a). Pre-existing descriptions
   // from the backend are not loaded yet.
@@ -2319,7 +2298,7 @@ function _tprRenderDescriptions(projectId) {
 
 function tprToggleDescExpand(pid) {
   tprDescExpandedByProject[pid] = !tprDescExpandedByProject[pid];
-  if (currentMuni) renderTpRail(currentMuni);
+  _tprRerender();
 }
 
 // P61 task 3: fetch tagged documents for a project. Stores result in
@@ -2338,12 +2317,12 @@ function _tprFetchProjectDocs(pid) {
       } else {
         tprDocsByProject[pid] = { state: 'error', docs: [] };
       }
-      if (currentMuni) renderTpRail(currentMuni);
+      _tprRerender();
     })
     .catch(function(err) {
       tprDocsByProject[pid] = { state: 'error', docs: [] };
       console.error('_tprFetchProjectDocs error:', err);
-      if (currentMuni) renderTpRail(currentMuni);
+      _tprRerender();
     });
 }
 
@@ -2387,7 +2366,7 @@ function _tprRenderTaggedDocs(projectId) {
 
 function tprToggleDocsExpand(pid) {
   tprDocsExpandedByProject[pid] = !tprDocsExpandedByProject[pid];
-  if (currentMuni) renderTpRail(currentMuni);
+  _tprRerender();
 }
 
 // Format an ISO date (YYYY-MM-DD) as MM/DD/YYYY without going through Date
@@ -2414,7 +2393,7 @@ function tprToggleAddForm() {
     tprAliasChips = []; tprAliasDraft = '';
     tprAddMsg = ''; tprAddMsgKind = '';
   }
-  if (currentMuni) renderTpRail(currentMuni);
+  _tprRerender();
   // Focus the name field on open (renderTpRail synchronous → DOM is ready).
   if (tprAddFormOpen) {
     var el = document.getElementById('tpr-name');
@@ -2456,24 +2435,24 @@ function tprAliasKeyDown(ev) {
     var v = (tprAliasDraft || '').trim();
     if (v && tprAliasChips.indexOf(v) === -1) tprAliasChips.push(v);
     tprAliasDraft = '';
-    if (currentMuni) renderTpRail(currentMuni);
+    _tprRerender();
   } else if (ev.key === 'Backspace' && (tprAliasDraft || '') === '' && tprAliasChips.length) {
     ev.preventDefault();
     tprAliasChips.pop();
-    if (currentMuni) renderTpRail(currentMuni);
+    _tprRerender();
   }
 }
 
 function tprRemoveChip(idx) {
   tprAliasChips.splice(idx, 1);
-  if (currentMuni) renderTpRail(currentMuni);
+  _tprRerender();
 }
 
 function tprSubmitProject() {
   var name = (tprAddName || '').trim();
   if (!name) {
     tprAddMsg = 'Project name is required.'; tprAddMsgKind = 'warn';
-    if (currentMuni) renderTpRail(currentMuni);
+    _tprRerender();
     return;
   }
   // Flush any unfinished alias draft so it isn't dropped on submit.
@@ -2486,7 +2465,7 @@ function tprSubmitProject() {
   var webappUrl = getWebAppUrl();
   if (!webappUrl) {
     tprAddMsg = 'Web app URL not configured.'; tprAddMsgKind = 'warn';
-    if (currentMuni) renderTpRail(currentMuni);
+    _tprRerender();
     return;
   }
   // Duplicate detection (same logic as phAddProject — match ord or name).
@@ -2503,12 +2482,12 @@ function tprSubmitProject() {
   if (dup) {
     tprAddMsg = 'Already tracked: ' + (dup.projectName || dup.ordinanceId);
     tprAddMsgKind = 'warn';
-    if (currentMuni) renderTpRail(currentMuni);
+    _tprRerender();
     return;
   }
 
   tprAddMsg = 'Saving…'; tprAddMsgKind = '';
-  if (currentMuni) renderTpRail(currentMuni);
+  _tprRerender();
   var q = '&action=create_tracked_project'
         + '&project_name=' + encodeURIComponent(name)
         + '&ordinance_id=' + encodeURIComponent(ord)
@@ -2527,14 +2506,62 @@ function tprSubmitProject() {
       } else {
         tprAddMsg = 'Save failed: ' + ((res && res.error) || 'unknown');
         tprAddMsgKind = 'warn';
-        if (currentMuni) renderTpRail(currentMuni);
+        _tprRerender();
       }
     })
     .catch(function(err) {
       tprAddMsg = 'Network error: ' + err.message;
       tprAddMsgKind = 'warn';
-      if (currentMuni) renderTpRail(currentMuni);
+      _tprRerender();
     });
+}
+
+// P100: shared tag-input form markup — used by BOTH the muni-page Tracked
+// Projects rail (_tprRenderProjectCard) and the Tracked Projects table tag row
+// (_tpRenderTagRow), so the table "+ Tag" behaves identically to the rail
+// (paste URL / upload PDF inline; no page jump). Replaces the old tpEnterTagMode
+// which jumped to the now-hidden Public Hearings view.
+function _tprRenderTagForm(pid) {
+  var pidEsc = escAttr(pid);
+  var msgCls = tprTagMsgKind === 'warn' ? ' tpr-form-msg-warn' : (tprTagMsgKind === 'ok' ? ' tpr-form-msg-ok' : '');
+  var tagMsg = tprTagMsg ? '<div class="tpr-form-msg' + msgCls + '">' + esc(tprTagMsg) + '</div>' : '';
+  var fileLabel = tprTagFile ? ('Selected: ' + tprTagFile.name + ' (' + Math.round(tprTagFile.size / 1024) + ' KB)') : '';
+  return '<div class="tpr-tag-input">'
+    + '<input id="tpr-name-' + pidEsc + '" class="tpr-input" type="text" placeholder="Document name (optional — skips auto-naming)"'
+      + ' value="' + escAttr(tprTagDisplayName) + '"'
+      + ' oninput="tprTagDisplayName = this.value;">'
+    + '<input id="tpr-url-' + pidEsc + '" class="tpr-input" type="url" placeholder="Paste document URL (https://…)"'
+      + ' value="' + escAttr(tprTagUrl) + '"'
+      + ' oninput="tprTagUrl = this.value;">'
+    + '<div class="tpr-file-row" style="display:flex;align-items:center;gap:6px;margin-top:4px;">'
+      + '<input id="tpr-file-' + pidEsc + '" type="file" accept=".pdf,application/pdf" onchange="tprSelectFile(this)" style="font-size:11px;flex:1;">'
+      + (tprTagFile ? '<button type="button" class="tpr-cancel-btn" onclick="tprClearFile()" title="Remove selected file" style="padding:2px 6px;">✕</button>' : '')
+    + '</div>'
+    + (fileLabel ? '<div class="tpr-file-label" style="font-size:10px;color:var(--muted,#888);margin-top:2px;">' + esc(fileLabel) + '</div>' : '')
+    + '<div class="tpr-form-row">'
+      + '<button class="tpr-save-btn" onclick="tprSubmitTag(\'' + pidEsc + '\')">Save</button>'
+      + '<button class="tpr-cancel-btn" onclick="tprToggleTagInput(\'' + pidEsc + '\')">Cancel</button>'
+    + '</div>'
+    + tagMsg
+  + '</div>';
+}
+
+// P100: re-render whichever Tracked Projects surface is visible after a tag
+// action — the muni-page rail and/or the Tracked Projects table.
+function _tprRerender() {
+  if (currentMuni) { renderTpRail(currentMuni); }
+  var tv = document.getElementById('view-tracked');
+  if (tv && tv.classList.contains('active') && typeof tpRenderTable === 'function') tpRenderTable();
+}
+
+// P100: inline tag-form row for the Tracked Projects table — mirrors the rail's
+// inline tag affordance (reuses _tprRenderTagForm + tprSubmitTag/tprToggleTagInput).
+function _tpRenderTagRow(p, pidAttr) {
+  return '<tr class="tp-tag-row"><td colspan="16" style="padding:10px 18px;border-bottom:1px solid var(--border,#333);background:var(--panel-2,#1c1c1c);">'
+    + '<div style="max-width:520px;">'
+    + '<div style="font-size:11px;color:var(--muted,#888);margin-bottom:6px;">Tag a document to <strong>' + esc(p.projectName || '(untitled)') + '</strong></div>'
+    + _tprRenderTagForm(p.projectId || '')
+    + '</div></td></tr>';
 }
 
 function tprToggleTagInput(pid) {
@@ -2545,7 +2572,7 @@ function tprToggleTagInput(pid) {
     tprActiveTagPid = pid;
     tprTagUrl = ''; tprTagDisplayName = ''; tprTagFile = null; tprTagMsg = ''; tprTagMsgKind = '';
   }
-  if (currentMuni) renderTpRail(currentMuni);
+  _tprRerender();
   if (tprActiveTagPid) {
     var el = document.getElementById('tpr-name-' + pid);
     if (el) el.focus();
@@ -2561,16 +2588,16 @@ function tprSelectFile(input) {
     input.value = '';
     tprTagMsg = 'File too large (' + Math.round(f.size / (1024 * 1024)) + ' MB) — cap is 25 MB.';
     tprTagMsgKind = 'warn';
-    if (currentMuni) renderTpRail(currentMuni);
+    _tprRerender();
     return;
   }
   tprTagFile = f;
-  if (currentMuni) renderTpRail(currentMuni);
+  _tprRerender();
 }
 
 function tprClearFile() {
   tprTagFile = null;
-  if (currentMuni) renderTpRail(currentMuni);
+  _tprRerender();
 }
 
 function tprSubmitTag(pid) {
@@ -2579,31 +2606,31 @@ function tprSubmitTag(pid) {
   var file = tprTagFile;
   if (!url && !file) {
     tprTagMsg = 'Paste a document URL or pick a PDF first.'; tprTagMsgKind = 'warn';
-    if (currentMuni) renderTpRail(currentMuni);
+    _tprRerender();
     return;
   }
   if (url && !file && !/^https?:\/\//i.test(url)) {
     tprTagMsg = 'URL must start with http:// or https://';
     tprTagMsgKind = 'warn';
-    if (currentMuni) renderTpRail(currentMuni);
+    _tprRerender();
     return;
   }
   var webappUrl = getWebAppUrl();
   if (!webappUrl) {
     tprTagMsg = 'Web app URL not configured.'; tprTagMsgKind = 'warn';
-    if (currentMuni) renderTpRail(currentMuni);
+    _tprRerender();
     return;
   }
   tprTagMsg = file ? ('Uploading ' + file.name + '…') : 'Tagging…';
   tprTagMsgKind = '';
-  if (currentMuni) renderTpRail(currentMuni);
+  _tprRerender();
   var cid = (typeof tagClientId === 'function') ? tagClientId() : '';
 
   if (file) {
     var reader = new FileReader();
     reader.onerror = function() {
       tprTagMsg = 'Could not read file.'; tprTagMsgKind = 'warn';
-      if (currentMuni) renderTpRail(currentMuni);
+      _tprRerender();
     };
     reader.onload = function(ev) {
       var dataUrl = String(ev.target.result || '');
@@ -2611,7 +2638,7 @@ function tprSubmitTag(pid) {
       var b64 = commaIdx >= 0 ? dataUrl.slice(commaIdx + 1) : '';
       if (!b64) {
         tprTagMsg = 'Empty file read.'; tprTagMsgKind = 'warn';
-        if (currentMuni) renderTpRail(currentMuni);
+        _tprRerender();
         return;
       }
       var payload = {
@@ -2632,7 +2659,7 @@ function tprSubmitTag(pid) {
         .catch(function(err) {
           tprTagMsg = 'Upload failed: ' + (err && err.message ? err.message : err);
           tprTagMsgKind = 'warn';
-          if (currentMuni) renderTpRail(currentMuni);
+          _tprRerender();
         });
     };
     reader.readAsDataURL(file);
@@ -2651,7 +2678,7 @@ function tprSubmitTag(pid) {
     .catch(function(err) {
       tprTagMsg = 'Network error: ' + err.message;
       tprTagMsgKind = 'warn';
-      if (currentMuni) renderTpRail(currentMuni);
+      _tprRerender();
     });
 }
 
@@ -2659,7 +2686,7 @@ function _tprFinishTagSuccess(pid, res, displayName, fallbackUrl) {
   if (!(res && res.ok)) {
     tprTagMsg = 'Tag failed: ' + ((res && res.error) || 'unknown');
     tprTagMsgKind = 'warn';
-    if (currentMuni) renderTpRail(currentMuni);
+    _tprRerender();
     return;
   }
   var status  = res.status  || 'tagged';
@@ -2693,7 +2720,7 @@ function _tprFinishTagSuccess(pid, res, displayName, fallbackUrl) {
     description_status: descStatus,
     description_date_iso: descDateIso
   });
-  if (currentMuni) renderTpRail(currentMuni);
+  _tprRerender();
   if (descStatus === 'analyzing' && docId) {
     _tprFireDescribe(pid, docId);
   }
@@ -2722,13 +2749,13 @@ function _tprFireDescribe(pid, docId) {
       } else {
         row.description_status = 'failed';
       }
-      if (currentMuni) renderTpRail(currentMuni);
+      _tprRerender();
     })
     .catch(function(err) {
       var rows = tprDescriptionsByProject[pid] || [];
       var row = rows.find(function(r) { return r.doc_id === docId; });
       if (row) row.description_status = 'failed';
-      if (currentMuni) renderTpRail(currentMuni);
+      _tprRerender();
     });
 }
 
@@ -5870,7 +5897,12 @@ function tpRenderTable() {
       var badge = n > 0
         ? '<a href="javascript:void(0)" onclick="tpOpenDocsPopup(\'' + pidAttr + '\', this); return false;" title="View tagged documents" style="font-weight:600;color:#7e57c2;text-decoration:none;">' + n + ' doc' + (n===1?'':'s') + '</a>'
         : '<span style="color:var(--muted,#888);">0 docs</span>';
-      var tagBtn = ' <button class="refresh-btn" onclick="tpEnterTagMode(\'' + pidAttr + '\')" style="font-size:10px;padding:1px 6px;margin-left:6px;" title="Enter tag mode for this project">+ Tag</button>';
+      // P100: open the SAME inline tag form the muni-page rail uses (paste URL /
+      // upload PDF), instead of the old tpEnterTagMode that jumped to the hidden
+      // Public Hearings view. tprToggleTagInput → _tprRerender re-renders the table
+      // with the tag row (_tpRenderTagRow appended below).
+      var tagOpen = (tprActiveTagPid === p.projectId);
+      var tagBtn = ' <button class="refresh-btn" onclick="tprToggleTagInput(\'' + pidAttr + '\')" style="font-size:10px;padding:1px 6px;margin-left:6px;' + (tagOpen ? 'background:#7e57c2;color:#fff;border-color:#7e57c2;' : '') + '" title="' + (tagOpen ? 'Cancel tagging' : 'Tag a document to this project (paste URL or upload PDF)') + '">' + (tagOpen ? '× Tag' : '+ Tag') + '</button>';
       return badge + tagBtn;
     })();
 
@@ -5927,7 +5959,9 @@ function tpRenderTable() {
       '</td>' +
     '</tr>' +
     // P61 task 2: inline edit dropdown row. Only emitted when this row is the active edit target.
-    (isEditing ? _tpRenderEditDropdown(p, pidAttr) : '');
+    (isEditing ? _tpRenderEditDropdown(p, pidAttr) : '') +
+    // P100: inline tag-form row — mirrors the muni-page rail's "+ Tag" affordance.
+    (tprActiveTagPid === p.projectId ? _tpRenderTagRow(p, pidAttr) : '');
   }).join('');
   // Reapply R6 highlight to any newly-rendered tp-doc-link anchors.
   if (typeof mipReapplyLastDocBtn === 'function') mipReapplyLastDocBtn();
@@ -6699,11 +6733,14 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 
-// Entry point — invoked from the Tracked Projects tab's "Tag docs" button per row.
+// Legacy entry point. P100: previously turned on the global tag-mode banner and
+// jumped to the (now-hidden) Public Hearings view as the "tagging surface" — which
+// read as a broken page-jump. Repointed to the rail-style inline tag form so any
+// residual caller gets the same in-place paste-URL/upload affordance as the
+// muni-page Tracked Projects rail. (Global banner tag-mode fns retained below for
+// the sessionStorage-restore path but no longer started from here.)
 function tpEnterTagMode(projectId) {
-  tagModeOn(projectId);
-  // Switch to Public Hearings as the default tagging surface.
-  switchView('publichearings');
+  tprToggleTagInput(projectId);
 }
 
 // ── Tagged Docs column popup ─────────────────────────────────────────────────
