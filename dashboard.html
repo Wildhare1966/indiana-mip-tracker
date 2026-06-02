@@ -138,6 +138,23 @@
   input[type=file]{display:none}
   .muted{color:var(--muted)}
   .hidden{display:none!important}
+  /* ---- Add Plans modal ---- */
+  .plan-modal{position:fixed;inset:0;background:rgba(15,30,46,.55);z-index:200;display:flex;align-items:center;justify-content:center;padding:24px}
+  .plan-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);width:660px;max-width:100%;max-height:88vh;display:flex;flex-direction:column;color:var(--ink)}
+  .plan-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line)}
+  .plan-title{font-size:16px;font-weight:700;color:var(--ink)}
+  .plan-x{border:none;background:none;font-size:20px;line-height:1;cursor:pointer;color:var(--muted)}
+  .plan-x:hover{color:var(--ink)}
+  .plan-sub{padding:8px 18px 4px;font-size:12px;color:var(--muted)}
+  .plan-body{overflow:auto;padding:6px 18px;flex:1}
+  .plan-table{width:100%;border-collapse:collapse;font-size:13px}
+  .plan-table th,.plan-table td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+  .plan-table th{position:sticky;top:0;background:var(--panel);font-weight:700;color:var(--ink);z-index:1}
+  .plan-table td.num,.plan-table th.num{text-align:right}
+  .plan-table td.ser{font-weight:800}
+  .plan-inp{width:120px;border:1px solid var(--line);border-radius:5px;padding:5px 8px;font-size:13px;text-align:right;background:var(--panel);color:var(--ink)}
+  .plan-inp:focus{outline:none;border-color:var(--brand2);box-shadow:0 0 0 2px rgba(35,106,135,.2)}
+  .plan-foot{display:flex;justify-content:flex-end;gap:10px;padding:14px 18px;border-top:1px solid var(--line)}
   /* ---- DARK variant — activated only via ?theme=dark (MRD embed). Light look unchanged. ---- */
   html[data-theme="dark"]{
     color-scheme:dark;
@@ -284,6 +301,21 @@ const DB={details:[],sales:[],priceHist:[],fpDetails:[],fpPrice:[],exist:[],
 const COLORS=["#1b4965","#2c7da0","#e8a30c","#2e8b57","#c0392b","#7b5ea7","#d36f9a","#0a9396",
   "#bb8588","#52796f","#ee9b00","#5c677d","#9b2226","#386641","#168aad","#b56576","#6a994e","#bc6c25","#4361ee","#8338ec"];
 const color=i=>COLORS[i%COLORS.length];
+/* Builder floor-plan series (name + square footage) for the "Add Plans" overlay on the FPP scatter */
+const PLAN_SERIES=[
+  {series:"Arbor", plans:[
+    {name:"Walnut",sqft:1128},{name:"Ashton",sqft:1354},{name:"Juniper",sqft:1677},{name:"Bradford",sqft:1687},
+    {name:"Ironwood",sqft:1750},{name:"Chestnut",sqft:1801},{name:"Aspen II",sqft:2033},{name:"Palmetto",sqft:2176},
+    {name:"Spruce",sqft:2343},{name:"Cooper",sqft:2584},{name:"Norway",sqft:3029},{name:"Empress",sqft:3198}]},
+  {series:"Arrival", plans:[
+    {name:"Coach",sqft:1158},{name:"Roackaway",sqft:1375},{name:"Victoria",sqft:1430},{name:"Berlin",sqft:1969},{name:"Gladstone",sqft:1932}]},
+  {series:"Destination", plans:[
+    {name:"Scottsdale",sqft:1549},{name:"Sarasota",sqft:1768},{name:"Augusta",sqft:1964},{name:"Sedona",sqft:2068},{name:"Asheville",sqft:2362}]},
+  {series:"Silverthorne", plans:[
+    {name:"Chestnut",sqft:1801},{name:"Taylor",sqft:2001},{name:"Jefferson",sqft:2241},{name:"Reagan",sqft:2325},{name:"Spruce",sqft:2343},
+    {name:"Arthur",sqft:2606},{name:"Cooper",sqft:2813},{name:"Van Buren",sqft:2933},{name:"Norway",sqft:3029},{name:"Monroe",sqft:3206}]},
+];
+const SERIES_COLOR={Arbor:"#1b4965",Arrival:"#e8a30c",Destination:"#2e8b57",Silverthorne:"#7b5ea7"};
 
 function num(v){ if(v===null||v===undefined||v==="")return null;
   if(typeof v==="number")return isNaN(v)?null:v; const n=Number(String(v).replace(/[$,%\s]/g,"")); return isNaN(n)?null:n; }
@@ -371,7 +403,7 @@ function finishLoad(parsed){
  *  App state
  * ============================================================= */
 const ST={ mode:"submarket", view:"table", smLevel:"City", excluded:new Set(), gtab:"avgprice",
-  sort:{key:null,dir:1}, allHomesDrill:null, fppAddNew:false, fppAddResale:false, colOrder:{},
+  sort:{key:null,dir:1}, allHomesDrill:null, fppAddNew:false, fppAddResale:false, colOrder:{}, planPrices:{},
   ctl:{ salesMode:"agg", priceMode:"agg", scToggle:"annual", lpToggle:"inv", deltaYears:1,
     labels:{ avgprice:true, allhomes:true, sc:true, lot:true, pricedelta:true } } };
 let kpiVisible=true, railCollapsed=false, dirty=false;
@@ -813,11 +845,15 @@ function chartFppLines(){
     if(ST.fppAddResale) overlays.push(mk(false,"Resale (existing)","rgba(120,128,138,0.5)"));
     if(ST.fppAddNew) overlays.push(mk(true,"New (existing)","rgba(6,182,196,0.6)"));
   }
-  const datasets=[...overlays,...fpDatasets];   // overlays first => drawn behind
-  if(!datasets.length){ chart=new Chart(ctx,{type:"scatter",data:{datasets:[]},options:baseOpts()}); setNote("No floorplans for the checked communities. Check communities in the reference table below."); return; }
+  // user-entered builder plan series (from "Add Plans"), drawn on top, connected by lines
+  const planDatasets=[];
+  PLAN_SERIES.forEach(s=>{ const pts=s.plans.map((p,i)=>{ const price=ST.planPrices[s.series+"#"+i]; if(price==null)return null; return {x:p.sqft,y:price,name:p.name,series:s.series}; }).filter(Boolean).sort((a,b)=>a.x-b.x);
+    if(pts.length) planDatasets.push({label:s.series,data:pts,borderColor:SERIES_COLOR[s.series],backgroundColor:SERIES_COLOR[s.series],pointRadius:7,pointHoverRadius:9,pointStyle:"rectRot",showLine:true,borderWidth:2.5,tension:0}); });
+  const datasets=[...overlays,...fpDatasets,...planDatasets];   // overlays behind, communities, plan series on top
+  if(!datasets.length){ chart=new Chart(ctx,{type:"scatter",data:{datasets:[]},options:baseOpts()}); setNote('No floorplans for the checked communities. Check communities in the table, or use "Add Plans" to enter your own.'); return; }
   chart=new Chart(ctx,{type:"scatter",data:{datasets},
     options:baseOpts({plugins:{legend:{position:"bottom",labels:{boxWidth:12,font:{size:11}}},
-      tooltip:{callbacks:{label:c=>{const d=c.raw; if(d.proj!==undefined) return `${d.proj} · ${d.plan} · ${d.bed?d.bed+'bd · ':''}${fmtInt(d.x)} sqft · ${fmtMoney(d.y)}`; return `${c.dataset.label} · ${d.city} · ${fmtInt(d.x)} sqft · ${fmtMoney(d.y)}`;}}}},
+      tooltip:{callbacks:{label:c=>{const d=c.raw; if(d.series!==undefined) return `${d.series} · ${d.name} · ${fmtInt(d.x)} sqft · ${fmtMoney(d.y)}`; if(d.proj!==undefined) return `${d.proj} · ${d.plan} · ${d.bed?d.bed+'bd · ':''}${fmtInt(d.x)} sqft · ${fmtMoney(d.y)}`; return `${c.dataset.label} · ${d.city} · ${fmtInt(d.x)} sqft · ${fmtMoney(d.y)}`;}}}},
       scales:{x:{min:1000,max:4000,title:{display:true,text:"Square footage (sqft)"},ticks:{callback:v=>fmtInt(v)}},y:{min:100000,max:800000,title:{display:true,text:"List / sale price ($)"},ticks:{callback:v=>"$"+(v/1000).toFixed(0)+"k"}}}})});
   const fpPts=fpDatasets.reduce((a,d)=>a+d.data.length,0); const ovPts=overlays.reduce((a,d)=>a+d.data.length,0);
   setNote(`${fpDatasets.length} community/communities · ${fpPts} floorplan(s)${overlays.length?` · ${ovPts} existing-sale point(s) overlaid (behind)`:""}. Lines connect each community's floorplans by size.`);
@@ -878,6 +914,37 @@ function buildChartControls(tab){
     host.appendChild(tgl("Add Resale",ST.fppAddResale,()=>ST.fppAddResale=!ST.fppAddResale));
   }
   const b=document.createElement("button"); b.className="btn sm"; b.textContent="Export PNG"; b.onclick=exportPng; host.appendChild(b);
+  if(tab.id==="scatter"){ const ap=document.createElement("button"); ap.className="btn sm primary"; ap.textContent="Add Plans"; ap.onclick=openPlanModal;
+    const n=Object.keys(ST.planPrices).length; if(n) ap.textContent="Add Plans ("+n+")"; host.appendChild(ap); }
+}
+/* ---- Add Plans modal (enter/paste Sales Price per builder floor plan) ---- */
+function closePlanModal(){ const m=document.getElementById("planModal"); if(m)m.remove(); }
+function openPlanModal(){
+  closePlanModal();
+  const wrap=document.createElement("div"); wrap.className="plan-modal"; wrap.id="planModal";
+  const card=document.createElement("div"); card.className="plan-card";
+  let html=`<div class="plan-head"><div class="plan-title">Add Floor Plans — Sales Price</div><button class="plan-x" id="planX" title="Close">&times;</button></div>`+
+    `<div class="plan-sub">Type or paste a Sales Price for any plan. Paste a column copied from a spreadsheet to fill down. Plans with a price appear on the scatter, grouped &amp; lined by series.</div>`+
+    `<div class="plan-body"><table class="plan-table"><thead><tr><th>Series</th><th>Floor Plan</th><th class="num">Sq Ft</th><th class="num">Sales Price ($)</th></tr></thead><tbody>`;
+  let idx=0;
+  PLAN_SERIES.forEach(s=>{ s.plans.forEach((p,i)=>{ const key=s.series+"#"+i; const v=ST.planPrices[key];
+    html+=`<tr><td class="ser" style="color:${SERIES_COLOR[s.series]}">${i===0?s.series:""}</td><td>${p.name}</td><td class="num">${fmtInt(p.sqft)}</td>`+
+      `<td class="num"><input type="text" inputmode="numeric" class="plan-inp" data-key="${key}" data-idx="${idx}" value="${v!=null?fmtInt(v):""}"></td></tr>`; idx++; }); });
+  html+=`</tbody></table></div><div class="plan-foot"><button class="btn" id="planClear">Clear</button><button class="btn primary" id="planSave">Save</button></div>`;
+  card.innerHTML=html; wrap.appendChild(card); document.body.appendChild(wrap);
+  const inps=[...card.querySelectorAll(".plan-inp")];
+  inps.forEach(inp=>{
+    inp.addEventListener("paste",e=>{ const txt=(e.clipboardData||window.clipboardData).getData("text"); if(!txt||!/[\n\t\r]/.test(txt))return; e.preventDefault();
+      const vals=txt.split(/\r\n|\r|\n|\t/).map(x=>x.trim()); while(vals.length&&vals[vals.length-1]==="") vals.pop();
+      const start=+inp.dataset.idx; vals.forEach((val,k)=>{ const t=inps[start+k]; if(t){ const nn=num(val); t.value=nn!=null?fmtInt(nn):""; } }); });
+    inp.addEventListener("blur",()=>{ const nn=num(inp.value); inp.value=nn!=null?fmtInt(nn):""; });
+  });
+  card.querySelector("#planX").onclick=closePlanModal;
+  card.querySelector("#planClear").onclick=()=>inps.forEach(i=>i.value="");
+  card.querySelector("#planSave").onclick=()=>{ const next={}; inps.forEach(i=>{ const nn=num(i.value); if(nn!=null) next[i.dataset.key]=nn; });
+    ST.planPrices=next; closePlanModal(); renderGraphicsView(); };
+  wrap.addEventListener("click",e=>{ if(e.target===wrap) closePlanModal(); });
+  document.addEventListener("keydown",function esc(ev){ if(ev.key==="Escape"){ closePlanModal(); document.removeEventListener("keydown",esc); } });
 }
 function exportPng(){ if(!chart)return; const url=chart.toBase64Image("image/png",1); const a=document.createElement("a"); a.href=url; a.download="zonda_"+ST.mode+"_"+ST.gtab+".png"; a.click(); }
 
