@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p106r1 -->
+<!-- MIP build p106r2 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -9809,6 +9809,9 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
   .mrdask-h .ttl{font-weight:700;font-size:14px;color:#e7eef5}
   .mrdask-h .sub{color:#8198ab;font-size:11.5px;margin-top:2px}
   .mrdask-h .x{margin-left:auto;color:#8198ab;cursor:pointer;font-size:18px;line-height:1}
+  .mrdask-export{background:rgba(59,227,255,.12);border:1px solid rgba(59,227,255,.42);color:#3be3ff;border-radius:7px;
+    padding:6px 11px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;display:none;align-items:center;gap:5px}
+  .mrdask-export:hover{background:rgba(59,227,255,.22)}
   .mrdask-body{padding:13px 18px;overflow-y:auto}
   .mrdask-sugg{display:flex;flex-wrap:wrap;gap:7px}
   .mrdask-sugg .lbl{font-size:10px;letter-spacing:.1em;color:#8198ab;width:100%}
@@ -9827,7 +9830,14 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
     border:1px solid rgba(59,227,255,.42);color:#3be3ff;border-radius:4px;padding:0 5px;font-size:11px;
     cursor:pointer;text-decoration:none;font-variant-numeric:tabular-nums}
   .mrdask-ts:hover{background:rgba(59,227,255,.24)}
-  .mrdask-think{align-self:flex-start;color:#8198ab;font-size:12px}
+  .mrdask-think{align-self:flex-start;color:#8198ab;font-size:12px;display:flex;align-items:center}
+  .mrdask-spinner{display:inline-block;width:13px;height:13px;border:2px solid rgba(59,227,255,.25);border-top-color:#3be3ff;
+    border-radius:50%;animation:mrdask-rot .7s linear infinite;margin-right:8px;flex:none}
+  @keyframes mrdask-rot{to{transform:rotate(360deg)}}
+  .mrdask-dots::after{content:'';animation:mrdask-dots 1.2s steps(4,end) infinite}
+  @keyframes mrdask-dots{0%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}}
+  .mrdask-saved{font-size:10.5px;color:#7fcf8f;margin-top:8px}
+  .mrdask-saved a{color:#7fcf8f;text-decoration:underline}
   .mrdask-foot{padding:11px 18px;border-top:1px solid rgba(255,255,255,.09);display:flex;gap:8px;align-items:center}
   .mrdask-foot input{flex:1;background:#0e2233;border:1px solid rgba(255,255,255,.09);border-radius:8px;color:#cdd9e4;
     padding:10px 12px;font-size:13px;font-family:inherit;outline:none}
@@ -9840,7 +9850,8 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
   <div class="mrdask-box">
     <div class="mrdask-h">
       <div class="ico">✦</div>
-      <div><div class="ttl" id="mrdask-ttl">Detailed Summary</div><div class="sub" id="mrdask-sub"></div></div>
+      <div style="flex:1;min-width:0"><div class="ttl" id="mrdask-ttl">Detailed Summary</div><div class="sub" id="mrdask-sub"></div></div>
+      <button class="mrdask-export" id="mrdask-export" onclick="askExport()" title="Export this detailed summary as a Word document — timestamp links stay clickable">⬇ Export to Word</button>
       <div class="x" onclick="askClose()">×</div>
     </div>
     <div class="mrdask-body" id="mrdask-body">
@@ -9853,6 +9864,7 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
 <script>
 (function(){
   var ASK={mid:'',vid:'',item:'',ord:''};
+  var LAST={html:'',title:'',sub:''};   // last rendered draft, for Word export
   function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
   function md(s){s=esc(s);
     s=s.replace(/^#{1,6}\s?(.*)$/gm,'<h4>$1</h4>').replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>')
@@ -9863,11 +9875,21 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
     return '<a class="mrdask-ts" target="_blank" href="https://www.youtube.com/watch?v='+vid+'&t='+sec+'s">'+m.slice(1,-1)+'</a>';});}
   function qa(){return document.getElementById('mrdask-qa');}
   function body(){return document.getElementById('mrdask-body');}
-  function think(label){var t=document.createElement('div');t.className='mrdask-think';t.textContent='● '+label;qa().appendChild(t);body().scrollTop=99999;return t;}
+  function think(label){var t=document.createElement('div');t.className='mrdask-think';
+    t.innerHTML='<span class="mrdask-spinner"></span><span class="mrdask-dots">'+esc(label)+'</span>';
+    qa().appendChild(t);body().scrollTop=99999;return t;}
   function render(res){
-    var html=(res&&res.ok&&(res.answer||res.markdown))?tsLink(md(res.answer||res.markdown),ASK.vid)
+    var ok=!!(res&&res.ok&&(res.answer||res.markdown));
+    var inner=ok?tsLink(md(res.answer||res.markdown),ASK.vid)
       :'<i>'+esc((res&&(res.message||res.error))||'No response available.')+'</i>';
-    qa().insertAdjacentHTML('beforeend','<div class="mrdask-a">'+html+'</div>');body().scrollTop=99999;
+    var saved=(ok&&res.doc_url)?'<div class="mrdask-saved">✓ Saved to your Drive for future reference — <a target="_blank" rel="noopener" href="'+esc(res.doc_url)+'">open the source doc</a></div>':'';
+    qa().insertAdjacentHTML('beforeend','<div class="mrdask-a">'+inner+saved+'</div>');body().scrollTop=99999;
+    if(ok){
+      LAST.html=inner;
+      LAST.title=ASK.item||'Detailed Summary';
+      LAST.sub=(document.getElementById('mrdask-sub')||{}).textContent||'';
+      document.getElementById('mrdask-export').style.display='inline-flex';
+    }
   }
   function api(fn,extra){
     var url=getWebAppUrl()+'&action=admin_run&fn='+fn+'&meeting_id='+encodeURIComponent(ASK.mid)+(extra||'');
@@ -9880,6 +9902,7 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
     document.getElementById('mrdask-ttl').textContent=ASK.item||'Detailed Summary';
     document.getElementById('mrdask-sub').textContent=btn.getAttribute('data-sub')||'';
     qa().innerHTML='';
+    LAST.html='';document.getElementById('mrdask-export').style.display='none';
     // P106: single action — Draft Detailed Summary, scoped to this agenda item.
     document.getElementById('mrdask-sugg').innerHTML=
       '<div class="mrdask-s primary" onclick="askDraft()">📄 Draft Detailed Summary</div>';
@@ -9895,6 +9918,33 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
     if(ASK.ord)extra+='&ord_number='+encodeURIComponent(ASK.ord);
     api('draftDetailedSummary',extra).then(function(res){t.remove();render(res);})
       .catch(function(){t.remove();qa().insertAdjacentHTML('beforeend','<div class="mrdask-a"><i>Request failed. Try again.</i></div>');});
+  };
+  // P106 r2: export the rendered detailed summary as a Word doc. The body HTML
+  // already contains real <a href="youtube…&t=Ns"> timestamp links, so Word
+  // keeps them as live hyperlinks. Word-compatible-HTML blob (matches the
+  // existing intel-briefing export pattern at ~line 3280).
+  window.askExport=function(){
+    if(!LAST.html)return;
+    var wordHtml='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'
+      +'<head><meta charset="utf-8"><style>'
+      +'body{font-family:Calibri,sans-serif;font-size:11pt;color:#1a1a1a;line-height:1.5;}'
+      +'h1{font-size:16pt;color:#1e3a5f;border-bottom:2pt solid #e8a020;padding-bottom:4pt;margin-bottom:2pt;}'
+      +'h2,h3,h4{font-size:12.5pt;color:#1e3a5f;margin:13pt 0 3pt;}'
+      +'a{color:#1155cc;text-decoration:underline;}'
+      +'.sub{color:#4a5568;font-size:10pt;margin:2pt 0 10pt;}'
+      +'.meta{color:#4a5568;font-size:9pt;border-top:1pt solid #edf0f4;padding-top:6pt;margin-top:16pt;}'
+      +'</style></head><body>'
+      +'<h1>'+esc(LAST.title)+'</h1>'
+      +(LAST.sub?'<p class="sub">'+esc(LAST.sub)+'</p>':'')
+      +'<div>'+LAST.html+'</div>'
+      +'<p class="meta">Detailed agenda-item summary — generated from the meeting transcript by MRD (Municipal Resource Dashboard). Timestamp links open the cited moment in the source video.</p>'
+      +'</body></html>';
+    var blob=new Blob(['﻿',wordHtml],{type:'application/msword'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');a.href=url;
+    a.download=((LAST.title||'detailed-summary').replace(/[^\w \-]+/g,'').trim().replace(/\s+/g,'-')||'detailed-summary')+'-detailed-summary.doc';
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(function(){URL.revokeObjectURL(url);},1500);
   };
   document.addEventListener('DOMContentLoaded',function(){
     var ov=document.getElementById('mrdask-ov');
