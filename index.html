@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p100r1 -->
+<!-- MIP build p105r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -4266,6 +4266,12 @@ function renderBodySection(bodyLabel, dates, muniId) {
         ytCell += `<a id="${esc(sumAnchorId)}" href="${escUrl(entry.summary_doc)}" target="_blank" class="hearing-link doc${sumFlagCls}${sumConfirmedCls}${covClsSuffix}" data-doc-link="summary" data-scraped-id="${escAttr(entry.meeting_id || '')}">✦ Summary${covLabelSuffix}</a>`;
       }
       ytCell += `</span>`;
+      // P105: Ask-this-video pill — between Summary and Yes. Shows wherever a
+      // YouTube video exists; the transcript is captured lazily on first ask.
+      if (entry.youtube_url && entry.meeting_id) {
+        const askSub = `${entry.meeting_type || 'Meeting'}${entry.date ? ' · ' + entry.date : ''}`;
+        ytCell += `<button class="hearing-link ask" data-mid="${escAttr(entry.meeting_id)}" data-sub="${escAttr(askSub)}" onclick="askOpen(this)">✦ Ask</button>`;
+      }
       if (entry.summary_doc && !isCovPending) {
         // P67 R2: "Yes" button between Summary and Flag — turns Summary anchor
         // green via .summary-confirmed (same green family as Agenda/Minutes Yes).
@@ -9761,5 +9767,124 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
      Distinct from #agenda-panel-live (which is screen-reader-only). -->
 <div id="agenda-panel-toast" class="agenda-panel-toast" aria-hidden="true"></div>
 
+<!-- P105: Ask-this-video Q&A panel (talks to admin_run askVideo / draftDetailedSummary) -->
+<style>
+  .hearing-link.ask{background:rgba(59,227,255,.12);color:#7fd5e4;border:1px solid rgba(59,227,255,.32);
+    font-size:10px;padding:2px 8px;border-radius:3px;cursor:pointer;font-family:inherit;letter-spacing:.03em;
+    display:inline-flex;align-items:center;gap:3px;white-space:nowrap;line-height:1.4}
+  .hearing-link.ask:hover{opacity:.8}
+  .mrdask-ov{position:fixed;inset:0;background:rgba(4,12,20,.66);backdrop-filter:blur(2px);display:none;
+    align-items:center;justify-content:center;z-index:9999}
+  .mrdask-ov.open{display:flex}
+  .mrdask-box{width:640px;max-width:94vw;max-height:88vh;background:#143247;border:1px solid rgba(59,227,255,.42);
+    border-radius:12px;box-shadow:0 24px 70px rgba(0,0,0,.6);display:flex;flex-direction:column;overflow:hidden;
+    color:#cdd9e4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif}
+  .mrdask-h{padding:14px 18px;border-bottom:1px solid rgba(255,255,255,.09);display:flex;align-items:flex-start;gap:10px}
+  .mrdask-h .ico{width:30px;height:30px;border-radius:8px;background:rgba(59,227,255,.12);border:1px solid rgba(59,227,255,.42);
+    display:flex;align-items:center;justify-content:center;color:#3be3ff;font-size:13px;flex:none}
+  .mrdask-h .ttl{font-weight:700;font-size:14px;color:#e7eef5}
+  .mrdask-h .sub{color:#8198ab;font-size:11.5px;margin-top:2px}
+  .mrdask-h .x{margin-left:auto;color:#8198ab;cursor:pointer;font-size:18px;line-height:1}
+  .mrdask-body{padding:13px 18px;overflow-y:auto}
+  .mrdask-sugg{display:flex;flex-wrap:wrap;gap:7px}
+  .mrdask-sugg .lbl{font-size:10px;letter-spacing:.1em;color:#8198ab;width:100%}
+  .mrdask-s{font-size:11.5px;color:#9fd0e0;background:rgba(74,159,196,.1);border:1px solid rgba(74,159,196,.32);
+    border-radius:14px;padding:5px 11px;cursor:pointer}
+  .mrdask-s:hover{background:rgba(74,159,196,.2)}
+  .mrdask-s.primary{color:#3be3ff;background:rgba(59,227,255,.12);border-color:rgba(59,227,255,.4);font-weight:600}
+  .mrdask-qa{margin-top:13px;display:flex;flex-direction:column;gap:13px}
+  .mrdask-q{align-self:flex-end;max-width:80%;background:#1b4965;border:1px solid rgba(255,255,255,.09);
+    border-radius:12px 12px 3px 12px;padding:8px 12px;font-size:12.5px}
+  .mrdask-a{align-self:flex-start;max-width:94%;background:#0f2a3e;border:1px solid rgba(255,255,255,.09);
+    border-radius:12px 12px 12px 3px;padding:11px 13px;font-size:12.5px;line-height:1.6}
+  .mrdask-a h4{margin:12px 0 3px;font-size:11.5px;color:#6bb6d4;letter-spacing:.04em;text-transform:uppercase}
+  .mrdask-a b{color:#e7eef5}
+  .mrdask-ts{display:inline-flex;align-items:center;gap:3px;background:rgba(59,227,255,.12);
+    border:1px solid rgba(59,227,255,.42);color:#3be3ff;border-radius:4px;padding:0 5px;font-size:11px;
+    cursor:pointer;text-decoration:none;font-variant-numeric:tabular-nums}
+  .mrdask-ts:hover{background:rgba(59,227,255,.24)}
+  .mrdask-think{align-self:flex-start;color:#8198ab;font-size:12px}
+  .mrdask-foot{padding:11px 18px;border-top:1px solid rgba(255,255,255,.09);display:flex;gap:8px;align-items:center}
+  .mrdask-foot input{flex:1;background:#0e2233;border:1px solid rgba(255,255,255,.09);border-radius:8px;color:#cdd9e4;
+    padding:10px 12px;font-size:13px;font-family:inherit;outline:none}
+  .mrdask-foot input:focus{border-color:rgba(59,227,255,.42)}
+  .mrdask-send{background:rgba(59,227,255,.12);border:1px solid rgba(59,227,255,.42);color:#3be3ff;border-radius:8px;
+    padding:9px 16px;font-weight:700;cursor:pointer;font-size:13px}
+  .mrdask-note{font-size:10.5px;color:#8198ab;padding:0 18px 11px}
+</style>
+<div class="mrdask-ov" id="mrdask-ov">
+  <div class="mrdask-box">
+    <div class="mrdask-h">
+      <div class="ico">✦</div>
+      <div><div class="ttl">Ask this meeting</div><div class="sub" id="mrdask-sub"></div></div>
+      <div class="x" onclick="askClose()">×</div>
+    </div>
+    <div class="mrdask-body" id="mrdask-body">
+      <div class="mrdask-sugg" id="mrdask-sugg"></div>
+      <div class="mrdask-qa" id="mrdask-qa"></div>
+    </div>
+    <div class="mrdask-note">🔒 Answers come only from this meeting's transcript — timestamps open that moment in the video.</div>
+    <div class="mrdask-foot">
+      <input id="mrdask-input" placeholder="Ask about this meeting…" onkeydown="if(event.key==='Enter')askSend(this.value)">
+      <button class="mrdask-send" onclick="askSend(document.getElementById('mrdask-input').value)">Ask &#10148;</button>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var ASK={mid:'',vid:''};
+  var SUGG=['What were the main agenda items and decisions?','Were there any public hearings?','How did the board vote?'];
+  function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  function md(s){s=esc(s);
+    s=s.replace(/^#{1,6}\s?(.*)$/gm,'<h4>$1</h4>').replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>')
+       .replace(/^\s*[\*\-]\s+/gm,'• ').replace(/\n/g,'<br>');
+    return s;}
+  function tsLink(html,vid){return html.replace(/\[(\d{1,2}):(\d{2})(?::(\d{2}))?\]/g,function(m,a,b,c){
+    var sec=(c!=null)?(+a*3600+ +b*60+ +c):(+a*60+ +b);
+    return '<a class="mrdask-ts" target="_blank" href="https://www.youtube.com/watch?v='+vid+'&t='+sec+'s">'+m.slice(1,-1)+'</a>';});}
+  function qa(){return document.getElementById('mrdask-qa');}
+  function body(){return document.getElementById('mrdask-body');}
+  function think(label){var t=document.createElement('div');t.className='mrdask-think';t.textContent='● '+label;qa().appendChild(t);body().scrollTop=99999;return t;}
+  function render(res){
+    var html=(res&&res.ok&&(res.answer||res.markdown))?tsLink(md(res.answer||res.markdown),ASK.vid)
+      :'<i>'+esc((res&&(res.message||res.error))||'No response available.')+'</i>';
+    qa().insertAdjacentHTML('beforeend','<div class="mrdask-a">'+html+'</div>');body().scrollTop=99999;
+  }
+  function api(fn,extra){
+    var url=getWebAppUrl()+'&action=admin_run&fn='+fn+'&meeting_id='+encodeURIComponent(ASK.mid)+(extra||'');
+    return fetch(url).then(function(r){return r.json();}).then(function(j){return j.result||j;});
+  }
+  window.askOpen=function(btn){
+    ASK.mid=btn.getAttribute('data-mid');ASK.vid=ASK.mid;
+    document.getElementById('mrdask-sub').textContent=btn.getAttribute('data-sub')||'';
+    qa().innerHTML='';
+    document.getElementById('mrdask-sugg').innerHTML='<div class="lbl">SUGGESTED</div>'
+      +'<div class="mrdask-s primary" onclick="askDraft()">📄 Draft Detailed Summary</div>'
+      +SUGG.map(function(q){return '<div class="mrdask-s" onclick="askSend(this.textContent)">'+esc(q)+'</div>';}).join('');
+    document.getElementById('mrdask-input').value='';
+    document.getElementById('mrdask-ov').classList.add('open');
+  };
+  window.askClose=function(){document.getElementById('mrdask-ov').classList.remove('open');};
+  window.askSend=function(q){
+    q=(q||'').trim();if(!q||!ASK.mid)return;
+    document.getElementById('mrdask-input').value='';
+    qa().insertAdjacentHTML('beforeend','<div class="mrdask-q">'+esc(q)+'</div>');body().scrollTop=99999;
+    var t=think('reading transcript…');
+    api('askVideo','&q='+encodeURIComponent(q)).then(function(res){t.remove();render(res);})
+      .catch(function(){t.remove();qa().insertAdjacentHTML('beforeend','<div class="mrdask-a"><i>Request failed. Try again.</i></div>');});
+  };
+  window.askDraft=function(){
+    if(!ASK.mid)return;
+    qa().insertAdjacentHTML('beforeend','<div class="mrdask-q">📄 Draft Detailed Summary</div>');body().scrollTop=99999;
+    var t=think('drafting expanded summary from transcript…');
+    api('draftDetailedSummary','').then(function(res){t.remove();render(res);})
+      .catch(function(){t.remove();qa().insertAdjacentHTML('beforeend','<div class="mrdask-a"><i>Request failed. Try again.</i></div>');});
+  };
+  document.addEventListener('DOMContentLoaded',function(){
+    var ov=document.getElementById('mrdask-ov');
+    if(ov)ov.addEventListener('click',function(e){if(e.target.id==='mrdask-ov')askClose();});
+  });
+})();
+</script>
 </body>
 </html>
