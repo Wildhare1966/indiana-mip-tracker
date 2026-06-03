@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p105r1 -->
+<!-- MIP build p106r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -428,7 +428,6 @@
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;min-width:173px;">Project</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;" title="Total lots / homesites in proposed residential project — Gemini-extracted, manually editable">Lots</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Jurisdiction</th>
-                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Petitioner</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Builder</th>
                 <th style="padding:8px 6px;border-bottom:1px solid var(--border,#333);">Meeting<br>Type</th>
                 <th style="padding:8px 6px;border-bottom:1px solid var(--border,#333);">Meeting<br>Date</th>
@@ -4266,12 +4265,8 @@ function renderBodySection(bodyLabel, dates, muniId) {
         ytCell += `<a id="${esc(sumAnchorId)}" href="${escUrl(entry.summary_doc)}" target="_blank" class="hearing-link doc${sumFlagCls}${sumConfirmedCls}${covClsSuffix}" data-doc-link="summary" data-scraped-id="${escAttr(entry.meeting_id || '')}">✦ Summary${covLabelSuffix}</a>`;
       }
       ytCell += `</span>`;
-      // P105: Ask-this-video pill — between Summary and Yes. Shows wherever a
-      // YouTube video exists; the transcript is captured lazily on first ask.
-      if (entry.youtube_url && entry.meeting_id) {
-        const askSub = `${entry.meeting_type || 'Meeting'}${entry.date ? ' · ' + entry.date : ''}`;
-        ytCell += `<button class="hearing-link ask" data-mid="${escAttr(entry.meeting_id)}" data-sub="${escAttr(askSub)}" onclick="askOpen(this)">✦ Ask</button>`;
-      }
+      // P106: the Ask feature moved to the Tracked Projects tab (item-scoped
+      // Detailed Summary). The whole-meeting Q&A pill was removed from here.
       if (entry.summary_doc && !isCovPending) {
         // P67 R2: "Yes" button between Summary and Flag — turns Summary anchor
         // green via .summary-confirmed (same green family as Agenda/Minutes Yes).
@@ -5805,7 +5800,7 @@ function tpRenderTable() {
   if (statusEl) statusEl.textContent = rows.length + ' project' + (rows.length === 1 ? '' : 's') + (tpProjects.length === rows.length ? '' : ' (of ' + tpProjects.length + ')');
 
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="16" style="padding:24px;text-align:center;color:var(--muted,#888);">No projects match the current filters.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="15" style="padding:24px;text-align:center;color:var(--muted,#888);">No projects match the current filters.</td></tr>';
     return;
   }
 
@@ -5823,22 +5818,19 @@ function tpRenderTable() {
     var yt = ytHref
       ? '<a class="tp-doc-link tp-page-doc-link" href="' + esc(ytHref) + '" target="_blank" rel="noopener" data-doc-link="' + (summaryDocUrl ? 'summary' : 'youtube') + '">' + esc(ytLabel) + '</a>'
       : '<span style="color:var(--muted,#888);">—</span>';
-
-    // P71: Petitioner cell.
-    // P79 A3: column ~50% narrower (140px → 70px max) with truncate-on-overflow
-    // + click-to-expand (mirrors the existing tp-action-cell pattern at
-    // line ~5597 for Action Taken).
-    // P79 A4: precedence flipped at P71_TrackedProjectsDetailed.js:166 — manual
-    // wins over YT-derived when set, so an edit in the dropdown is visible
-    // after save. petitionerSource='manual' takes the input branch.
-    var petCell;
-    if (p.petitionerSource === 'youtube' && p.petitionerDisplay) {
-      petCell = '<div class="tp-pet-cell" onclick="tpToggleAction(this)" title="Parsed from YouTube transcript summary. Click to expand.">' +
-                  '<div class="tp-action-text">' + esc(p.petitionerDisplay) + ' <span class="tp-yt-badge" title="Source: YouTube">YT</span></div>' +
-                '</div>';
-    } else {
-      petCell = '<input type="text" value="' + escAttr(p.petitionerApplicant || '') + '" data-field="petitioner_applicant" onblur="tpInlineSave(this)" style="width:70px;background:transparent;border:1px solid transparent;color:inherit;padding:2px 4px;font-size:12px;border-radius:3px;" onfocus="this.style.borderColor=\'var(--border,#444)\';this.style.width=\'180px\'" title="Click to edit petitioner">';
+    // P106: item-scoped Ask button — right of the Summary link. Opens the modal's
+    // single "Draft Detailed Summary" action, scoped to THIS project's agenda item
+    // (data-item / data-ord), not the whole hearing. Shows when the project's
+    // latest meeting has a YouTube video (transcript captured lazily on first ask).
+    var tpMid = _tpFindMeetingIdFor(p);
+    if (tpMid) {
+      var askSub = (p.jurisdiction || '') + (p.latestMeetingType ? ' · ' + p.latestMeetingType : '') + (p.latestRefDate ? ' · ' + p.latestRefDate : '');
+      yt += ' <button class="hearing-link ask" data-mid="' + escAttr(tpMid) + '" data-item="' + escAttr(p.projectName || '') + '" data-ord="' + escAttr(p.ordinanceId || '') + '" data-sub="' + escAttr(askSub) + '" onclick="askOpen(this)">✦ Ask</button>';
     }
+
+    // P106: Petitioner table column removed (operator request — frees horizontal
+    // space). The petitioner field is still editable in the Edit dropdown and
+    // unchanged on the backend.
 
     // P71 R3: Builder dropdown — manually set by the user. Static option list
     // (TP_BUILDERS const). Empty option shows when unset.
@@ -5935,7 +5927,6 @@ function tpRenderTable() {
       '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;text-align:center;">' + lotsCell + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' + esc(p.jurisdiction || '<i>all</i>') + '</td>' +
-      '<td style="padding:8px 10px;vertical-align:top;">' + petCell + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' + builderCell + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' + meetingTypeCell + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;white-space:nowrap;">' + meetingDateCell + '</td>' +
@@ -6250,6 +6241,39 @@ function _tpFindSummaryDocFor(p) {
       if (!h) continue;
       var hd = _tpNormDateYmd(h.date || h.meeting_date || '');
       if (hd === targetDate && h.summary_doc) return String(h.summary_doc);
+    }
+  }
+  return '';
+}
+
+// P106: resolve the matching hearing's meeting_id (= YouTube video id) for a
+// tracked project's latest meeting — used to wire the item-scoped Ask button
+// in the Latest YT column. Mirrors _tpFindSummaryDocFor's jurisdiction/date
+// resolution but returns the meeting_id only when a YouTube video exists.
+function _tpFindMeetingIdFor(p) {
+  if (!p || !p.latestMeetingDate) return '';
+  if (typeof PUBLIC_HEARINGS !== 'object' || !PUBLIC_HEARINGS) return '';
+  var targetDate = _tpNormDateYmd(p.latestMeetingDate);
+  if (!targetDate) return '';
+  var jurisRaw = (p.jurisdiction || '').toString().toLowerCase().trim();
+  var keysToTry = [];
+  if (jurisRaw) keysToTry.push(jurisRaw);
+  if (typeof MUNICIPALITIES !== 'undefined' && Array.isArray(MUNICIPALITIES)) {
+    var hit = MUNICIPALITIES.find(function(m) {
+      return (m.id || '').toLowerCase() === jurisRaw
+          || (m.name || '').toLowerCase() === jurisRaw
+          || (jurisRaw && (m.name || '').toLowerCase().indexOf(jurisRaw) !== -1);
+    });
+    if (hit && hit.id) keysToTry.push(hit.id.toLowerCase());
+  }
+  for (var i = 0; i < keysToTry.length; i++) {
+    var arr = PUBLIC_HEARINGS[keysToTry[i]];
+    if (!Array.isArray(arr)) continue;
+    for (var j = 0; j < arr.length; j++) {
+      var h = arr[j];
+      if (!h) continue;
+      var hd = _tpNormDateYmd(h.date || h.meeting_date || '');
+      if (hd === targetDate && h.youtube_url && h.meeting_id) return String(h.meeting_id);
     }
   }
   return '';
@@ -9816,24 +9840,19 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
   <div class="mrdask-box">
     <div class="mrdask-h">
       <div class="ico">✦</div>
-      <div><div class="ttl">Ask this meeting</div><div class="sub" id="mrdask-sub"></div></div>
+      <div><div class="ttl" id="mrdask-ttl">Detailed Summary</div><div class="sub" id="mrdask-sub"></div></div>
       <div class="x" onclick="askClose()">×</div>
     </div>
     <div class="mrdask-body" id="mrdask-body">
       <div class="mrdask-sugg" id="mrdask-sugg"></div>
       <div class="mrdask-qa" id="mrdask-qa"></div>
     </div>
-    <div class="mrdask-note">🔒 Answers come only from this meeting's transcript — timestamps open that moment in the video.</div>
-    <div class="mrdask-foot">
-      <input id="mrdask-input" placeholder="Ask about this meeting…" onkeydown="if(event.key==='Enter')askSend(this.value)">
-      <button class="mrdask-send" onclick="askSend(document.getElementById('mrdask-input').value)">Ask &#10148;</button>
-    </div>
+    <div class="mrdask-note">🔒 Summarized only from this meeting's transcript, scoped to this project's agenda item — timestamps open that moment in the video.</div>
   </div>
 </div>
 <script>
 (function(){
-  var ASK={mid:'',vid:''};
-  var SUGG=['What were the main agenda items and decisions?','Were there any public hearings?','How did the board vote?'];
+  var ASK={mid:'',vid:'',item:'',ord:''};
   function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
   function md(s){s=esc(s);
     s=s.replace(/^#{1,6}\s?(.*)$/gm,'<h4>$1</h4>').replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>')
@@ -9856,28 +9875,25 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
   }
   window.askOpen=function(btn){
     ASK.mid=btn.getAttribute('data-mid');ASK.vid=ASK.mid;
+    ASK.item=btn.getAttribute('data-item')||'';
+    ASK.ord=btn.getAttribute('data-ord')||'';
+    document.getElementById('mrdask-ttl').textContent=ASK.item||'Detailed Summary';
     document.getElementById('mrdask-sub').textContent=btn.getAttribute('data-sub')||'';
     qa().innerHTML='';
-    document.getElementById('mrdask-sugg').innerHTML='<div class="lbl">SUGGESTED</div>'
-      +'<div class="mrdask-s primary" onclick="askDraft()">📄 Draft Detailed Summary</div>'
-      +SUGG.map(function(q){return '<div class="mrdask-s" onclick="askSend(this.textContent)">'+esc(q)+'</div>';}).join('');
-    document.getElementById('mrdask-input').value='';
+    // P106: single action — Draft Detailed Summary, scoped to this agenda item.
+    document.getElementById('mrdask-sugg').innerHTML=
+      '<div class="mrdask-s primary" onclick="askDraft()">📄 Draft Detailed Summary</div>';
     document.getElementById('mrdask-ov').classList.add('open');
   };
   window.askClose=function(){document.getElementById('mrdask-ov').classList.remove('open');};
-  window.askSend=function(q){
-    q=(q||'').trim();if(!q||!ASK.mid)return;
-    document.getElementById('mrdask-input').value='';
-    qa().insertAdjacentHTML('beforeend','<div class="mrdask-q">'+esc(q)+'</div>');body().scrollTop=99999;
-    var t=think('reading transcript…');
-    api('askVideo','&q='+encodeURIComponent(q)).then(function(res){t.remove();render(res);})
-      .catch(function(){t.remove();qa().insertAdjacentHTML('beforeend','<div class="mrdask-a"><i>Request failed. Try again.</i></div>');});
-  };
   window.askDraft=function(){
     if(!ASK.mid)return;
     qa().insertAdjacentHTML('beforeend','<div class="mrdask-q">📄 Draft Detailed Summary</div>');body().scrollTop=99999;
-    var t=think('drafting expanded summary from transcript…');
-    api('draftDetailedSummary','').then(function(res){t.remove();render(res);})
+    var t=think('drafting detailed summary of this agenda item from the transcript…');
+    var extra='';
+    if(ASK.item)extra+='&item='+encodeURIComponent(ASK.item);
+    if(ASK.ord)extra+='&ord_number='+encodeURIComponent(ASK.ord);
+    api('draftDetailedSummary',extra).then(function(res){t.remove();render(res);})
       .catch(function(){t.remove();qa().insertAdjacentHTML('beforeend','<div class="mrdask-a"><i>Request failed. Try again.</i></div>');});
   };
   document.addEventListener('DOMContentLoaded',function(){
