@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p106r2 -->
+<!-- MIP build p109r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -25,6 +25,7 @@
     <!-- P96: "Hearing Schedule" (Public Hearings) page temporarily hidden per operator request — view element (#view-publichearings) and data pipeline retained in code for future re-enable. To restore, uncomment the button below. -->
     <!-- <button class="topbar-btn" onclick="switchView('publichearings')" id="nav-publichearings">Hearing Schedule</button> -->
     <button class="topbar-btn" onclick="switchView('tracked')" id="nav-tracked">Tracked Projects</button>
+    <button class="topbar-btn" onclick="switchView('candidates')" id="nav-candidates">Candidates <span id="nav-cand-badge" style="display:none;background:#1c7c3a;color:#fff;font-size:9px;font-weight:700;padding:0 6px;border-radius:9px;margin-left:2px;vertical-align:middle;"></span></button>
     <button class="topbar-btn" onclick="switchView('schedule')" id="nav-schedule">Schedule & Requirements</button>
     <button class="topbar-btn" onclick="switchView('market')" id="nav-market">Zonda</button>
     <button class="topbar-btn" onclick="switchView('settings')" id="nav-settings">⚙ Settings</button>
@@ -446,6 +447,23 @@
         </div>
         <!-- P95: persistent horizontal scrollbar synced to the table above. -->
         <div class="tp-hscroll-proxy" id="tp-hscroll-proxy"><div id="tp-hscroll-spacer"></div></div>
+      </div>
+    </div>
+
+    <!-- P109: AGENDA CANDIDATES REVIEW VIEW -->
+    <div id="view-candidates" class="view">
+      <div style="padding:24px 32px;width:100%;">
+        <div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;">
+          <div>
+            <div class="overview-title">Project Candidates</div>
+            <div class="overview-sub">Potential Tracked Projects auto-detected from scraped Council / Plan-Commission agendas. Review each one — <b>Track</b> creates a Tracked Project (and auto-matches its past &amp; future hearings); <b>Dismiss</b> removes it from the queue.</div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+            <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--text-dim);cursor:pointer;"><input type="checkbox" id="cand-filter-high" onchange="candToggleHigh(this)" style="cursor:pointer;">High-confidence only</label>
+            <button class="refresh-btn" onclick="candLoad()" title="Re-fetch the candidate queue from the backend">↺ Refresh</button>
+          </div>
+        </div>
+        <div id="cand-list"><div style="color:var(--text-dim);">Loading candidates…</div></div>
       </div>
     </div>
 
@@ -8518,6 +8536,105 @@ function diagLoadSummaryAudit(btn){
 window.diagLoadSummaryAudit=diagLoadSummaryAudit;
 
 registerViewInit('reviewqueue', loadReviewQueue);
+
+// ═══════════════════════════════════════════════════════
+// P109: AGENDA CANDIDATES — review queue (Track / Dismiss)
+// Agenda-detected potential Tracked Projects (P108 Phase B).
+// Backend: getAgendaCandidatesJSON / trackAgendaCandidate / dismissAgendaCandidate
+// ═══════════════════════════════════════════════════════
+var _candData = [];
+var _candFilterHigh = false;
+
+function candLoad(){
+  var el=document.getElementById('cand-list'); if(!el) return;
+  el.innerHTML='<div style="color:var(--text-dim);">Loading candidates…</div>';
+  var base=getWebAppUrl(); if(!base){ el.innerHTML='<div style="color:var(--text-dim);">No dashboard connection configured.</div>'; return; }
+  fetch(base+'&action=admin_run&fn=getAgendaCandidatesJSON&status=new').then(function(r){return r.json();}).then(function(res){
+    var rr=res&&res.result;
+    if(!rr||!rr.ok){ el.innerHTML='<div style="color:var(--text-dim);">Could not load candidates: '+_diagEsc((rr&&rr.error)||(res&&res.error)||'unknown')+'</div>'; return; }
+    _candData=rr.candidates||[];
+    _candUpdateBadge();
+    candRender();
+  }).catch(function(e){ el.innerHTML='<div style="color:var(--text-dim);">Network error: '+_diagEsc(e.message)+'</div>'; });
+}
+
+function candRender(){
+  var el=document.getElementById('cand-list'); if(!el) return;
+  var live=_candData.filter(function(c){ return c.status==='new'; });
+  var nNew=live.length;
+  var nHigh=live.filter(function(c){ return c.confidence==='high'; }).length;
+  var rows=_candFilterHigh ? live.filter(function(c){ return c.confidence==='high'; }) : live;
+  var summary='<div style="margin-bottom:10px;font-size:12px;color:var(--text-dim);"><b style="color:inherit;">'+nNew+'</b> new candidate'+(nNew===1?'':'s')+' · <b style="color:inherit;">'+nHigh+'</b> high-confidence</div>';
+  if(!rows.length){ el.innerHTML=summary+'<div style="color:var(--text-dim);padding:12px 0;">'+(nNew?'No high-confidence candidates. Uncheck the filter to see the rest.':'No candidates to review. ✓')+'</div>'; return; }
+  var head='<tr style="text-align:left;color:var(--text-dim);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">'+
+    '<th style="padding:6px 8px;">Conf.</th><th style="padding:6px 8px;">Jurisdiction</th><th style="padding:6px 8px;">Project</th>'+
+    '<th style="padding:6px 8px;">Ordinance</th><th style="padding:6px 8px;">Petitioner</th><th style="padding:6px 8px;">Type</th>'+
+    '<th style="padding:6px 8px;text-align:center;">Hrgs</th><th style="padding:6px 8px;">Bodies</th><th style="padding:6px 8px;">Agendas</th><th style="padding:6px 8px;text-align:right;">Action</th></tr>';
+  var body=rows.map(function(c){
+    var cid=_diagEsc(c.candidate_id);
+    var isHigh=c.confidence==='high';
+    var pill='<span style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:9px;font-weight:700;'+(isHigh?'background:#1c7c3a;color:#fff;':'background:var(--border,#444);color:var(--text-dim);')+'">'+(isHigh?'HIGH':'low')+'</span>';
+    var urls=String(c.agenda_urls||'').split('|').map(function(s){return s.trim();}).filter(Boolean);
+    var agendaLinks=urls.map(function(u,i){return '<a href="'+_diagEsc(u)+'" target="_blank" rel="noopener">#'+(i+1)+'</a>';}).join(' ') || '—';
+    var acts='<button class="refresh-btn" style="font-size:10px;padding:3px 9px;background:#1c7c3a;color:#fff;border-color:#1c7c3a;" title="Create a Tracked Project from this candidate" onclick="candTrack(\''+cid+'\',this)">＋ Track</button>'+
+             '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;margin-left:4px;" title="Dismiss — not a project to track" onclick="candDismiss(\''+cid+'\',this)">Dismiss</button>';
+    return '<tr data-cand-id="'+cid+'" style="border-top:1px solid var(--border);'+(isHigh?'':'opacity:.7;')+'">'+
+      '<td style="padding:6px 8px;">'+pill+'</td>'+
+      '<td style="padding:6px 8px;white-space:nowrap;">'+_diagEsc(c.jurisdiction)+'</td>'+
+      '<td style="padding:6px 8px;font-weight:600;">'+_diagEsc(c.project_name||'—')+'</td>'+
+      '<td style="padding:6px 8px;white-space:nowrap;">'+_diagEsc(c.ordinance_id||'—')+'</td>'+
+      '<td style="padding:6px 8px;">'+_diagEsc(c.petitioner||'—')+'</td>'+
+      '<td style="padding:6px 8px;white-space:nowrap;">'+_diagEsc(c.request_type||'—')+'</td>'+
+      '<td style="padding:6px 8px;text-align:center;">'+_diagEsc(c.hearing_count||1)+'</td>'+
+      '<td style="padding:6px 8px;font-size:10px;">'+_diagEsc(c.bodies||'')+'</td>'+
+      '<td style="padding:6px 8px;white-space:nowrap;font-size:10px;">'+agendaLinks+'</td>'+
+      '<td style="padding:6px 8px;text-align:right;white-space:nowrap;">'+acts+'</td></tr>';
+  }).join('');
+  el.innerHTML=summary+'<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:11px;">'+head+body+'</table></div>';
+}
+
+function _candUpdateBadge(){
+  var b=document.getElementById('nav-cand-badge'); if(!b) return;
+  var nHigh=_candData.filter(function(c){ return c.status==='new'&&c.confidence==='high'; }).length;
+  if(nHigh>0){ b.textContent=nHigh; b.style.display='inline-block'; } else { b.style.display='none'; }
+}
+
+function candToggleHigh(cb){ _candFilterHigh=!!(cb&&cb.checked); candRender(); }
+
+function candTrack(cid, btn){
+  if(!cid) return;
+  if(btn){ btn.disabled=true; btn.textContent='Tracking…'; }
+  var base=getWebAppUrl(); if(!base) return;
+  fetch(base+'&action=admin_run&fn=trackAgendaCandidate&candidate_id='+encodeURIComponent(cid)).then(function(r){return r.json();}).then(function(res){
+    var rr=res&&res.result;
+    if(!rr||!rr.ok){ if(btn){ btn.disabled=false; btn.textContent='Failed — retry'; } return; }
+    _candResolveRow(cid);
+  }).catch(function(){ if(btn){ btn.disabled=false; btn.textContent='＋ Track'; } });
+}
+
+function candDismiss(cid, btn){
+  if(!cid) return;
+  if(btn){ btn.disabled=true; btn.textContent='Dismissing…'; }
+  var base=getWebAppUrl(); if(!base) return;
+  fetch(base+'&action=admin_run&fn=dismissAgendaCandidate&candidate_id='+encodeURIComponent(cid)).then(function(r){return r.json();}).then(function(res){
+    var rr=res&&res.result;
+    if(!rr||!rr.ok){ if(btn){ btn.disabled=false; btn.textContent='Failed — retry'; } return; }
+    _candResolveRow(cid);
+  }).catch(function(){ if(btn){ btn.disabled=false; btn.textContent='Dismiss'; } });
+}
+
+// Mark a candidate resolved locally + re-render (keeps summary + nav badge correct).
+function _candResolveRow(cid){
+  _candData.forEach(function(c){ if(c.candidate_id===cid) c.status='_resolved'; });
+  _candUpdateBadge();
+  candRender();
+}
+
+window.candLoad=candLoad; window.candRender=candRender; window.candTrack=candTrack;
+window.candDismiss=candDismiss; window.candToggleHigh=candToggleHigh;
+registerViewInit('candidates', candLoad);
+// Populate the nav badge shortly after boot (without forcing the operator to open the view).
+setTimeout(function(){ try{ candLoad(); }catch(e){} }, 3000);
 
 (function _rqOperatorGate() {
   function _show() {
