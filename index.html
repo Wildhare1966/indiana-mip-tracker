@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p111r1 -->
+<!-- MIP build p112r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -8635,8 +8635,10 @@ function candRender(){
   var head='<tr style="text-align:left;color:var(--text-dim);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">'+
     '<th style="padding:6px 8px;"><input type="checkbox" onchange="candSelectAllPage(this)"'+(allPageSel?' checked':'')+' title="Select all on this page" style="cursor:pointer;"></th>'+
     '<th style="padding:6px 8px;">Conf.</th><th style="padding:6px 8px;">Jurisdiction</th><th style="padding:6px 8px;">Project</th>'+
-    '<th style="padding:6px 8px;">Ordinance</th><th style="padding:6px 8px;">Petitioner</th><th style="padding:6px 8px;">Type</th>'+
-    '<th style="padding:6px 8px;text-align:center;">Hrgs</th><th style="padding:6px 8px;">Bodies</th><th style="padding:6px 8px;">Agendas</th><th style="padding:6px 8px;text-align:right;">Action</th></tr>';
+    '<th style="padding:6px 8px;">Type</th><th style="padding:6px 8px;">Description</th>'+
+    '<th style="padding:6px 8px;text-align:center;">Hrgs</th><th style="padding:6px 8px;">Bodies</th><th style="padding:6px 8px;">Date</th>'+
+    '<th style="padding:6px 8px;">Agendas</th><th style="padding:6px 8px;text-align:right;">Action</th>'+
+    '<th style="padding:6px 8px;">Ord.</th><th style="padding:6px 8px;">Petitioner</th></tr>';
   var body=pageRows.map(function(c){
     var cid=_diagEsc(c.candidate_id);
     var isHigh=c.confidence==='high';
@@ -8646,18 +8648,25 @@ function candRender(){
     var agendaLinks=urls.map(function(u,i){return '<a href="'+_diagEsc(u)+'" target="_blank" rel="noopener">#'+(i+1)+'</a>';}).join(' ') || '—';
     var acts='<button class="refresh-btn" style="font-size:10px;padding:3px 9px;background:#1c7c3a;color:#fff;border-color:#1c7c3a;" title="Create a Tracked Project from this candidate" onclick="candTrack(\''+cid+'\',this)">＋ Track</button>'+
              '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;margin-left:4px;" title="Dismiss — not a project to track" onclick="candDismiss(\''+cid+'\',this)">Dismiss</button>';
+    var descText=String(c.description||c.sample_request||'').trim();
+    var descCell = descText
+      ? '<span class="cand-desc" title="Click to expand / collapse" onclick="this.classList.toggle(\'expanded\')">'+_diagEsc(descText)+'</span>'
+      : '<span style="color:var(--text-dim);">—</span>';
+    var dateText=_diagEsc(c.last_seen_date||c.first_seen_date||'—');
     return '<tr data-cand-id="'+cid+'" style="border-top:1px solid var(--border);'+(isHigh?'':'opacity:.7;')+'">'+
       '<td style="padding:6px 8px;"><input type="checkbox" data-cand-sel="'+cid+'" onchange="candToggleSel(\''+cid+'\',this)"'+checked+' style="cursor:pointer;"></td>'+
       '<td style="padding:6px 8px;">'+pill+'</td>'+
       '<td style="padding:6px 8px;white-space:nowrap;">'+_diagEsc(c.jurisdiction)+'</td>'+
       '<td style="padding:6px 8px;font-weight:600;">'+_diagEsc(c.project_name||'—')+'</td>'+
-      '<td style="padding:6px 8px;white-space:nowrap;">'+_diagEsc(c.ordinance_id||'—')+'</td>'+
-      '<td style="padding:6px 8px;">'+_diagEsc(c.petitioner||'—')+'</td>'+
       '<td style="padding:6px 8px;white-space:nowrap;">'+_diagEsc(c.request_type||'—')+'</td>'+
+      '<td style="padding:6px 8px;">'+descCell+'</td>'+
       '<td style="padding:6px 8px;text-align:center;">'+_diagEsc(c.hearing_count||1)+'</td>'+
       '<td style="padding:6px 8px;font-size:10px;">'+_diagEsc(c.bodies||'')+'</td>'+
-      '<td style="padding:6px 8px;white-space:nowrap;font-size:10px;">'+agendaLinks+'</td>'+
-      '<td style="padding:6px 8px;text-align:right;white-space:nowrap;">'+acts+'</td></tr>';
+      '<td style="padding:6px 8px;white-space:nowrap;font-size:10px;">'+dateText+'</td>'+
+      '<td class="cand-agendas" style="padding:6px 8px;white-space:nowrap;font-size:10px;">'+agendaLinks+'</td>'+
+      '<td style="padding:6px 8px;text-align:right;white-space:nowrap;">'+acts+'</td>'+
+      '<td style="padding:6px 8px;white-space:nowrap;font-size:10px;color:var(--text-dim);max-width:90px;overflow:hidden;text-overflow:ellipsis;" title="'+_diagEsc(c.ordinance_id||'')+'">'+_diagEsc(c.ordinance_id||'—')+'</td>'+
+      '<td style="padding:6px 8px;font-size:10px;color:var(--text-dim);max-width:90px;overflow:hidden;text-overflow:ellipsis;" title="'+_diagEsc(c.petitioner||'')+'">'+_diagEsc(c.petitioner||'—')+'</td></tr>';
   }).join('');
 
   var pager='';
@@ -10096,6 +10105,11 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
   .mrdask-send{background:rgba(59,227,255,.12);border:1px solid rgba(59,227,255,.42);color:#3be3ff;border-radius:8px;
     padding:9px 16px;font-weight:700;cursor:pointer;font-size:13px}
   .mrdask-note{font-size:10.5px;color:#8198ab;padding:0 18px 11px}
+  /* P112: Candidates table — Agendas links use the sidebar neon light-blue; Description truncates with click-to-expand */
+  .cand-agendas a{color:#3be3ff;text-decoration:none;font-weight:600;}
+  .cand-agendas a:hover{text-decoration:underline;}
+  .cand-desc{display:block;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;border-bottom:1px dotted rgba(255,255,255,.22);}
+  .cand-desc.expanded{white-space:normal;overflow:visible;max-width:340px;}
 </style>
 <div class="mrdask-ov" id="mrdask-ov">
   <div class="mrdask-box">
