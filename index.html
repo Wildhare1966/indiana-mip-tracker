@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p109r1 -->
+<!-- MIP build p111r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -458,8 +458,11 @@
             <div class="overview-title">Project Candidates</div>
             <div class="overview-sub">Potential Tracked Projects auto-detected from scraped Council / Plan-Commission agendas. Review each one — <b>Track</b> creates a Tracked Project (and auto-matches its past &amp; future hearings); <b>Dismiss</b> removes it from the queue.</div>
           </div>
-          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <select id="cand-filter-juris" onchange="candSetJuris(this.value)" title="Filter by jurisdiction" style="font-size:12px;padding:4px 8px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:6px;cursor:pointer;"><option value="">All jurisdictions</option></select>
+            <input type="text" id="cand-search" oninput="candSetSearch(this.value)" placeholder="Search project / petitioner / ord#" style="font-size:12px;padding:4px 10px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:6px;min-width:210px;">
             <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--text-dim);cursor:pointer;"><input type="checkbox" id="cand-filter-high" onchange="candToggleHigh(this)" style="cursor:pointer;">High-confidence only</label>
+            <select id="cand-pagesize" onchange="candSetPageSize(this.value)" title="Rows per page" style="font-size:12px;padding:4px 8px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:6px;cursor:pointer;"><option value="50">50 / page</option><option value="100">100 / page</option><option value="250">250 / page</option><option value="999999">Show all</option></select>
             <button class="refresh-btn" onclick="candLoad()" title="Re-fetch the candidate queue from the backend">↺ Refresh</button>
           </div>
         </div>
@@ -8544,6 +8547,11 @@ registerViewInit('reviewqueue', loadReviewQueue);
 // ═══════════════════════════════════════════════════════
 var _candData = [];
 var _candFilterHigh = false;
+var _candJuris = '';        // '' = all jurisdictions
+var _candSearch = '';       // lowercased search term
+var _candPage = 0;          // 0-based page index (within current filter)
+var _candPageSize = 50;     // rows per page
+var _candSel = {};          // candidate_id -> true (bulk-dismiss selection)
 
 function candLoad(){
   var el=document.getElementById('cand-list'); if(!el) return;
@@ -8553,32 +8561,93 @@ function candLoad(){
     var rr=res&&res.result;
     if(!rr||!rr.ok){ el.innerHTML='<div style="color:var(--text-dim);">Could not load candidates: '+_diagEsc((rr&&rr.error)||(res&&res.error)||'unknown')+'</div>'; return; }
     _candData=rr.candidates||[];
+    _candSel={}; _candPage=0;
     _candUpdateBadge();
+    _candPopulateJurisDropdown();
     candRender();
   }).catch(function(e){ el.innerHTML='<div style="color:var(--text-dim);">Network error: '+_diagEsc(e.message)+'</div>'; });
 }
 
+// Still-new candidates (not locally resolved this session).
+function _candLive(){ return _candData.filter(function(c){ return c.status==='new'; }); }
+
+// Apply jurisdiction / confidence / search filters (NOT pagination).
+function _candFiltered(){
+  var term=_candSearch;
+  return _candLive().filter(function(c){
+    if(_candJuris && c.jurisdiction!==_candJuris) return false;
+    if(_candFilterHigh && c.confidence!=='high') return false;
+    if(term){
+      var hay=((c.project_name||'')+' '+(c.petitioner||'')+' '+(c.ordinance_id||'')).toLowerCase();
+      if(hay.indexOf(term)===-1) return false;
+    }
+    return true;
+  });
+}
+
+// Rebuild the jurisdiction dropdown with per-muni counts (preserves current selection).
+function _candPopulateJurisDropdown(){
+  var sel=document.getElementById('cand-filter-juris'); if(!sel) return;
+  var live=_candLive(), counts={};
+  live.forEach(function(c){ var j=c.jurisdiction||'—'; counts[j]=(counts[j]||0)+1; });
+  // If the active jurisdiction has been fully cleared, drop back to "All".
+  if(_candJuris && !counts[_candJuris]) _candJuris='';
+  var names=Object.keys(counts).sort();
+  var html='<option value="">All jurisdictions ('+live.length+')</option>';
+  names.forEach(function(j){ html+='<option value="'+_diagEsc(j)+'"'+(j===_candJuris?' selected':'')+'>'+_diagEsc(j)+' ('+counts[j]+')</option>'; });
+  sel.innerHTML=html;
+}
+
 function candRender(){
   var el=document.getElementById('cand-list'); if(!el) return;
-  var live=_candData.filter(function(c){ return c.status==='new'; });
+  var live=_candLive();
   var nNew=live.length;
   var nHigh=live.filter(function(c){ return c.confidence==='high'; }).length;
-  var rows=_candFilterHigh ? live.filter(function(c){ return c.confidence==='high'; }) : live;
-  var summary='<div style="margin-bottom:10px;font-size:12px;color:var(--text-dim);"><b style="color:inherit;">'+nNew+'</b> new candidate'+(nNew===1?'':'s')+' · <b style="color:inherit;">'+nHigh+'</b> high-confidence</div>';
-  if(!rows.length){ el.innerHTML=summary+'<div style="color:var(--text-dim);padding:12px 0;">'+(nNew?'No high-confidence candidates. Uncheck the filter to see the rest.':'No candidates to review. ✓')+'</div>'; return; }
+  var filtered=_candFiltered();
+  var nFiltered=filtered.length;
+
+  // Clamp page to range.
+  var pageSize=_candPageSize>0?_candPageSize:50;
+  var totalPages=Math.max(1, Math.ceil(nFiltered/pageSize));
+  if(_candPage>=totalPages) _candPage=totalPages-1;
+  if(_candPage<0) _candPage=0;
+  var start=_candPage*pageSize;
+  var pageRows=filtered.slice(start, start+pageSize);
+  var nSel=filtered.filter(function(c){ return _candSel[c.candidate_id]; }).length;
+
+  var summary='<div style="margin-bottom:10px;font-size:12px;color:var(--text-dim);">'+
+    '<b style="color:inherit;">'+nNew+'</b> new · <b style="color:inherit;">'+nHigh+'</b> high-confidence'+
+    (nFiltered!==nNew ? ' · <b style="color:inherit;">'+nFiltered+'</b> match filter' : '')+'</div>';
+
+  if(!nNew){ el.innerHTML=summary+'<div style="color:var(--text-dim);padding:12px 0;">No candidates to review. ✓</div>'; return; }
+  if(!nFiltered){ el.innerHTML=summary+'<div style="color:var(--text-dim);padding:12px 0;">No candidates match the current filter. Adjust the jurisdiction / search / confidence filters above.</div>'; return; }
+
+  // Bulk-action bar.
+  var bar='<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:8px;padding:6px 10px;background:var(--card,#1a1a1a);border:1px solid var(--border,#444);border-radius:6px;">'+
+    '<label style="display:flex;gap:6px;align-items:center;font-size:11px;color:var(--text-dim);cursor:pointer;"><input type="checkbox" onchange="candSelectAllFiltered(this)"'+(nSel&&nSel===nFiltered?' checked':'')+' style="cursor:pointer;">Select all '+nFiltered+' filtered</label>'+
+    '<span style="font-size:11px;color:var(--text-dim);"><b style="color:inherit;">'+nSel+'</b> selected</span>'+
+    '<button class="refresh-btn" id="cand-bulk-dismiss" style="font-size:10px;padding:3px 10px;'+(nSel?'':'opacity:.5;pointer-events:none;')+'" onclick="candBulkDismiss()" title="Dismiss all selected candidates">Dismiss selected</button>'+
+    (nSel?'<button class="refresh-btn" style="font-size:10px;padding:3px 10px;" onclick="candClearSel()" title="Clear selection">Clear</button>':'')+
+    '<span id="cand-bulk-status" style="font-size:11px;color:var(--text-dim);"></span>'+
+    '</div>';
+
+  var allPageSel = pageRows.length>0 && pageRows.every(function(c){ return _candSel[c.candidate_id]; });
   var head='<tr style="text-align:left;color:var(--text-dim);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">'+
+    '<th style="padding:6px 8px;"><input type="checkbox" onchange="candSelectAllPage(this)"'+(allPageSel?' checked':'')+' title="Select all on this page" style="cursor:pointer;"></th>'+
     '<th style="padding:6px 8px;">Conf.</th><th style="padding:6px 8px;">Jurisdiction</th><th style="padding:6px 8px;">Project</th>'+
     '<th style="padding:6px 8px;">Ordinance</th><th style="padding:6px 8px;">Petitioner</th><th style="padding:6px 8px;">Type</th>'+
     '<th style="padding:6px 8px;text-align:center;">Hrgs</th><th style="padding:6px 8px;">Bodies</th><th style="padding:6px 8px;">Agendas</th><th style="padding:6px 8px;text-align:right;">Action</th></tr>';
-  var body=rows.map(function(c){
+  var body=pageRows.map(function(c){
     var cid=_diagEsc(c.candidate_id);
     var isHigh=c.confidence==='high';
+    var checked=_candSel[c.candidate_id]?' checked':'';
     var pill='<span style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:9px;font-weight:700;'+(isHigh?'background:#1c7c3a;color:#fff;':'background:var(--border,#444);color:var(--text-dim);')+'">'+(isHigh?'HIGH':'low')+'</span>';
     var urls=String(c.agenda_urls||'').split('|').map(function(s){return s.trim();}).filter(Boolean);
     var agendaLinks=urls.map(function(u,i){return '<a href="'+_diagEsc(u)+'" target="_blank" rel="noopener">#'+(i+1)+'</a>';}).join(' ') || '—';
     var acts='<button class="refresh-btn" style="font-size:10px;padding:3px 9px;background:#1c7c3a;color:#fff;border-color:#1c7c3a;" title="Create a Tracked Project from this candidate" onclick="candTrack(\''+cid+'\',this)">＋ Track</button>'+
              '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;margin-left:4px;" title="Dismiss — not a project to track" onclick="candDismiss(\''+cid+'\',this)">Dismiss</button>';
     return '<tr data-cand-id="'+cid+'" style="border-top:1px solid var(--border);'+(isHigh?'':'opacity:.7;')+'">'+
+      '<td style="padding:6px 8px;"><input type="checkbox" data-cand-sel="'+cid+'" onchange="candToggleSel(\''+cid+'\',this)"'+checked+' style="cursor:pointer;"></td>'+
       '<td style="padding:6px 8px;">'+pill+'</td>'+
       '<td style="padding:6px 8px;white-space:nowrap;">'+_diagEsc(c.jurisdiction)+'</td>'+
       '<td style="padding:6px 8px;font-weight:600;">'+_diagEsc(c.project_name||'—')+'</td>'+
@@ -8590,7 +8659,19 @@ function candRender(){
       '<td style="padding:6px 8px;white-space:nowrap;font-size:10px;">'+agendaLinks+'</td>'+
       '<td style="padding:6px 8px;text-align:right;white-space:nowrap;">'+acts+'</td></tr>';
   }).join('');
-  el.innerHTML=summary+'<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:11px;">'+head+body+'</table></div>';
+
+  var pager='';
+  if(totalPages>1){
+    var from=start+1, to=Math.min(start+pageSize, nFiltered);
+    pager='<div style="display:flex;gap:10px;align-items:center;justify-content:flex-end;margin-top:10px;font-size:11px;color:var(--text-dim);">'+
+      '<span>'+from+'–'+to+' of '+nFiltered+'</span>'+
+      '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;'+(_candPage<=0?'opacity:.4;pointer-events:none;':'')+'" onclick="candGoPage('+(_candPage-1)+')">‹ Prev</button>'+
+      '<span>Page '+(_candPage+1)+' / '+totalPages+'</span>'+
+      '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;'+(_candPage>=totalPages-1?'opacity:.4;pointer-events:none;':'')+'" onclick="candGoPage('+(_candPage+1)+')">Next ›</button>'+
+      '</div>';
+  }
+
+  el.innerHTML=summary+bar+'<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:11px;">'+head+body+'</table></div>'+pager;
 }
 
 function _candUpdateBadge(){
@@ -8599,7 +8680,29 @@ function _candUpdateBadge(){
   if(nHigh>0){ b.textContent=nHigh; b.style.display='inline-block'; } else { b.style.display='none'; }
 }
 
-function candToggleHigh(cb){ _candFilterHigh=!!(cb&&cb.checked); candRender(); }
+// ── Filter / pagination handlers ──
+function candToggleHigh(cb){ _candFilterHigh=!!(cb&&cb.checked); _candPage=0; candRender(); }
+function candSetJuris(v){ _candJuris=v||''; _candPage=0; candRender(); }
+function candSetSearch(v){ _candSearch=String(v||'').toLowerCase().trim(); _candPage=0; candRender(); }
+function candSetPageSize(v){ var n=parseInt(v,10); _candPageSize=(n>0?n:50); _candPage=0; candRender(); }
+function candGoPage(p){ _candPage=p; candRender(); }
+
+// ── Selection (bulk dismiss) ──
+function candToggleSel(cid, cb){ if(cb&&cb.checked){ _candSel[cid]=true; } else { delete _candSel[cid]; } candRender(); }
+function candSelectAllPage(cb){
+  var on=!!(cb&&cb.checked);
+  document.querySelectorAll('#cand-list input[data-cand-sel]').forEach(function(box){
+    var cid=box.getAttribute('data-cand-sel');
+    if(on){ _candSel[cid]=true; } else { delete _candSel[cid]; }
+  });
+  candRender();
+}
+function candSelectAllFiltered(cb){
+  var on=!!(cb&&cb.checked);
+  _candFiltered().forEach(function(c){ if(on){ _candSel[c.candidate_id]=true; } else { delete _candSel[c.candidate_id]; } });
+  candRender();
+}
+function candClearSel(){ _candSel={}; candRender(); }
 
 function candTrack(cid, btn){
   if(!cid) return;
@@ -8623,15 +8726,46 @@ function candDismiss(cid, btn){
   }).catch(function(){ if(btn){ btn.disabled=false; btn.textContent='Dismiss'; } });
 }
 
+// Bulk-dismiss all selected (within current filter), sequentially to avoid hammering the backend.
+function candBulkDismiss(){
+  var ids=_candFiltered().filter(function(c){ return _candSel[c.candidate_id]; }).map(function(c){ return c.candidate_id; });
+  if(!ids.length) return;
+  if(!window.confirm('Dismiss '+ids.length+' selected candidate'+(ids.length===1?'':'s')+'? This removes them from the queue.')) return;
+  var base=getWebAppUrl(); if(!base) return;
+  var btn=document.getElementById('cand-bulk-dismiss'); if(btn){ btn.style.pointerEvents='none'; btn.style.opacity='.5'; }
+  var statusEl=document.getElementById('cand-bulk-status');
+  var done=0, failed=0, total=ids.length;
+  function step(i){
+    if(i>=ids.length){
+      if(statusEl) statusEl.textContent='Dismissed '+done+(failed?(' · '+failed+' failed'):'')+'.';
+      _candUpdateBadge(); _candPopulateJurisDropdown(); candRender();
+      return;
+    }
+    var cid=ids[i];
+    if(statusEl) statusEl.textContent='Dismissing '+(i+1)+' / '+total+'…';
+    fetch(base+'&action=admin_run&fn=dismissAgendaCandidate&candidate_id='+encodeURIComponent(cid)).then(function(r){return r.json();}).then(function(res){
+      var rr=res&&res.result;
+      if(rr&&rr.ok){ done++; _candData.forEach(function(c){ if(c.candidate_id===cid) c.status='_resolved'; }); delete _candSel[cid]; }
+      else { failed++; }
+    }).catch(function(){ failed++; }).then(function(){ step(i+1); });
+  }
+  step(0);
+}
+
 // Mark a candidate resolved locally + re-render (keeps summary + nav badge correct).
 function _candResolveRow(cid){
   _candData.forEach(function(c){ if(c.candidate_id===cid) c.status='_resolved'; });
+  delete _candSel[cid];
   _candUpdateBadge();
+  _candPopulateJurisDropdown();
   candRender();
 }
 
 window.candLoad=candLoad; window.candRender=candRender; window.candTrack=candTrack;
 window.candDismiss=candDismiss; window.candToggleHigh=candToggleHigh;
+window.candSetJuris=candSetJuris; window.candSetSearch=candSetSearch; window.candSetPageSize=candSetPageSize;
+window.candGoPage=candGoPage; window.candToggleSel=candToggleSel; window.candSelectAllPage=candSelectAllPage;
+window.candSelectAllFiltered=candSelectAllFiltered; window.candClearSel=candClearSel; window.candBulkDismiss=candBulkDismiss;
 registerViewInit('candidates', candLoad);
 // Populate the nav badge shortly after boot (without forcing the operator to open the view).
 setTimeout(function(){ try{ candLoad(); }catch(e){} }, 3000);
