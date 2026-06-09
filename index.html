@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p112r1 -->
+<!-- MIP build p115r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -47,6 +47,8 @@
 </div>
 
 <div class="main">
+  <!-- P115: collapse/expand toggle for the County/Muni rail (default expanded) -->
+  <button class="sidebar-toggle" id="sidebar-toggle" onclick="toggleSidebar()" title="Collapse sidebar" aria-label="Toggle County/Muni sidebar">‹</button>
   <!-- LEFT SIDEBAR -->
   <div class="sidebar">
     <div class="sidebar-header">
@@ -452,7 +454,8 @@
 
     <!-- P109: AGENDA CANDIDATES REVIEW VIEW -->
     <div id="view-candidates" class="view">
-      <div style="padding:24px 32px;width:100%;">
+      <div class="cand-layout">
+        <div class="cand-main" style="padding:24px 32px;">
         <div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;">
           <div>
             <div class="overview-title">Project Candidates</div>
@@ -467,6 +470,8 @@
           </div>
         </div>
         <div id="cand-list"><div style="color:var(--text-dim);">Loading candidates…</div></div>
+        </div>
+        <aside class="cand-tp-rail" id="cand-tp-rail" aria-label="Tracked Projects by Muni"></aside>
       </div>
     </div>
 
@@ -1890,6 +1895,36 @@ function toggleCounty(header) {
 function filterSidebar(val) {
   buildSidebar(val);
 }
+
+// P115: collapse/expand the County/Muni left rail. Default is expanded; the
+// preference is remembered per-browser. The toggle button lives in .main so it
+// stays clickable when the rail is collapsed to width 0.
+function toggleSidebar() {
+  var sb = document.querySelector('.sidebar');
+  var main = document.querySelector('.main');
+  var btn = document.getElementById('sidebar-toggle');
+  if (!sb || !main) return;
+  var collapsed = sb.classList.toggle('collapsed');
+  main.classList.toggle('sidebar-collapsed', collapsed);
+  if (btn) {
+    btn.textContent = collapsed ? '›' : '‹';
+    btn.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+  }
+  try { localStorage.setItem('mip_sidebar_collapsed', collapsed ? '1' : '0'); } catch (e) {}
+}
+// Restore the saved collapse state on load (defaults to expanded when unset).
+document.addEventListener('DOMContentLoaded', function () {
+  var saved;
+  try { saved = localStorage.getItem('mip_sidebar_collapsed'); } catch (e) {}
+  if (saved === '1') {
+    var sb = document.querySelector('.sidebar');
+    var main = document.querySelector('.main');
+    var btn = document.getElementById('sidebar-toggle');
+    if (sb) sb.classList.add('collapsed');
+    if (main) main.classList.add('sidebar-collapsed');
+    if (btn) { btn.textContent = '›'; btn.title = 'Expand sidebar'; }
+  }
+});
 
 // ═══════════════════════════════════════════════════════
 // NAVIGATION
@@ -3484,6 +3519,31 @@ async function agReject(docId, meetingType, jurisdiction, btnYesId, btnNoId, row
   }
 }
 
+// P115 — mark a meeting Cancelled. Persists via action=cancel_agenda (a third
+// state beside approve/reject) and replaces the agenda link + buttons with a
+// "Cancelled" badge. The backend keeps emitting the row with approval_status
+// 'cancelled' so the badge survives reloads ("for future reference").
+async function agCancel(docId, meetingType, jurisdiction, rowId) {
+  if (!confirm('Mark this meeting as Cancelled? The agenda link will be replaced with a “Cancelled” note.')) return;
+  const row = document.getElementById(rowId);
+  // Optimistic UI: swap the cell to the Cancelled badge immediately.
+  if (row) {
+    row.classList.remove('ag-approved', 'ag-rejected');
+    row.classList.add('ag-cancelled');
+    row.innerHTML = '<span class="ag-cancelled-badge" title="Marked cancelled">⊘ Cancelled</span>';
+  }
+  window._agendaApprovalStatus[docId] = 'cancelled';
+  try {
+    const url = getWebAppUrl() + '&action=cancel_agenda'
+      + '&id=' + encodeURIComponent(docId)
+      + '&meeting_type=' + encodeURIComponent(meetingType)
+      + '&jurisdiction=' + encodeURIComponent(jurisdiction);
+    await fetch(url);
+  } catch (e) {
+    if (row) row.innerHTML = '<span class="ag-cancelled-badge" style="color:#e08888;" title="Save failed — reload to retry">⊘ Cancelled (save failed)</span>';
+  }
+}
+
 // P58.8 r5 — Minutes Yes/No now mirrors Agenda Yes/No. Minutes rows live in
 // Scraped_Documents, so we reuse the existing `approve_agenda` / `reject_agenda`
 // endpoints; they operate on any row by id regardless of document_type.
@@ -4334,22 +4394,30 @@ function renderBodySection(bodyLabel, dates, muniId) {
         const agId = 'ag_' + muniId + '_' + rowIdx + '_' + si;
         const btnYId = 'agy_' + muniId + '_' + rowIdx + '_' + si;
         const btnNId = 'agn_' + muniId + '_' + rowIdx + '_' + si;
+        const btnCId = 'agc_' + muniId + '_' + rowIdx + '_' + si; // P115: Cancel
         // P58.8 r4: session memory wins over server (covers in-flight clicks
         // before the next SCRAPED_DOCS fetch); falls back to the server-emitted
         // approval_status so prior-session Yes/No selections persist on reload.
         const status = window._agendaApprovalStatus[sd.id] || sd.approval_status || '';
-        const cls = status === 'approved' ? ' ag-approved' : status === 'rejected' ? ' ag-rejected' : '';
+        const cls = status === 'approved' ? ' ag-approved' : status === 'rejected' ? ' ag-rejected' : status === 'cancelled' ? ' ag-cancelled' : '';
         const curType = sd.meeting_type_override || sd.meeting_type || '';
         // P75: stash meeting metadata on the wrapper so agReject can wire
         // the post-rejection "+ Add Agenda" fallback without re-deriving them.
         let h = `<div class="ag-item${cls}" id="${esc(agId)}" data-meeting-date="${escAttr(entry.date)}" data-meeting-type="${escAttr(sd.meeting_type || entry.meeting_type || '')}" data-muni-id="${escAttr(muniId)}">`;
-        h += sdUrl ? `<a href="${escUrl(inlineViewerUrl(sdUrl))}" target="_blank" class="hearing-link ag" data-doc-link="agenda" data-scraped-id="${escAttr(sd.id || '')}">↓ Agenda</a>${downloadSiblingHtml(sdUrl)}` : `<span class="hearing-link ag" style="cursor:default;">↓ Agenda</span>`;
-        // P58.8 r5: approved state is now signalled by the green button itself
-        // (CSS `.ag-item.ag-approved .hearing-link.ag`). No `.ag-reviewed-badge`
-        // span — Yes/No buttons simply disappear and the anchor turns green.
-        if (!status) {
-          h += `<button class="ag-correct-btn yes" id="${esc(btnYId)}" onclick="agApprove('${escAttr(sd.id)}','${escAttr(sd.meeting_type||'')}','${escAttr(muniId)}','${escAttr(btnYId)}','${escAttr(btnNId)}','${escAttr(agId)}')">✓ Yes</button>`;
-          h += `<button class="ag-correct-btn no" id="${esc(btnNId)}" onclick="agReject('${escAttr(sd.id)}','${escAttr(sd.meeting_type||'')}','${escAttr(muniId)}','${escAttr(btnYId)}','${escAttr(btnNId)}','${escAttr(agId)}')">✗ No</button>`;
+        // P115: a meeting marked Cancelled shows a badge in place of the agenda
+        // link + review buttons (the cancellation persists via cancel_agenda).
+        if (status === 'cancelled') {
+          h += `<span class="ag-cancelled-badge" title="Marked cancelled">⊘ Cancelled</span>`;
+        } else {
+          h += sdUrl ? `<a href="${escUrl(inlineViewerUrl(sdUrl))}" target="_blank" class="hearing-link ag" data-doc-link="agenda" data-scraped-id="${escAttr(sd.id || '')}">↓ Agenda</a>${downloadSiblingHtml(sdUrl)}` : `<span class="hearing-link ag" style="cursor:default;">↓ Agenda</span>`;
+          // P58.8 r5: approved state is now signalled by the green button itself
+          // (CSS `.ag-item.ag-approved .hearing-link.ag`). No `.ag-reviewed-badge`
+          // span — Yes/No buttons simply disappear and the anchor turns green.
+          if (!status) {
+            h += `<button class="ag-correct-btn yes" id="${esc(btnYId)}" onclick="agApprove('${escAttr(sd.id)}','${escAttr(sd.meeting_type||'')}','${escAttr(muniId)}','${escAttr(btnYId)}','${escAttr(btnNId)}','${escAttr(agId)}')">✓ Yes</button>`;
+            h += `<button class="ag-correct-btn no" id="${esc(btnNId)}" onclick="agReject('${escAttr(sd.id)}','${escAttr(sd.meeting_type||'')}','${escAttr(muniId)}','${escAttr(btnYId)}','${escAttr(btnNId)}','${escAttr(agId)}')">✗ No</button>`;
+            h += `<button class="ag-correct-btn can" id="${esc(btnCId)}" onclick="agCancel('${escAttr(sd.id)}','${escAttr(sd.meeting_type||'')}','${escAttr(muniId)}','${escAttr(agId)}')" title="Mark this meeting cancelled">Can</button>`;
+          }
         }
         // status === 'rejected' branch: row is already filtered out at the
         // backend (WebApp.js:529), so we won't reach this code for rejected rows.
@@ -5727,6 +5795,7 @@ function tpLoad(force) {
     tpRenderTable();
     if (typeof phRenderTracked === 'function') phRenderTracked();
     if (typeof renderTpRail === 'function' && typeof currentMuni !== 'undefined' && currentMuni) renderTpRail(currentMuni);
+    if (typeof candRenderRail === 'function') candRenderRail(); // P115: candidates rail
     return;
   }
   var statusEl = document.getElementById('tp-status');
@@ -5746,6 +5815,7 @@ function tpLoad(force) {
       if (typeof phRenderTracked === 'function') phRenderTracked();
       // P58.8: refresh per-juris rail when fresh data lands.
       if (typeof renderTpRail === 'function' && typeof currentMuni !== 'undefined' && currentMuni) renderTpRail(currentMuni);
+      if (typeof candRenderRail === 'function') candRenderRail(); // P115: candidates rail
       // P35: fetch tagged-doc counts in parallel; re-render once they land.
       return tpLoadDocCounts().then(function() {
         tpRenderTable();
@@ -8553,6 +8623,77 @@ var _candPage = 0;          // 0-based page index (within current filter)
 var _candPageSize = 50;     // rows per page
 var _candSel = {};          // candidate_id -> true (bulk-dismiss selection)
 
+// P115: right-rail (Tracked Projects grouped by Muni) state.
+var _candRailCollapsed = false; // rail open by default
+var _candRailOpen = {};         // muni name -> true when its group is expanded (default collapsed)
+
+function candRailToggle(){ _candRailCollapsed = !_candRailCollapsed; candRenderRail(); }
+function candRailToggleMuni(encJ){
+  var j = decodeURIComponent(encJ);
+  if(_candRailOpen[j]) delete _candRailOpen[j]; else _candRailOpen[j] = true;
+  candRenderRail();
+}
+function _candRailHeader(n){
+  return '<div class="ctr-header">'
+    +'<div class="ctr-title">Tracked Projects<span class="ctr-title-count">· '+n+'</span></div>'
+    +'<button class="ctr-collapse" onclick="candRailToggle()" title="Collapse rail">»</button>'
+    +'</div>';
+}
+// Render the Tracked-Projects-by-Muni rail on the Project Candidates view.
+// Reuses the global tpProjects cache (loaded via tpLoad / list_tracked_projects_detailed).
+function candRenderRail(){
+  var rail = document.getElementById('cand-tp-rail'); if(!rail) return;
+  if(_candRailCollapsed){
+    rail.classList.add('collapsed');
+    rail.innerHTML = '<button class="ctr-expand" onclick="candRailToggle()" title="Show Tracked Projects">‹</button>';
+    return;
+  }
+  rail.classList.remove('collapsed');
+
+  var loaded = (typeof tpProjects !== 'undefined' && Array.isArray(tpProjects));
+  if(!loaded || (!tpProjects.length && !tpLoadedAt)){
+    if(loaded && typeof tpLoad === 'function' && !tpLoadedAt){ try{ tpLoad(false); }catch(e){} }
+    rail.innerHTML = _candRailHeader(0) + '<div class="ctr-empty">Loading…</div>';
+    return;
+  }
+
+  // Group active projects by jurisdiction (mirror renderTpRail's status filter).
+  var groups = {};
+  tpProjects.forEach(function(p){
+    var st = (p.status || 'active').toLowerCase();
+    if(st === 'closed' || st === 'archived' || st === 'deleted' || st === 'competitor_active') return;
+    var j = p.jurisdiction || '—';
+    (groups[j] = groups[j] || []).push(p);
+  });
+  var munis = Object.keys(groups).sort();
+  var total = munis.reduce(function(n,j){ return n + groups[j].length; }, 0);
+
+  var html = _candRailHeader(total);
+  if(!munis.length){ rail.innerHTML = html + '<div class="ctr-empty">No tracked projects.</div>'; return; }
+
+  munis.forEach(function(j){
+    var list = groups[j].slice().sort(function(a,b){
+      return (Date.parse(b.latestMeetingDate||'')||0) - (Date.parse(a.latestMeetingDate||'')||0);
+    });
+    var open = _candRailOpen[j] ? ' open' : '';
+    var projHtml = list.map(function(p){
+      return '<div class="ctr-proj">'
+        +'<div class="ctr-proj-name">' + _diagEsc(p.projectName||'—') + '</div>'
+        +'<div class="ctr-proj-meta">' + _diagEsc(p.latestMeetingType||'—') + ' · ' + _diagEsc(p.latestMeetingDate||'—') + '</div>'
+        +'</div>';
+    }).join('');
+    html += '<div class="ctr-muni">'
+      + '<div class="ctr-muni-head" onclick="candRailToggleMuni(\'' + encodeURIComponent(j) + '\')">'
+      +   '<span class="ctr-muni-arrow' + open + '">▸</span>'
+      +   '<span class="ctr-muni-name">' + _diagEsc(j) + '</span>'
+      +   '<span class="ctr-muni-count">' + list.length + '</span>'
+      + '</div>'
+      + '<div class="ctr-muni-list' + open + '">' + projHtml + '</div>'
+      + '</div>';
+  });
+  rail.innerHTML = html;
+}
+
 function candLoad(){
   var el=document.getElementById('cand-list'); if(!el) return;
   el.innerHTML='<div style="color:var(--text-dim);">Loading candidates…</div>';
@@ -8574,7 +8715,7 @@ function _candLive(){ return _candData.filter(function(c){ return c.status==='ne
 // Apply jurisdiction / confidence / search filters (NOT pagination).
 function _candFiltered(){
   var term=_candSearch;
-  return _candLive().filter(function(c){
+  var out=_candLive().filter(function(c){
     if(_candJuris && c.jurisdiction!==_candJuris) return false;
     if(_candFilterHigh && c.confidence!=='high') return false;
     if(term){
@@ -8583,6 +8724,13 @@ function _candFiltered(){
     }
     return true;
   });
+  // P115: order by date of the most recent agenda, newest → oldest.
+  out.sort(function(a,b){
+    var da=Date.parse(a.last_seen_date||a.first_seen_date||'')||0;
+    var db=Date.parse(b.last_seen_date||b.first_seen_date||'')||0;
+    return db-da;
+  });
+  return out;
 }
 
 // Rebuild the jurisdiction dropdown with per-muni counts (preserves current selection).
@@ -8599,6 +8747,7 @@ function _candPopulateJurisDropdown(){
 }
 
 function candRender(){
+  candRenderRail(); // P115: keep the Tracked-Projects-by-Muni rail in sync
   var el=document.getElementById('cand-list'); if(!el) return;
   var live=_candLive();
   var nNew=live.length;
@@ -8634,11 +8783,12 @@ function candRender(){
   var allPageSel = pageRows.length>0 && pageRows.every(function(c){ return _candSel[c.candidate_id]; });
   var head='<tr style="text-align:left;color:var(--text-dim);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">'+
     '<th style="padding:6px 8px;"><input type="checkbox" onchange="candSelectAllPage(this)"'+(allPageSel?' checked':'')+' title="Select all on this page" style="cursor:pointer;"></th>'+
-    '<th style="padding:6px 8px;">Conf.</th><th style="padding:6px 8px;">Jurisdiction</th><th style="padding:6px 8px;">Project</th>'+
-    '<th style="padding:6px 8px;">Type</th><th style="padding:6px 8px;">Description</th>'+
+    '<th style="padding:6px 8px;">Conf.</th><th style="padding:6px 8px;">Jurisdiction</th><th style="padding:6px 8px;width:110px;">Project</th>'+
+    '<th style="padding:6px 8px;">Type</th><th style="padding:6px 8px;width:380px;">Description</th>'+
+    '<th style="padding:6px 8px;">Petitioner</th>'+
     '<th style="padding:6px 8px;text-align:center;">Hrgs</th><th style="padding:6px 8px;">Bodies</th><th style="padding:6px 8px;">Date</th>'+
     '<th style="padding:6px 8px;">Agendas</th><th style="padding:6px 8px;text-align:right;">Action</th>'+
-    '<th style="padding:6px 8px;">Ord.</th><th style="padding:6px 8px;">Petitioner</th></tr>';
+    '<th style="padding:6px 8px;">Ord.</th></tr>';
   var body=pageRows.map(function(c){
     var cid=_diagEsc(c.candidate_id);
     var isHigh=c.confidence==='high';
@@ -8646,7 +8796,8 @@ function candRender(){
     var pill='<span style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:9px;font-weight:700;'+(isHigh?'background:#1c7c3a;color:#fff;':'background:var(--border,#444);color:var(--text-dim);')+'">'+(isHigh?'HIGH':'low')+'</span>';
     var urls=String(c.agenda_urls||'').split('|').map(function(s){return s.trim();}).filter(Boolean);
     var agendaLinks=urls.map(function(u,i){return '<a href="'+_diagEsc(u)+'" target="_blank" rel="noopener">#'+(i+1)+'</a>';}).join(' ') || '—';
-    var acts='<button class="refresh-btn" style="font-size:10px;padding:3px 9px;background:#1c7c3a;color:#fff;border-color:#1c7c3a;" title="Create a Tracked Project from this candidate" onclick="candTrack(\''+cid+'\',this)">＋ Track</button>'+
+    var acts='<button class="refresh-btn" style="font-size:10px;padding:3px 9px;background:#1c7c3a;color:#fff;border-color:#1c7c3a;" title="Create a NEW Tracked Project from this candidate" onclick="candTrack(\''+cid+'\',this)">＋ Track</button>'+
+             '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;margin-left:4px;" title="Add this candidate to an EXISTING Tracked Project" onclick="candOpenAddToExisting(\''+cid+'\',this)">Add to… ▾</button>'+
              '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;margin-left:4px;" title="Dismiss — not a project to track" onclick="candDismiss(\''+cid+'\',this)">Dismiss</button>';
     var descText=String(c.description||c.sample_request||'').trim();
     var descCell = descText
@@ -8657,16 +8808,16 @@ function candRender(){
       '<td style="padding:6px 8px;"><input type="checkbox" data-cand-sel="'+cid+'" onchange="candToggleSel(\''+cid+'\',this)"'+checked+' style="cursor:pointer;"></td>'+
       '<td style="padding:6px 8px;">'+pill+'</td>'+
       '<td style="padding:6px 8px;white-space:nowrap;">'+_diagEsc(c.jurisdiction)+'</td>'+
-      '<td style="padding:6px 8px;font-weight:600;">'+_diagEsc(c.project_name||'—')+'</td>'+
+      '<td style="padding:6px 8px;font-weight:600;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+_diagEsc(c.project_name||'')+'">'+_diagEsc(c.project_name||'—')+'</td>'+
       '<td style="padding:6px 8px;white-space:nowrap;">'+_diagEsc(c.request_type||'—')+'</td>'+
-      '<td style="padding:6px 8px;">'+descCell+'</td>'+
+      '<td style="padding:6px 8px;width:380px;max-width:420px;">'+descCell+'</td>'+
+      '<td style="padding:6px 8px;font-size:10px;color:var(--text-dim);max-width:140px;overflow:hidden;text-overflow:ellipsis;" title="'+_diagEsc(c.petitioner||'')+'">'+_diagEsc(c.petitioner||'—')+'</td>'+
       '<td style="padding:6px 8px;text-align:center;">'+_diagEsc(c.hearing_count||1)+'</td>'+
       '<td style="padding:6px 8px;font-size:10px;">'+_diagEsc(c.bodies||'')+'</td>'+
       '<td style="padding:6px 8px;white-space:nowrap;font-size:10px;">'+dateText+'</td>'+
       '<td class="cand-agendas" style="padding:6px 8px;white-space:nowrap;font-size:10px;">'+agendaLinks+'</td>'+
       '<td style="padding:6px 8px;text-align:right;white-space:nowrap;">'+acts+'</td>'+
-      '<td style="padding:6px 8px;white-space:nowrap;font-size:10px;color:var(--text-dim);max-width:90px;overflow:hidden;text-overflow:ellipsis;" title="'+_diagEsc(c.ordinance_id||'')+'">'+_diagEsc(c.ordinance_id||'—')+'</td>'+
-      '<td style="padding:6px 8px;font-size:10px;color:var(--text-dim);max-width:90px;overflow:hidden;text-overflow:ellipsis;" title="'+_diagEsc(c.petitioner||'')+'">'+_diagEsc(c.petitioner||'—')+'</td></tr>';
+      '<td style="padding:6px 8px;white-space:nowrap;font-size:10px;color:var(--text-dim);max-width:90px;overflow:hidden;text-overflow:ellipsis;" title="'+_diagEsc(c.ordinance_id||'')+'">'+_diagEsc(c.ordinance_id||'—')+'</td></tr>';
   }).join('');
 
   var pager='';
@@ -8733,6 +8884,59 @@ function candDismiss(cid, btn){
     if(!rr||!rr.ok){ if(btn){ btn.disabled=false; btn.textContent='Failed — retry'; } return; }
     _candResolveRow(cid);
   }).catch(function(){ if(btn){ btn.disabled=false; btn.textContent='Dismiss'; } });
+}
+
+// P115 — add a candidate to an EXISTING Tracked Project (vs. candTrack which
+// creates a new one). Opens an inline picker of that jurisdiction's tracked
+// projects in the row's Action cell; choosing one calls the merge backend.
+function _candById(cid){
+  for(var i=0;i<_candData.length;i++){ if(_candData[i].candidate_id===cid) return _candData[i]; }
+  return null;
+}
+function candOpenAddToExisting(cid, btn){
+  var c=_candById(cid); if(!c||!btn) return;
+  var td=btn.closest('td'); if(!td) return;
+  var loaded=(typeof tpProjects!=='undefined' && Array.isArray(tpProjects) && tpProjects.length);
+  if(!loaded){
+    if(typeof tpLoad==='function'){ try{ tpLoad(false); }catch(e){} }
+    btn.textContent='Loading…'; btn.disabled=true;
+    setTimeout(function(){ candOpenAddToExisting(cid, btn); }, 1200);
+    return;
+  }
+  var jn=(typeof _normJurisName==='function') ? _normJurisName(c.jurisdiction) : (c.jurisdiction||'');
+  var opts=tpProjects.filter(function(p){
+    var st=(p.status||'active').toLowerCase();
+    if(st==='closed'||st==='archived'||st==='deleted'||st==='competitor_active') return false;
+    var pj=(typeof _normJurisName==='function') ? _normJurisName(p.jurisdiction) : (p.jurisdiction||'');
+    return pj===jn;
+  }).sort(function(a,b){ return String(a.projectName||'').localeCompare(String(b.projectName||'')); });
+  if(!opts.length){
+    td.innerHTML='<span style="font-size:10px;color:var(--text-dim);">No tracked projects in '+_diagEsc(c.jurisdiction||'this jurisdiction')+'. <a href="#" onclick="candRender();return false;" style="color:#3be3ff;">cancel</a></span>';
+    return;
+  }
+  var optionHtml=opts.map(function(p){
+    return '<option value="'+_diagEsc(p.projectId)+'">'+_diagEsc(p.projectName||p.projectId)+(p.ordinanceId?(' ('+_diagEsc(p.ordinanceId)+')'):'')+'</option>';
+  }).join('');
+  td.innerHTML='<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">'
+    +'<select id="cae-sel-'+_diagEsc(cid)+'" style="font-size:10px;max-width:160px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:5px;padding:2px 4px;cursor:pointer;">'+optionHtml+'</select>'
+    +'<div style="display:flex;gap:4px;">'
+    +  '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;background:#1c7c3a;color:#fff;border-color:#1c7c3a;" onclick="candAddToExisting(\''+cid+'\',this)">Add</button>'
+    +  '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;" onclick="candRender()">Cancel</button>'
+    +'</div></div>';
+}
+function candAddToExisting(cid, btn){
+  var sel=document.getElementById('cae-sel-'+cid);
+  var pid=sel?sel.value:'';
+  if(!pid) return;
+  if(btn){ btn.disabled=true; btn.textContent='Adding…'; }
+  var base=getWebAppUrl(); if(!base) return;
+  fetch(base+'&action=admin_run&fn=addCandidateToTrackedProject&candidate_id='+encodeURIComponent(cid)+'&project_id='+encodeURIComponent(pid))
+    .then(function(r){return r.json();}).then(function(res){
+      var rr=res&&res.result;
+      if(!rr||!rr.ok){ if(btn){ btn.disabled=false; btn.textContent='Failed — retry'; } return; }
+      _candResolveRow(cid);
+      if(typeof tpLoad==='function'){ try{ tpLoad(true); }catch(e){} } // refresh projects + rail
+    }).catch(function(){ if(btn){ btn.disabled=false; btn.textContent='Add'; } });
 }
 
 // Bulk-dismiss all selected (within current filter), sequentially to avoid hammering the backend.
@@ -10108,8 +10312,12 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
   /* P112: Candidates table — Agendas links use the sidebar neon light-blue; Description truncates with click-to-expand */
   .cand-agendas a{color:#3be3ff;text-decoration:none;font-weight:600;}
   .cand-agendas a:hover{text-decoration:underline;}
-  .cand-desc{display:block;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;border-bottom:1px dotted rgba(255,255,255,.22);}
-  .cand-desc.expanded{white-space:normal;overflow:visible;max-width:340px;}
+  /* P115: Description truncates to 2 lines and expands DOWNWARD on click
+     (mirrors the Tracked Projects .tp-action-cell Results pattern) rather than
+     widening the column. */
+  .cand-desc{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer;line-height:1.35;width:400px;max-width:400px;border-bottom:1px dotted rgba(255,255,255,.22);}
+  .cand-desc.expanded{display:block;-webkit-line-clamp:unset;overflow:visible;white-space:pre-wrap;width:400px;max-width:400px;}
+  .cand-desc:hover{color:var(--accent,#e8a020);}
 </style>
 <div class="mrdask-ov" id="mrdask-ov">
   <div class="mrdask-box">
