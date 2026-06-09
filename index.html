@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p115r3 -->
+<!-- MIP build p116r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p87r1">
+<link rel="stylesheet" href="styles.css?v=p116r1">
 </head>
 <body>
 
@@ -8827,7 +8827,7 @@ function candRender(){
       '<td style="padding:6px 8px;"><input type="checkbox" data-cand-sel="'+cid+'" onchange="candToggleSel(\''+cid+'\',this)"'+checked+' style="cursor:pointer;"></td>'+
       '<td style="padding:6px 8px;">'+pill+'</td>'+
       '<td style="padding:6px 8px;white-space:nowrap;">'+_diagEsc(c.jurisdiction)+'</td>'+
-      '<td style="padding:6px 8px;font-weight:600;max-width:165px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+_diagEsc(c.project_name||'')+'">'+_diagEsc(c.project_name||'—')+'</td>'+
+      '<td style="padding:6px 8px;vertical-align:top;"><span class="cand-proj" title="Click to expand / collapse" onclick="this.classList.toggle(\'expanded\')">'+_diagEsc(c.project_name||'—')+'</span></td>'+
       '<td style="padding:6px 8px;white-space:nowrap;">'+_diagEsc(c.request_type||'—')+'</td>'+
       '<td style="padding:6px 8px;width:380px;max-width:420px;">'+descCell+'</td>'+
       '<td style="padding:6px 8px;font-size:10px;color:var(--text-dim);max-width:140px;overflow:hidden;text-overflow:ellipsis;" title="'+_diagEsc(c.petitioner||'')+'">'+_diagEsc(c.petitioner||'—')+'</td>'+
@@ -10336,6 +10336,10 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
   .cand-desc{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer;line-height:1.35;width:400px;max-width:400px;border-bottom:1px dotted rgba(255,255,255,.22);}
   .cand-desc.expanded{display:block;-webkit-line-clamp:unset;overflow:visible;white-space:pre-wrap;width:400px;max-width:400px;}
   .cand-desc:hover{color:var(--accent,#e8a020);}
+  /* P116: Project name expandable on click, mirroring .cand-desc — collapsed to 1 line, expands DOWNWARD. */
+  .cand-proj{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer;line-height:1.3;width:165px;max-width:165px;font-weight:600;border-bottom:1px dotted rgba(255,255,255,.22);}
+  .cand-proj.expanded{display:block;-webkit-line-clamp:unset;overflow:visible;white-space:normal;width:165px;max-width:165px;}
+  .cand-proj:hover{color:var(--accent,#e8a020);}
 </style>
 <div class="mrdask-ov" id="mrdask-ov">
   <div class="mrdask-box">
