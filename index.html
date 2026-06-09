@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p115r1 -->
+<!-- MIP build p115r2 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -2160,6 +2160,18 @@ function _normJurisName(s) {
     .replace(/^city of\s+/, '')
     .replace(/^town of\s+/, '')
     .replace(/,\s*indiana$/, '')
+    .trim();
+}
+
+// P115r2: display-friendly muni name — strips the "City of " / "Town of " prefix
+// (and ", Indiana" suffix) but PRESERVES case, so "City of Greenwood" and the
+// bare "Greenwood" both render as "Greenwood" and sort alphabetically by the
+// real name. Use for DISPLAY; use _normJurisName (lowercased) for grouping keys.
+function _muniDisplayName(s) {
+  return String(s || '')
+    .replace(/^city of\s+/i, '')
+    .replace(/^town of\s+/i, '')
+    .replace(/,\s*indiana$/i, '')
     .trim();
 }
 
@@ -5873,7 +5885,7 @@ function tpRenderTable() {
     } else {
       var keyFn = {
         project:      function(p){ return (p.projectName || '').toLowerCase(); },
-        jurisdiction: function(p){ return (p.jurisdiction || '').toLowerCase(); },
+        jurisdiction: function(p){ return _normJurisName(p.jurisdiction); }, // P115r2: sort by stripped name
         builder:      function(p){ return (p.builder || '').toLowerCase(); },
         status:       function(p){ return (p.status || 'active').toLowerCase(); }
       }[sortKey];
@@ -6017,7 +6029,7 @@ function tpRenderTable() {
         (p.ordinanceId ? '<div style="font-size:10px;color:var(--muted,#888);">' + esc(p.ordinanceId) + '</div>' : '') +
       '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;text-align:center;">' + lotsCell + '</td>' +
-      '<td style="padding:8px 10px;vertical-align:top;">' + esc(p.jurisdiction || '<i>all</i>') + '</td>' +
+      '<td style="padding:8px 10px;vertical-align:top;">' + (p.jurisdiction ? esc(_muniDisplayName(p.jurisdiction)) : '<i>all</i>') + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' + builderCell + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' + meetingTypeCell + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;white-space:nowrap;">' + meetingDateCell + '</td>' +
@@ -8657,25 +8669,33 @@ function candRenderRail(){
     return;
   }
 
-  // Group active projects by jurisdiction (mirror renderTpRail's status filter).
-  var groups = {};
+  // Group active projects by NORMALIZED jurisdiction (mirror renderTpRail's
+  // status filter). P115r2: key by _normJurisName so "Greenwood" and
+  // "City of Greenwood" collapse into ONE group; display + sort by the
+  // prefix-stripped label so the list orders by the real name.
+  var groups = {}; // normKey -> { label, projects: [] }
   tpProjects.forEach(function(p){
     var st = (p.status || 'active').toLowerCase();
     if(st === 'closed' || st === 'archived' || st === 'deleted' || st === 'competitor_active') return;
-    var j = p.jurisdiction || '—';
-    (groups[j] = groups[j] || []).push(p);
+    var raw = p.jurisdiction || '—';
+    var key = _normJurisName(raw) || '—';
+    if(!groups[key]) groups[key] = { label: _muniDisplayName(raw) || raw, projects: [] };
+    groups[key].projects.push(p);
   });
-  var munis = Object.keys(groups).sort();
-  var total = munis.reduce(function(n,j){ return n + groups[j].length; }, 0);
+  var keys = Object.keys(groups).sort(function(a,b){
+    return groups[a].label.localeCompare(groups[b].label);
+  });
+  var total = keys.reduce(function(n,k){ return n + groups[k].projects.length; }, 0);
 
   var html = _candRailHeader(total);
-  if(!munis.length){ rail.innerHTML = html + '<div class="ctr-empty">No tracked projects.</div>'; return; }
+  if(!keys.length){ rail.innerHTML = html + '<div class="ctr-empty">No tracked projects.</div>'; return; }
 
-  munis.forEach(function(j){
-    var list = groups[j].slice().sort(function(a,b){
+  keys.forEach(function(key){
+    var g = groups[key];
+    var list = g.projects.slice().sort(function(a,b){
       return (Date.parse(b.latestMeetingDate||'')||0) - (Date.parse(a.latestMeetingDate||'')||0);
     });
-    var open = _candRailOpen[j] ? ' open' : '';
+    var open = _candRailOpen[key] ? ' open' : '';
     var projHtml = list.map(function(p){
       return '<div class="ctr-proj">'
         +'<div class="ctr-proj-name">' + _diagEsc(p.projectName||'—') + '</div>'
@@ -8683,9 +8703,9 @@ function candRenderRail(){
         +'</div>';
     }).join('');
     html += '<div class="ctr-muni">'
-      + '<div class="ctr-muni-head" onclick="candRailToggleMuni(\'' + encodeURIComponent(j) + '\')">'
+      + '<div class="ctr-muni-head" onclick="candRailToggleMuni(\'' + encodeURIComponent(key) + '\')">'
       +   '<span class="ctr-muni-arrow' + open + '">▸</span>'
-      +   '<span class="ctr-muni-name">' + _diagEsc(j) + '</span>'
+      +   '<span class="ctr-muni-name">' + _diagEsc(g.label) + '</span>'
       +   '<span class="ctr-muni-count">' + list.length + '</span>'
       + '</div>'
       + '<div class="ctr-muni-list' + open + '">' + projHtml + '</div>'
