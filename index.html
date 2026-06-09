@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p115r2 -->
+<!-- MIP build p115r3 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -8803,12 +8803,11 @@ function candRender(){
   var allPageSel = pageRows.length>0 && pageRows.every(function(c){ return _candSel[c.candidate_id]; });
   var head='<tr style="text-align:left;color:var(--text-dim);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">'+
     '<th style="padding:6px 8px;"><input type="checkbox" onchange="candSelectAllPage(this)"'+(allPageSel?' checked':'')+' title="Select all on this page" style="cursor:pointer;"></th>'+
-    '<th style="padding:6px 8px;">Conf.</th><th style="padding:6px 8px;">Jurisdiction</th><th style="padding:6px 8px;width:110px;">Project</th>'+
+    '<th style="padding:6px 8px;">Conf.</th><th style="padding:6px 8px;">Jurisdiction</th><th style="padding:6px 8px;width:165px;">Project</th>'+
     '<th style="padding:6px 8px;">Type</th><th style="padding:6px 8px;width:380px;">Description</th>'+
     '<th style="padding:6px 8px;">Petitioner</th>'+
     '<th style="padding:6px 8px;text-align:center;">Hrgs</th><th style="padding:6px 8px;">Bodies</th><th style="padding:6px 8px;">Date</th>'+
-    '<th style="padding:6px 8px;">Agendas</th><th style="padding:6px 8px;text-align:right;">Action</th>'+
-    '<th style="padding:6px 8px;">Ord.</th></tr>';
+    '<th style="padding:6px 8px;">Agendas</th><th style="padding:6px 8px;text-align:right;">Action</th></tr>';
   var body=pageRows.map(function(c){
     var cid=_diagEsc(c.candidate_id);
     var isHigh=c.confidence==='high';
@@ -8828,7 +8827,7 @@ function candRender(){
       '<td style="padding:6px 8px;"><input type="checkbox" data-cand-sel="'+cid+'" onchange="candToggleSel(\''+cid+'\',this)"'+checked+' style="cursor:pointer;"></td>'+
       '<td style="padding:6px 8px;">'+pill+'</td>'+
       '<td style="padding:6px 8px;white-space:nowrap;">'+_diagEsc(c.jurisdiction)+'</td>'+
-      '<td style="padding:6px 8px;font-weight:600;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+_diagEsc(c.project_name||'')+'">'+_diagEsc(c.project_name||'—')+'</td>'+
+      '<td style="padding:6px 8px;font-weight:600;max-width:165px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+_diagEsc(c.project_name||'')+'">'+_diagEsc(c.project_name||'—')+'</td>'+
       '<td style="padding:6px 8px;white-space:nowrap;">'+_diagEsc(c.request_type||'—')+'</td>'+
       '<td style="padding:6px 8px;width:380px;max-width:420px;">'+descCell+'</td>'+
       '<td style="padding:6px 8px;font-size:10px;color:var(--text-dim);max-width:140px;overflow:hidden;text-overflow:ellipsis;" title="'+_diagEsc(c.petitioner||'')+'">'+_diagEsc(c.petitioner||'—')+'</td>'+
@@ -8836,8 +8835,7 @@ function candRender(){
       '<td style="padding:6px 8px;font-size:10px;">'+_diagEsc(c.bodies||'')+'</td>'+
       '<td style="padding:6px 8px;white-space:nowrap;font-size:10px;">'+dateText+'</td>'+
       '<td class="cand-agendas" style="padding:6px 8px;white-space:nowrap;font-size:10px;">'+agendaLinks+'</td>'+
-      '<td style="padding:6px 8px;text-align:right;white-space:nowrap;">'+acts+'</td>'+
-      '<td style="padding:6px 8px;white-space:nowrap;font-size:10px;color:var(--text-dim);max-width:90px;overflow:hidden;text-overflow:ellipsis;" title="'+_diagEsc(c.ordinance_id||'')+'">'+_diagEsc(c.ordinance_id||'—')+'</td></tr>';
+      '<td style="padding:6px 8px;text-align:right;white-space:nowrap;">'+acts+'</td></tr>';
   }).join('');
 
   var pager='';
