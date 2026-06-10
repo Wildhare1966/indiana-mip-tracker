@@ -102,7 +102,13 @@
   .chart-title{font-size:16px;font-weight:700;color:var(--ink)}
   .chart-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   .chart-note{font-size:11px;color:var(--muted);margin-top:8px;min-height:14px}
-  .chart-wrap{position:relative;height:500px;width:100%}
+  .chart-stage{display:flex;gap:12px;position:relative}
+  .chart-wrap{position:relative;height:100%;width:100%;flex:1;min-width:0}
+  .submarket-list{flex:0 0 195px;width:195px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;padding:6px}
+  .sub-list-title{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;padding:4px 6px}
+  .sub-item{display:block;width:100%;text-align:left;border:none;background:none;padding:6px 8px;font-size:12.5px;color:var(--ink);cursor:pointer;border-radius:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sub-item:hover{background:rgba(44,125,160,.12)}
+  .sub-item.active{background:var(--brand2);color:#fff;font-weight:700}
   .table-wrap{overflow:auto;max-height:calc(100vh - 230px);margin-top:6px}
   .table-wrap.ref{max-height:320px}
   table.data{width:100%;border-collapse:collapse;font-size:13px;background:#fff}
@@ -186,6 +192,7 @@
   html[data-theme="dark"] .tab.active{color:#e6eef6}
   html[data-theme="dark"] .kpi-bar button,html[data-theme="dark"] .rh-title{color:var(--muted)}
   html[data-theme="dark"] .rail-toggle{background:var(--panel);color:#9fd0e6}
+  html[data-theme="dark"] .sub-item:hover{background:var(--hover)}
   html[data-theme="dark"] #overlay{background:rgba(14,34,51,.97)}
   html[data-theme="dark"] .ov-card{background:var(--panel)}
   html[data-theme="dark"] .pill.Active{background:rgba(63,160,106,.18);color:#7fd0a3}
@@ -287,7 +294,10 @@
       <div class="tabs" id="gtabs"></div>
       <div class="card chart-card">
         <div class="chart-top"><div class="chart-title" id="chartTitle"></div><div class="chart-controls" id="chartControls"></div></div>
-        <div class="chart-wrap" id="chartWrap"><canvas id="mainChart"></canvas></div>
+        <div class="chart-stage" id="chartStage">
+          <div class="submarket-list hidden" id="submarketList"></div>
+          <div class="chart-wrap" id="chartWrap"><canvas id="mainChart"></canvas></div>
+        </div>
         <div class="chart-note" id="chartNote"></div>
       </div>
     </div>
@@ -412,9 +422,9 @@ function finishLoad(parsed){
  *  App state
  * ============================================================= */
 const ST={ mode:"submarket", view:"table", smLevel:"City", excluded:new Set(), gtab:"avgprice",
-  sort:{key:null,dir:1}, allHomesDrill:null, fppAddNew:false, fppAddResale:false, colOrder:{}, planPrices:{},
+  sort:{key:null,dir:1}, allHomesDrill:null, fppAddNew:false, fppAddResale:false, colOrder:{}, planPrices:{}, txnSubmarket:null,
   ctl:{ salesMode:"agg", priceMode:"agg", scToggle:"annual", lpToggle:"inv", deltaYears:1,
-    labels:{ avgprice:true, allhomes:true, sc:true, lot:true, pricedelta:true } } };
+    labels:{ avgprice:true, allhomes:true, sc:true, lot:true, pricedelta:true, medppsf:true, schoolrating:true } } };
 let kpiVisible=true, railCollapsed=false, dirty=false;
 
 /* ============================================================= *
@@ -502,7 +512,7 @@ function updateFilterVisibility(){
  *  Mode / View / collapse
  * ============================================================= */
 function setMode(mode,silent){ ST.mode=mode; ST.excluded.clear(); ST.sort={key:null,dir:1}; ST.allHomesDrill=null;
-  if(mode==="fpp") ST.gtab="scatter"; else if(!["sales","avgprice","pricedelta","allhomes","sc","lot","price"].includes(ST.gtab)) ST.gtab="avgprice";
+  if(mode==="fpp") ST.gtab="scatter"; else if(!["sales","avgprice","pricedelta","medppsf","allhomes","txnbands","schoolrating","sc","lot","price"].includes(ST.gtab)) ST.gtab="avgprice";
   document.querySelectorAll("#modeSeg button").forEach(b=>b.classList.toggle("active",b.dataset.mode===mode));
   document.querySelectorAll("#smLevelSeg button").forEach(b=>b.classList.toggle("active",b.dataset.lvl===ST.smLevel));
   updateFilterVisibility(); if(!silent) applyAndRender(); }
@@ -513,7 +523,7 @@ function setView(view,silent){ ST.view=view;
   if(!silent) applyAndRender(); }
 document.querySelectorAll("#modeSeg button").forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
 document.querySelectorAll("#viewSeg button").forEach(b=>b.onclick=()=>setView(b.dataset.view));
-document.querySelectorAll("#smLevelSeg button").forEach(b=>b.onclick=()=>{ ST.smLevel=b.dataset.lvl; ST.excluded.clear(); ST.sort={key:null,dir:1}; ST.allHomesDrill=null;
+document.querySelectorAll("#smLevelSeg button").forEach(b=>b.onclick=()=>{ ST.smLevel=b.dataset.lvl; ST.excluded.clear(); ST.sort={key:null,dir:1}; ST.allHomesDrill=null; ST.txnSubmarket=null;
   document.querySelectorAll("#smLevelSeg button").forEach(x=>x.classList.toggle("active",x===b)); applyAndRender(); });
 document.getElementById("railToggle").onclick=()=>{ railCollapsed=!railCollapsed; document.getElementById("rail").classList.toggle("collapsed",railCollapsed);
   document.getElementById("railToggle").textContent=railCollapsed?"»":"«"; document.getElementById("railToggle").title=railCollapsed?"Expand panel":"Collapse panel"; };
@@ -765,6 +775,54 @@ function chartPriceDelta(){
       scales:{x:{title:{display:true,text:`Δ avg price vs ${years}yr ago ($)`},ticks:{callback:v=>(v>0?"+":v<0?"−":"")+"$"+Math.abs(v/1000).toFixed(0)+"k"}},y:{ticks:{font:{size:11},autoSkip:false}}}})});
   setNote(note+(labelsOn?" Labels show the price change (green = up, red = down).":""));
 }
+/* --- Submarket: school-district rating, median $/sqft, transactions by $20k band --- */
+function ratingNums(v){ return str(v).split(/[;,\/]/).map(x=>num(x)).filter(x=>x!=null); }
+function districtRating(ids){ let s=0,n=0; for(const id of ids){ const r=DB.byId.get(id); if(!r)continue;
+  ["School Ratings (Elementary)","School Ratings (Middle)","School Ratings (High)"].forEach(f=>{ ratingNums(r[f]).forEach(x=>{s+=x;n++;}); }); } return n?s/n:null; }
+function medianOf(arr){ if(!arr.length)return null; const a=[...arr].sort((x,y)=>x-y); const m=a.length>>1; return a.length%2?a[m]:(a[m-1]+a[m])/2; }
+function txnsForSubmarket(label){ return (existIndexForLevel().get(str(label).toLowerCase())||[]).filter(txnInPeriod); }
+function txnPPSF(t){ let p=num(t["Sale PricePer Sq ft"]); if(p==null){ const sp=num(t["Sale Price"]),sz=num(t["Unit Size"]); if(sp!=null&&sz) p=sp/sz; } return (p!=null&&p>0&&p<2000)?p:null; }
+function chartSchoolRating(){
+  destroyChart();
+  let rows=activeGroups().map(g=>({label:g.label,val:districtRating(g.ids)})).filter(r=>r.val!=null).sort((a,b)=>b.val-a.val);
+  if(!rows.length){ barLabels.enabled=false; chart=new Chart(ctx,{type:"bar",data:{labels:[],datasets:[]},options:baseOpts()}); setNote("No school ratings available for the selected districts."); return; }
+  let note="Average school rating by district (Elementary / Middle / High, ~1–10 scale).";
+  if(rows.length>30){ note+=` Showing top 30 of ${rows.length}.`; rows=rows.slice(0,30); }
+  const labelsOn=!!ST.ctl.labels.schoolrating; barLabels.enabled=labelsOn; barLabels.fmt=v=>fmt1(v);
+  chart=new Chart(ctx,{type:"bar",data:{labels:rows.map(r=>r.label),datasets:[{label:"School Rating",data:rows.map(r=>r.val),backgroundColor:rows.map((_,i)=>color(i)),borderWidth:0}]},
+    options:baseOpts({indexAxis:"y",layout:{padding:{right:labelsOn?40:8}},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>"Avg rating "+fmt1(c.raw)}}},
+      scales:{x:{beginAtZero:true,suggestedMax:10,title:{display:true,text:"Avg school rating (1–10)"}},y:{ticks:{font:{size:11},autoSkip:false}}}})});
+  setNote(note);
+}
+function chartMedPPSF(){
+  destroyChart();
+  let rows=activeGroups().map(g=>{ const vals=txnsForSubmarket(g.label).map(txnPPSF).filter(v=>v!=null); return {label:g.label,val:medianOf(vals),n:vals.length}; }).filter(r=>r.val!=null).sort((a,b)=>b.val-a.val);
+  if(!rows.length){ barLabels.enabled=false; chart=new Chart(ctx,{type:"bar",data:{labels:[],datasets:[]},options:baseOpts()}); setNote(`No sales with price-per-sqft for the selected ${grainNoun()}s.`); return; }
+  let note=`Median sale price per square foot by ${ST.smLevel} (existing + new sales).`;
+  if(rows.length>30){ note+=` Showing top 30 of ${rows.length}.`; rows=rows.slice(0,30); }
+  const labelsOn=!!ST.ctl.labels.medppsf; barLabels.enabled=labelsOn; barLabels.fmt=v=>"$"+Math.round(v);
+  chart=new Chart(ctx,{type:"bar",data:{labels:rows.map(r=>r.label),datasets:[{label:"Median $/sqft",data:rows.map(r=>r.val),backgroundColor:rows.map((_,i)=>color(i)),borderWidth:0}]},
+    options:baseOpts({indexAxis:"y",layout:{padding:{right:labelsOn?52:8}},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>"$"+Math.round(c.raw)+" /sqft (median)"}}},
+      scales:{x:{beginAtZero:true,title:{display:true,text:"Median sale price per sq ft ($)"},ticks:{callback:v=>"$"+v}},y:{ticks:{font:{size:11},autoSkip:false}}}})});
+  setNote(note);
+}
+function chartTxnBands(){
+  destroyChart(); const groups=activeGroups(); const listEl=document.getElementById("submarketList");
+  if(!groups.length){ if(listEl)listEl.innerHTML='<div class="sub-list-title">No submarkets</div>'; chart=new Chart(ctx,{type:"bar",data:{labels:[],datasets:[]},options:baseOpts()}); setNote("No submarkets match the current filters."); return; }
+  if(!groups.find(g=>g.label===ST.txnSubmarket)) ST.txnSubmarket=groups[0].label;
+  if(listEl){ listEl.innerHTML=`<div class="sub-list-title">${ST.smLevel} — pick one</div>`+groups.map(g=>`<button type="button" class="sub-item${g.label===ST.txnSubmarket?' active':''}" data-label="${encodeURIComponent(g.label)}">${g.label}</button>`).join("");
+    listEl.querySelectorAll(".sub-item[data-label]").forEach(b=>{ b.onclick=()=>{ ST.txnSubmarket=decodeURIComponent(b.dataset.label); chartTxnBands(); }; }); }
+  const LO=100000, HI=1000000, band=20000; const keys=[]; for(let b=LO;b<HI;b+=band) keys.push(b);
+  const newC=new Array(keys.length).fill(0), resC=new Array(keys.length).fill(0); let below=0,above=0;
+  txnsForSubmarket(ST.txnSubmarket).forEach(t=>{ const p=num(t["Sale Price"]); if(p==null)return; if(p<LO){below++;return;} let b=Math.floor(p/band)*band; if(b>=HI){above++;b=HI-band;} const idx=(b-LO)/band; if(idx>=0&&idx<keys.length){ if(isNewTxn(t)) newC[idx]++; else resC[idx]++; } });
+  const total=newC.reduce((a,b)=>a+b,0)+resC.reduce((a,b)=>a+b,0);
+  chart=new Chart(ctx,{type:"bar",data:{labels:keys.map(k=>"$"+(k/1000)+"k"),datasets:[
+      {label:"Existing (Resale)",data:resC,backgroundColor:"#9aa6b2",borderWidth:0,stack:"t"},
+      {label:"New",data:newC,backgroundColor:color(7),borderWidth:0,stack:"t"}]},
+    options:baseOpts({plugins:{legend:{display:true,labels:{boxWidth:12,font:{size:11}}},tooltip:{callbacks:{title:items=>{const k=keys[items[0].dataIndex];return "$"+(k/1000)+"k–$"+((k+band)/1000)+"k";}}}},
+      scales:{x:{stacked:true,title:{display:true,text:"Sale price ($20k bands · $100k–$1M)"},ticks:{maxRotation:60,minRotation:45,font:{size:10},autoSkip:true,maxTicksLimit:26}},y:{stacked:true,beginAtZero:true,title:{display:true,text:"# of transactions"},ticks:{precision:0}}}})});
+  setNote(`${ST.txnSubmarket} — existing (bottom) + new (top) home sales by $20,000 band ($100k–$1M). ${total} in range${above?`, ${above} ≥ $1M (top band)`:""}${below?`, ${below} < $100k (excluded)`:""}. Pick a ${ST.smLevel.toLowerCase()} on the left.`);
+}
 /* Price History */
 function chartPriceHistory(){
   const field=DB.priceHistPeriodField; destroyChart();
@@ -875,6 +933,9 @@ const TAB_DEFS={
   sales:{id:"sales",label:"Sales Trend",title:"Monthly Sales Trend",render:chartSalesTrend},
   avgprice:{id:"avgprice",label:"Avg New Home Price",title:"Average New Home Price",render:chartAvgPrice},
   pricedelta:{id:"pricedelta",label:"Avg Price Change",title:"Average Price Change",render:chartPriceDelta},
+  medppsf:{id:"medppsf",label:"Median $/Sq Ft",title:"Median Sale Price per Sq Ft",render:chartMedPPSF},
+  txnbands:{id:"txnbands",label:"Home Sales by Price",title:"Home Sales by Price Band",render:chartTxnBands},
+  schoolrating:{id:"schoolrating",label:"School Rating",title:"School District Rating",render:chartSchoolRating},
   allhomes:{id:"allhomes",label:"All Home Sales",title:"All Home Sales (New vs Resale)",render:chartAllHomes},
   sc:{id:"sc",label:"Starts and Closings",title:"Starts and Closings",render:chartStartsClosings},
   lot:{id:"lot",label:"Lot Pipeline",title:"Lot Pipeline",render:chartLotPipeline},
@@ -884,12 +945,12 @@ const TAB_DEFS={
 function currentGtabs(){
   if(ST.mode==="fpp") return [TAB_DEFS.scatter];
   const ids=ST.mode==="submarket"
-    ? ["avgprice","pricedelta","sc",...(DB.hasExist?["allhomes"]:[]),"lot","price","sales"]
+    ? ["avgprice","pricedelta",...(DB.hasExist?["medppsf"]:[]),"sc",...(DB.hasExist?["allhomes","txnbands"]:[]),"lot","price","sales",...(ST.smLevel==="School District"?["schoolrating"]:[])]
     : ["avgprice","pricedelta","sc","lot","price","sales"];
   return ids.map(i=>TAB_DEFS[i]);
 }
-function sizeChartWrap(){ const w=document.getElementById("chartWrap"); if(!w) return;
-  const top=w.getBoundingClientRect().top; w.style.height=Math.max(360,Math.round(window.innerHeight-top-64))+"px"; if(chart) chart.resize(); }
+function sizeChartWrap(){ const stage=document.getElementById("chartStage"); if(!stage) return;
+  const top=stage.getBoundingClientRect().top; stage.style.height=Math.max(360,Math.round(window.innerHeight-top-64))+"px"; if(chart) chart.resize(); }
 function renderGraphicsView(){
   const tabs=currentGtabs(); if(!tabs.find(t=>t.id===ST.gtab)) ST.gtab=tabs[0].id;
   const host=document.getElementById("gtabs"); host.innerHTML="";
@@ -898,6 +959,7 @@ function renderGraphicsView(){
   const tab=tabs.find(t=>t.id===ST.gtab);
   document.getElementById("chartTitle").textContent=tab.title;
   buildChartControls(tab);
+  document.getElementById("submarketList").classList.toggle("hidden", tab.id!=="txnbands");
   barLabels.enabled=false;
   sizeChartWrap();          // maximize chart to fill the browser window (no table in graphics view)
   tab.render();
@@ -913,7 +975,7 @@ function buildChartControls(tab){
   if(tab.id==="lot" && ST.mode==="communities") host.appendChild(seg([{label:"Vacant & Future",val:"inv"},{label:"Quarterly Starts/Closings",val:"quarterly"}],ST.ctl.lpToggle,v=>ST.ctl.lpToggle=v));
   if(tab.id==="pricedelta") host.appendChild(seg([{label:"5 yr",val:5},{label:"3 yr",val:3},{label:"1 yr",val:1}],ST.ctl.deltaYears,v=>ST.ctl.deltaYears=v));
   if(tab.id==="allhomes" && ST.allHomesDrill!=null){ const back=document.createElement("button"); back.className="btn sm"; back.textContent="← Back to submarkets"; back.onclick=()=>{ ST.allHomesDrill=null; renderGraphicsView(); }; host.appendChild(back); }
-  if(["avgprice","pricedelta","sc","lot"].includes(tab.id) || (tab.id==="allhomes" && ST.allHomesDrill==null)){
+  if(["avgprice","pricedelta","medppsf","schoolrating","sc","lot"].includes(tab.id) || (tab.id==="allhomes" && ST.allHomesDrill==null)){
     const on=!!ST.ctl.labels[tab.id]; const b=document.createElement("button"); b.className="btn sm"+(on?" on":""); b.textContent=on?"Remove Labels":"Add Labels";
     b.onclick=()=>{ ST.ctl.labels[tab.id]=!ST.ctl.labels[tab.id]; renderGraphicsView(); }; host.appendChild(b);
   }
