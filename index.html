@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p118r2 -->
+<!-- MIP build p118r3 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p118r2">
+<link rel="stylesheet" href="styles.css?v=p118r3">
 </head>
 <body>
 
@@ -10454,9 +10454,11 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
   /* P118 rev6: Tracked Projects "Agendas" column — same neon #-links as Agenda Items. */
   .tp-agendas-link{color:#3be3ff;text-decoration:none;font-weight:600;}
   .tp-agendas-link:hover{text-decoration:underline;}
-  /* P118r6: cap the column at 5 links wide; #6+ stack in rows of 5 under a "+N" toggle. */
-  .tp-agendas-wrap{max-width:148px;}
-  .tp-agendas-row{display:flex;flex-wrap:wrap;gap:5px;line-height:1.5;}
+  /* P118r6: 5 links per row (single line, no wrap); #6+ stack in rows of 5 under
+     a "+N" toggle. Each row is nowrap so exactly the 5 sliced links stay on one
+     line — the column sizes to fit them rather than wrapping at ~3. */
+  .tp-agendas-wrap{display:inline-block;}
+  .tp-agendas-row{display:flex;flex-wrap:nowrap;gap:5px;line-height:1.6;white-space:nowrap;}
   .tp-agendas-rest{display:none;margin-top:3px;}
   .tp-agendas-wrap.expanded .tp-agendas-rest{display:block;}
   .tp-agendas-more{color:var(--muted,#888);font-size:10px;font-weight:600;cursor:pointer;text-decoration:none;white-space:nowrap;}
