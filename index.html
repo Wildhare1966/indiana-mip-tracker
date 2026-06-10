@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p116r1 -->
+<!-- MIP build p117r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p116r1">
+<link rel="stylesheet" href="styles.css?v=p117r1">
 </head>
 <body>
 
@@ -24,8 +24,8 @@
     <!-- Intelligence Feed nav temporarily removed (P13) — view element and data pipeline retained in code for future re-enable. -->
     <!-- P96: "Hearing Schedule" (Public Hearings) page temporarily hidden per operator request — view element (#view-publichearings) and data pipeline retained in code for future re-enable. To restore, uncomment the button below. -->
     <!-- <button class="topbar-btn" onclick="switchView('publichearings')" id="nav-publichearings">Hearing Schedule</button> -->
+    <button class="topbar-btn" onclick="switchView('candidates')" id="nav-candidates">Agenda Items <span id="nav-cand-badge" style="display:none;background:#1c7c3a;color:#fff;font-size:9px;font-weight:700;padding:0 6px;border-radius:9px;margin-left:2px;vertical-align:middle;"></span></button>
     <button class="topbar-btn" onclick="switchView('tracked')" id="nav-tracked">Tracked Projects</button>
-    <button class="topbar-btn" onclick="switchView('candidates')" id="nav-candidates">Candidates <span id="nav-cand-badge" style="display:none;background:#1c7c3a;color:#fff;font-size:9px;font-weight:700;padding:0 6px;border-radius:9px;margin-left:2px;vertical-align:middle;"></span></button>
     <button class="topbar-btn" onclick="switchView('schedule')" id="nav-schedule">Schedule & Requirements</button>
     <button class="topbar-btn" onclick="switchView('market')" id="nav-market">Zonda</button>
     <button class="topbar-btn" onclick="switchView('settings')" id="nav-settings">⚙ Settings</button>
@@ -393,8 +393,14 @@
             <div class="overview-sub">Cross-jurisdiction roll-up of every project flagged for ordinance / project-name matching. Updates after every scrape.</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-            <input id="tp-filter-juris" type="search" placeholder="Filter jurisdiction…" oninput="tpRenderTable()" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-card,#1a1a1a);color:inherit;border-radius:4px;font-size:12px;width:180px;">
-            <input id="tp-filter-text" type="search" placeholder="Filter project / ordinance / petitioner…" oninput="tpRenderTable()" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-card,#1a1a1a);color:inherit;border-radius:4px;font-size:12px;width:280px;">
+            <select id="tp-filter-juris" onchange="tpRenderTable()" title="Filter by jurisdiction" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-card,#1a1a1a);color:inherit;border-radius:4px;font-size:12px;cursor:pointer;width:180px;"><option value="">All jurisdictions</option></select>
+            <select id="tp-state-filter" onchange="tpRenderTable()" title="Filter by status / recency" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-card,#1a1a1a);color:inherit;border-radius:4px;font-size:12px;cursor:pointer;">
+              <option value="past_week">Past Week</option>
+              <option value="active" selected>Competitor Proposed</option>
+              <option value="competitor_active">Competitor Active</option>
+              <option value="archived">Archive</option>
+            </select>
+            <input id="tp-filter-text" type="search" placeholder="Search project/petitioner/builder…" oninput="tpRenderTable()" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-card,#1a1a1a);color:inherit;border-radius:4px;font-size:12px;width:280px;">
             <select id="tp-sort-key" onchange="tpRenderTable()" title="Sort projects" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-card,#1a1a1a);color:inherit;border-radius:4px;font-size:12px;">
               <option value="">Sort: default</option>
               <option value="project">Sort: Project</option>
@@ -458,8 +464,8 @@
         <div class="cand-main" style="padding:24px 32px;">
         <div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;">
           <div>
-            <div class="overview-title">Project Candidates</div>
-            <div class="overview-sub">Potential Tracked Projects auto-detected from scraped Council / Plan-Commission agendas. Review each one — <b>Track</b> creates a Tracked Project (and auto-matches its past &amp; future hearings); <b>Dismiss</b> removes it from the queue.</div>
+            <div class="overview-title">Agenda Items</div>
+            <div class="overview-sub">Potential Tracked Projects auto-detected from scraped Council / Plan-Commission agendas. Review each one — <b>Track</b> creates a Tracked Project (and auto-associates every related agenda item, past &amp; future); <b>Dismiss</b> removes it from the queue.</div>
           </div>
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
             <select id="cand-filter-juris" onchange="candSetJuris(this.value)" title="Filter by jurisdiction" style="font-size:12px;padding:4px 8px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:6px;cursor:pointer;"><option value="">All jurisdictions</option></select>
@@ -1955,6 +1961,15 @@ function switchView(name) {
   // (style.display='') for every other view.
   var sb = document.querySelector('.sidebar');
   if (sb) sb.style.display = (name === 'market') ? 'none' : '';
+  // When entering the Jurisdictions view, force the County/muni rail expanded so
+  // it's open by default whenever the page opens (overrides a persisted collapse).
+  if (name === 'muni' && sb) {
+    sb.classList.remove('collapsed');
+    var mainEl = document.querySelector('.main');
+    if (mainEl) mainEl.classList.remove('sidebar-collapsed');
+    var tbtn = document.getElementById('sidebar-toggle');
+    if (tbtn) { tbtn.textContent = '‹'; tbtn.title = 'Collapse sidebar'; }
+  }
   // Always-run per-open init for settings (reads fresh state)
   if (name === 'settings') initSettings();
   // One-shot init for lazy-initialized views (PH, Schedule)
@@ -5820,6 +5835,7 @@ function tpLoad(force) {
     .then(function(rows) {
       tpProjects = Array.isArray(rows) ? rows : [];
       tpLoadedAt = Date.now();
+      tpPopulateJurisDropdown(); // P117: refresh juris dropdown options
       // P37 r2: render PH chips immediately on tpProjects update — don't gate
       // on tpLoadDocCounts (doc counts only affect the global tab's Tagged
       // Docs column, never the PH chip list). The post-counts re-render
@@ -5840,27 +5856,56 @@ function tpLoad(force) {
     });
 }
 
+// P117: populate the Tracked Projects jurisdiction dropdown (mirrors the
+// Candidates page format — distinct jurisdictions with counts, alpha-sorted).
+function tpPopulateJurisDropdown() {
+  var sel = document.getElementById('tp-filter-juris');
+  if (!sel) return;
+  var cur = sel.value || '';
+  var counts = {};
+  tpProjects.forEach(function(p) {
+    if ((p.status || 'active').toLowerCase() === 'deleted') return;
+    var j = p.jurisdiction || '—';
+    counts[j] = (counts[j] || 0) + 1;
+  });
+  var names = Object.keys(counts).sort();
+  var html = '<option value="">All jurisdictions</option>';
+  names.forEach(function(j) {
+    html += '<option value="' + escAttr(j) + '"' + (j === cur ? ' selected' : '') + '>' + esc(j) + ' (' + counts[j] + ')</option>';
+  });
+  sel.innerHTML = html;
+}
+
 function tpRenderTable() {
   var tbody = document.getElementById('tp-tbody');
   var statusEl = document.getElementById('tp-status');
   if (!tbody) return;
 
-  var jurisFilter = (document.getElementById('tp-filter-juris')||{}).value || '';
+  var jurisFilter = (document.getElementById('tp-filter-juris')||{}).value || '';   // P117: exact match (dropdown)
   var textFilter  = (document.getElementById('tp-filter-text')||{}).value  || '';
-  jurisFilter = jurisFilter.trim().toLowerCase();
+  var stateFilter = (document.getElementById('tp-state-filter')||{}).value || 'active'; // P117
   textFilter  = textFilter.trim().toLowerCase();
 
-  // P58.7 R13c: archived + closed rows are hidden from the visible list but
-  // remain in the database (status_archive_filter). The dropdown lets users
-  // flip a row to "archive" which sets status='archived' on the backend.
-  // P61 task 2: 'deleted' rows (soft-delete from the Edit dropdown) are also
-  // hidden — same pattern, recoverable via direct sheet edit if needed.
+  // P117: the status/recency dropdown now drives which rows are visible.
+  //  past_week           → any non-deleted project last on an agenda in the last 7 days
+  //  active              → "Competitor Proposed"  (status==='active')
+  //  competitor_active   → "Competitor Active"    (status==='competitor_active')
+  //  archived            → "Archive"              (status==='archived')
+  // 'deleted' (soft-delete) is never shown; recoverable via direct sheet edit.
+  var WEEK_MS = 7 * 24 * 3600 * 1000;
   var rows = tpProjects.filter(function(p) {
     var st = (p.status || 'active').toLowerCase();
-    if (st === 'archived' || st === 'closed' || st === 'deleted' || st === 'competitor_active') return false;
-    if (jurisFilter && (p.jurisdiction||'').toLowerCase().indexOf(jurisFilter) === -1) return false;
+    if (st === 'deleted') return false;
+    if (stateFilter === 'past_week') {
+      var d = p.latestRefDate || p.latestMeetingDate || '';
+      var t = d ? new Date(d).getTime() : 0;
+      if (!(t && (Date.now() - t) <= WEEK_MS)) return false;
+    } else if (st !== stateFilter) {
+      return false;
+    }
+    if (jurisFilter && (p.jurisdiction||'') !== jurisFilter) return false;
     if (textFilter) {
-      var hay = ((p.projectName||'') + ' ' + (p.ordinanceId||'') + ' ' + (p.petitionerApplicant||'') + ' ' + (p.aliases||'')).toLowerCase();
+      var hay = ((p.projectName||'') + ' ' + (p.petitionerApplicant||'') + ' ' + (p.builder||'') + ' ' + (p.ordinanceId||'') + ' ' + (p.aliases||'')).toLowerCase();
       if (hay.indexOf(textFilter) === -1) return false;
     }
     return true;
