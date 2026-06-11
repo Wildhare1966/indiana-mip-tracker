@@ -813,14 +813,17 @@ function chartTxnBands(){
   if(listEl){ listEl.innerHTML=`<div class="sub-list-title">${ST.smLevel} — pick one</div>`+groups.map(g=>`<button type="button" class="sub-item${g.label===ST.txnSubmarket?' active':''}" data-label="${encodeURIComponent(g.label)}">${g.label}</button>`).join("");
     listEl.querySelectorAll(".sub-item[data-label]").forEach(b=>{ b.onclick=()=>{ ST.txnSubmarket=decodeURIComponent(b.dataset.label); chartTxnBands(); }; }); }
   const LO=100000, HI=1000000, band=20000; const keys=[]; for(let b=LO;b<HI;b+=band) keys.push(b);
-  const newC=new Array(keys.length).fill(0), resC=new Array(keys.length).fill(0); let below=0,above=0;
-  txnsForSubmarket(ST.txnSubmarket).forEach(t=>{ const p=num(t["Sale Price"]); if(p==null)return; if(p<LO){below++;return;} let b=Math.floor(p/band)*band; if(b>=HI){above++;b=HI-band;} const idx=(b-LO)/band; if(idx>=0&&idx<keys.length){ if(isNewTxn(t)) newC[idx]++; else resC[idx]++; } });
+  const countBands=txns=>{ const nc=new Array(keys.length).fill(0), rc=new Array(keys.length).fill(0); let below=0,above=0;
+    txns.forEach(t=>{ const p=num(t["Sale Price"]); if(p==null)return; if(p<LO){below++;return;} let b=Math.floor(p/band)*band; if(b>=HI){above++;b=HI-band;} const idx=(b-LO)/band; if(idx>=0&&idx<keys.length){ if(isNewTxn(t)) nc[idx]++; else rc[idx]++; } }); return {nc,rc,below,above}; };
+  // Fixed y-axis: tallest single (new+resale) band across ALL submarkets, so every submarket is read on one scale.
+  let yMax=0; for(const g of groups){ const {nc,rc}=countBands(txnsForSubmarket(g.label)); for(let i=0;i<keys.length;i++){ const h=nc[i]+rc[i]; if(h>yMax)yMax=h; } }
+  const {nc:newC,rc:resC,below,above}=countBands(txnsForSubmarket(ST.txnSubmarket));
   const total=newC.reduce((a,b)=>a+b,0)+resC.reduce((a,b)=>a+b,0);
   chart=new Chart(ctx,{type:"bar",data:{labels:keys.map(k=>"$"+(k/1000)+"k"),datasets:[
       {label:"Existing (Resale)",data:resC,backgroundColor:"#9aa6b2",borderWidth:0,stack:"t"},
       {label:"New",data:newC,backgroundColor:color(7),borderWidth:0,stack:"t"}]},
     options:baseOpts({plugins:{legend:{display:true,labels:{boxWidth:12,font:{size:11}}},tooltip:{callbacks:{title:items=>{const k=keys[items[0].dataIndex];return "$"+(k/1000)+"k–$"+((k+band)/1000)+"k";}}}},
-      scales:{x:{stacked:true,title:{display:true,text:"Sale price ($20k bands · $100k–$1M)"},ticks:{maxRotation:60,minRotation:45,font:{size:10},autoSkip:true,maxTicksLimit:26}},y:{stacked:true,beginAtZero:true,title:{display:true,text:"# of transactions"},ticks:{precision:0}}}})});
+      scales:{x:{stacked:true,title:{display:true,text:"Sale price ($20k bands · $100k–$1M)"},ticks:{maxRotation:60,minRotation:45,font:{size:10},autoSkip:true,maxTicksLimit:26}},y:{stacked:true,beginAtZero:true,max:yMax>0?yMax:undefined,title:{display:true,text:"# of transactions"},ticks:{precision:0}}}})});
   setNote(`${ST.txnSubmarket} — existing (bottom) + new (top) home sales by $20,000 band ($100k–$1M). ${total} in range${above?`, ${above} ≥ $1M (top band)`:""}${below?`, ${below} < $100k (excluded)`:""}. Pick a ${ST.smLevel.toLowerCase()} on the left.`);
 }
 /* Price History */
