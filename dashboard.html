@@ -50,8 +50,16 @@
   .match-count b{color:var(--brand2);font-size:16px}
   .fgroup{margin-bottom:12px}
   .fgroup>label{display:block;font-size:12px;font-weight:600;color:var(--ink);margin-bottom:4px}
-  #smLevelGroup .seg{width:100%}
+  /* the three "basic" controls (Compare / Submarket level / View) are full-width segmented controls */
+  #modeGroup .seg,#smLevelGroup .seg{display:flex;width:100%}
+  #modeGroup .seg button{flex:1;font-size:11.5px;padding:7px 5px;line-height:1.15}
   #smLevelGroup .seg button{flex:1;font-size:12px;padding:7px 4px}
+  /* visually separate the optional filters from the basic options above */
+  .filters h2.optional-filters-head{margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}
+  /* no-mode welcome prompt */
+  .welcome-card{max-width:560px;margin:48px auto;text-align:center;padding:36px 32px}
+  .welcome-card h2{font-size:18px;margin:0 0 12px;color:var(--ink);font-weight:700}
+  .welcome-card p{font-size:14px;color:var(--muted);margin:0;line-height:1.65}
   .ms{position:relative}
   .ms-btn{width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:6px;
     padding:7px 28px 7px 10px;font-size:13px;cursor:pointer;color:var(--ink);position:relative;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -237,14 +245,6 @@
 
 <header class="app">
   <div><h1>Zonda Dashboard <span class="sub">· Indianapolis New Home Market</span></h1></div>
-  <div class="compare-center">
-    <span class="lbl">Compare</span>
-    <div class="seg dark" id="modeSeg">
-      <button data-mode="submarket">Submarket</button>
-      <button data-mode="communities">Communities</button>
-      <button data-mode="fpp">Floor Plan Pricing</button>
-    </div>
-  </div>
   <div class="hdr-actions">
     <button class="btn ghost sm" id="exportCsvBtn">Download Filtered Data (CSV)</button>
   </div>
@@ -257,9 +257,13 @@
       <button class="rail-toggle" id="railToggle" title="Collapse panel">«</button>
     </div>
     <div id="railBody">
-      <div class="seg view-seg" id="viewSeg">
-        <button data-view="table">Table</button>
-        <button data-view="graphics">Graphics</button>
+      <div class="fgroup" id="modeGroup">
+        <label>Compare</label>
+        <div class="seg" id="modeSeg">
+          <button data-mode="submarket">Submarket</button>
+          <button data-mode="communities">Communities</button>
+          <button data-mode="fpp">Floor Plan Pricing</button>
+        </div>
       </div>
       <div class="fgroup hidden" id="smLevelGroup">
         <label>Submarket level</label>
@@ -269,17 +273,34 @@
           <button data-lvl="School District">School</button>
         </div>
       </div>
-      <h2>Filters</h2>
-      <div class="match-count">Matching communities: <b id="matchCount">0</b></div>
-      <div id="filterControls"></div>
-      <div class="btn-row" style="margin-top:14px"><button class="btn primary" id="applyFiltersBtn" style="flex:1">Apply Filter</button></div>
-      <div class="btn-row"><button class="btn" id="clearFiltersBtn" style="flex:1">Clear All Filters</button></div>
+      <div class="fgroup" id="viewGroup">
+        <label>View</label>
+        <div class="seg view-seg" id="viewSeg">
+          <button data-view="table">Table</button>
+          <button data-view="graphics">Graphics</button>
+        </div>
+      </div>
+      <div id="filtersSection" class="hidden">
+        <h2 class="optional-filters-head">Optional Filters</h2>
+        <div class="match-count">Matching communities: <b id="matchCount">0</b></div>
+        <div id="filterControls"></div>
+        <div class="btn-row" style="margin-top:14px"><button class="btn primary" id="applyFiltersBtn" style="flex:1">Apply Filter</button></div>
+        <div class="btn-row"><button class="btn" id="clearFiltersBtn" style="flex:1">Clear All Filters</button></div>
+      </div>
     </div>
   </aside>
 
   <main class="content">
-    <div class="kpi-bar"><button id="kpiToggle">▾ Hide stats</button></div>
+    <div class="kpi-bar" id="kpiBar"><button id="kpiToggle">▾ Hide stats</button></div>
     <div class="kpis" id="kpis"></div>
+
+    <!-- WELCOME / NO-MODE PROMPT -->
+    <div id="welcomePrompt" class="hidden">
+      <div class="card welcome-card">
+        <h2>Choose a comparison to begin</h2>
+        <p>Pick <b>Submarket</b>, <b>Communities</b>, or <b>Floor Plan Pricing</b> under <b>Compare</b> in the Controls panel on the left to load the dashboard.</p>
+      </div>
+    </div>
 
     <!-- TABLE VIEW -->
     <div id="tableView">
@@ -414,14 +435,14 @@ function finishLoad(parsed){
   collect(DB.sales); collect(DB.priceHist); collect(DB.fpPrice);
   if(DB.hasExist){ for(const t of DB.exist){ const p=parsePeriod(t["Sale Date"]); if(p)mk.add(p.monthKey); } }
   DB.monthKeys=[...mk].sort((a,b)=>a-b);
-  buildFilters(); appl=cloneApplied(); setMode("submarket",true); setView("table",true);
+  buildFilters(); appl=cloneApplied(); setMode(null,true); setView("table",true);
   document.getElementById("overlay").classList.add("hidden"); applyAndRender();
 }
 
 /* ============================================================= *
  *  App state
  * ============================================================= */
-const ST={ mode:"submarket", view:"table", smLevel:"City", excluded:new Set(), gtab:"avgprice",
+const ST={ mode:null, view:"table", smLevel:"City", excluded:new Set(), gtab:"avgprice",
   sort:{key:null,dir:1}, allHomesDrill:null, fppAddNew:false, fppAddResale:false, colOrder:{}, planPrices:{}, txnSubmarket:null,
   ctl:{ salesMode:"agg", priceMode:"agg", scToggle:"annual", lpToggle:"inv", deltaYears:1,
     labels:{ avgprice:true, allhomes:true, sc:true, lot:true, pricedelta:true, medppsf:true, schoolrating:true } } };
@@ -506,6 +527,17 @@ document.getElementById("clearFiltersBtn").onclick=()=>{
 function updateFilterVisibility(){
   document.querySelectorAll(".fgroup[data-scope]").forEach(g=>{ if(g.dataset.scope==="base")return; g.classList.toggle("hidden",!scopeVisible(g.dataset.scope)); });
   document.getElementById("smLevelGroup").classList.toggle("hidden",ST.mode!=="submarket");
+  // the whole filters block only appears once a Compare mode is chosen
+  document.getElementById("filtersSection").classList.toggle("hidden",!ST.mode);
+}
+/* Show the welcome prompt until a Compare mode is picked; otherwise reveal KPIs + the active view. */
+function updateContentVisibility(){
+  const noMode=!ST.mode;
+  document.getElementById("welcomePrompt").classList.toggle("hidden",!noMode);
+  document.getElementById("kpiBar").classList.toggle("hidden",noMode);
+  document.getElementById("kpis").classList.toggle("hidden",noMode||!kpiVisible);
+  document.getElementById("tableView").classList.toggle("hidden",noMode||ST.view!=="table");
+  document.getElementById("graphicsView").classList.toggle("hidden",noMode||ST.view!=="graphics");
 }
 
 /* ============================================================= *
@@ -518,9 +550,7 @@ function setMode(mode,silent){ ST.mode=mode; ST.excluded.clear(); ST.sort={key:n
   updateFilterVisibility(); if(!silent) applyAndRender(); }
 function setView(view,silent){ ST.view=view;
   document.querySelectorAll("#viewSeg button").forEach(b=>b.classList.toggle("active",b.dataset.view===view));
-  document.getElementById("tableView").classList.toggle("hidden",view!=="table");
-  document.getElementById("graphicsView").classList.toggle("hidden",view!=="graphics");
-  if(!silent) applyAndRender(); }
+  if(!silent) applyAndRender(); else updateContentVisibility(); }
 document.querySelectorAll("#modeSeg button").forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
 document.querySelectorAll("#viewSeg button").forEach(b=>b.onclick=()=>setView(b.dataset.view));
 document.querySelectorAll("#smLevelSeg button").forEach(b=>b.onclick=()=>{ ST.smLevel=b.dataset.lvl; ST.excluded.clear(); ST.sort={key:null,dir:1}; ST.allHomesDrill=null; ST.txnSubmarket=null;
@@ -528,8 +558,8 @@ document.querySelectorAll("#smLevelSeg button").forEach(b=>b.onclick=()=>{ ST.sm
 document.getElementById("railToggle").onclick=()=>{ railCollapsed=!railCollapsed; document.getElementById("rail").classList.toggle("collapsed",railCollapsed);
   document.getElementById("railToggle").textContent=railCollapsed?"»":"«"; document.getElementById("railToggle").title=railCollapsed?"Expand panel":"Collapse panel"; };
 document.getElementById("kpiToggle").onclick=()=>{ kpiVisible=!kpiVisible; document.getElementById("kpis").classList.toggle("hidden",!kpiVisible);
-  document.getElementById("kpiToggle").textContent=kpiVisible?"▾ Hide stats":"▸ Show stats"; if(ST.view==="graphics") sizeChartWrap(); };
-window.addEventListener("resize",()=>{ if(ST.view==="graphics") sizeChartWrap(); });
+  document.getElementById("kpiToggle").textContent=kpiVisible?"▾ Hide stats":"▸ Show stats"; if(ST.view==="graphics") sizeChartWrap(); else sizeTableWrap(); };
+window.addEventListener("resize",()=>{ if(ST.view==="graphics") sizeChartWrap(); else sizeTableWrap(); });
 
 /* ============================================================= *
  *  Filtering + active set
@@ -598,20 +628,22 @@ function buildCommunitiesTable(){
     {id:"status",label:"Status",type:"str"},{id:"city",label:"City",type:"str"},{id:"county",label:"County",type:"str"},{id:"school",label:"School District",type:"str"},
     {id:"ptype",label:"Product Type",type:"str"},{id:"pstyle",label:"Product Style",type:"str"},{id:"avgPrice",label:"Avg New Home Price",type:"num",default:"desc"},
     {id:"minPrice",label:"Min Price",type:"num"},{id:"maxPrice",label:"Max Price",type:"num"},{id:"rate",label:"Sales Rate",type:"num"},{id:"l3m",label:"Last 3M Avg Sales",type:"num"},
+    {id:"l6m",label:"Last 6M Avg Sales",type:"num"},{id:"l12m",label:"Last 12M Avg Sales",type:"num"},
     {id:"planned",label:"Units Planned",type:"num"},{id:"sold",label:"Units Sold",type:"num"},{id:"remaining",label:"Units Remaining",type:"num"},
-    {id:"astarts",label:"Annual Starts",type:"num"},{id:"aclos",label:"Annual Closings",type:"num"},{id:"qstarts",label:"Qtr Starts",type:"num"},{id:"qclos",label:"Qtr Closings",type:"num"},
-    {id:"fvac",label:"Finished Vacant",type:"num"},{id:"future",label:"Future Inventory",type:"num"},{id:"qmis",label:"QMIs",type:"num"},{id:"size",label:"Avg Unit Size",type:"num"},
+    {id:"astarts",label:"Annual Starts",type:"num"},{id:"aclos",label:"Annual Closings",type:"num"},{id:"qstarts",label:"Quarterly Starts",type:"num"},{id:"qclos",label:"Quarterly Closings",type:"num"},
+    {id:"fvac",label:"Finished Vacant",type:"num"},{id:"future",label:"Future Inventory",type:"num"},{id:"vdlot",label:"Vacant Developed Lots",type:"num"},{id:"vland",label:"Vacant Land Count",type:"num"},
+    {id:"qmis",label:"QMIs",type:"num"},{id:"size",label:"Avg Unit Size",type:"num"},{id:"lotWidth",label:"Lot Width",type:"num"},
     {id:"mos",label:"Months of Supply",type:"num"},{id:"open",label:"Open Date",type:"str"}];
   const rows=filteredDetails.map(r=>{
     const v={name:str(r["Project Name"]),builder:str(r["Builders"]),parent:str(r["Parent Builder"]),status:str(r["Status"]),city:str(r["City"]),county:str(r["County"]),
       school:str(r["School District"]),ptype:str(r["Product Type"]),pstyle:str(r["Product Style"]),avgPrice:num(r["Avg. List Price"]),minPrice:num(r["Min. List Price"]),
-      maxPrice:num(r["Max. List Price"]),rate:num(r["Sales Rate"]),l3m:num(r["Last 3M Avg. Sales"]),planned:num(r["Total Units Planned"]),sold:num(r["Total Units Sold"]),
+      maxPrice:num(r["Max. List Price"]),rate:num(r["Sales Rate"]),l3m:num(r["Last 3M Avg. Sales"]),l6m:num(r["Last 6M Avg. Sales"]),l12m:num(r["Last 12M Avg. Sales"]),planned:num(r["Total Units Planned"]),sold:num(r["Total Units Sold"]),
       remaining:num(r["Total Units Remaining"]),astarts:num(r["Annual Starts"]),aclos:num(r["Annual Closings"]),qstarts:num(r["Quarterly Starts"]),qclos:num(r["Quarterly Closings"]),
-      fvac:num(r["Finished Vacant Count"]),future:num(r["Future Inventory Count"]),qmis:num(r["Total QMIs"]),size:num(r["Avg. Unit Size"]),mos:num(r["Inventory Months of Supply"]),open:str(r["Open Date"])};
+      fvac:num(r["Finished Vacant Count"]),future:num(r["Future Inventory Count"]),vdlot:num(r["Vacant Developed Lot Count"]),vland:num(r["Vacant Land Count"]),qmis:num(r["Total QMIs"]),size:num(r["Avg. Unit Size"]),lotWidth:num(r["Lot Width"]),mos:num(r["Inventory Months of Supply"]),open:str(r["Open Date"])};
     return {key:str(r["Universal ID"]),values:v,display:{name:v.name||"—",builder:v.builder||"—",parent:v.parent||"—",status:statusPill(v.status),city:v.city||"—",county:v.county||"—",
       school:v.school||"—",ptype:v.ptype||"—",pstyle:v.pstyle||"—",avgPrice:fmtMoney(v.avgPrice),minPrice:fmtMoney(v.minPrice),maxPrice:fmtMoney(v.maxPrice),rate:fmt1(v.rate),
-      l3m:fmt1(v.l3m),planned:fmtInt(v.planned),sold:fmtInt(v.sold),remaining:fmtInt(v.remaining),astarts:fmtInt(v.astarts),aclos:fmtInt(v.aclos),qstarts:fmtInt(v.qstarts),
-      qclos:fmtInt(v.qclos),fvac:fmtInt(v.fvac),future:fmtInt(v.future),qmis:fmtInt(v.qmis),size:fmtInt(v.size),mos:fmt1(v.mos),open:v.open||"—"}};
+      l3m:fmt1(v.l3m),l6m:fmt1(v.l6m),l12m:fmt1(v.l12m),planned:fmtInt(v.planned),sold:fmtInt(v.sold),remaining:fmtInt(v.remaining),astarts:fmtInt(v.astarts),aclos:fmtInt(v.aclos),qstarts:fmtInt(v.qstarts),
+      qclos:fmtInt(v.qclos),fvac:fmtInt(v.fvac),future:fmtInt(v.future),vdlot:fmtInt(v.vdlot),vland:fmtInt(v.vland),qmis:fmtInt(v.qmis),size:fmtInt(v.size),lotWidth:fmtInt(v.lotWidth),mos:fmt1(v.mos),open:v.open||"—"}};
   });
   return {cols,rows};
 }
@@ -675,7 +707,7 @@ function renderTableInto(cfg){
   tbl.querySelector(".chkAll").onchange=e=>{ if(e.target.checked) rows.forEach(r=>ST.excluded.delete(r.key)); else rows.forEach(r=>ST.excluded.add(r.key)); renderTableInto(cfg); cfg.onToggle&&cfg.onToggle(); };
   updateMeta();
 }
-function renderTableView(){ renderTableInto({tableEl:document.getElementById("dataTable"),titleEl:document.getElementById("tableTitle"),metaEl:document.getElementById("tableMeta"),onToggle:null}); }
+function renderTableView(){ renderTableInto({tableEl:document.getElementById("dataTable"),titleEl:document.getElementById("tableTitle"),metaEl:document.getElementById("tableMeta"),onToggle:null}); sizeTableWrap(); }
 
 /* ============================================================= *
  *  Charts
@@ -954,6 +986,10 @@ function currentGtabs(){
 }
 function sizeChartWrap(){ const stage=document.getElementById("chartStage"); if(!stage) return;
   const top=stage.getBoundingClientRect().top; stage.style.height=Math.max(360,Math.round(window.innerHeight-top-64))+"px"; if(chart) chart.resize(); }
+/* Fit the table's scroll box to the viewport so its horizontal scrollbar stays pinned near the
+   bottom of the window — the user never has to scroll past every row to reach it. */
+function sizeTableWrap(){ if(ST.view!=="table"||!ST.mode) return; const tw=document.querySelector("#tableView .table-wrap"); if(!tw) return;
+  const top=tw.getBoundingClientRect().top; tw.style.maxHeight=Math.max(220,Math.round(window.innerHeight-top-28))+"px"; }
 function renderGraphicsView(){
   const tabs=currentGtabs(); if(!tabs.find(t=>t.id===ST.gtab)) ST.gtab=tabs[0].id;
   const host=document.getElementById("gtabs"); host.innerHTML="";
@@ -1046,6 +1082,8 @@ document.getElementById("exportCsvBtn").onclick=()=>{
 };
 
 function applyAndRender(){
+  updateContentVisibility();
+  if(!ST.mode) return;  // no comparison chosen yet — welcome prompt is showing
   computeFiltered(); document.getElementById("matchCount").textContent=filteredIds.size; renderKpis();
   if(ST.view==="table") renderTableView(); else renderGraphicsView();
 }
