@@ -429,7 +429,7 @@ function finishLoad(parsed){
   DB.existByCity=new Map(); DB.existByCounty=new Map(); DB.existBySchool=new Map();
   const pushTo=(m,k,v)=>{ if(!k)return; (m.get(k)||m.set(k,[]).get(k)).push(v); };
   for(const t of DB.exist){ pushTo(DB.existByCity,str(t["City"]).toLowerCase(),t);
-    pushTo(DB.existByCounty,str(t["County"]).toLowerCase(),t); pushTo(DB.existBySchool,str(t["School District"]).toLowerCase(),t); }
+    pushTo(DB.existByCounty,str(t["County"]).toLowerCase(),t); pushTo(DB.existBySchool,schoolKey(t["School District"]),t); }
   DB.hasExist=DB.exist.length>0;
   const mk=new Set(); const collect=arr=>{ for(const r of arr){ const p=parsePeriod(r["Period"]); if(p)mk.add(p.monthKey); } };
   collect(DB.sales); collect(DB.priceHist); collect(DB.fpPrice);
@@ -584,6 +584,18 @@ function activeGroups(){ if(ST.mode==="submarket"){ const arr=[]; for(const [v,o
 function sumField(ids,field){ let s=0; for(const id of ids){ const r=DB.byId.get(id); if(!r)continue; const v=num(r[field]); if(v!=null)s+=v; } return s; }
 const grainNoun=()=>ST.mode==="submarket"?"submarket":"project";
 function existIndexForLevel(){ return ST.smLevel==="City"?DB.existByCity: ST.smLevel==="County"?DB.existByCounty: DB.existBySchool; }
+/* School-district names differ between ProjectDetails (abbreviated: "Com Sch Corp") and
+   ExistingTransactions (expanded: "Community School Corporation"), so the two can't be joined
+   by raw string. Match on a normalized significant-token signature instead. City/County names
+   match across the two sources, so those keep a simple lowercase key. */
+const DISTRICT_ABBR={com:"community",comm:"community",sch:"school",schs:"school",corp:"corporation",con:"consolidated",cons:"consolidated",dist:"district",twp:"township",hts:"heights",ctr:"center",msd:"metropolitan"};
+const DISTRICT_STOP=new Set(["community","school","schools","corporation","consolidated","district","of","the","metropolitan","m","s","d","united","city","town","schl","corp"]);
+const DISTRICT_ALIAS={"new|palestine":"county|hancock|southern"}; // New Palestine is served by the Southern Hancock Co. district
+function schoolKey(name){ const toks=str(name).toLowerCase().replace(/[^a-z0-9]+/g," ").split(" ")
+    .filter(Boolean).map(t=>DISTRICT_ABBR[t]||t).filter(t=>!DISTRICT_STOP.has(t));
+  const sig=[...new Set(toks)].sort().join("|"); return DISTRICT_ALIAS[sig]||sig; }
+/* Level-aware lookup key: school districts go through schoolKey(); city/county stay lowercase. */
+function existKey(label){ return ST.smLevel==="School District"?schoolKey(label):str(label).toLowerCase(); }
 
 /* ============================================================= *
  *  KPIs
@@ -812,7 +824,7 @@ function ratingNums(v){ return str(v).split(/[;,\/]/).map(x=>num(x)).filter(x=>x
 function districtRating(ids){ let s=0,n=0; for(const id of ids){ const r=DB.byId.get(id); if(!r)continue;
   ["School Ratings (Elementary)","School Ratings (Middle)","School Ratings (High)"].forEach(f=>{ ratingNums(r[f]).forEach(x=>{s+=x;n++;}); }); } return n?s/n:null; }
 function medianOf(arr){ if(!arr.length)return null; const a=[...arr].sort((x,y)=>x-y); const m=a.length>>1; return a.length%2?a[m]:(a[m-1]+a[m])/2; }
-function txnsForSubmarket(label){ return (existIndexForLevel().get(str(label).toLowerCase())||[]).filter(txnInPeriod); }
+function txnsForSubmarket(label){ return (existIndexForLevel().get(existKey(label))||[]).filter(txnInPeriod); }
 function txnPPSF(t){ let p=num(t["Sale PricePer Sq ft"]); if(p==null){ const sp=num(t["Sale Price"]),sz=num(t["Unit Size"]); if(sp!=null&&sz) p=sp/sz; } return (p!=null&&p>0&&p<2000)?p:null; }
 function chartSchoolRating(){
   destroyChart();
@@ -856,7 +868,9 @@ function chartTxnBands(){
       {label:"New",data:newC,backgroundColor:color(7),borderWidth:0,stack:"t"}]},
     options:baseOpts({plugins:{legend:{display:true,labels:{boxWidth:12,font:{size:11}}},tooltip:{callbacks:{title:items=>{const k=keys[items[0].dataIndex];return "$"+(k/1000)+"k–$"+((k+band)/1000)+"k";}}}},
       scales:{x:{stacked:true,title:{display:true,text:"Sale price ($20k bands · $100k–$1M)"},ticks:{maxRotation:60,minRotation:45,font:{size:10},autoSkip:true,maxTicksLimit:26}},y:{stacked:true,beginAtZero:true,max:yMax>0?yMax:undefined,title:{display:true,text:"# of transactions"},ticks:{precision:0}}}})});
-  setNote(`${ST.txnSubmarket} — existing (bottom) + new (top) home sales by $20,000 band ($100k–$1M). ${total} in range${above?`, ${above} ≥ $1M (top band)`:""}${below?`, ${below} < $100k (excluded)`:""}. Pick a ${ST.smLevel.toLowerCase()} on the left.`);
+  setNote(total+below+above>0
+    ? `${ST.txnSubmarket} — existing (bottom) + new (top) home sales by $20,000 band ($100k–$1M). ${total} in range${above?`, ${above} ≥ $1M (top band)`:""}${below?`, ${below} < $100k (excluded)`:""}. Pick a ${ST.smLevel.toLowerCase()} on the left.`
+    : `${ST.txnSubmarket} — no existing-home sales recorded in the data for this ${ST.smLevel.toLowerCase()}. Pick another ${ST.smLevel.toLowerCase()} on the left.`);
 }
 /* Price History */
 function chartPriceHistory(){
@@ -907,7 +921,7 @@ function chartAllHomes(){
   destroyChart();
   if(ST.allHomesDrill==null){
     const groups=activeGroups(); const idx=existIndexForLevel();
-    let rows=groups.map(g=>{ const txns=(idx.get(g.label.toLowerCase())||[]).filter(txnInPeriod); let nw=0,rs=0; for(const t of txns){ if(isNewTxn(t))nw++; else rs++; } return {label:g.label,nw,rs,total:nw+rs}; }).filter(r=>r.total>0).sort((a,b)=>b.total-a.total);
+    let rows=groups.map(g=>{ const txns=(idx.get(existKey(g.label))||[]).filter(txnInPeriod); let nw=0,rs=0; for(const t of txns){ if(isNewTxn(t))nw++; else rs++; } return {label:g.label,nw,rs,total:nw+rs}; }).filter(r=>r.total>0).sort((a,b)=>b.total-a.total);
     if(!rows.length){ chart=new Chart(ctx,{type:"bar",data:{labels:[],datasets:[]},options:baseOpts()}); setNote(`No existing-transaction matches for the selected submarkets (matched on ${ST.smLevel}).`); return; }
     let note=`All home sales by ${ST.smLevel} — New (top) vs Resale (bottom). Click a bar to drill into $10k price bands.`;
     if(rows.length>30){ note+=` Showing top 30 of ${rows.length}.`; rows=rows.slice(0,30); }
@@ -919,7 +933,7 @@ function chartAllHomes(){
     setNote(note+(labelsOn?" Labels show New + Resale total.":""));
   } else {
     barLabels.enabled=false;
-    const V=ST.allHomesDrill; const txns=(existIndexForLevel().get(V.toLowerCase())||[]).filter(txnInPeriod);
+    const V=ST.allHomesDrill; const txns=(existIndexForLevel().get(existKey(V))||[]).filter(txnInPeriod);
     const TOP=1000000, band=10000;                                  // bottom axis always tops out at $1,000,000
     let minP=Infinity; for(const t of txns){ const p=num(t["Sale Price"]); if(p!=null) minP=Math.min(minP,p); }
     let low=isFinite(minP)?Math.floor(Math.min(minP,TOP-band)/band)*band:0; low=Math.max(0,low);
