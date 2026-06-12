@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p118r3 -->
+<!-- MIP build p120r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -8,10 +8,10 @@
      newly-deployed FE reaches users without manual hard-reload. -->
 <meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p118r3">
+<link rel="stylesheet" href="styles.css?v=p120r1">
 </head>
 <body>
 
@@ -32,6 +32,8 @@
     <!-- P80 Stage 1.8: operator-only review queue. Hidden until isOperator()
          flips it visible at boot. -->
     <button class="topbar-btn" onclick="switchView('reviewqueue')" id="nav-reviewqueue" style="display:none;">⚑ Review Queue</button>
+    <!-- P120: operator-only agenda-parse-status diagnostics. Hidden until isOperator() at boot. -->
+    <button class="topbar-btn" onclick="switchView('parsestatus')" id="nav-parsestatus" style="display:none;">⚙ Parse Status</button>
   </div>
   <div class="topbar-right">
     <span class="topbar-badge">Central Indiana · 9 Counties</span>
@@ -608,6 +610,49 @@
               </tr>
             </thead>
             <tbody id="rq-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- P120: AGENDA PARSE STATUS VIEW (operator-only). Per-document extraction
+         outcome for every in-scope agenda, so the operator can review the
+         not-parsed ones (manual review / alternate approach). Backed by the
+         read-only admin_run fn=auditAgendaExtractionDocs. -->
+    <div id="view-parsestatus" class="view">
+      <div style="padding:24px 32px;max-width:1500px;margin:0 auto;width:100%;">
+        <div style="margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+          <div>
+            <div class="overview-title">Agenda Parse Status</div>
+            <div class="overview-sub">Per-document extraction outcome for every in-scope agenda (Council / Plan Commission, ≥ 2025-01-01). Review the not-parsed ones to decide manual review vs. an alternate approach.</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <select id="ps-bucket" onchange="loadParseStatus()" style="font-size:11px;padding:5px 8px;background:var(--input-bg,#1a1a2e);color:var(--text);border:1px solid var(--border);border-radius:5px;">
+              <option value="noitems,err,pending">Needs attention (no-items + errors + pending)</option>
+              <option value="err">Errors only</option>
+              <option value="noitems">No items found</option>
+              <option value="pending">Pending (not yet processed)</option>
+              <option value="all">All (incl. parsed)</option>
+            </select>
+            <input type="text" id="ps-juris" placeholder="Filter jurisdiction…" oninput="psApplyFilter()" style="font-size:11px;padding:5px 8px;background:var(--input-bg,#1a1a2e);color:var(--text);border:1px solid var(--border);border-radius:5px;width:160px;">
+            <button class="refresh-btn" onclick="loadParseStatus()" id="ps-refresh-btn">↺ Reload</button>
+          </div>
+        </div>
+        <div id="ps-summary" style="font-size:11px;color:var(--text-dim);margin-bottom:10px;"></div>
+        <div id="ps-table-wrap" style="overflow-x:auto;">
+          <table id="ps-table" style="width:100%;border-collapse:collapse;font-size:11px;">
+            <thead>
+              <tr style="text-align:left;border-bottom:1px solid var(--border);">
+                <th style="padding:8px 6px;">Jurisdiction</th>
+                <th style="padding:8px 6px;">Date</th>
+                <th style="padding:8px 6px;">Body</th>
+                <th style="padding:8px 6px;">Title</th>
+                <th style="padding:8px 6px;">Status</th>
+                <th style="padding:8px 6px;text-align:right;">Items</th>
+                <th style="padding:8px 6px;">Source</th>
+              </tr>
+            </thead>
+            <tbody id="ps-tbody"></tbody>
           </table>
         </div>
       </div>
@@ -1643,10 +1688,25 @@ async function fetchScrapedDocuments() {
   }
   if (!shouldRefetch) return;
 
+  // P120: optimistic CDN-snapshot paint on a COLD open (no cache) — the ~3.84MB
+  // agenda/minutes wire paints sub-second from raw.githubusercontent while the
+  // live fetch below runs. Guarded by _sdLive + SCRAPED_DOCS.length so a late
+  // snapshot never clobbers the live result.
+  let _sdLive = false;
+  if (!SCRAPED_DOCS.length) {
+    mipSnapshot('scraped_documents.json').then(snap => {
+      if (_sdLive || SCRAPED_DOCS.length || !Array.isArray(snap) || !snap.length) return;
+      SCRAPED_DOCS = snap;
+      console.log('[MIP] Scraped documents: ' + snap.length + ' items (from CDN snapshot)');
+      rerenderHearingsIfActive();
+    });
+  }
+
   try {
     const resp = await fetch(url + '&action=scraped_documents', { signal: AbortSignal.timeout(45000) });
     const data = await resp.json();
     if (Array.isArray(data) && data.length) {
+      _sdLive = true;
       SCRAPED_DOCS = data;
       console.log('[MIP] Scraped documents: ' + data.length + ' items loaded');
       try {
@@ -1794,7 +1854,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
   } else {
+    // P120: optimistic CDN-snapshot paint on a COLD open (empty localStorage).
+    // bootstrap.json carries the whole on-load payload (municipalities + hearings
+    // + county_groups + cadence); painting it the moment it lands removes the
+    // ~3s blank wait on the live bootstrap below, which then overwrites. Guarded
+    // by _bsLive + MUNICIPALITIES.length so a late snapshot never clobbers live.
+    let _bsLive = false;
+    mipSnapshot('bootstrap.json').then(snap => {
+      if (_bsLive || MUNICIPALITIES.length || !snap) return;
+      if (Array.isArray(snap.municipalities) && snap.municipalities.length && snap.municipalities[0].id) MUNICIPALITIES = snap.municipalities;
+      if (snap.hearings && typeof snap.hearings === 'object' && !Array.isArray(snap.hearings)) PUBLIC_HEARINGS = snap.hearings;
+      if (Array.isArray(snap.county_groups) && snap.county_groups.length) COUNTY_GROUPS = snap.county_groups;
+      if (snap.cadence && typeof snap.cadence === 'object') MUNI_CADENCE = snap.cadence;
+      if (MUNICIPALITIES.length) renderCore();
+    });
     await refreshMuniDataIfStale();
+    _bsLive = true;
     renderCore();
     checkGeminiKeyBanner();
     checkMuniDataBanner();
@@ -9140,6 +9215,70 @@ setTimeout(function(){ try{ candLoad(); }catch(e){} }, 3000);
 
 window.loadReviewQueue = loadReviewQueue;
 window.resolveReview = resolveReview;
+
+// ── P120: Agenda Parse Status diagnostics ─────────────────────────────────────
+// Operator-only per-document extraction outcome. Backed by the read-only
+// admin_run fn=auditAgendaExtractionDocs (token forwarded by getWebAppUrl()).
+var _psData = [];     // last-loaded docs array (server-side bucket filter applied)
+function loadParseStatus(){
+  var base = getWebAppUrl();
+  var tbody = document.getElementById('ps-tbody');
+  var summary = document.getElementById('ps-summary');
+  if(!base){ if(summary) summary.textContent = 'No dashboard connection configured.'; return; }
+  var bucket = (document.getElementById('ps-bucket')||{}).value || 'noitems,err,pending';
+  if(summary) summary.textContent = 'Loading…';
+  if(tbody) tbody.innerHTML = '';
+  fetch(base + '&action=admin_run&fn=auditAgendaExtractionDocs&bucket=' + encodeURIComponent(bucket))
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      var rr = res && res.result;
+      if(!rr || !rr.ok){ if(summary) summary.textContent = 'Could not load: ' + _diagEsc((rr&&rr.error)||(res&&res.error)||'unknown'); return; }
+      _psData = rr.docs || [];
+      psRenderSummary(rr);
+      psApplyFilter();
+    })
+    .catch(function(e){ if(summary) summary.textContent = 'Network error: ' + _diagEsc(e.message); });
+}
+function psRenderSummary(rr){
+  var summary = document.getElementById('ps-summary'); if(!summary) return;
+  var c = rr.counts || {};
+  var trunc = rr.truncated ? ' · <span style="color:#c0392b;">⚠ truncated to '+rr.returned+' rows</span>' : '';
+  summary.innerHTML = '<b>'+(c.ok||0)+'</b> parsed · <b>'+(c.noitems||0)+'</b> no-items · <b>'+(c.err||0)
+    +'</b> errors · <b>'+(c.pending||0)+'</b> pending · <b>'+(c.dedup||0)+'</b> dedup — showing <b>'
+    +rr.returned+'</b> matching row(s)' + trunc;
+}
+function _psBadge(bucket, marker){
+  var color = {ok:'#1c7c3a', noitems:'#9a6a00', err:'#9a2a2a', pending:'#555', dedup:'#2a5f9a'}[bucket] || '#555';
+  var label = {ok:'parsed', noitems:'no items', err:'error', pending:'pending', dedup:'dedup'}[bucket] || bucket;
+  return '<span title="'+_diagEsc(marker||'')+'" style="background:'+color+';color:#fff;font-size:9px;font-weight:700;padding:1px 7px;border-radius:9px;white-space:nowrap;">'+_diagEsc(label)+'</span>';
+}
+function psApplyFilter(){
+  var term = ((document.getElementById('ps-juris')||{}).value||'').trim().toLowerCase();
+  psRenderRows(_psData.filter(function(d){ return !term || (d.jurisdiction||'').toLowerCase().indexOf(term) !== -1; }));
+}
+function psRenderRows(rows){
+  var tbody = document.getElementById('ps-tbody'); if(!tbody) return;
+  if(!rows.length){ tbody.innerHTML = '<tr><td colspan="7" style="padding:14px 6px;color:var(--text-dim);">No documents match.</td></tr>'; return; }
+  tbody.innerHTML = rows.map(function(d){
+    var href = (typeof inlineViewerUrl === 'function') ? inlineViewerUrl(d.source_url||'') : (d.source_url||'');
+    var src = d.source_url ? '<a href="'+escUrl(href)+'" target="_blank" rel="noopener" style="color:var(--accent,#4a9eff);">open ↗</a>' : '<span style="color:var(--text-dim);">—</span>';
+    return '<tr style="border-bottom:1px solid var(--border);">'
+      + '<td style="padding:6px;">'+_diagEsc(d.jurisdiction||'—')+'</td>'
+      + '<td style="padding:6px;white-space:nowrap;">'+_diagEsc(d.date||'—')+'</td>'
+      + '<td style="padding:6px;">'+_diagEsc(d.body||'—')+'</td>'
+      + '<td style="padding:6px;max-width:380px;">'+_diagEsc(d.title||'—')+'</td>'
+      + '<td style="padding:6px;">'+_psBadge(d.bucket, d.marker)+'</td>'
+      + '<td style="padding:6px;text-align:right;">'+(d.item_count||0)+'</td>'
+      + '<td style="padding:6px;white-space:nowrap;">'+src+'</td>'
+      + '</tr>';
+  }).join('');
+}
+registerViewInit('parsestatus', loadParseStatus);
+window.loadParseStatus = loadParseStatus; window.psApplyFilter = psApplyFilter;
+(function _psOperatorGate(){
+  function _show(){ try{ if(typeof isOperator==='function' && isOperator()){ var btn=document.getElementById('nav-parsestatus'); if(btn) btn.style.display=''; } }catch(e){} }
+  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', _show); } else { _show(); }
+})();
 
 window.runScheduleGeneration = runScheduleGeneration;
 window.exportScheduleDoc = exportScheduleDoc;
