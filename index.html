@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p121r3 -->
+<!-- MIP build p121r4 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p121r3">
+<link rel="stylesheet" href="styles.css?v=p121r4">
 </head>
 <body>
 
@@ -658,14 +658,14 @@
             <thead>
               <tr style="text-align:left;border-bottom:1px solid var(--border);">
                 <th style="padding:8px 6px;width:28px;"><input type="checkbox" id="ps-selall" onchange="psToggleAll(this)" title="Select all shown"></th>
+                <th style="padding:8px 6px;">Source</th>
+                <th style="padding:8px 6px;">Actions</th>
                 <th style="padding:8px 6px;">Jurisdiction</th>
                 <th style="padding:8px 6px;">Date</th>
                 <th style="padding:8px 6px;">Body</th>
                 <th style="padding:8px 6px;">Title</th>
                 <th style="padding:8px 6px;">Parse</th>
                 <th style="padding:8px 6px;">Review</th>
-                <th style="padding:8px 6px;">Actions</th>
-                <th style="padding:8px 6px;">Source</th>
               </tr>
             </thead>
             <tbody id="ps-tbody"></tbody>
@@ -9311,21 +9311,21 @@ function psRenderRows(rows){
   tbody.innerHTML = rows.map(function(d){
     var href = (typeof inlineViewerUrl === 'function') ? inlineViewerUrl(d.source_url||'') : (d.source_url||'');
     var src = d.source_url ? '<a href="'+escUrl(href)+'" target="_blank" rel="noopener" style="color:var(--accent,#4a9eff);">open ↗</a>' : '<span style="color:var(--text-dim);">—</span>';
-    var actions = _psActionBtn(d.doc_id, 'empty_ok', 'Empty-OK', '#1c7c3a')
+    var actions = _psActionBtn(d.doc_id, 'ignored', 'Ignore', '#555')
+      + _psActionBtn(d.doc_id, 'empty_ok', 'Empty-OK', '#1c7c3a')
       + _psActionBtn(d.doc_id, 'needs_fix', 'Needs-fix', '#9a2a2a')
-      + _psActionBtn(d.doc_id, 'requeued', 'Re-queue', '#7a4ea2')
-      + _psActionBtn(d.doc_id, 'ignored', 'Ignore', '#555');
+      + _psActionBtn(d.doc_id, 'requeued', 'Re-queue', '#7a4ea2');
     var noteHtml = d.note ? '<div style="font-size:9px;color:var(--text-dim);margin-top:2px;">'+_diagEsc(d.note)+'</div>' : '';
     return '<tr data-ps-doc="'+escAttr(d.doc_id)+'" style="border-bottom:1px solid var(--border);">'
       + '<td style="padding:6px;text-align:center;"><input type="checkbox" class="ps-rowcb" data-doc="'+escAttr(d.doc_id)+'" onchange="psSelChanged()"></td>'
+      + '<td style="padding:6px;white-space:nowrap;">'+src+'</td>'
+      + '<td style="padding:6px;white-space:nowrap;">'+actions+'</td>'
       + '<td style="padding:6px;">'+_diagEsc(d.jurisdiction||'—')+'</td>'
       + '<td style="padding:6px;white-space:nowrap;">'+_diagEsc(d.date||'—')+'</td>'
       + '<td style="padding:6px;">'+_diagEsc(d.body||'—')+'</td>'
       + '<td style="padding:6px;max-width:340px;">'+_diagEsc(d.title||'—')+noteHtml+'</td>'
       + '<td style="padding:6px;">'+_psBadge(d.bucket, d.marker)+'</td>'
       + '<td style="padding:6px;">'+_psReviewBadge(d.review_status||'unreviewed')+'</td>'
-      + '<td style="padding:6px;white-space:nowrap;">'+actions+'</td>'
-      + '<td style="padding:6px;white-space:nowrap;">'+src+'</td>'
       + '</tr>';
   }).join('');
   psSelChanged();
