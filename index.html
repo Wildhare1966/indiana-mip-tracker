@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p121r2 -->
+<!-- MIP build p121r3 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p121r2">
+<link rel="stylesheet" href="styles.css?v=p121r3">
 </head>
 <body>
 
@@ -640,10 +640,24 @@
           </div>
         </div>
         <div id="ps-summary" style="font-size:11px;color:var(--text-dim);margin-bottom:10px;"></div>
+        <div id="ps-bulkbar" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;padding:8px 12px;background:var(--input-bg,#1a1a2e);border:1px solid var(--border);border-radius:6px;">
+          <span id="ps-bulk-count" style="font-size:11px;font-weight:600;color:var(--text);">0 selected</span>
+          <span style="font-size:11px;color:var(--text-dim);">→ set status:</span>
+          <select id="ps-bulk-status" style="font-size:11px;padding:5px 8px;background:var(--input-bg,#1a1a2e);color:var(--text);border:1px solid var(--border);border-radius:5px;">
+            <option value="empty_ok">Empty — OK</option>
+            <option value="needs_fix">Needs fix</option>
+            <option value="requeued">Re-queue</option>
+            <option value="ignored">Ignore (hide from Jurisdiction page)</option>
+            <option value="unreviewed">Unreviewed (reset)</option>
+          </select>
+          <button class="refresh-btn" id="ps-bulk-apply" onclick="psBulkApply()" style="font-size:11px;">Apply to selected</button>
+          <button class="refresh-btn" onclick="psClearSel()" style="font-size:11px;">Clear</button>
+        </div>
         <div id="ps-table-wrap" style="overflow-x:auto;">
           <table id="ps-table" style="width:100%;border-collapse:collapse;font-size:11px;">
             <thead>
               <tr style="text-align:left;border-bottom:1px solid var(--border);">
+                <th style="padding:8px 6px;width:28px;"><input type="checkbox" id="ps-selall" onchange="psToggleAll(this)" title="Select all shown"></th>
                 <th style="padding:8px 6px;">Jurisdiction</th>
                 <th style="padding:8px 6px;">Date</th>
                 <th style="padding:8px 6px;">Body</th>
@@ -9292,7 +9306,8 @@ function _psActionBtn(docId, status, label, bg){
 }
 function psRenderRows(rows){
   var tbody = document.getElementById('ps-tbody'); if(!tbody) return;
-  if(!rows.length){ tbody.innerHTML = '<tr><td colspan="8" style="padding:14px 6px;color:var(--text-dim);">No documents in this view.</td></tr>'; return; }
+  var selall = document.getElementById('ps-selall'); if(selall) selall.checked = false;
+  if(!rows.length){ tbody.innerHTML = '<tr><td colspan="9" style="padding:14px 6px;color:var(--text-dim);">No documents in this view.</td></tr>'; psSelChanged(); return; }
   tbody.innerHTML = rows.map(function(d){
     var href = (typeof inlineViewerUrl === 'function') ? inlineViewerUrl(d.source_url||'') : (d.source_url||'');
     var src = d.source_url ? '<a href="'+escUrl(href)+'" target="_blank" rel="noopener" style="color:var(--accent,#4a9eff);">open ↗</a>' : '<span style="color:var(--text-dim);">—</span>';
@@ -9302,6 +9317,7 @@ function psRenderRows(rows){
       + _psActionBtn(d.doc_id, 'ignored', 'Ignore', '#555');
     var noteHtml = d.note ? '<div style="font-size:9px;color:var(--text-dim);margin-top:2px;">'+_diagEsc(d.note)+'</div>' : '';
     return '<tr data-ps-doc="'+escAttr(d.doc_id)+'" style="border-bottom:1px solid var(--border);">'
+      + '<td style="padding:6px;text-align:center;"><input type="checkbox" class="ps-rowcb" data-doc="'+escAttr(d.doc_id)+'" onchange="psSelChanged()"></td>'
       + '<td style="padding:6px;">'+_diagEsc(d.jurisdiction||'—')+'</td>'
       + '<td style="padding:6px;white-space:nowrap;">'+_diagEsc(d.date||'—')+'</td>'
       + '<td style="padding:6px;">'+_diagEsc(d.body||'—')+'</td>'
@@ -9312,6 +9328,47 @@ function psRenderRows(rows){
       + '<td style="padding:6px;white-space:nowrap;">'+src+'</td>'
       + '</tr>';
   }).join('');
+  psSelChanged();
+}
+function psSelectedDocs(){
+  return Array.prototype.map.call(document.querySelectorAll('.ps-rowcb:checked'), function(cb){ return cb.getAttribute('data-doc'); });
+}
+function psSelChanged(){
+  var n = document.querySelectorAll('.ps-rowcb:checked').length;
+  var bar = document.getElementById('ps-bulkbar'); var cnt = document.getElementById('ps-bulk-count');
+  if(cnt) cnt.textContent = n + ' selected';
+  if(bar) bar.style.display = n ? 'flex' : 'none';
+}
+function psToggleAll(cb){
+  Array.prototype.forEach.call(document.querySelectorAll('.ps-rowcb'), function(b){ b.checked = cb.checked; });
+  psSelChanged();
+}
+function psClearSel(){
+  Array.prototype.forEach.call(document.querySelectorAll('.ps-rowcb'), function(b){ b.checked = false; });
+  var selall = document.getElementById('ps-selall'); if(selall) selall.checked = false;
+  psSelChanged();
+}
+function psBulkApply(){
+  var base = getWebAppUrl(); if(!base) return;
+  var docs = psSelectedDocs();
+  if(!docs.length){ alert('No rows selected.'); return; }
+  var status = (document.getElementById('ps-bulk-status')||{}).value || 'empty_ok';
+  var label = {empty_ok:'Empty-OK', needs_fix:'Needs-fix', requeued:'Re-queue', ignored:'Ignore', unreviewed:'Unreviewed'}[status] || status;
+  var warn = (status==='ignored') ? '\n\nIgnored agendas are hidden from the Jurisdiction page.' : '';
+  if(!confirm('Set '+docs.length+' record(s) to "'+label+'"?'+warn)) return;
+  var btn = document.getElementById('ps-bulk-apply');
+  if(btn){ btn.disabled = true; btn.textContent = 'Applying…'; }
+  fetch(base + '&action=admin_run&fn=setAgendaParseReviewBatch&status=' + encodeURIComponent(status) + '&doc_ids=' + encodeURIComponent(docs.join(',')))
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      var rr = res && res.result;
+      if(btn){ btn.disabled = false; btn.textContent = 'Apply to selected'; }
+      if(!rr || !rr.ok){ alert('Bulk update failed: ' + ((rr&&rr.error)||(res&&res.error)||'unknown')); return; }
+      var rerouted = (rr.results||[]).filter(function(x){ return x.reroute==='needs_fix'; }).length;
+      if(rerouted){ alert(rerouted + ' oversized record(s) could not be re-queued — marked "Needs fix" instead (need page-slicing).'); }
+      loadParseStatus();
+    })
+    .catch(function(e){ if(btn){ btn.disabled = false; btn.textContent = 'Apply to selected'; } alert('Network error: ' + e.message); });
 }
 function psSetReview(docId, status, btn){
   var base = getWebAppUrl(); if(!base) return;
@@ -9340,6 +9397,8 @@ function psSetReview(docId, status, btn){
 registerViewInit('parsestatus', loadParseStatus);
 window.loadParseStatus = loadParseStatus; window.psApplyFilter = psApplyFilter;
 window.psRebuild = psRebuild; window.psSetReview = psSetReview;
+window.psToggleAll = psToggleAll; window.psSelChanged = psSelChanged;
+window.psBulkApply = psBulkApply; window.psClearSel = psClearSel;
 // P121: Parse Status is a primary, always-visible nav view (no operator gate).
 
 window.runScheduleGeneration = runScheduleGeneration;
