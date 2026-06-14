@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p121r8 -->
+<!-- MIP build p122r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p121r8">
+<link rel="stylesheet" href="styles.css?v=p122r1">
 </head>
 <body>
 
@@ -29,6 +29,7 @@
     <button class="topbar-btn" onclick="switchView('tracked')" id="nav-tracked">Tracked Projects</button>
     <button class="topbar-btn" onclick="switchView('schedule')" id="nav-schedule">Schedule & Requirements</button>
     <button class="topbar-btn" onclick="switchView('market')" id="nav-market">Zonda</button>
+    <button class="topbar-btn" onclick="switchView('salesdisclosures')" id="nav-salesdisclosures">Sales Disclosures</button>
     <button class="topbar-btn" onclick="switchView('settings')" id="nav-settings">⚙ Settings</button>
     <!-- P80 Stage 1.8: operator-only review queue. Hidden until isOperator()
          flips it visible at boot. -->
@@ -692,6 +693,15 @@
          Lazy-loaded: iframe src is set on first open via registerViewInit('market', …). -->
     <div id="view-market" class="view" style="padding:0;">
       <iframe id="market-frame" title="Market Intel — Indianapolis New Home Market"
+              style="width:100%;height:calc(100vh - 52px);border:0;display:block;"
+              referrerpolicy="no-referrer"></iframe>
+    </div>
+
+    <!-- SALES DISCLOSURES VIEW — embedded Indiana SDF dashboard (iframe, self-contained).
+         Lazy-loaded: iframe src is set on first open via registerViewInit('salesdisclosures', …).
+         The dashboard auto-loads its dataset from the FE repo's data-sales branch via the raw CDN. -->
+    <div id="view-salesdisclosures" class="view" style="padding:0;">
+      <iframe id="sd-frame" title="Sales Disclosures — Indiana SDF Market Activity"
               style="width:100%;height:calc(100vh - 52px);border:0;display:block;"
               referrerpolicy="no-referrer"></iframe>
     </div>
@@ -1841,6 +1851,8 @@ function applyTheme(theme) {
   // Only re-point once it's been opened (src set); first open is themed by registerViewInit.
   const mf = document.getElementById('market-frame');
   if (mf && mf.src) mf.src = 'dashboard.html?theme=' + theme;
+  const sdf = document.getElementById('sd-frame');
+  if (sdf && sdf.src) sdf.src = 'sales_dashboard.html?theme=' + theme;
 }
 function toggleTheme() {
   const current = document.documentElement.getAttribute('data-theme') || 'dark';
@@ -2074,6 +2086,12 @@ registerViewInit('market', function () {
   var f = document.getElementById('market-frame');
   if (f && !f.src) f.src = 'dashboard.html?theme=' + (document.documentElement.getAttribute('data-theme') || 'dark');
 });
+// Sales Disclosures: defer loading the embedded SDF dashboard (and its CDN dataset)
+// until the operator first opens the page. Theme-follow mirrors the Zonda wiring.
+registerViewInit('salesdisclosures', function () {
+  var f = document.getElementById('sd-frame');
+  if (f && !f.src) f.src = 'sales_dashboard.html?theme=' + (document.documentElement.getAttribute('data-theme') || 'dark');
+});
 function switchView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.topbar-btn').forEach(b => b.classList.remove('active'));
@@ -2085,7 +2103,7 @@ function switchView(name) {
   // county/muni sidebar so the iframe spans the full content width. Restored
   // (style.display='') for every other view.
   var sb = document.querySelector('.sidebar');
-  if (sb) sb.style.display = (name === 'market') ? 'none' : '';
+  if (sb) sb.style.display = (name === 'market' || name === 'salesdisclosures') ? 'none' : '';
   // When entering the Jurisdictions view, force the County/muni rail expanded so
   // it's open by default whenever the page opens (overrides a persisted collapse).
   if (name === 'muni' && sb) {
