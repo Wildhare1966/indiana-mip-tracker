@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p121r7 -->
+<!-- MIP build p121r8 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p121r7">
+<link rel="stylesheet" href="styles.css?v=p121r8">
 </head>
 <body>
 
@@ -10799,13 +10799,11 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
   /* P112: Candidates table — Agendas links use the sidebar neon light-blue; Description truncates with click-to-expand */
   /* P121r7: cap the Agenda column so the table fits the window — links wrap instead of forcing h-scroll. */
   .cand-agendas{max-width:92px;white-space:normal;word-break:break-word;line-height:1.7;}
-  /* P121r7: bound the Agenda-Items table to the viewport so its horizontal scrollbar
-     is ALWAYS visible at the bottom of the window (not at the far end of a long table).
-     overflow:auto means the scrollbar only appears when content overflows — so with the
-     left county rail collapsed (wider main area) the table fits and no scrollbar shows. */
-  .cand-table-scroll{overflow:auto;max-height:calc(100vh - 290px);}
-  .cand-table-scroll thead th{position:sticky;top:0;z-index:3;background:var(--bg,#0f0f1e);box-shadow:inset 0 -1px 0 var(--border,#444);}
-  [data-theme="light"] .cand-table-scroll thead th{background:var(--bg,#fff);}
+  /* P121r8: the table wrapper scrolls only horizontally; vertical scrolling stays
+     on the main column so there's a SINGLE scrollbar (no redundant inner one).
+     Collapse the Tracked-Projects rail (» button) to reclaim width so all columns
+     fit with no horizontal scroll. */
+  .cand-table-scroll{overflow-x:auto;}
   .cand-agendas a{color:#3be3ff;text-decoration:none;font-weight:600;}
   .cand-agendas a:hover{text-decoration:underline;}
   /* P118 rev6: Tracked Projects "Agendas" column — same neon #-links as Agenda Items. */
