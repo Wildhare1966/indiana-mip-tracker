@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p121r6 -->
+<!-- MIP build p121r7 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p121r6">
+<link rel="stylesheet" href="styles.css?v=p121r7">
 </head>
 <body>
 
@@ -474,6 +474,7 @@
             <input type="text" id="cand-search" oninput="candSetSearch(this.value)" placeholder="Search project / petitioner / ord#" style="font-size:12px;padding:4px 10px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:6px;min-width:210px;">
             <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--text-dim);cursor:pointer;"><input type="checkbox" id="cand-filter-high" onchange="candToggleHigh(this)" style="cursor:pointer;">High-confidence only</label>
             <select id="cand-pagesize" onchange="candSetPageSize(this.value)" title="Rows per page" style="font-size:12px;padding:4px 8px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:6px;cursor:pointer;"><option value="50">50 / page</option><option value="100">100 / page</option><option value="250">250 / page</option><option value="999999">Show all</option></select>
+            <button class="refresh-btn" id="cand-expand-all" onclick="candToggleAllDesc()" title="Expand or collapse every Description field at once">Expand all</button>
             <button class="refresh-btn" onclick="candLoad()" title="Re-fetch the candidate queue from the backend">↺ Refresh</button>
           </div>
         </div>
@@ -632,6 +633,7 @@
               <option value="empty_ok">Empty — OK</option>
               <option value="requeued">Re-queued</option>
               <option value="ignored">Ignored</option>
+              <option value="cancelled">Cancelled</option>
               <option value="all">All flagged</option>
             </select>
             <input type="text" id="ps-juris" placeholder="Filter jurisdiction…" oninput="psApplyFilter()" style="font-size:11px;padding:5px 8px;background:var(--input-bg,#1a1a2e);color:var(--text);border:1px solid var(--border);border-radius:5px;width:160px;">
@@ -9017,7 +9019,7 @@ function candRender(){
   var allPageSel = pageRows.length>0 && pageRows.every(function(c){ return _candSel[c.candidate_id]; });
   var head='<tr style="text-align:left;color:var(--text-dim);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">'+
     '<th style="padding:6px 8px;"><input type="checkbox" onchange="candSelectAllPage(this)"'+(allPageSel?' checked':'')+' title="Select all on this page" style="cursor:pointer;"></th>'+
-    '<th style="padding:6px 8px;">Conf.</th><th style="padding:6px 8px;">Jurisdiction</th><th style="padding:6px 8px;width:165px;">Project</th>'+
+    '<th style="padding:6px 8px;">Conf.</th><th style="padding:6px 8px;">Jurisdiction</th><th style="padding:6px 8px;width:140px;">Project</th>'+
     '<th style="padding:6px 8px;">Type</th><th style="padding:6px 8px;width:380px;">Description</th>'+
     '<th style="padding:6px 8px;">Petitioner</th>'+
     '<th style="padding:6px 8px;text-align:center;">Hrgs</th><th style="padding:6px 8px;">Bodies</th><th style="padding:6px 8px;">Date</th>'+
@@ -9038,7 +9040,7 @@ function candRender(){
              '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;margin-left:4px;" title="Dismiss — not a project to track" onclick="candDismiss(\''+cid+'\',this)">Dismiss</button>';
     var descText=String(c.description||c.sample_request||'').trim();
     var descCell = descText
-      ? '<span class="cand-desc" title="Click to expand / collapse" onclick="this.classList.toggle(\'expanded\')">'+_diagEsc(descText)+'</span>'
+      ? '<span class="cand-desc'+(_candDescExpanded?' expanded':'')+'" title="Click to expand / collapse" onclick="this.classList.toggle(\'expanded\')">'+_diagEsc(descText)+'</span>'
       : '<span style="color:var(--text-dim);">—</span>';
     var dateText=_diagEsc(c.last_seen_date||c.first_seen_date||'—');
     return '<tr data-cand-id="'+cid+'" style="border-top:1px solid var(--border);'+(isHigh?'':'opacity:.7;')+'">'+
@@ -9052,8 +9054,8 @@ function candRender(){
       '<td style="padding:6px 8px;text-align:center;">'+_diagEsc(c.hearing_count||1)+'</td>'+
       '<td style="padding:6px 8px;font-size:10px;">'+_diagEsc(c.bodies||'')+'</td>'+
       '<td style="padding:6px 8px;white-space:nowrap;font-size:10px;">'+dateText+'</td>'+
-      '<td class="cand-agendas" style="padding:6px 8px;white-space:nowrap;font-size:10px;">'+agendaLinks+'</td>'+
-      '<td style="padding:6px 8px;text-align:right;white-space:nowrap;">'+acts+'</td></tr>';
+      '<td class="cand-agendas" style="padding:6px 8px;font-size:10px;">'+agendaLinks+'</td>'+
+      '<td style="padding:6px 8px;"><div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;max-width:150px;margin-left:auto;">'+acts+'</div></td></tr>';
   }).join('');
 
   var pager='';
@@ -9067,9 +9069,17 @@ function candRender(){
       '</div>';
   }
 
-  el.innerHTML=summary+bar+'<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:11px;">'+head+body+'</table></div>'+pager;
+  el.innerHTML=summary+bar+'<div class="cand-table-scroll"><table style="width:100%;border-collapse:collapse;font-size:11px;"><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>'+pager;
 }
 
+// P121r7: expand/collapse ALL Description cells at once. The flag persists across
+// re-renders (candRender reads it when building each descCell).
+var _candDescExpanded=false;
+function candToggleAllDesc(){
+  _candDescExpanded=!_candDescExpanded;
+  document.querySelectorAll('#cand-list .cand-desc').forEach(function(s){ s.classList.toggle('expanded', _candDescExpanded); });
+  var b=document.getElementById('cand-expand-all'); if(b) b.textContent=_candDescExpanded?'Collapse all':'Expand all';
+}
 function _candUpdateBadge(){
   var b=document.getElementById('nav-cand-badge'); if(!b) return;
   var nHigh=_candData.filter(function(c){ return c.status==='new'&&c.confidence==='high'; }).length;
@@ -9217,6 +9227,7 @@ function _candResolveRow(cid){
 }
 
 window.candLoad=candLoad; window.candRender=candRender; window.candTrack=candTrack;
+window.candToggleAllDesc=candToggleAllDesc;
 window.candDismiss=candDismiss; window.candToggleHigh=candToggleHigh;
 window.candSetJuris=candSetJuris; window.candSetSearch=candSetSearch; window.candSetPageSize=candSetPageSize;
 window.candGoPage=candGoPage; window.candToggleSel=candToggleSel; window.candSelectAllPage=candSelectAllPage;
@@ -9295,8 +9306,8 @@ function psRenderSummary(rr){
   var summary = document.getElementById('ps-summary'); if(!summary) return;
   var s = rr.by_status || {};
   summary.innerHTML = '<b>'+(s.unreviewed||0)+'</b> unreviewed · <b>'+(s.needs_fix||0)+'</b> needs fix · <b>'
-    +(s.empty_ok||0)+'</b> empty-OK · <b>'+(s.requeued||0)+'</b> re-queued · <b>'+(s.ignored||0)+'</b> ignored — <b>'
-    +(rr.total||0)+'</b> total flagged · showing <b>'+(rr.returned||0)+'</b>';
+    +(s.empty_ok||0)+'</b> empty-OK · <b>'+(s.requeued||0)+'</b> re-queued · <b>'+(s.ignored||0)+'</b> ignored · <b>'
+    +(s.cancelled||0)+'</b> cancelled — <b>'+(rr.total||0)+'</b> total flagged · showing <b>'+(rr.returned||0)+'</b>';
 }
 function _psBadge(bucket, marker){
   var color = {ok:'#1c7c3a', noitems:'#9a6a00', err:'#9a2a2a', pending:'#555', dedup:'#2a5f9a'}[bucket] || '#555';
@@ -9304,8 +9315,8 @@ function _psBadge(bucket, marker){
   return '<span title="'+_diagEsc(marker||'')+'" style="background:'+color+';color:#fff;font-size:9px;font-weight:700;padding:1px 7px;border-radius:9px;white-space:nowrap;">'+_diagEsc(label)+'</span>';
 }
 function _psReviewBadge(status){
-  var color = {unreviewed:'#555', empty_ok:'#1c7c3a', needs_fix:'#9a2a2a', requeued:'#7a4ea2', ignored:'#444'}[status] || '#555';
-  var label = {unreviewed:'unreviewed', empty_ok:'empty-OK', needs_fix:'needs fix', requeued:'re-queued', ignored:'ignored'}[status] || status;
+  var color = {unreviewed:'#555', empty_ok:'#1c7c3a', needs_fix:'#9a2a2a', requeued:'#7a4ea2', ignored:'#444', cancelled:'#b06a1f'}[status] || '#555';
+  var label = {unreviewed:'unreviewed', empty_ok:'empty-OK', needs_fix:'needs fix', requeued:'re-queued', ignored:'ignored', cancelled:'cancelled'}[status] || status;
   return '<span style="background:'+color+';color:#fff;font-size:9px;font-weight:700;padding:1px 7px;border-radius:9px;white-space:nowrap;">'+_diagEsc(label)+'</span>';
 }
 function psApplyFilter(){
@@ -9327,7 +9338,8 @@ function psRenderRows(rows){
     var actions = _psActionBtn(d.doc_id, 'ignored', 'Ignore', '#555')
       + _psActionBtn(d.doc_id, 'empty_ok', 'Empty-OK', '#1c7c3a')
       + _psActionBtn(d.doc_id, 'needs_fix', 'Needs-fix', '#9a2a2a')
-      + _psActionBtn(d.doc_id, 'requeued', 'Re-queue', '#7a4ea2');
+      + _psActionBtn(d.doc_id, 'requeued', 'Re-queue', '#7a4ea2')
+      + '<button onclick="psCancelFromBtn(this)" data-doc="'+escAttr(d.doc_id)+'" data-body="'+escAttr(d.body||'')+'" data-juris="'+escAttr(d.jurisdiction||'')+'" title="Mark this meeting Cancelled — same as the Jurisdictions-page Cancel" style="font-size:9px;font-weight:600;padding:2px 7px;margin:1px;border:0;border-radius:5px;cursor:pointer;background:#b06a1f;color:#fff;white-space:nowrap;">Can</button>';
     var noteHtml = d.note ? '<div style="font-size:9px;color:var(--text-dim);margin-top:2px;">'+_diagEsc(d.note)+'</div>' : '';
     return '<tr data-ps-doc="'+escAttr(d.doc_id)+'" style="border-bottom:1px solid var(--border);">'
       + '<td style="padding:6px;text-align:center;"><input type="checkbox" class="ps-rowcb" data-doc="'+escAttr(d.doc_id)+'" onchange="psSelChanged()"></td>'
@@ -9412,6 +9424,37 @@ function psCloseDoc(){
   panel.style.display = 'none';
   var frame = document.getElementById('ps-doc-frame'); if(frame) frame.src = 'about:blank';
 }
+function psCancelFromBtn(btn){
+  if(!btn) return;
+  psCancel(btn.getAttribute('data-doc')||'', btn.getAttribute('data-body')||'', btn.getAttribute('data-juris')||'', btn);
+}
+// "Can" = mark the meeting Cancelled. Same effect as the Jurisdictions-page button
+// (action=cancel_agenda → the agenda shows a "Cancelled" badge there), and also
+// files the row under "cancelled" in this queue so it leaves the unreviewed list.
+function psCancel(docId, body, juris, btn){
+  if(!docId) return;
+  if(!confirm('Mark this meeting as Cancelled? The agenda will show a “Cancelled” note on the Jurisdictions page, and this row moves to the Cancelled list.')) return;
+  psCloseDoc();
+  var base = getWebAppUrl(); if(!base) return;
+  var tr = btn && btn.closest ? btn.closest('tr') : null;
+  if(tr){ Array.prototype.forEach.call(tr.querySelectorAll('button'), function(b){ b.disabled = true; }); tr.style.opacity = '0.5'; }
+  fetch(base + '&action=cancel_agenda&id=' + encodeURIComponent(docId) + '&meeting_type=' + encodeURIComponent(body||'') + '&jurisdiction=' + encodeURIComponent(juris||''))
+    .then(function(){ return fetch(base + '&action=admin_run&fn=setAgendaParseReview&doc_id=' + encodeURIComponent(docId) + '&status=cancelled'); })
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      var rr = res && res.result;
+      if(!rr || !rr.ok){
+        if(tr){ Array.prototype.forEach.call(tr.querySelectorAll('button'), function(b){ b.disabled = false; }); tr.style.opacity = '1'; }
+        alert('Cancel failed: ' + ((rr&&rr.error)||(res&&res.error)||'unknown'));
+        return;
+      }
+      loadParseStatus();
+    })
+    .catch(function(e){
+      if(tr){ Array.prototype.forEach.call(tr.querySelectorAll('button'), function(b){ b.disabled = false; }); tr.style.opacity = '1'; }
+      alert('Network error: ' + e.message);
+    });
+}
 function psSetReview(docId, status, btn){
   var base = getWebAppUrl(); if(!base) return;
   psCloseDoc(); // taking an action dismisses the preview drawer
@@ -9443,6 +9486,7 @@ window.psRebuild = psRebuild; window.psSetReview = psSetReview;
 window.psToggleAll = psToggleAll; window.psSelChanged = psSelChanged;
 window.psBulkApply = psBulkApply; window.psClearSel = psClearSel;
 window.psOpenDoc = psOpenDoc; window.psOpenDocFromBtn = psOpenDocFromBtn; window.psCloseDoc = psCloseDoc;
+window.psCancel = psCancel; window.psCancelFromBtn = psCancelFromBtn;
 // P121: Parse Status is a primary, always-visible nav view (no operator gate).
 
 window.runScheduleGeneration = runScheduleGeneration;
@@ -10753,6 +10797,15 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
     padding:9px 16px;font-weight:700;cursor:pointer;font-size:13px}
   .mrdask-note{font-size:10.5px;color:#8198ab;padding:0 18px 11px}
   /* P112: Candidates table — Agendas links use the sidebar neon light-blue; Description truncates with click-to-expand */
+  /* P121r7: cap the Agenda column so the table fits the window — links wrap instead of forcing h-scroll. */
+  .cand-agendas{max-width:92px;white-space:normal;word-break:break-word;line-height:1.7;}
+  /* P121r7: bound the Agenda-Items table to the viewport so its horizontal scrollbar
+     is ALWAYS visible at the bottom of the window (not at the far end of a long table).
+     overflow:auto means the scrollbar only appears when content overflows — so with the
+     left county rail collapsed (wider main area) the table fits and no scrollbar shows. */
+  .cand-table-scroll{overflow:auto;max-height:calc(100vh - 290px);}
+  .cand-table-scroll thead th{position:sticky;top:0;z-index:3;background:var(--bg,#0f0f1e);box-shadow:inset 0 -1px 0 var(--border,#444);}
+  [data-theme="light"] .cand-table-scroll thead th{background:var(--bg,#fff);}
   .cand-agendas a{color:#3be3ff;text-decoration:none;font-weight:600;}
   .cand-agendas a:hover{text-decoration:underline;}
   /* P118 rev6: Tracked Projects "Agendas" column — same neon #-links as Agenda Items. */
@@ -10776,12 +10829,12 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
   .cand-desc.expanded{display:block;-webkit-line-clamp:unset;overflow:visible;white-space:pre-wrap;width:400px;max-width:400px;}
   .cand-desc:hover{color:var(--accent,#e8a020);}
   /* P116: Project name expandable on click, mirroring .cand-desc — collapsed to 1 line, expands DOWNWARD. */
-  .cand-proj{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer;line-height:1.3;width:165px;max-width:165px;font-weight:600;border-bottom:1px dotted rgba(255,255,255,.22);}
-  .cand-proj.expanded{display:block;-webkit-line-clamp:unset;overflow:visible;white-space:normal;width:165px;max-width:165px;}
+  .cand-proj{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer;line-height:1.3;width:140px;max-width:140px;font-weight:600;border-bottom:1px dotted rgba(255,255,255,.22);}
+  .cand-proj.expanded{display:block;-webkit-line-clamp:unset;overflow:visible;white-space:normal;width:140px;max-width:140px;}
   .cand-proj:hover{color:var(--accent,#e8a020);}
   /* P118 rev2: Petitioner truncates to 2 lines and expands DOWNWARD on click,
      mirroring .cand-desc / .cand-proj. */
-  .cand-petitioner{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer;line-height:1.3;width:140px;max-width:140px;font-size:10px;color:var(--text-dim);border-bottom:1px dotted rgba(255,255,255,.22);}
+  .cand-petitioner{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer;line-height:1.3;width:112px;max-width:112px;font-size:10px;color:var(--text-dim);border-bottom:1px dotted rgba(255,255,255,.22);}
   .cand-petitioner.expanded{display:block;-webkit-line-clamp:unset;overflow:visible;white-space:normal;width:140px;max-width:140px;}
   .cand-petitioner:hover{color:var(--accent,#e8a020);}
 </style>
