@@ -1185,9 +1185,9 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
     font-size: 11px;
-    /* P71 R3: doubled (was 260px) so the full-screen TP table can use the
-       extra horizontal space; clamp still hides overflow until clicked. */
-    max-width: 520px;
+    /* P124r2: Results column narrowed ~50% (520→260) to give the Description
+       column the room; clamp still hides overflow until clicked. */
+    max-width: 260px;
   }
   .tp-action-cell.expanded .tp-action-text {
     display: block;
@@ -1206,7 +1206,8 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
     font-size: 11px;
-    max-width: 300px;
+    /* P124r2: Description widened ~50% (300→450), the width taken from Results. */
+    max-width: 450px;
   }
   .tp-desc-cell.expanded .tp-desc-text {
     display: block;
@@ -1215,8 +1216,12 @@
     white-space: pre-wrap;
   }
   .tp-desc-cell:hover .tp-desc-text { color: var(--accent, #e8a020); }
-  /* P124: future (not-yet-held) meeting date renders in orange. */
-  .tp-meeting-date-future { color: #e8862a; font-weight: 600; }
+  /* P124: future (not-yet-held) meeting date renders in orange.
+     P124r2: compound selector (0,2,0) so it beats the later `.tp-meeting-date`
+     rule (0,1,0, defined further down) — otherwise that muted color won on
+     source order and the orange never showed. */
+  .tp-meeting-date.tp-meeting-date-future,
+  .tp-meeting-date-future { color: #e8862a !important; font-weight: 600; }
   /* P95: Lots — truncated to a narrow field, click-to-expand (reuses
      tpToggleAction which toggles .expanded). */
   .tp-lots-cell { cursor: pointer; }
