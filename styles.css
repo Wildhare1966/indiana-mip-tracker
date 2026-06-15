@@ -1489,6 +1489,9 @@
     border: 1px solid rgba(224,176,32,0.45); background: rgba(224,176,32,0.12); color: #e0b84d;
   }
   .ag-cancelled-badge { display: inline-block; font-size: 11px; font-weight: 600; color: #e0b84d; }
+  /* P123: keep the parse chip + the agenda link on one (non-wrapping) line so the
+     chip sits immediately left of "↓ Agenda"; the Yes/No/Can buttons wrap below. */
+  .ag-firstline { display: inline-flex; align-items: center; white-space: nowrap; }
   /* P123: agenda-extraction status chip, left of the agenda link. */
   .ag-parse {
     display: inline-flex; align-items: center; justify-content: center;
