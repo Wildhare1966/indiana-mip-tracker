@@ -1196,6 +1196,27 @@
     white-space: pre-wrap;
   }
   .tp-action-cell:hover .tp-action-text { color: var(--accent, #e8a020); }
+  /* P124: Description column — the "Request Summary" bullet, 2-line clamp +
+     click-to-expand (reuses tpToggleAction's .expanded toggle). Narrower than
+     the Results column so the table stays compact. */
+  .tp-desc-cell { cursor: pointer; position: relative; line-height: 1.35; }
+  .tp-desc-cell .tp-desc-text {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: 11px;
+    max-width: 300px;
+  }
+  .tp-desc-cell.expanded .tp-desc-text {
+    display: block;
+    -webkit-line-clamp: unset;
+    overflow: visible;
+    white-space: pre-wrap;
+  }
+  .tp-desc-cell:hover .tp-desc-text { color: var(--accent, #e8a020); }
+  /* P124: future (not-yet-held) meeting date renders in orange. */
+  .tp-meeting-date-future { color: #e8862a; font-weight: 600; }
   /* P95: Lots — truncated to a narrow field, click-to-expand (reuses
      tpToggleAction which toggles .expanded). */
   .tp-lots-cell { cursor: pointer; }
@@ -1283,7 +1304,9 @@
   [data-theme="light"] .tp-status-select, [data-theme="light"] .tp-builder-select { background: #ffffff; color: #1f2733; }
   [data-theme="light"] .tp-status-select option, [data-theme="light"] .tp-builder-select option { background: #ffffff; color: #1f2733; }
   /* P95 r3: size to the widest value ("Plan Commission") on one line — no stacking. */
-  .tp-meeting-type { font-size: 11px; line-height: 1.35; white-space: nowrap; }
+  /* P124: narrowed to make room for the Description column — allow wrapping
+     within the ~88px cell instead of forcing a single nowrap line. */
+  .tp-meeting-type { font-size: 11px; line-height: 1.3; white-space: normal; word-break: break-word; }
   .tp-meeting-date {
     font-size: 11px;
     font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;

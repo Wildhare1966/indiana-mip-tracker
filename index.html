@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p123r2 -->
+<!-- MIP build p124r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p123r2">
+<link rel="stylesheet" href="styles.css?v=p124r1">
 </head>
 <body>
 
@@ -441,8 +441,9 @@
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;" title="Total lots / homesites in proposed residential project — Gemini-extracted, manually editable">Lots</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Jurisdiction</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Builder</th>
-                <th style="padding:8px 6px;border-bottom:1px solid var(--border,#333);">Meeting<br>Type</th>
+                <th style="padding:8px 4px;border-bottom:1px solid var(--border,#333);max-width:88px;">Meeting<br>Type</th>
                 <th style="padding:8px 6px;border-bottom:1px solid var(--border,#333);">Meeting<br>Date</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);" title="The Request Summary from the matching meeting's agenda item. Click a cell to expand.">Description</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);" title="From the matching YouTube-video agenda item: Outcome + Vote, then Additional Notes.">Results</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Meeting<br>Notes</th>
                 <th style="padding:8px 6px;border-bottom:1px solid var(--border,#333);" title="All agenda documents this project was referenced on (newest first)">Agendas</th>
@@ -5944,9 +5945,23 @@ var tpLoadedAt = 0;
 // Tracked_Projects.builder column, patched via update_tracked_project.
 var TP_BUILDERS = [
   'Arbor','Beazer','Custom','David Weekly','Davis','DR Horton','Drees',
-  'Epcon','Estridge','Fischer Homes','Forestar','Hallmark','MI Homes',
+  'Epcon','Estridge','Fischer Homes','Forestar','Hallmark','Lennar','MI Homes',
   'Old Town','Olthof','Onyx_East','Pulte','Ryan','Taylor Morris'
 ];
+
+// P124: true when a Meeting Date display string (e.g. "6/20/2026") is strictly
+// after today (date-only compare). Drives the orange future-date styling and the
+// blank Meeting Notes cell for meetings that haven't happened yet (no summary).
+// Unparseable input → false (treated as not-future, renders normally).
+function _tpIsFutureDateStr(s) {
+  if (!s) return false;
+  var d = new Date(s);
+  if (isNaN(d.getTime())) return false;
+  var today = new Date();
+  today.setHours(0, 0, 0, 0);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime() > today.getTime();
+}
 
 // P71 R3: persist Builder dropdown change via update_tracked_project. Optimistic
 // local update + rollback on error (mirrors tpStatusChange).
@@ -6138,6 +6153,14 @@ function tpRenderTable() {
 
   tbody.innerHTML = rows.map(function(p) {
     var pidAttr = escAttr(p.projectId || '');
+    // P124: effective Meeting Type / Meeting Date = manual override (if the
+    // operator set one in the Edit dropdown) else the derived value. tpIsFuture
+    // gates the orange date text + the blank Meeting Notes cell below.
+    var manMt = (p.manualMeetingType || '').toString().trim();
+    var manMd = (p.manualMeetingDate || '').toString().trim();
+    var effMeetingType = manMt || (p.latestMeetingType || '');
+    var effMeetingDate = manMd || (p.latestRefDate || '');
+    var tpIsFuture = _tpIsFutureDateStr(effMeetingDate);
     // P58.7 R13a: resolve the YT cell to the AI-generated SUMMARY DOC URL
     // when one is available for this project's latest meeting. Falls back
     // to the YouTube video URL (legacy behavior) when no summary exists.
@@ -6168,17 +6191,25 @@ function tpRenderTable() {
     } else {
       agendaRefsCell = '<span style="color:var(--muted,#888);">—</span>';
     }
-    var yt = ytHref
-      ? '<a class="tp-doc-link tp-page-doc-link" href="' + esc(ytHref) + '" target="_blank" rel="noopener" data-doc-link="' + (summaryDocUrl ? 'summary' : 'youtube') + '">' + esc(ytLabel) + '</a>'
-      : '<span style="color:var(--muted,#888);">—</span>';
-    // P106: item-scoped Ask button — right of the Summary link. Opens the modal's
-    // single "Draft Detailed Summary" action, scoped to THIS project's agenda item
-    // (data-item / data-ord), not the whole hearing. Shows when the project's
-    // latest meeting has a YouTube video (transcript captured lazily on first ask).
-    var tpMid = _tpFindMeetingIdFor(p);
-    if (tpMid) {
-      var askSub = (p.jurisdiction || '') + (p.latestMeetingType ? ' · ' + p.latestMeetingType : '') + (p.latestRefDate ? ' · ' + p.latestRefDate : '');
-      yt += ' <button class="hearing-link ask" data-mid="' + escAttr(tpMid) + '" data-item="' + escAttr(p.projectName || '') + '" data-ord="' + escAttr(p.ordinanceId || '') + '" data-sub="' + escAttr(askSub) + '" onclick="askOpen(this)">✦ Detail</button>';
+    // P124: a future meeting hasn't happened yet → no summary/notes exist, so
+    // render NOTHING in the Meeting Notes column (previously this showed a
+    // "YouTube" link that typically pointed at the agenda, which isn't wanted).
+    var yt;
+    if (tpIsFuture) {
+      yt = '';
+    } else {
+      yt = ytHref
+        ? '<a class="tp-doc-link tp-page-doc-link" href="' + esc(ytHref) + '" target="_blank" rel="noopener" data-doc-link="' + (summaryDocUrl ? 'summary' : 'youtube') + '">' + esc(ytLabel) + '</a>'
+        : '<span style="color:var(--muted,#888);">—</span>';
+      // P106: item-scoped Ask button — right of the Summary link. Opens the modal's
+      // single "Draft Detailed Summary" action, scoped to THIS project's agenda item
+      // (data-item / data-ord), not the whole hearing. Shows when the project's
+      // latest meeting has a YouTube video (transcript captured lazily on first ask).
+      var tpMid = _tpFindMeetingIdFor(p);
+      if (tpMid) {
+        var askSub = (p.jurisdiction || '') + (effMeetingType ? ' · ' + effMeetingType : '') + (effMeetingDate ? ' · ' + effMeetingDate : '');
+        yt += ' <button class="hearing-link ask" data-mid="' + escAttr(tpMid) + '" data-item="' + escAttr(p.projectName || '') + '" data-ord="' + escAttr(p.ordinanceId || '') + '" data-sub="' + escAttr(askSub) + '" onclick="askOpen(this)">✦ Detail</button>';
+      }
     }
 
     // P106: Petitioner table column removed (operator request — frees horizontal
@@ -6201,28 +6232,48 @@ function tpRenderTable() {
     // P71 R3: split Meeting Name → Meeting Type + Meeting Date (matches the
     // per-juris Public Hearing tabs convention). Both pulled from the Meetings
     // row joined via Project_References.meeting_id; fall back to dash.
-    var meetingTypeCell = p.latestMeetingType
-      ? '<div class="tp-meeting-type">' + esc(p.latestMeetingType) + '</div>'
+    // P124: render the effective (manual-override-aware) Meeting Type / Date.
+    var meetingTypeCell = effMeetingType
+      ? '<div class="tp-meeting-type">' + esc(effMeetingType) + '</div>'
       : '<span style="color:var(--muted,#888);">—</span>';
-    var meetingDateCell = p.latestRefDate
-      ? '<div class="tp-meeting-date">' + esc(p.latestRefDate) + '</div>'
+    // P124: a future meeting date renders in orange (the meeting hasn't happened
+    // yet). .tp-meeting-date-future supplies the color.
+    var meetingDateCell = effMeetingDate
+      ? '<div class="tp-meeting-date' + (tpIsFuture ? ' tp-meeting-date-future' : '') + '">' + esc(effMeetingDate) + '</div>'
       : '<span style="color:var(--muted,#888);">—</span>';
 
-    // P95: Results — combines the matching YouTube-video agenda item's
-    // Outcome+Vote (Agenda_Items, surfaced as latestActionTaken, e.g.
-    // "Approved (4-0)") with its Additional Notes. Replaces the separate
-    // Action Taken + Notes columns. Reuses the .tp-action-cell 2-line clamp +
+    // P124: Description — the "Request Summary" bullet from the matching agenda
+    // item (Agenda_Items item_summary "Request:" line, surfaced as
+    // latestRequestSummary). Truncated to 2 lines; click to expand (reuses
+    // tpToggleAction's .expanded toggle, styled by .tp-desc-cell).
+    var descCell = p.latestRequestSummary
+      ? '<div class="tp-desc-cell" onclick="tpToggleAction(this)" title="Click to expand / collapse">' +
+          '<div class="tp-desc-text">' + esc(p.latestRequestSummary) + '</div>' +
+        '</div>'
+      : '<span style="color:var(--muted,#888);">—</span>';
+
+    // P95: Results — combines the matching agenda item's Outcome+Vote
+    // (Agenda_Items, surfaced as latestActionTaken, e.g. "Approved (4-0)") with
+    // its Additional Notes. Reuses the .tp-action-cell 2-line clamp +
     // click-to-expand; falls back to the legacy nature badge when no agenda
     // item matched.
-    var resultsOutcome = p.latestActionTaken
-      ? '<span class="tp-results-outcome">' + esc(p.latestActionTaken) + '</span>'
-      : (p.lastNature ? '<span class="tracked-nature-badge nature-' + esc(p.lastNature.replace(' ','-')) + '">' + esc(p.lastNature) + '</span>' : '');
-    var resultsNotes = p.latestAdditionalNotes
-      ? '<span class="tp-results-notes">' + esc(p.latestAdditionalNotes) + '</span>'
-      : '';
-    var resultsCell = (resultsOutcome || resultsNotes)
+    // P124: a manual Results override (Edit dropdown) wins over the derived
+    // composition — same manual-wins precedence as Petitioner/Lots.
+    var resultsInner;
+    if (p.manualResults && p.manualResults.toString().trim()) {
+      resultsInner = '<span class="tp-results-outcome">' + esc(p.manualResults.toString().trim()) + '</span>';
+    } else {
+      var resultsOutcome = p.latestActionTaken
+        ? '<span class="tp-results-outcome">' + esc(p.latestActionTaken) + '</span>'
+        : (p.lastNature ? '<span class="tracked-nature-badge nature-' + esc(p.lastNature.replace(' ','-')) + '">' + esc(p.lastNature) + '</span>' : '');
+      var resultsNotes = p.latestAdditionalNotes
+        ? '<span class="tp-results-notes">' + esc(p.latestAdditionalNotes) + '</span>'
+        : '';
+      resultsInner = resultsOutcome + resultsNotes;
+    }
+    var resultsCell = resultsInner
       ? '<div class="tp-action-cell" onclick="tpToggleAction(this)" title="Click to expand / collapse">' +
-          '<div class="tp-action-text">' + resultsOutcome + resultsNotes + '</div>' +
+          '<div class="tp-action-text">' + resultsInner + '</div>' +
         '</div>'
       : '<span style="color:var(--muted,#888);">—</span>';
 
@@ -6281,8 +6332,9 @@ function tpRenderTable() {
       '<td style="padding:8px 10px;vertical-align:top;text-align:center;">' + lotsCell + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' + (p.jurisdiction ? esc(_muniDisplayName(p.jurisdiction)) : '<i>all</i>') + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' + builderCell + '</td>' +
-      '<td style="padding:8px 10px;vertical-align:top;">' + meetingTypeCell + '</td>' +
-      '<td style="padding:8px 10px;vertical-align:top;white-space:nowrap;">' + meetingDateCell + '</td>' +
+      '<td style="padding:8px 4px;vertical-align:top;max-width:88px;">' + meetingTypeCell + '</td>' +
+      '<td style="padding:8px 6px;vertical-align:top;white-space:nowrap;">' + meetingDateCell + '</td>' +
+      '<td style="padding:8px 10px;vertical-align:top;min-width:160px;max-width:300px;">' + descCell + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;min-width:259px;max-width:520px;">' + resultsCell + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' + yt + '</td>' +
       '<td class="tp-agendas-cell" style="padding:8px 6px;vertical-align:top;font-size:11px;">' + agendaRefsCell + '</td>' +
@@ -6392,7 +6444,7 @@ window.tpToggleAction = tpToggleAction;
 function _tpRenderEditDropdown(p, pidAttr) {
   var pid = p.projectId || '';
   return '<tr class="tp-edit-row" data-edit-pid="' + pidAttr + '" style="background:var(--bg-card,#1a1a1a);">' +
-    '<td colspan="16" style="padding:14px 18px;border-bottom:1px solid var(--border,#333);">' +
+    '<td colspan="17" style="padding:14px 18px;border-bottom:1px solid var(--border,#333);">' +
       '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;align-items:end;">' +
         '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);">Project name' +
           '<input id="tpe-name-' + pidAttr + '" type="text" value="' + escAttr(p.projectName || '') + '" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
@@ -6415,6 +6467,20 @@ function _tpRenderEditDropdown(p, pidAttr) {
         // manual override here persists to Tracked_Projects.lots col 18.
         '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);">Lots (homesites)' +
           '<input id="tpe-lots-' + pidAttr + '" type="text" inputmode="numeric" value="' + escAttr(p.lots == null ? '' : String(p.lots)) + '" placeholder="e.g. 124" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
+        '</label>' +
+        // P124: manual overrides for the otherwise-derived Meeting Type / Meeting
+        // Date / Results columns. Empty = use the value joined from Meetings +
+        // Agenda_Items; a non-empty value wins (and stops auto-updating from new
+        // meetings) — same manual-wins precedence as Petitioner/Lots. The
+        // placeholder shows the current derived value for reference.
+        '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);">Meeting Type (override)' +
+          '<input id="tpe-mtype-' + pidAttr + '" type="text" value="' + escAttr(p.manualMeetingType || '') + '" placeholder="' + escAttr(p.latestMeetingType || 'auto') + '" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
+        '</label>' +
+        '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);">Meeting Date (override)' +
+          '<input id="tpe-mdate-' + pidAttr + '" type="text" value="' + escAttr(p.manualMeetingDate || '') + '" placeholder="' + escAttr(p.latestRefDate || 'M/D/YYYY') + '" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
+        '</label>' +
+        '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);grid-column:1/-1;">Results (override)' +
+          '<textarea id="tpe-results-' + pidAttr + '" rows="2" placeholder="Outcome / Vote / Additional Notes — leave blank to use the auto value" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;resize:vertical;font-family:inherit;">' + esc(p.manualResults || '') + '</textarea>' +
         '</label>' +
       '</div>' +
       '<div style="margin-top:12px;display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;">' +
@@ -6439,6 +6505,10 @@ function tpSaveEditRow(pid) {
   var petEl  = document.getElementById('tpe-petitioner-' + pid);
   // P79 A1: lots field added to the edit dropdown.
   var lotsEl = document.getElementById('tpe-lots-' + pid);
+  // P124: Meeting Type / Meeting Date / Results override fields.
+  var mtypeEl   = document.getElementById('tpe-mtype-' + pid);
+  var mdateEl   = document.getElementById('tpe-mdate-' + pid);
+  var resultsEl = document.getElementById('tpe-results-' + pid);
   var msgEl  = document.getElementById('tpe-msg-' + pid);
   if (!nameEl || !ordEl || !aliEl) return;
   var current = tpProjects.find(function(p) { return p.projectId === pid; });
@@ -6448,6 +6518,10 @@ function tpSaveEditRow(pid) {
   var ali  = (aliEl.value || '').trim();
   var pet  = petEl  ? (petEl.value  || '').trim() : (current.petitionerApplicant || '');
   var lots = lotsEl ? (lotsEl.value || '').trim() : (current.lots == null ? '' : String(current.lots));
+  // P124: override values (empty string = clear the override → fall back to derived).
+  var mtype   = mtypeEl   ? (mtypeEl.value   || '').trim() : (current.manualMeetingType || '');
+  var mdate   = mdateEl   ? (mdateEl.value   || '').trim() : (current.manualMeetingDate || '');
+  var results = resultsEl ? (resultsEl.value || '').trim() : (current.manualResults || '');
   if (!name) {
     if (msgEl) { msgEl.textContent = 'Project name required.'; msgEl.style.color = '#d65a5a'; }
     return;
@@ -6456,22 +6530,31 @@ function tpSaveEditRow(pid) {
   if (!webappUrl) return;
   if (msgEl) { msgEl.textContent = 'Saving…'; msgEl.style.color = 'var(--muted,#888)'; }
   // Optimistic local update
-  var prev = { projectName: current.projectName, ordinanceId: current.ordinanceId, aliases: current.aliases, petitionerApplicant: current.petitionerApplicant, lots: current.lots };
+  var prev = { projectName: current.projectName, ordinanceId: current.ordinanceId, aliases: current.aliases, petitionerApplicant: current.petitionerApplicant, lots: current.lots,
+               manualMeetingType: current.manualMeetingType, manualMeetingDate: current.manualMeetingDate, manualResults: current.manualResults };
   current.projectName         = name;
   current.ordinanceId         = ord;
   current.aliases             = ali;
   current.petitionerApplicant = pet;
   current.lots                = lots;
+  // P124: optimistic override update (re-render computes effective = manual||derived).
+  current.manualMeetingType   = mtype;
+  current.manualMeetingDate   = mdate;
+  current.manualResults       = results;
   // P61 hotfix: doPost doesn't route update_tracked_project — use GET with
   // individual field URL params (the proven pattern from tpInlineSave).
   // P79 A1: lots param joins the persisted fields.
+  // P124: manual_meeting_date/type/results override params.
   var q = '&action=update_tracked_project'
         + '&project_id=' + encodeURIComponent(pid)
         + '&project_name=' + encodeURIComponent(name)
         + '&ordinance_id=' + encodeURIComponent(ord)
         + '&aliases=' + encodeURIComponent(ali)
         + '&petitioner_applicant=' + encodeURIComponent(pet)
-        + '&lots=' + encodeURIComponent(lots);
+        + '&lots=' + encodeURIComponent(lots)
+        + '&manual_meeting_type=' + encodeURIComponent(mtype)
+        + '&manual_meeting_date=' + encodeURIComponent(mdate)
+        + '&manual_results=' + encodeURIComponent(results);
   fetch(webappUrl + q)
     .then(function(r) { return r.json(); })
     .then(function(res) {
@@ -6486,6 +6569,10 @@ function tpSaveEditRow(pid) {
         current.ordinanceId         = prev.ordinanceId;
         current.aliases             = prev.aliases;
         current.petitionerApplicant = prev.petitionerApplicant;
+        current.lots                = prev.lots;
+        current.manualMeetingType   = prev.manualMeetingType;
+        current.manualMeetingDate   = prev.manualMeetingDate;
+        current.manualResults       = prev.manualResults;
         if (msgEl) { msgEl.textContent = 'Failed: ' + ((res && res.error) || 'unknown'); msgEl.style.color = '#d65a5a'; }
       }
     })
@@ -6494,6 +6581,10 @@ function tpSaveEditRow(pid) {
       current.ordinanceId         = prev.ordinanceId;
       current.aliases             = prev.aliases;
       current.petitionerApplicant = prev.petitionerApplicant;
+      current.lots                = prev.lots;
+      current.manualMeetingType   = prev.manualMeetingType;
+      current.manualMeetingDate   = prev.manualMeetingDate;
+      current.manualResults       = prev.manualResults;
       if (msgEl) { msgEl.textContent = 'Network error.'; msgEl.style.color = '#d65a5a'; }
       console.error('tpSaveEditRow error:', err);
     });
