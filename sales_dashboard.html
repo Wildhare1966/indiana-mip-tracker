@@ -313,11 +313,11 @@ License: MIT
       <summary><span class="chev">▶</span> Graphs &amp; charts <span class="hint">— summary metrics + charts; click to expand</span></summary>
       <section class="stats" id="stats"></section>
       <section class="charts">
+        <div class="chartbox full"><h3>County submission recency</h3><div class="ch-sub">most recent sales-disclosure record in <span id="recYear">this year</span> · bar reaches the latest filing date · labeled with each county's record count</div><div class="ch-canvas" style="height:360px"><canvas id="chRecency"></canvas></div></div>
         <div class="chartbox"><h3>Sales by month</h3><div class="ch-sub">count, by conveyance date</div><div class="ch-canvas"><canvas id="chMonth"></canvas></div></div>
         <div class="chartbox"><h3>Top counties</h3><div class="ch-sub">by transaction count</div><div class="ch-canvas"><canvas id="chCounty"></canvas></div></div>
         <div class="chartbox enrich-only"><h3>Top builders</h3><div class="ch-sub">by transaction count · identified sellers</div><div class="ch-canvas"><canvas id="chBuilder"></canvas></div></div>
         <div class="chartbox enrich-only"><h3>Transaction type</h3><div class="ch-sub">builder-matched activity</div><div class="ch-canvas"><canvas id="chKind"></canvas></div></div>
-        <div class="chartbox full"><h3>County submission recency</h3><div class="ch-sub">most recent sales-disclosure record in <span id="recYear">this year</span> · bar reaches the latest filing date · labeled with each county's record count</div><div class="ch-canvas" style="height:360px"><canvas id="chRecency"></canvas></div></div>
         <div class="chartbox full"><h3>Top property classes</h3><div class="ch-sub">decoded · count of transactions</div><div class="ch-canvas"><canvas id="chClass"></canvas></div></div>
       </section>
     </details>
@@ -432,7 +432,18 @@ function _qp(k){ try{ return new URLSearchParams(location.search).get(k); }catch
 // shared row-mapping — used by BOTH the manual picker and the CDN auto-load, so the
 // two paths can never drift (the old standing "keep RAW.map in sync" gotcha).
 function mapRows(data){
-  return data.map(r=>{
+  // One disclosure (SDF_ID) can appear on multiple source rows because the prep join
+  // fans out on one-to-many validation/parcel metadata (P2_* validator fields, J2_State, …);
+  // every business-meaningful field (seller/buyer/price/builder/parcels) is identical across
+  // the copies. Collapse to one row per SDF_ID so the table, KPIs, and charts aren't inflated.
+  const seen=new Set();
+  const rows=[];
+  for(const r of data){
+    const id=String(r.SDF_ID||'').trim();
+    if(id){ if(seen.has(id)) continue; seen.add(id); }
+    rows.push(r);
+  }
+  return rows.map(r=>{
     r._price=parseNum(r.sale_price_num);
     r._av=parseNum(r.total_AV_sum);
     r._date=r.conveyance_date?new Date(r.conveyance_date):null;
