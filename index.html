@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p125r1 -->
+<!-- MIP build p129r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p125r1">
+<link rel="stylesheet" href="styles.css?v=p129r1">
 </head>
 <body>
 
@@ -6755,7 +6755,10 @@ function tpStatusChange(sel) {
   fetch(webappUrl + q)
     .then(function(r) { return r.json(); })
     .then(function(res) {
-      if (!res || !res.ok) {
+      // Backend update_tracked_project returns {success:true}; older callers
+      // returned {ok:true}. Accept either (the sibling write handlers already do)
+      // — checking only res.ok rolled back even successful status changes.
+      if (!res || !(res.ok || res.success)) {
         // Roll back optimistic update on failure
         if (cached) cached.status = prev;
         tpRenderTable();
