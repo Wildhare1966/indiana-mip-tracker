@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p124r2 -->
+<!-- MIP build p125r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p124r2">
+<link rel="stylesheet" href="styles.css?v=p125r1">
 </head>
 <body>
 
@@ -9175,7 +9175,16 @@ function candRender(){
     // mirroring the hearings + Tracked Projects link pattern. downloadSiblingHtml
     // adds a tiny ⤓ fall-through for files the viewer can't render (>25 MB).
     var agendaLinks=urls.map(function(u,i){return '<a href="'+escUrl(inlineViewerUrl(u))+'" target="_blank" rel="noopener" data-doc-link="agenda">#'+(i+1)+'</a>'+downloadSiblingHtml(u);}).join(' ') || '—';
-    var acts='<button class="refresh-btn" style="font-size:10px;padding:3px 9px;background:#1c7c3a;color:#fff;border-color:#1c7c3a;" title="Create a NEW Tracked Project from this candidate" onclick="candTrack(\''+cid+'\',this)">＋ Track</button>'+
+    // P128: a row the backend matched to an existing Tracked Project is a
+    // "suggestion" — rendered blue with an Approve button that officially
+    // associates it. Approve + Track + Add to… + Dismiss all stay available.
+    var isSugg=!!(c.suggested_project_id&&String(c.suggested_project_id).trim());
+    var suggName=String(c.suggested_project_name||'').trim();
+    var approveBtn=isSugg
+      ? '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;background:#0b6ea8;color:#fff;border-color:#0b6ea8;" title="Approve — officially associate this item with '+_diagEsc(suggName||'the matched project')+'" onclick="candApprove(\''+cid+'\',this)">✓ Approve</button>'
+      : '';
+    var acts=approveBtn+
+             '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;'+(isSugg?'margin-left:4px;':'')+'background:#1c7c3a;color:#fff;border-color:#1c7c3a;" title="Create a NEW Tracked Project from this candidate" onclick="candTrack(\''+cid+'\',this)">＋ Track</button>'+
              '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;margin-left:4px;" title="Add this candidate to an EXISTING Tracked Project" onclick="candOpenAddToExisting(\''+cid+'\',this)">Add to… ▾</button>'+
              '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;margin-left:4px;" title="Dismiss — not a project to track" onclick="candDismiss(\''+cid+'\',this)">Dismiss</button>';
     var descText=String(c.description||c.sample_request||'').trim();
@@ -9187,7 +9196,7 @@ function candRender(){
       '<td style="padding:6px 8px;"><input type="checkbox" data-cand-sel="'+cid+'" onchange="candToggleSel(\''+cid+'\',this)"'+checked+' style="cursor:pointer;"></td>'+
       '<td style="padding:6px 8px;">'+pill+'</td>'+
       '<td style="padding:6px 8px;white-space:nowrap;">'+_diagEsc(c.jurisdiction)+'</td>'+
-      '<td style="padding:6px 8px;vertical-align:top;"><span class="cand-proj" title="Click to expand / collapse" onclick="this.classList.toggle(\'expanded\')">'+_diagEsc(c.project_name||'—')+'</span></td>'+
+      '<td style="padding:6px 8px;vertical-align:top;"><span class="cand-proj'+(isSugg?' cand-proj-suggested':'')+'" title="Click to expand / collapse" onclick="this.classList.toggle(\'expanded\')">'+_diagEsc(c.project_name||'—')+'</span>'+(isSugg?'<div class="cand-suggest-match" title="Matched an existing Tracked Project — click Approve to associate">↳ matches: '+_diagEsc(suggName||'tracked project')+'</div>':'')+'</td>'+
       '<td style="padding:6px 8px;white-space:nowrap;">'+_diagEsc(c.request_type||'—')+'</td>'+
       '<td style="padding:6px 8px;width:380px;max-width:420px;">'+descCell+'</td>'+
       '<td style="padding:6px 8px;vertical-align:top;">'+(String(c.petitioner||'').trim()?'<span class="cand-petitioner" title="Click to expand / collapse" onclick="this.classList.toggle(\'expanded\')">'+_diagEsc(c.petitioner)+'</span>':'<span style="color:var(--text-dim);">—</span>')+'</td>'+
@@ -9250,21 +9259,71 @@ function candSelectAllFiltered(cb){
 }
 function candClearSel(){ _candSel={}; candRender(); }
 
+// P128: +Track opens a small window to edit/confirm the Project name before the
+// Tracked Project is created (candTrackConfirm does the actual create). The
+// shared resolver removes the tracked candidate + any backend-associated siblings
+// from the queue and refreshes the Tracked Projects table/rail.
+function _candResolveTracked(cid, rr){
+  var ids=[cid].concat(Array.isArray(rr&&rr.also_associated)?rr.also_associated:[]);
+  ids.forEach(function(x){ _candData.forEach(function(c){ if(c.candidate_id===x) c.status='_resolved'; }); delete _candSel[x]; });
+  _candUpdateBadge(); _candPopulateJurisDropdown(); candRender();
+  if(typeof tpLoad==='function'){ try{ tpLoad(true); }catch(e){} } // refresh projects + rail with the new TP
+}
 function candTrack(cid, btn){
   if(!cid) return;
-  if(btn){ btn.disabled=true; btn.textContent='Tracking…'; }
+  var c=_candById(cid);
+  candOpenTrackModal(cid, c?String(c.project_name||''):'');
+}
+function candOpenTrackModal(cid, name){
+  var ov=document.getElementById('cand-track-ov');
+  if(!ov){
+    ov=document.createElement('div'); ov.id='cand-track-ov'; ov.className='cand-track-ov';
+    ov.innerHTML='<div class="cand-track-box">'+
+        '<div class="cand-track-h">Create Tracked Project</div>'+
+        '<label class="cand-track-l" for="cand-track-name">Project name</label>'+
+        '<input id="cand-track-name" class="cand-track-input" type="text" autocomplete="off" />'+
+        '<div class="cand-track-err" id="cand-track-err"></div>'+
+        '<div class="cand-track-actions">'+
+          '<button class="refresh-btn" onclick="candCloseTrackModal()">Cancel</button>'+
+          '<button class="refresh-btn" id="cand-track-go" style="background:#1c7c3a;color:#fff;border-color:#1c7c3a;" onclick="candTrackConfirm()">Create project</button>'+
+        '</div></div>';
+    document.body.appendChild(ov);
+    ov.addEventListener('click',function(e){ if(e.target===ov) candCloseTrackModal(); });
+  }
+  ov.setAttribute('data-cid', cid);
+  var inp=document.getElementById('cand-track-name'); inp.value=name||'';
+  document.getElementById('cand-track-err').textContent='';
+  var go=document.getElementById('cand-track-go'); go.disabled=false; go.textContent='Create project';
+  ov.classList.add('open');
+  setTimeout(function(){ inp.focus(); inp.select(); },30);
+}
+function candCloseTrackModal(){ var ov=document.getElementById('cand-track-ov'); if(ov) ov.classList.remove('open'); }
+function candTrackConfirm(){
+  var ov=document.getElementById('cand-track-ov'); if(!ov) return;
+  var cid=ov.getAttribute('data-cid'); if(!cid) return;
+  var name=(document.getElementById('cand-track-name').value||'').trim();
+  if(!name){ document.getElementById('cand-track-err').textContent='Project name is required.'; return; }
+  var go=document.getElementById('cand-track-go'); go.disabled=true; go.textContent='Creating…';
   var base=getWebAppUrl(); if(!base) return;
-  fetch(base+'&action=admin_run&fn=trackAgendaCandidate&candidate_id='+encodeURIComponent(cid)).then(function(r){return r.json();}).then(function(res){
+  fetch(base+'&action=admin_run&fn=trackAgendaCandidate&candidate_id='+encodeURIComponent(cid)+'&project_name='+encodeURIComponent(name)).then(function(r){return r.json();}).then(function(res){
+    var rr=res&&res.result;
+    if(!rr||!rr.ok){ go.disabled=false; go.textContent='Failed — retry'; return; }
+    candCloseTrackModal();
+    _candResolveTracked(cid, rr);
+  }).catch(function(){ go.disabled=false; go.textContent='Failed — retry'; });
+}
+// P128: Approve — officially associate a suggested item with the matched project.
+function candApprove(cid, btn){
+  if(!cid) return;
+  var c=_candById(cid); var pid=c?String(c.suggested_project_id||'').trim():'';
+  if(!pid){ if(btn){ btn.textContent='No match'; } return; }
+  if(btn){ btn.disabled=true; btn.textContent='Approving…'; }
+  var base=getWebAppUrl(); if(!base) return;
+  fetch(base+'&action=admin_run&fn=addCandidateToTrackedProject&candidate_id='+encodeURIComponent(cid)+'&project_id='+encodeURIComponent(pid)).then(function(r){return r.json();}).then(function(res){
     var rr=res&&res.result;
     if(!rr||!rr.ok){ if(btn){ btn.disabled=false; btn.textContent='Failed — retry'; } return; }
-    // P118 rev4: the tracked candidate AND every sibling the backend auto-
-    // associated (P117 #4 also_associated[]) leave the queue in one click, so
-    // none of this project's agenda mentions linger as "new".
-    var ids=[cid].concat(Array.isArray(rr.also_associated)?rr.also_associated:[]);
-    ids.forEach(function(x){ _candData.forEach(function(c){ if(c.candidate_id===x) c.status='_resolved'; }); delete _candSel[x]; });
-    _candUpdateBadge(); _candPopulateJurisDropdown(); candRender();
-    if(typeof tpLoad==='function'){ try{ tpLoad(true); }catch(e){} } // refresh projects + rail with the new TP
-  }).catch(function(){ if(btn){ btn.disabled=false; btn.textContent='＋ Track'; } });
+    _candResolveTracked(cid, rr);
+  }).catch(function(){ if(btn){ btn.disabled=false; btn.textContent='✓ Approve'; } });
 }
 
 function candDismiss(cid, btn){
@@ -10975,6 +11034,22 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
   .cand-petitioner{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer;line-height:1.3;width:112px;max-width:112px;font-size:10px;color:var(--text-dim);border-bottom:1px dotted rgba(255,255,255,.22);}
   .cand-petitioner.expanded{display:block;-webkit-line-clamp:unset;overflow:visible;white-space:normal;width:140px;max-width:140px;}
   .cand-petitioner:hover{color:var(--accent,#e8a020);}
+  /* P128: a candidate the backend matched to an existing Tracked Project — the
+     project text turns the county-name light-blue (--tp-bright) and a small
+     "↳ matches:" line names the target. Approve officially associates it. */
+  .cand-proj-suggested{color:var(--tp-bright)!important;border-bottom-color:rgba(59,227,255,.45);}
+  .cand-proj-suggested:hover{color:var(--tp-bright)!important;}
+  .cand-suggest-match{margin-top:2px;font-size:9px;font-weight:600;letter-spacing:.02em;color:var(--tp-bright);opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px;}
+  /* P128: +Track "edit project name" window. */
+  .cand-track-ov{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:9000;}
+  .cand-track-ov.open{display:flex;}
+  .cand-track-box{width:420px;max-width:92vw;background:var(--bg-card,#143247);border:1px solid rgba(59,227,255,.42);border-radius:8px;padding:18px 20px;box-shadow:0 12px 40px rgba(0,0,0,.5);}
+  .cand-track-h{font-size:15px;font-weight:700;margin-bottom:12px;color:var(--text,#eee);}
+  .cand-track-l{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-dim);margin-bottom:5px;}
+  .cand-track-input{width:100%;box-sizing:border-box;padding:8px 10px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:13px;font-family:inherit;}
+  .cand-track-input:focus{outline:none;border-color:var(--tp-bright);}
+  .cand-track-err{min-height:16px;margin-top:6px;font-size:11px;color:#e0564a;}
+  .cand-track-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:8px;}
 </style>
 <div class="mrdask-ov" id="mrdask-ov">
   <div class="mrdask-box">
