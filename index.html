@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p136 -->
+<!-- MIP build p136r2 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -27,7 +27,7 @@
     <button class="topbar-btn" onclick="switchView('candidates')" id="nav-candidates">Agenda Items <span id="nav-cand-badge" style="display:none;background:#1c7c3a;color:#fff;font-size:9px;font-weight:700;padding:0 6px;border-radius:9px;margin-left:2px;vertical-align:middle;"></span></button>
     <button class="topbar-btn" onclick="switchView('suggested')" id="nav-suggested">Suggested Matches <span id="nav-sugg-badge" style="display:none;background:#0b6ea8;color:#fff;font-size:9px;font-weight:700;padding:0 6px;border-radius:9px;margin-left:2px;vertical-align:middle;"></span></button>
     <button class="topbar-btn" onclick="switchView('parsestatus')" id="nav-parsestatus">Parse Status</button>
-    <button class="topbar-btn" onclick="switchView('tracked')" id="nav-tracked">Tracked Projects</button>
+    <button class="topbar-btn" onclick="switchView('tracked')" id="nav-tracked">Competitor Tracked Projects</button>
     <button class="topbar-btn" onclick="switchView('schedule')" id="nav-schedule">Schedule & Requirements</button>
     <button class="topbar-btn" onclick="switchView('market')" id="nav-market">Zonda</button>
     <button class="topbar-btn" onclick="switchView('salesdisclosures')" id="nav-salesdisclosures">Sales Disclosures</button>
@@ -392,7 +392,7 @@
       <div style="padding:24px 32px;width:100%;">
         <div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;">
           <div>
-            <div class="overview-title">Tracked Projects</div>
+            <div class="overview-title">Competitor Tracked Projects</div>
             <div class="overview-sub">Cross-jurisdiction roll-up of every project flagged for ordinance / project-name matching. Updates after every scrape.</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
@@ -446,7 +446,7 @@
                 <th style="padding:8px 6px;border-bottom:1px solid var(--border,#333);">Meeting<br>Date</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);" title="The Request Summary from the matching meeting's agenda item. Click a cell to expand.">Description</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);" title="From the matching YouTube-video agenda item: Outcome + Vote, then Additional Notes.">Results</th>
-                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Meeting<br>Notes</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Youtube<br>Summary</th>
                 <th style="padding:8px 6px;border-bottom:1px solid var(--border,#333);" title="All agenda documents this project was referenced on (newest first)">Agendas</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Tagged Docs</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Status</th>
@@ -458,8 +458,7 @@
             <tbody id="tp-tbody"></tbody>
           </table>
         </div>
-        <!-- P95: persistent horizontal scrollbar synced to the table above. -->
-        <div class="tp-hscroll-proxy" id="tp-hscroll-proxy"><div id="tp-hscroll-spacer"></div></div>
+        <!-- P136: P95 sticky proxy scrollbar removed (operator: single scrollbar) -->
       </div>
     </div>
 
@@ -495,7 +494,17 @@
             <div class="overview-title">Suggested Matches</div>
             <div class="overview-sub">Medium-confidence (name-only) matches between a hearing summary / agenda and a Tracked Project — the project name was mentioned in a meeting but did <b>not</b> match its ordinance/identifier (a name-drop, comparison, or committee report), so it needs your confirmation. <b>Approve</b> associates it with the project (and lets it drive Description / Results); <b>Dismiss</b> rejects it.</div>
           </div>
-          <div style="display:flex;gap:8px;">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <select id="sugg-juris-filter" onchange="suggApplyControls()" title="Filter by jurisdiction" style="padding:5px 8px;background:var(--bg-card,#1a1a1a);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:11px;">
+              <option value="">All jurisdictions</option>
+            </select>
+            <select id="sugg-sort" onchange="suggApplyControls()" title="Sort (the other field becomes the secondary sort)" style="padding:5px 8px;background:var(--bg-card,#1a1a1a);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:11px;">
+              <option value="date">Sort: Date</option>
+              <option value="jurisdiction">Sort: Jurisdiction</option>
+            </select>
+            <button class="refresh-btn" onclick="suggBulk('approve')" title="Approve every checked row">✓ Approve checked</button>
+            <button class="refresh-btn sugg-dismiss-btn" onclick="suggBulk('dismiss')" title="Dismiss every checked row">✕ Dismiss checked</button>
+            <span id="sugg-bulk-count" style="font-size:11px;color:var(--text-dim);"></span>
             <button class="refresh-btn" id="sugg-expand-all" onclick="suggToggleAllDesc()" title="Expand or collapse every excerpt at once">Expand all</button>
             <button class="refresh-btn" onclick="suggLoad()" title="Re-fetch the suggested-match queue from the backend">↺ Refresh</button>
           </div>
@@ -6247,13 +6256,8 @@ function tpRenderTable() {
       yt = '';
     } else {
       yt = '<a class="tp-doc-link tp-page-doc-link" href="' + esc(summaryDocUrl) + '" target="_blank" rel="noopener" data-doc-link="summary">Summary</a>';
-      // P106: item-scoped Ask button — right of the Summary link. Opens the modal's
-      // single "Draft Detailed Summary" action, scoped to THIS project's agenda item.
-      var tpMid = _tpFindMeetingIdFor(p);
-      if (tpMid) {
-        var askSub = (p.jurisdiction || '') + (effMeetingType ? ' · ' + effMeetingType : '') + (effMeetingDate ? ' · ' + effMeetingDate : '');
-        yt += ' <button class="hearing-link ask" data-mid="' + escAttr(tpMid) + '" data-item="' + escAttr(p.projectName || '') + '" data-ord="' + escAttr(p.ordinanceId || '') + '" data-sub="' + escAttr(askSub) + '" onclick="askOpen(this)">✦ Detail</button>';
-      }
+      // P136: per-project "✦ Detail" Ask button removed (operator request) — the
+      // Youtube Summary column is now just the summary-doc link.
     }
 
     // P106: Petitioner table column removed (operator request — frees horizontal
@@ -9419,6 +9423,8 @@ function candDismiss(cid, btn){
 // These endpoints return the result object directly (no admin_run {result} wrap).
 // ═══════════════════════════════════════════════════════
 var _suggData=[]; var _suggResolved={}; var _suggAgendaMap={}; var _suggDescExpanded=false;
+// P136: per-row checkbox selection, jurisdiction filter, sort key.
+var _suggChecked={}; var _suggJurisFilter=''; var _suggSortKey='date';
 // P135: the Agendas column reuses the agendaRefs already computed for the global
 // Tracked Projects table (list_tracked_projects_detailed → tpProjects), joined by
 // projectId — no extra backend work. Reuse the warm tpProjects cache if present,
@@ -9466,7 +9472,8 @@ function suggLoad(){
   el.innerHTML='<div style="color:var(--text-dim);">Loading suggested matches…</div>';
   fetch(base+'&action=suggested_references').then(function(r){return r.json();}).then(function(res){
     if(!res||!res.ok){ el.innerHTML='<div style="color:var(--text-dim);">Could not load suggested matches: '+_diagEsc((res&&res.error)||'unknown')+'</div>'; return; }
-    _suggData=res.items||[]; _suggResolved={};
+    _suggData=res.items||[]; _suggResolved={}; _suggChecked={};
+    _suggPopulateJurisFilter();
     _suggEnsureAgendaMap().then(function(m){ _suggAgendaMap=m||{}; suggRender(); });
   }).catch(function(e){ el.innerHTML='<div style="color:var(--text-dim);">Network error: '+_diagEsc(e.message)+'</div>'; });
 }
@@ -9483,52 +9490,120 @@ function _suggUpdateBadge(){
   var n=_suggLive().length;
   if(n>0){ b.textContent=n; b.style.display='inline-block'; } else { b.style.display='none'; }
 }
+// P136: distinct jurisdictions → the filter dropdown (preserve current pick).
+function _suggPopulateJurisFilter(){
+  var sel=document.getElementById('sugg-juris-filter'); if(!sel) return;
+  var cur=sel.value||'';
+  var seen={}; var list=[];
+  _suggData.forEach(function(s){ var j=(s.jurisdiction||'').trim(); if(j&&!seen[j]){ seen[j]=true; list.push(j); } });
+  list.sort(function(a,b){ return a.toLowerCase()<b.toLowerCase()?-1:1; });
+  sel.innerHTML='<option value="">All jurisdictions</option>'+list.map(function(j){ return '<option value="'+escAttr(j)+'">'+_diagEsc(j)+'</option>'; }).join('');
+  sel.value=cur; if(sel.value!==cur) sel.value='';   // pick gone after refresh → reset
+}
+// P136: read the filter + sort dropdowns and re-render.
+function suggApplyControls(){
+  _suggJurisFilter=((document.getElementById('sugg-juris-filter')||{}).value)||'';
+  _suggSortKey=((document.getElementById('sugg-sort')||{}).value)||'date';
+  suggRender();
+}
+function _suggDateMs(s){ var d=new Date(s.meetingDate); return isNaN(d.getTime())?0:d.getTime(); }
+// P136: live rows after the jurisdiction filter, sorted by the chosen key with the
+// OTHER field as the secondary sort.
+function _suggViewRows(){
+  var rows=_suggLive();
+  if(_suggJurisFilter) rows=rows.filter(function(s){ return (s.jurisdiction||'')===_suggJurisFilter; });
+  rows=rows.slice();
+  rows.sort(function(a,b){
+    if(_suggSortKey==='jurisdiction'){
+      var aj=(a.jurisdiction||'').toLowerCase(), bj=(b.jurisdiction||'').toLowerCase();
+      if(aj!==bj) return aj<bj?-1:1;
+      return _suggDateMs(b)-_suggDateMs(a);            // secondary: date desc
+    }
+    var ad=_suggDateMs(a), bd=_suggDateMs(b);
+    if(ad!==bd) return bd-ad;                          // primary: date desc
+    var aj2=(a.jurisdiction||'').toLowerCase(), bj2=(b.jurisdiction||'').toLowerCase();
+    return aj2<bj2?-1:(aj2>bj2?1:0);                   // secondary: jurisdiction asc
+  });
+  return rows;
+}
+// P136: per-row + select-all checkbox state, and the "N checked" counter.
+function _suggOnCheck(cb){ var id=cb.getAttribute('data-rid'); if(cb.checked) _suggChecked[id]=true; else delete _suggChecked[id]; _suggUpdateBulkCount(); }
+function _suggToggleAll(cb){
+  document.querySelectorAll('#sugg-list .sugg-chk').forEach(function(c){ c.checked=cb.checked; var id=c.getAttribute('data-rid'); if(cb.checked)_suggChecked[id]=true; else delete _suggChecked[id]; });
+  _suggUpdateBulkCount();
+}
+function _suggCheckedIds(){ return Object.keys(_suggChecked).filter(function(id){ return _suggChecked[id] && !_suggResolved[id]; }); }
+function _suggUpdateBulkCount(){ var n=_suggCheckedIds().length; var b=document.getElementById('sugg-bulk-count'); if(b) b.textContent=n?(n+' checked'):''; }
+// P136: Approve / Dismiss every checked row (parallel, with a confirm guard).
+function suggBulk(action){
+  var ids=_suggCheckedIds();
+  if(!ids.length){ alert('No rows are checked.'); return; }
+  var verb=action==='approve'?'Approve':'Dismiss';
+  if(!confirm(verb+' '+ids.length+' checked match'+(ids.length===1?'':'es')+'?')) return;
+  var base=getWebAppUrl(); if(!base) return;
+  var act=action==='approve'?'approve_reference':'dismiss_reference';
+  var cnt=document.getElementById('sugg-bulk-count'); if(cnt) cnt.textContent=verb+'ing '+ids.length+'…';
+  Promise.all(ids.map(function(id){
+    return fetch(base+'&action='+act+'&ref_id='+encodeURIComponent(id)).then(function(r){return r.json();})
+      .then(function(res){ if(res&&res.ok){ _suggResolved[id]=true; delete _suggChecked[id]; return true; } return false; })
+      .catch(function(){ return false; });
+  })).then(function(results){
+    var ok=results.filter(Boolean).length;
+    suggRender();
+    if(cnt) cnt.textContent=verb+'d '+ok+' of '+ids.length+(ok<ids.length?' (some failed)':'');
+  });
+}
 function suggRender(){
   var el=document.getElementById('sugg-list'); if(!el) return;
-  var live=_suggLive(); _suggUpdateBadge();
-  var summary='<div style="margin-bottom:10px;font-size:12px;color:var(--text-dim);"><b style="color:inherit;">'+live.length+'</b> pending Medium (name-only) match'+(live.length===1?'':'es')+' awaiting review</div>';
-  if(!live.length){ el.innerHTML=summary+'<div style="color:var(--text-dim);padding:12px 0;">No suggested matches to review. ✓</div>'; return; }
-  // P136: table-layout:fixed + colgroup so EVERY column fits with no bottom
-  // scrollbar; Description (col 7, no width) absorbs the remaining space.
+  _suggUpdateBadge();
+  var rows=_suggViewRows();
+  var totalLive=_suggLive().length;
+  var summary='<div style="margin-bottom:10px;font-size:12px;color:var(--text-dim);"><b style="color:inherit;">'+totalLive+'</b> pending Medium (name-only) match'+(totalLive===1?'':'es')+' awaiting review'+(_suggJurisFilter?(' · showing <b style="color:inherit;">'+rows.length+'</b> in '+_diagEsc(_suggJurisFilter)):'')+'</div>';
+  if(!rows.length){ el.innerHTML=summary+'<div style="color:var(--text-dim);padding:12px 0;">'+(totalLive?'No matches for this filter.':'No suggested matches to review. ✓')+'</div>'; _suggUpdateBulkCount(); return; }
+  // P136: column order — Checkbox · Jurisdiction · Tracked Project · Petitioner ·
+  // Description · Date · Source · Agendas · Action. table-layout:fixed + % colgroup
+  // so every column fits with no bottom scrollbar; Description absorbs the slack.
   var colg='<colgroup>'+
-    '<col style="width:6%"><col style="width:9%"><col style="width:12%">'+
-    '<col style="width:8%"><col style="width:11%"><col style="width:12%">'+
-    '<col style="width:31%"><col style="width:11%"></colgroup>';
+    '<col style="width:3%"><col style="width:9%"><col style="width:12%"><col style="width:12%">'+
+    '<col style="width:28%"><col style="width:7%"><col style="width:11%"><col style="width:8%">'+
+    '<col style="width:10%"></colgroup>';
   var head='<tr style="text-align:left;color:var(--text-dim);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">'+
-    '<th style="padding:6px 8px;">Date</th><th style="padding:6px 8px;">Jurisdiction</th>'+
+    '<th style="padding:6px 4px;text-align:center;"><input type="checkbox" title="Select all shown" onclick="_suggToggleAll(this)"></th>'+
+    '<th style="padding:6px 8px;">Jurisdiction</th>'+
     '<th style="padding:6px 8px;">Tracked Project</th>'+
-    '<th style="padding:6px 8px;" title="Agenda documents associated with this Tracked Project (newest first)">Agendas</th>'+
-    '<th style="padding:6px 8px;">Source</th>'+
     '<th style="padding:6px 8px;">Petitioner</th>'+
     '<th style="padding:6px 8px;">Description</th>'+
+    '<th style="padding:6px 8px;">Date</th>'+
+    '<th style="padding:6px 8px;">Source</th>'+
+    '<th style="padding:6px 8px;" title="Agenda documents associated with this Tracked Project (newest first)">Agendas</th>'+
     '<th style="padding:6px 8px;text-align:right;">Action</th></tr>';
-  var body=live.map(function(s){
+  var body=rows.map(function(s){
     var rid=_diagEsc(s.refId);
-    // P136: the source-stream label (e.g. "YouTube/Transcript") IS the link to
-    // the source (timecoded video / agenda doc); legible light color via .sugg-src-link.
+    var checked=_suggChecked[s.refId]?' checked':'';
     var streamTxt=String(s.sourceStream||s.docType||'').trim();
     var srcCell=s.sourceUrl
       ? '<a class="sugg-src-link" href="'+escUrl(inlineViewerUrl(s.sourceUrl))+'" target="_blank" rel="noopener" title="Open source">'+_diagEsc(streamTxt||'↗ source')+'</a>'
       : (streamTxt?_diagEsc(streamTxt):'<span style="color:var(--text-dim);">—</span>');
-    // P136: split the excerpt into the Petitioner line (own column) + the rest (Description).
     var parts=_suggSplitExcerpt(s.excerpt);
     var petCell=parts.petitioner?'<span style="font-size:10px;">'+_diagEsc(parts.petitioner)+'</span>':'<span style="color:var(--text-dim);">—</span>';
     var exc=parts.desc;
     var excCell=exc?'<span class="cand-desc'+(_suggDescExpanded?' expanded':'')+'" title="Click to expand / collapse" onclick="this.classList.toggle(\'expanded\')">'+_diagEsc(exc)+'</span>':'<span style="color:var(--text-dim);">—</span>';
     return '<tr data-sugg-id="'+rid+'" style="border-top:1px solid var(--border);">'+
-      '<td style="padding:6px 8px;white-space:nowrap;font-size:10px;">'+_diagEsc(s.meetingDate||'—')+'</td>'+
-      '<td style="padding:6px 8px;word-break:break-word;">'+_diagEsc(s.jurisdiction||'—')+'</td>'+
+      '<td style="padding:6px 4px;text-align:center;vertical-align:top;"><input type="checkbox" class="sugg-chk" data-rid="'+rid+'"'+checked+' onclick="_suggOnCheck(this)"></td>'+
+      '<td style="padding:6px 8px;vertical-align:top;word-break:break-word;">'+_diagEsc(s.jurisdiction||'—')+'</td>'+
       '<td style="padding:6px 8px;vertical-align:top;word-break:break-word;">'+_diagEsc(s.projectName||'—')+'</td>'+
-      '<td style="padding:6px 8px;vertical-align:top;">'+_suggAgendaCell(s.projectId)+'</td>'+
-      '<td style="padding:6px 8px;vertical-align:top;font-size:10px;word-break:break-word;">'+srcCell+'</td>'+
       '<td style="padding:6px 8px;vertical-align:top;word-break:break-word;">'+petCell+'</td>'+
       '<td style="padding:6px 8px;vertical-align:top;">'+excCell+'</td>'+
+      '<td style="padding:6px 8px;vertical-align:top;white-space:nowrap;font-size:10px;">'+_diagEsc(s.meetingDate||'—')+'</td>'+
+      '<td style="padding:6px 8px;vertical-align:top;font-size:10px;word-break:break-word;">'+srcCell+'</td>'+
+      '<td style="padding:6px 8px;vertical-align:top;">'+_suggAgendaCell(s.projectId)+'</td>'+
       '<td style="padding:6px 8px;vertical-align:top;"><div style="display:flex;gap:4px;justify-content:flex-end;flex-wrap:wrap;">'+
         '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;background:#0b6ea8;color:#fff;border-color:#0b6ea8;" title="Approve — associate this match with the Tracked Project (it will drive Description / Results)" onclick="suggApprove(\''+rid+'\',this)">✓ Approve</button>'+
         '<button class="refresh-btn sugg-dismiss-btn" style="font-size:10px;padding:3px 9px;" title="Dismiss — not an accurate match (reversible)" onclick="suggDismiss(\''+rid+'\',this)">✕ Dismiss</button>'+
       '</div></td></tr>';
   }).join('');
   el.innerHTML=summary+'<div class="cand-table-scroll"><table class="sugg-table" style="width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed;">'+colg+'<thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>';
+  _suggUpdateBulkCount();
 }
 function suggApprove(rid, btn){
   if(!rid) return; if(btn){ btn.disabled=true; btn.textContent='Approving…'; }
