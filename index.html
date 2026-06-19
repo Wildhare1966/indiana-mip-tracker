@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p136r2 -->
+<!-- MIP build p137 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -9553,6 +9553,21 @@ function suggBulk(action){
     if(cnt) cnt.textContent=verb+'d '+ok+' of '+ids.length+(ok<ids.length?' (some failed)':'');
   });
 }
+// P137: build a {meeting_id: summary_doc} lookup from the loaded hearings wire.
+// A suggestion's meetingId is the Meetings primary key (the YouTube video id for
+// video/transcript items), so this lets the Source label link to the summary doc.
+function _suggBuildSumDocMap(){
+  var m={};
+  if(typeof PUBLIC_HEARINGS==='object'&&PUBLIC_HEARINGS){
+    Object.keys(PUBLIC_HEARINGS).forEach(function(k){
+      var arr=PUBLIC_HEARINGS[k]; if(!Array.isArray(arr)) return;
+      arr.forEach(function(h){
+        if(h&&h.meeting_id&&h.summary_doc&&!m[h.meeting_id]) m[h.meeting_id]=String(h.summary_doc);
+      });
+    });
+  }
+  return m;
+}
 function suggRender(){
   var el=document.getElementById('sugg-list'); if(!el) return;
   _suggUpdateBadge();
@@ -9577,13 +9592,25 @@ function suggRender(){
     '<th style="padding:6px 8px;">Source</th>'+
     '<th style="padding:6px 8px;" title="Agenda documents associated with this Tracked Project (newest first)">Agendas</th>'+
     '<th style="padding:6px 8px;text-align:right;">Action</th></tr>';
+  // P137: meeting_id → summary_doc map from the loaded hearings wire, so the
+  // Source label (e.g. "YouTube/Transcript") can link to the Gemini summary doc
+  // rather than the raw timecoded video. Built once per render (PUBLIC_HEARINGS
+  // is static after load).
+  var _suggSumDocMap=_suggBuildSumDocMap();
   var body=rows.map(function(s){
     var rid=_diagEsc(s.refId);
     var checked=_suggChecked[s.refId]?' checked':'';
     var streamTxt=String(s.sourceStream||s.docType||'').trim();
-    var srcCell=s.sourceUrl
-      ? '<a class="sugg-src-link" href="'+escUrl(inlineViewerUrl(s.sourceUrl))+'" target="_blank" rel="noopener" title="Open source">'+_diagEsc(streamTxt||'↗ source')+'</a>'
-      : (streamTxt?_diagEsc(streamTxt):'<span style="color:var(--text-dim);">—</span>');
+    var sumDoc=s.meetingId?(_suggSumDocMap[s.meetingId]||''):'';
+    var srcCell;
+    if(sumDoc){
+      // Prefer the summary doc (operator wants the source text to open the summary).
+      srcCell='<a class="sugg-src-link" href="'+escUrl(sumDoc)+'" target="_blank" rel="noopener" title="Open summary">'+_diagEsc(streamTxt||'✦ Summary')+'</a>';
+    } else if(s.sourceUrl){
+      srcCell='<a class="sugg-src-link" href="'+escUrl(inlineViewerUrl(s.sourceUrl))+'" target="_blank" rel="noopener" title="Open source">'+_diagEsc(streamTxt||'↗ source')+'</a>';
+    } else {
+      srcCell=streamTxt?_diagEsc(streamTxt):'<span style="color:var(--text-dim);">—</span>';
+    }
     var parts=_suggSplitExcerpt(s.excerpt);
     var petCell=parts.petitioner?'<span style="font-size:10px;">'+_diagEsc(parts.petitioner)+'</span>':'<span style="color:var(--text-dim);">—</span>';
     var exc=parts.desc;
