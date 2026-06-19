@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p134r1 -->
+<!-- MIP build p135r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p134r1">
+<link rel="stylesheet" href="styles.css?v=p135r1">
 </head>
 <body>
 
@@ -495,7 +495,10 @@
             <div class="overview-title">Suggested Matches</div>
             <div class="overview-sub">Medium-confidence (name-only) matches between a hearing summary / agenda and a Tracked Project — the project name was mentioned in a meeting but did <b>not</b> match its ordinance/identifier (a name-drop, comparison, or committee report), so it needs your confirmation. <b>Approve</b> associates it with the project (and lets it drive Description / Results); <b>Dismiss</b> rejects it.</div>
           </div>
-          <button class="refresh-btn" onclick="suggLoad()" title="Re-fetch the suggested-match queue from the backend">↺ Refresh</button>
+          <div style="display:flex;gap:8px;">
+            <button class="refresh-btn" id="sugg-expand-all" onclick="suggToggleAllDesc()" title="Expand or collapse every excerpt at once">Expand all</button>
+            <button class="refresh-btn" onclick="suggLoad()" title="Re-fetch the suggested-match queue from the backend">↺ Refresh</button>
+          </div>
         </div>
         <div id="sugg-list"><div style="color:var(--text-dim);">Loading suggested matches…</div></div>
       </div>
@@ -9363,15 +9366,45 @@ function candDismiss(cid, btn){
 // status "New" + confidence "High" so it anchors per P133; Dismiss → "Dismissed".
 // These endpoints return the result object directly (no admin_run {result} wrap).
 // ═══════════════════════════════════════════════════════
-var _suggData=[]; var _suggResolved={};
+var _suggData=[]; var _suggResolved={}; var _suggAgendaMap={}; var _suggDescExpanded=false;
+// P135: the Agendas column reuses the agendaRefs already computed for the global
+// Tracked Projects table (list_tracked_projects_detailed → tpProjects), joined by
+// projectId — no extra backend work. Reuse the warm tpProjects cache if present,
+// otherwise fetch the detailed list once.
+function _suggBuildAgendaMap(rows){
+  var m={}; (rows||[]).forEach(function(p){ if(p&&p.projectId) m[p.projectId]=p.agendaRefs||[]; }); return m;
+}
+function _suggEnsureAgendaMap(){
+  if(Array.isArray(tpProjects)&&tpProjects.length) return Promise.resolve(_suggBuildAgendaMap(tpProjects));
+  var base=getWebAppUrl(); if(!base) return Promise.resolve({});
+  return fetch(base+'&action=list_tracked_projects_detailed&jurisdiction=*')
+    .then(function(r){return r.json();})
+    .then(function(rows){ if(Array.isArray(rows)){ tpProjects=rows; tpLoadedAt=Date.now(); } return _suggBuildAgendaMap(tpProjects); })
+    .catch(function(){ return {}; });
+}
+function _suggAgendaCell(pid){
+  var refs=_suggAgendaMap[pid]||[];
+  if(!refs.length) return '<span style="color:var(--text-dim);">—</span>';
+  return refs.map(function(a,i){
+    return '<a href="'+escUrl(inlineViewerUrl(a.url))+'" target="_blank" rel="noopener" title="'+escAttr(a.date||'')+'" style="font-size:10px;margin-right:5px;white-space:nowrap;">#'+(i+1)+'</a>';
+  }).join('');
+}
 function suggLoad(){
   var el=document.getElementById('sugg-list'); if(!el) return;
   var base=getWebAppUrl(); if(!base){ el.innerHTML='<div style="color:var(--text-dim);">No dashboard connection configured.</div>'; return; }
   el.innerHTML='<div style="color:var(--text-dim);">Loading suggested matches…</div>';
   fetch(base+'&action=suggested_references').then(function(r){return r.json();}).then(function(res){
     if(!res||!res.ok){ el.innerHTML='<div style="color:var(--text-dim);">Could not load suggested matches: '+_diagEsc((res&&res.error)||'unknown')+'</div>'; return; }
-    _suggData=res.items||[]; _suggResolved={}; suggRender();
+    _suggData=res.items||[]; _suggResolved={};
+    _suggEnsureAgendaMap().then(function(m){ _suggAgendaMap=m||{}; suggRender(); });
   }).catch(function(e){ el.innerHTML='<div style="color:var(--text-dim);">Network error: '+_diagEsc(e.message)+'</div>'; });
+}
+// P135: expand/collapse ALL excerpt cells at once. The flag persists across
+// re-renders (suggRender reads it when building each excerpt cell).
+function suggToggleAllDesc(){
+  _suggDescExpanded=!_suggDescExpanded;
+  document.querySelectorAll('#sugg-list .cand-desc').forEach(function(s){ s.classList.toggle('expanded', _suggDescExpanded); });
+  var b=document.getElementById('sugg-expand-all'); if(b) b.textContent=_suggDescExpanded?'Collapse all':'Expand all';
 }
 function _suggLive(){ return _suggData.filter(function(s){ return !_suggResolved[s.refId]; }); }
 function _suggUpdateBadge(){
@@ -9386,7 +9419,9 @@ function suggRender(){
   if(!live.length){ el.innerHTML=summary+'<div style="color:var(--text-dim);padding:12px 0;">No suggested matches to review. ✓</div>'; return; }
   var head='<tr style="text-align:left;color:var(--text-dim);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">'+
     '<th style="padding:6px 8px;white-space:nowrap;">Date</th><th style="padding:6px 8px;">Jurisdiction</th>'+
-    '<th style="padding:6px 8px;width:150px;">Tracked Project</th><th style="padding:6px 8px;">Source</th>'+
+    '<th style="padding:6px 8px;width:150px;">Tracked Project</th>'+
+    '<th style="padding:6px 8px;white-space:nowrap;" title="Agenda documents associated with this Tracked Project (newest first)">Agendas</th>'+
+    '<th style="padding:6px 8px;">Source</th>'+
     '<th style="padding:6px 8px;width:420px;">Why it matched (excerpt)</th>'+
     '<th style="padding:6px 8px;text-align:right;">Action</th></tr>';
   var body=live.map(function(s){
@@ -9394,11 +9429,12 @@ function suggRender(){
     var src=s.sourceUrl?'<a href="'+escUrl(inlineViewerUrl(s.sourceUrl))+'" target="_blank" rel="noopener" style="font-size:10px;">↗ source</a>':'';
     var stream=_diagEsc(s.sourceStream||s.docType||'');
     var exc=String(s.excerpt||'').trim();
-    var excCell=exc?'<span class="cand-desc" title="Click to expand / collapse" onclick="this.classList.toggle(\'expanded\')">'+_diagEsc(exc)+'</span>':'<span style="color:var(--text-dim);">—</span>';
+    var excCell=exc?'<span class="cand-desc'+(_suggDescExpanded?' expanded':'')+'" title="Click to expand / collapse" onclick="this.classList.toggle(\'expanded\')">'+_diagEsc(exc)+'</span>':'<span style="color:var(--text-dim);">—</span>';
     return '<tr data-sugg-id="'+rid+'" style="border-top:1px solid var(--border);">'+
       '<td style="padding:6px 8px;white-space:nowrap;font-size:10px;">'+_diagEsc(s.meetingDate||'—')+'</td>'+
       '<td style="padding:6px 8px;white-space:nowrap;">'+_diagEsc(s.jurisdiction||'—')+'</td>'+
       '<td style="padding:6px 8px;vertical-align:top;">'+_diagEsc(s.projectName||'—')+'</td>'+
+      '<td style="padding:6px 8px;vertical-align:top;">'+_suggAgendaCell(s.projectId)+'</td>'+
       '<td style="padding:6px 8px;white-space:nowrap;font-size:10px;">'+stream+'</td>'+
       '<td style="padding:6px 8px;width:420px;max-width:460px;">'+excCell+' '+src+'</td>'+
       '<td style="padding:6px 8px;"><div style="display:flex;gap:4px;justify-content:flex-end;">'+
