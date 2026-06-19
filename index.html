@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p137 -->
+<!-- MIP build p137r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -9626,6 +9626,7 @@ function suggRender(){
       '<td style="padding:6px 8px;vertical-align:top;">'+_suggAgendaCell(s.projectId)+'</td>'+
       '<td style="padding:6px 8px;vertical-align:top;"><div style="display:flex;gap:4px;justify-content:flex-end;flex-wrap:wrap;">'+
         '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;background:#0b6ea8;color:#fff;border-color:#0b6ea8;" title="Approve — associate this match with the Tracked Project (it will drive Description / Results)" onclick="suggApprove(\''+rid+'\',this)">✓ Approve</button>'+
+        '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;" title="Add To… — re-point this match to a DIFFERENT existing Tracked Project you pick (then approve it there)" onclick="suggOpenAddToExisting(\''+rid+'\',this)">Add to… ▾</button>'+
         '<button class="refresh-btn sugg-dismiss-btn" style="font-size:10px;padding:3px 9px;" title="Dismiss — not an accurate match (reversible)" onclick="suggDismiss(\''+rid+'\',this)">✕ Dismiss</button>'+
       '</div></td></tr>';
   }).join('');
@@ -9647,6 +9648,61 @@ function suggDismiss(rid, btn){
     if(!res||!res.ok){ if(btn){ btn.disabled=false; btn.textContent='Failed — retry'; } return; }
     _suggResolved[rid]=true; suggRender();
   }).catch(function(){ if(btn){ btn.disabled=false; btn.textContent='Dismiss'; } });
+}
+// P137 — "Add To…" on a Suggested Match: RE-POINT it to an EXISTING Tracked
+// Project the operator picks (vs Approve which keeps the auto-matched project).
+// Mirrors the Agenda Items "Add to…" picker; calls approve_reference with a
+// project_id override so the backend re-points the reference (project_id +
+// jurisdiction) then approves it (New + High → anchors per P133).
+function _suggById(rid){
+  for(var i=0;i<_suggData.length;i++){ if(_suggData[i].refId===rid) return _suggData[i]; }
+  return null;
+}
+function suggOpenAddToExisting(rid, btn){
+  var s=_suggById(rid); if(!s||!btn) return;
+  var td=btn.closest('td'); if(!td) return;
+  var loaded=(typeof tpProjects!=='undefined' && Array.isArray(tpProjects) && tpProjects.length);
+  if(!loaded){
+    if(typeof tpLoad==='function'){ try{ tpLoad(false); }catch(e){} }
+    btn.textContent='Loading…'; btn.disabled=true;
+    setTimeout(function(){ suggOpenAddToExisting(rid, btn); }, 1200);
+    return;
+  }
+  var jn=(typeof _normJurisName==='function') ? _normJurisName(s.jurisdiction) : (s.jurisdiction||'');
+  var opts=tpProjects.filter(function(p){
+    var st=(p.status||'active').toLowerCase();
+    if(st==='closed'||st==='archived'||st==='deleted'||st==='competitor_active') return false;
+    var pj=(typeof _normJurisName==='function') ? _normJurisName(p.jurisdiction) : (p.jurisdiction||'');
+    return pj===jn;
+  }).sort(function(a,b){ return String(a.projectName||'').localeCompare(String(b.projectName||'')); });
+  if(!opts.length){
+    td.innerHTML='<span style="font-size:10px;color:var(--text-dim);">No tracked projects in '+_diagEsc(s.jurisdiction||'this jurisdiction')+'. <a href="#" onclick="suggRender();return false;" style="color:#3be3ff;">cancel</a></span>';
+    return;
+  }
+  var rid2=_diagEsc(rid);
+  var optionHtml=opts.map(function(p){
+    var selAttr=(p.projectId===s.projectId)?' selected':'';
+    return '<option value="'+_diagEsc(p.projectId)+'"'+selAttr+'>'+_diagEsc(p.projectName||p.projectId)+(p.ordinanceId?(' ('+_diagEsc(p.ordinanceId)+')'):'')+'</option>';
+  }).join('');
+  td.innerHTML='<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">'
+    +'<select id="sae-sel-'+rid2+'" style="font-size:10px;max-width:160px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:5px;padding:2px 4px;cursor:pointer;">'+optionHtml+'</select>'
+    +'<div style="display:flex;gap:4px;">'
+    +  '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;background:#1c7c3a;color:#fff;border-color:#1c7c3a;" onclick="suggAddToExisting(\''+rid2+'\',this)">Add</button>'
+    +  '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;" onclick="suggRender()">Cancel</button>'
+    +'</div></div>';
+}
+function suggAddToExisting(rid, btn){
+  var sel=document.getElementById('sae-sel-'+rid);
+  var pid=sel?sel.value:'';
+  if(!pid) return;
+  if(btn){ btn.disabled=true; btn.textContent='Adding…'; }
+  var base=getWebAppUrl(); if(!base) return;
+  fetch(base+'&action=approve_reference&ref_id='+encodeURIComponent(rid)+'&project_id='+encodeURIComponent(pid))
+    .then(function(r){return r.json();}).then(function(res){
+      if(!res||!res.ok){ if(btn){ btn.disabled=false; btn.textContent='Failed — retry'; } return; }
+      _suggResolved[rid]=true; suggRender();
+      if(typeof tpLoad==='function'){ try{ tpLoad(true); }catch(e){} } // refresh projects + rail
+    }).catch(function(){ if(btn){ btn.disabled=false; btn.textContent='Add'; } });
 }
 registerViewInit('suggested', suggLoad);
 
