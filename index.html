@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p137r1 -->
+<!-- MIP build p137r2 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -6293,8 +6293,13 @@ function tpRenderTable() {
     // (summarized) hearing — flag it so the operator knows a fresher hearing is
     // queued and its Results aren't in yet. Suppressed when a manual date override
     // is set (the operator has taken control of the displayed date).
+    // P137: also suppress when a summarized hearing ACTUALLY EXISTS for the
+    // pending date in this jurisdiction. The newer agenda's hearing was summarized
+    // (it just didn't self-match this project as a High ref — a juris/name matching
+    // gap in P71's index), so nothing is pending; flagging it is a false positive
+    // (Creekside/Summit/Bending Branch/Montclair/Crouse Acres, etc.).
     var pendSum = (p.pendingSummaryDate || '').toString().trim();
-    if (pendSum && !manMd && pendSum !== effMeetingDate) {
+    if (pendSum && !manMd && pendSum !== effMeetingDate && !_tpSummaryDocForDate(p, pendSum)) {
       meetingDateCell += '<div class="tp-pending-summary" title="A newer agenda dated ' + escAttr(pendSum) + ' is awaiting its summary. The Meeting Date / Description / Results shown are from the latest summarized hearing.">⏳ pending ' + esc(pendSum) + '</div>';
     }
 
@@ -6717,6 +6722,38 @@ function _tpNormDateYmd(raw) {
     return y + '-' + mo + '-' + da;
   }
   return s.slice(0, 10);
+}
+
+// P137: does a SUMMARIZED hearing exist for this project's jurisdiction on an
+// arbitrary date? (Generalizes _tpFindSummaryDocFor, which is pinned to
+// p.latestMeetingDate.) Used to suppress a false "⏳ pending summary" flag — if a
+// summary_doc exists for the pending date, the hearing was summarized and nothing
+// is pending. Mirrors _tpFindSummaryDocFor's juris-key resolution exactly.
+function _tpSummaryDocForDate(p, dateStr) {
+  if (!p || !dateStr) return '';
+  if (typeof PUBLIC_HEARINGS !== 'object' || !PUBLIC_HEARINGS) return '';
+  var targetDate = _tpNormDateYmd(dateStr);
+  if (!targetDate) return '';
+  var jurisRaw = (p.jurisdiction || '').toString().toLowerCase().trim();
+  var keysToTry = [];
+  if (jurisRaw) keysToTry.push(jurisRaw);
+  if (typeof MUNICIPALITIES !== 'undefined' && Array.isArray(MUNICIPALITIES)) {
+    var hit = MUNICIPALITIES.find(function(m) {
+      return (m.id || '').toLowerCase() === jurisRaw
+          || (m.name || '').toLowerCase() === jurisRaw
+          || (jurisRaw && (m.name || '').toLowerCase().indexOf(jurisRaw) !== -1);
+    });
+    if (hit && hit.id) keysToTry.push(hit.id.toLowerCase());
+  }
+  for (var i = 0; i < keysToTry.length; i++) {
+    var arr = PUBLIC_HEARINGS[keysToTry[i]];
+    if (!Array.isArray(arr)) continue;
+    for (var j = 0; j < arr.length; j++) {
+      var h = arr[j];
+      if (h && _tpNormDateYmd(h.date || h.meeting_date || '') === targetDate && h.summary_doc) return String(h.summary_doc);
+    }
+  }
+  return '';
 }
 
 function _tpFindSummaryDocFor(p) {
