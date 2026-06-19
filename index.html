@@ -6290,7 +6290,7 @@ function tpRenderTable() {
     // queued and its Results aren't in yet. Suppressed when a manual date override
     // is set (the operator has taken control of the displayed date).
     var pendSum = (p.pendingSummaryDate || '').toString().trim();
-    if (pendSum && !manMd) {
+    if (pendSum && !manMd && pendSum !== effMeetingDate) {
       meetingDateCell += '<div class="tp-pending-summary" title="A newer agenda dated ' + escAttr(pendSum) + ' is awaiting its summary. The Meeting Date / Description / Results shown are from the latest summarized hearing.">⏳ pending ' + esc(pendSum) + '</div>';
     }
 
