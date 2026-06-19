@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p135r2 -->
+<!-- MIP build p136 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p135r2">
+<link rel="stylesheet" href="styles.css?v=p136">
 </head>
 <body>
 
@@ -442,7 +442,7 @@
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;" title="Total lots / homesites in proposed residential project — Gemini-extracted, manually editable">Lots</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Jurisdiction</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Builder</th>
-                <th style="padding:8px 4px;border-bottom:1px solid var(--border,#333);max-width:106px;">Meeting<br>Type</th>
+                <th style="padding:8px 4px;border-bottom:1px solid var(--border,#333);max-width:132px;min-width:118px;">Meeting<br>Type</th>
                 <th style="padding:8px 6px;border-bottom:1px solid var(--border,#333);">Meeting<br>Date</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);" title="The Request Summary from the matching meeting's agenda item. Click a cell to expand.">Description</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);" title="From the matching YouTube-video agenda item: Outcome + Vote, then Additional Notes.">Results</th>
@@ -765,6 +765,25 @@ function getWebAppUrl() {
     return base + '?token=' + encodeURIComponent(DEFAULT_AUTH_TOKEN);
   }
   return base + '?_v=20';
+}
+
+// P136: resilient write fetch. Reads are served snapshot-first from the CDN, so a
+// STALE webapp-URL override in localStorage (an old/dead deployment slug) breaks
+// only WRITES — they fail with "Failed to fetch" while the page still loads fine.
+// On any failure (network TypeError OR a non-JSON error page from a dead slug) we
+// drop the override and retry once against the built-in default; with no override
+// we do a single transient retry. `query` must start with '&action=…'.
+function mipWriteFetch(query){
+  function attempt(url){ return fetch(url + query).then(function(r){ return r.json(); }); }
+  var base = getWebAppUrl();
+  return attempt(base).catch(function(){
+    if (localStorage.getItem(WEBAPP_URL_KEY)){
+      localStorage.removeItem(WEBAPP_URL_KEY);
+      console.warn('[mrd] write failed — cleared stale webapp URL override, retrying default.');
+      return attempt(getWebAppUrl());
+    }
+    return attempt(base); // one transient retry
+  });
 }
 
 // P32: operator marker. Anon visitors never see operator-only affordances
@@ -6146,7 +6165,12 @@ function tpRenderTable() {
         var bd = (b.manualMeetingDate||'').toString().trim() || b.latestRefDate || b.latestMeetingDate || '';
         var at = ad ? new Date(ad).getTime() : -Infinity;
         var bt = bd ? new Date(bd).getTime() : -Infinity;
-        return bt - at;
+        if (bt !== at) return bt - at;
+        // P136: secondary sort by Jurisdiction name (stripped) when dates tie.
+        var aj = _normJurisName(a.jurisdiction), bj = _normJurisName(b.jurisdiction);
+        if (aj < bj) return -1;
+        if (aj > bj) return 1;
+        return 0;
       });
     } else {
       var keyFn = {
@@ -6261,6 +6285,14 @@ function tpRenderTable() {
     var meetingDateCell = effMeetingDate
       ? '<div class="tp-meeting-date' + (tpIsFuture ? ' tp-meeting-date-future' : '') + '">' + esc(effMeetingDate) + '</div>'
       : '<span style="color:var(--muted,#888);">—</span>';
+    // P136 (Problem B): a newer un-summarized agenda exists beyond the headline
+    // (summarized) hearing — flag it so the operator knows a fresher hearing is
+    // queued and its Results aren't in yet. Suppressed when a manual date override
+    // is set (the operator has taken control of the displayed date).
+    var pendSum = (p.pendingSummaryDate || '').toString().trim();
+    if (pendSum && !manMd) {
+      meetingDateCell += '<div class="tp-pending-summary" title="A newer agenda dated ' + escAttr(pendSum) + ' is awaiting its summary. The Meeting Date / Description / Results shown are from the latest summarized hearing.">⏳ pending ' + esc(pendSum) + '</div>';
+    }
 
     // P124: Description — the "Request Summary" bullet from the matching agenda
     // item (Agenda_Items item_summary "Request:" line, surfaced as
@@ -6763,15 +6795,16 @@ function tpStatusChange(sel) {
   // Pre-render so the user sees the row disappear right away.
   tpRenderTable();
 
-  var webappUrl = getWebAppUrl();
-  if (!webappUrl) return;
+  if (!getWebAppUrl()) return;
   // P61 hotfix: GET — doPost doesn't route update_tracked_project, so the
   // POST/fields-JSON pattern that landed in P58.7 R13c was a silent no-op.
   var q = '&action=update_tracked_project'
         + '&project_id=' + encodeURIComponent(pid)
         + '&status=' + encodeURIComponent(newStatus);
-  fetch(webappUrl + q)
-    .then(function(r) { return r.json(); })
+  // P136: mipWriteFetch drops a stale localStorage URL override + retries once,
+  // fixing "Status update network error: Failed to fetch" when reads still work
+  // off the CDN snapshot but writes hit a dead override slug.
+  mipWriteFetch(q)
     .then(function(res) {
       // Backend update_tracked_project returns {success:true}; older callers
       // returned {ok:true}. Accept either (the sibling write handlers already do)
@@ -9404,9 +9437,28 @@ function _suggEnsureAgendaMap(){
 function _suggAgendaCell(pid){
   var refs=_suggAgendaMap[pid]||[];
   if(!refs.length) return '<span style="color:var(--text-dim);">—</span>';
-  return refs.map(function(a,i){
-    return '<a href="'+escUrl(inlineViewerUrl(a.url))+'" target="_blank" rel="noopener" title="'+escAttr(a.date||'')+'" style="font-size:10px;margin-right:5px;white-space:nowrap;">#'+(i+1)+'</a>';
-  }).join('');
+  // P136: cap the visible #-links and join with spaces so they WRAP inside the
+  // narrow column (previously join('') made 30+ links one unbreakable line that
+  // forced a horizontal scrollbar). "+N" notes the remainder.
+  var CAP=6;
+  var html=refs.slice(0,CAP).map(function(a,i){
+    return '<a class="sugg-agenda-link" href="'+escUrl(inlineViewerUrl(a.url))+'" target="_blank" rel="noopener" title="'+escAttr(a.date||'')+'" style="font-size:10px;margin-right:5px;white-space:nowrap;">#'+(i+1)+'</a>';
+  }).join(' ');
+  if(refs.length>CAP) html+='<span style="font-size:9px;color:var(--text-dim);white-space:nowrap;">+'+(refs.length-CAP)+'</span>';
+  return html;
+}
+// P136: split a suggestion excerpt ("Petitioner: …\nRequest: …\nStaff: …") into
+// the petitioner (its own column) and the remaining Description text. Sentinel
+// values ("none", "n/a", …) collapse the petitioner to blank.
+function _suggSplitExcerpt(exc){
+  exc=String(exc||'').trim();
+  if(!exc) return {petitioner:'',desc:''};
+  var pet=''; var m=exc.match(/(^|\n)\s*Petitioner\s*:\s*([^\n]+)/i);
+  if(m){ pet=m[2].trim().replace(/[.\s]+$/,'').trim(); }
+  var SENT=['null','none','n/a','na','tbd','unknown','not specified','not stated','not listed','not provided','not applicable','—','-','--'];
+  if(SENT.indexOf(pet.toLowerCase())!==-1) pet='';
+  var desc=exc.replace(/(^|\n)\s*Petitioner\s*:\s*[^\n]+\n?/i,'').replace(/^\s+/,'').trim();
+  return {petitioner:pet, desc:desc};
 }
 function suggLoad(){
   var el=document.getElementById('sugg-list'); if(!el) return;
@@ -9436,32 +9488,47 @@ function suggRender(){
   var live=_suggLive(); _suggUpdateBadge();
   var summary='<div style="margin-bottom:10px;font-size:12px;color:var(--text-dim);"><b style="color:inherit;">'+live.length+'</b> pending Medium (name-only) match'+(live.length===1?'':'es')+' awaiting review</div>';
   if(!live.length){ el.innerHTML=summary+'<div style="color:var(--text-dim);padding:12px 0;">No suggested matches to review. ✓</div>'; return; }
+  // P136: table-layout:fixed + colgroup so EVERY column fits with no bottom
+  // scrollbar; Description (col 7, no width) absorbs the remaining space.
+  var colg='<colgroup>'+
+    '<col style="width:6%"><col style="width:9%"><col style="width:12%">'+
+    '<col style="width:8%"><col style="width:11%"><col style="width:12%">'+
+    '<col style="width:31%"><col style="width:11%"></colgroup>';
   var head='<tr style="text-align:left;color:var(--text-dim);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">'+
-    '<th style="padding:6px 8px;white-space:nowrap;">Date</th><th style="padding:6px 8px;">Jurisdiction</th>'+
-    '<th style="padding:6px 8px;width:150px;">Tracked Project</th>'+
-    '<th style="padding:6px 8px;white-space:nowrap;" title="Agenda documents associated with this Tracked Project (newest first)">Agendas</th>'+
+    '<th style="padding:6px 8px;">Date</th><th style="padding:6px 8px;">Jurisdiction</th>'+
+    '<th style="padding:6px 8px;">Tracked Project</th>'+
+    '<th style="padding:6px 8px;" title="Agenda documents associated with this Tracked Project (newest first)">Agendas</th>'+
     '<th style="padding:6px 8px;">Source</th>'+
-    '<th style="padding:6px 8px;width:420px;">Why it matched (excerpt)</th>'+
+    '<th style="padding:6px 8px;">Petitioner</th>'+
+    '<th style="padding:6px 8px;">Description</th>'+
     '<th style="padding:6px 8px;text-align:right;">Action</th></tr>';
   var body=live.map(function(s){
     var rid=_diagEsc(s.refId);
-    var src=s.sourceUrl?'<a href="'+escUrl(inlineViewerUrl(s.sourceUrl))+'" target="_blank" rel="noopener" style="font-size:10px;">↗ source</a>':'';
-    var stream=_diagEsc(s.sourceStream||s.docType||'');
-    var exc=String(s.excerpt||'').trim();
+    // P136: the source-stream label (e.g. "YouTube/Transcript") IS the link to
+    // the source (timecoded video / agenda doc); legible light color via .sugg-src-link.
+    var streamTxt=String(s.sourceStream||s.docType||'').trim();
+    var srcCell=s.sourceUrl
+      ? '<a class="sugg-src-link" href="'+escUrl(inlineViewerUrl(s.sourceUrl))+'" target="_blank" rel="noopener" title="Open source">'+_diagEsc(streamTxt||'↗ source')+'</a>'
+      : (streamTxt?_diagEsc(streamTxt):'<span style="color:var(--text-dim);">—</span>');
+    // P136: split the excerpt into the Petitioner line (own column) + the rest (Description).
+    var parts=_suggSplitExcerpt(s.excerpt);
+    var petCell=parts.petitioner?'<span style="font-size:10px;">'+_diagEsc(parts.petitioner)+'</span>':'<span style="color:var(--text-dim);">—</span>';
+    var exc=parts.desc;
     var excCell=exc?'<span class="cand-desc'+(_suggDescExpanded?' expanded':'')+'" title="Click to expand / collapse" onclick="this.classList.toggle(\'expanded\')">'+_diagEsc(exc)+'</span>':'<span style="color:var(--text-dim);">—</span>';
     return '<tr data-sugg-id="'+rid+'" style="border-top:1px solid var(--border);">'+
       '<td style="padding:6px 8px;white-space:nowrap;font-size:10px;">'+_diagEsc(s.meetingDate||'—')+'</td>'+
-      '<td style="padding:6px 8px;white-space:nowrap;">'+_diagEsc(s.jurisdiction||'—')+'</td>'+
-      '<td style="padding:6px 8px;vertical-align:top;">'+_diagEsc(s.projectName||'—')+'</td>'+
+      '<td style="padding:6px 8px;word-break:break-word;">'+_diagEsc(s.jurisdiction||'—')+'</td>'+
+      '<td style="padding:6px 8px;vertical-align:top;word-break:break-word;">'+_diagEsc(s.projectName||'—')+'</td>'+
       '<td style="padding:6px 8px;vertical-align:top;">'+_suggAgendaCell(s.projectId)+'</td>'+
-      '<td style="padding:6px 8px;white-space:nowrap;font-size:10px;">'+stream+'</td>'+
-      '<td style="padding:6px 8px;width:420px;max-width:460px;">'+excCell+' '+src+'</td>'+
-      '<td style="padding:6px 8px;"><div style="display:flex;gap:4px;justify-content:flex-end;">'+
+      '<td style="padding:6px 8px;vertical-align:top;font-size:10px;word-break:break-word;">'+srcCell+'</td>'+
+      '<td style="padding:6px 8px;vertical-align:top;word-break:break-word;">'+petCell+'</td>'+
+      '<td style="padding:6px 8px;vertical-align:top;">'+excCell+'</td>'+
+      '<td style="padding:6px 8px;vertical-align:top;"><div style="display:flex;gap:4px;justify-content:flex-end;flex-wrap:wrap;">'+
         '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;background:#0b6ea8;color:#fff;border-color:#0b6ea8;" title="Approve — associate this match with the Tracked Project (it will drive Description / Results)" onclick="suggApprove(\''+rid+'\',this)">✓ Approve</button>'+
-        '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;" title="Dismiss — not this project" onclick="suggDismiss(\''+rid+'\',this)">Dismiss</button>'+
+        '<button class="refresh-btn sugg-dismiss-btn" style="font-size:10px;padding:3px 9px;" title="Dismiss — not an accurate match (reversible)" onclick="suggDismiss(\''+rid+'\',this)">✕ Dismiss</button>'+
       '</div></td></tr>';
   }).join('');
-  el.innerHTML=summary+'<div class="cand-table-scroll"><table style="width:100%;border-collapse:collapse;font-size:11px;"><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>';
+  el.innerHTML=summary+'<div class="cand-table-scroll"><table class="sugg-table" style="width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed;">'+colg+'<thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>';
 }
 function suggApprove(rid, btn){
   if(!rid) return; if(btn){ btn.disabled=true; btn.textContent='Approving…'; }
@@ -11175,6 +11242,18 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
   .cand-src-badge{display:inline-block;padding:0 5px;border-radius:8px;font-size:9px;font-weight:700;margin-right:3px;}
   .cand-src-badge.ag{background:#1c7c3a;color:#fff;}
   .cand-src-badge.yt{background:#0b6ea8;color:#fff;}
+  /* P136: Suggested Matches table — fixed layout so all columns fit (no bottom
+     scrollbar); Description (no col width) maximizes; legible light links; visible
+     Dismiss. Scoped to #sugg-list so the Agenda Items (Candidates) table is untouched. */
+  #sugg-list table.sugg-table{table-layout:fixed;}
+  #sugg-list .cand-desc{width:auto;max-width:none;}
+  #sugg-list .cand-desc.expanded{width:auto;max-width:none;}
+  .sugg-src-link{color:#3be3ff;text-decoration:none;font-weight:600;}
+  .sugg-src-link:hover{text-decoration:underline;}
+  .sugg-agenda-link{color:#3be3ff;text-decoration:none;font-weight:600;}
+  .sugg-agenda-link:hover{text-decoration:underline;}
+  .sugg-dismiss-btn{background:#5a1d14 !important;color:#ffb3a6 !important;border-color:#7a2418 !important;}
+  .sugg-dismiss-btn:hover{background:#7a2418 !important;color:#fff !important;border-color:#7a2418 !important;}
   /* P116: Project name expandable on click, mirroring .cand-desc — collapsed to 1 line, expands DOWNWARD. */
   .cand-proj{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer;line-height:1.3;width:140px;max-width:140px;font-weight:600;border-bottom:1px dotted rgba(255,255,255,.22);}
   .cand-proj.expanded{display:block;-webkit-line-clamp:unset;overflow:visible;white-space:normal;width:140px;max-width:140px;}
