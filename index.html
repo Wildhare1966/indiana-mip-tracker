@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p137r2 -->
+<!-- MIP build p138 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -5455,14 +5455,28 @@ function updateProfileStats(profiles) {
 function loadProfileSettings() {
   const urlInput = document.getElementById('profile-webapp-url');
   const ttlSelect = document.getElementById('profile-cache-ttl');
-  if (urlInput) urlInput.value = getWebAppUrl() || '';
+  // P138: show the BARE base URL (strip the ?token=… query) so re-saving Settings
+  // can't store a token-bearing override that getWebAppUrl() then double-appends.
+  if (urlInput) urlInput.value = (getWebAppUrl() || '').split('?')[0];
   if (ttlSelect) ttlSelect.value = localStorage.getItem(PROFILE_CACHE_TTL_KEY) || PROFILE_CACHE_TTL_DEFAULT;
 }
 
 function saveProfileSettings() {
   const urlInput = document.getElementById('profile-webapp-url');
   const ttlSelect = document.getElementById('profile-cache-ttl');
-  if (urlInput) localStorage.setItem(WEBAPP_URL_KEY, urlInput.value.trim());
+  // P138: store the BARE base URL (strip any query string / token), and NEVER store
+  // an override equal to the built-in default. A stale localStorage slug shadows a
+  // later DEFAULT_WEBAPP_URL change and breaks WRITES with "Failed to fetch" while
+  // CDN-served reads still work (the root cause of the Status-update error).
+  if (urlInput) {
+    var base = urlInput.value.trim().split('?')[0];
+    var def = DEFAULT_WEBAPP_URL.split('?')[0];
+    if (!base || base === def) {
+      localStorage.removeItem(WEBAPP_URL_KEY);
+    } else {
+      localStorage.setItem(WEBAPP_URL_KEY, base);
+    }
+  }
   if (ttlSelect) localStorage.setItem(PROFILE_CACHE_TTL_KEY, ttlSelect.value);
   const statusEl = document.getElementById('profile-fetch-status');
   if (statusEl) statusEl.textContent = '✓ Settings saved.';
