@@ -110,6 +110,22 @@ def _date_only(v):
     return None
 
 
+# MRD stores `status` as a CODE; the MRD UI (and the layer's Status field) want
+# the human label. Mirrors the FE dropdown in index.html. With ONLY_ACTIVE=True
+# only 'active' rows sync, so synced features read "Competitor Proposed".
+_STATUS_LABELS = {
+    "active":            "Competitor Proposed",
+    "competitor_active": "Competitor Active",
+    "archived":          "Archive",
+}
+
+
+def _status_label(v):
+    """MRD status code -> the label shown in the MRD Status dropdown / layer."""
+    s = norm(v).lower()
+    return _STATUS_LABELS.get(s) or (norm(v) or None)
+
+
 def fetch_mrd_rows(endpoint, token=""):
     """GET list_tracked_projects_detailed. Tolerates a bare array or a
     {result|projects|rows: [...]} envelope."""
@@ -136,7 +152,8 @@ print("Pulled %d Tracked Project rows from MRD" % len(rows))
 #   MRD (Tracked Projects JSON)  ->  LeadsDeals_Arbor field   [Competitor Tracked Projects column]
 #   projectName                  ->  LeadsDeals
 #   jurisdiction                 ->  Jurisdiction
-#   status                       ->  Status
+#   status                       ->  Status         (code -> label: active=Competitor Proposed,
+#                                                     competitor_active=Competitor Active, archived=Archive)
 #   petitionerDisplay            ->  OwnerName
 #   builder                      ->  Builder        (domain-constrained, coded-value List 18)
 #   lots                         ->  Lots           (Double — first numeric token; non-numeric -> blank)
@@ -155,7 +172,6 @@ print("Pulled %d Tracked Project rows from MRD" % len(rows))
 FIELD_MAP = {
     "projectName":          "LeadsDeals",
     "jurisdiction":         "Jurisdiction",
-    "status":               "Status",
     "petitionerDisplay":    "OwnerName",
     "builder":              "Builder",       # domain-constrained (List 18) —
                                              # MRD builder text must match an allowed value
@@ -176,6 +192,7 @@ DERIVED_MAP = {
     "FolderLink":   lambda r: _drive_folder_url(r.get("driveFolderId")),
     "Lots":         lambda r: _lots_num(r.get("lots")),                # Double — numeric token only
     "Hearing_Date": lambda r: _date_only(r.get("latestMeetingDate")),  # DateOnly — YYYY-MM-DD
+    "Status":       lambda r: _status_label(r.get("status")),          # code -> MRD Status label
 }
 # (For reference — the old derivation that is now a direct 1:1 map instead:
 #   "Terms": lambda r: _join_nonempty([r.get("latestMeetingType"),
