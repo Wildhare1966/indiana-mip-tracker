@@ -21,7 +21,12 @@
 # %%
 # === PARAMETERS (override the simple values in the scheduled-task cell) ========
 MRD_ENDPOINT = "https://script.google.com/macros/s/AKfycbxvtkp5OZVq4sbEELnq5nN7KSXa5DCG8lYEgzL_awPbfunUsBTyr1r6CbOH1pIbgPUk/exec"
-AUTH_TOKEN   = ""        # MRD admin token (optional — endpoint is public — but recommended)
+AUTH_TOKEN   = "457091386b65a26b4d11fb3b9fee7bd5233c952ceb5d4a41"
+                         # MRD read token. list_tracked_projects_detailed is public,
+                         # but the `hearings` wire (used to resolve the Summary doc
+                         # URL — see _summary_doc_for) requires it. This token is
+                         # already public in the MRD frontend; blank it to skip the
+                         # Summary-doc resolution (Summary then stays blank).
 
 # LeadsDeals_Arbor item (from arborhomes.maps.arcgis.com). Item-id path avoids
 # guessing the layer index; the notebook prints the resolved layer name to confirm.
@@ -126,22 +131,87 @@ def _status_label(v):
     return _STATUS_LABELS.get(s) or (norm(v) or None)
 
 
-def fetch_mrd_rows(endpoint, token=""):
-    """GET list_tracked_projects_detailed. Tolerates a bare array or a
-    {result|projects|rows: [...]} envelope."""
-    params = {"action": "list_tracked_projects_detailed"}
+def _mrd_get(endpoint, action, token="", **extra):
+    """GET an MRD endpoint action -> parsed JSON (unwrapped from a {result:…}
+    envelope when present)."""
+    params = {"action": action}
     if token:
         params["token"] = token
+    params.update(extra)
     url = endpoint + "?" + urllib.parse.urlencode(params)
     with urllib.request.urlopen(url, timeout=120) as r:
         data = json.loads(r.read().decode("utf-8"))
-    if isinstance(data, dict):
-        data = data.get("result") or data.get("projects") or data.get("rows") or []
+    if isinstance(data, dict) and "result" in data:
+        return data["result"]
     return data
+
+
+def fetch_mrd_rows(endpoint, token=""):
+    """GET list_tracked_projects_detailed. Tolerates a bare array or a
+    {result|projects|rows: [...]} envelope."""
+    data = _mrd_get(endpoint, "list_tracked_projects_detailed", token)
+    if isinstance(data, dict):
+        data = data.get("projects") or data.get("rows") or []
+    return data
+
+
+# --- Summary-doc resolution ---------------------------------------------------
+# The MRD `latestYtSummaryUrl` field is really "latest SOURCE url" — a YouTube
+# video link when the latest ref is a video, or the agenda/portal URL otherwise
+# (inconsistent). The actual "YouTube Summary" is the Gemini summary Google Doc,
+# which lives on the `hearings` wire as `summary_doc` (keyed by jurisdiction +
+# date). Build a (juris_id, yyyy-mm-dd) -> summary_doc index and resolve each
+# project by jurisdiction + latestMeetingDate — mirroring the FE's
+# _tpFindSummaryDocFor() exactly (first hearing on that date with a doc).
+def _build_summary_index(endpoint, token):
+    """Returns (index, name_to_id). index[(juris_id, ymd)] = summary_doc URL."""
+    index, name_to_id = {}, {}
+    if not token:
+        print("  (no AUTH_TOKEN -> skipping Summary-doc resolution; Summary stays blank)")
+        return index, name_to_id
+    try:
+        munis = _mrd_get(endpoint, "municipalities", token)
+        if isinstance(munis, dict):
+            munis = munis.get("municipalities") or munis.get("rows") or []
+        for m in munis or []:
+            mid = norm(m.get("id")).lower()
+            if mid:
+                name_to_id[mid] = mid
+                if norm(m.get("name")):
+                    name_to_id[norm(m.get("name")).lower()] = mid
+        hearings = _mrd_get(endpoint, "hearings", token)
+        if isinstance(hearings, dict):
+            for k, arr in hearings.items():
+                if not isinstance(arr, list):
+                    continue
+                for h in arr:
+                    d = _date_only(h.get("date") or h.get("meeting_date"))
+                    sd = norm(h.get("summary_doc"))
+                    if d and sd:
+                        index.setdefault((k.lower(), d), sd)
+        print("  summary-doc index: %d (juris,date) entries" % len(index))
+    except Exception as e:                                   # noqa: BLE001
+        print("  WARNING: could not build summary-doc index (%s) -> Summary blank" % e)
+    return index, name_to_id
+
+
+def _summary_doc_for(r):
+    """Resolve a project's YouTube Summary doc URL from the hearings index by
+    jurisdiction + latestMeetingDate. No match -> None (blank, rather than the
+    misleading video/agenda URL in latestYtSummaryUrl)."""
+    d = _date_only(r.get("latestMeetingDate"))
+    if not d:
+        return None
+    jr = norm(r.get("jurisdiction")).lower()
+    for k in (jr, _MUNI_NAME_TO_ID.get(jr, "")):
+        if k and (k, d) in _SUMMARY_INDEX:
+            return _SUMMARY_INDEX[(k, d)]
+    return None
 
 
 rows = fetch_mrd_rows(MRD_ENDPOINT, AUTH_TOKEN)
 print("Pulled %d Tracked Project rows from MRD" % len(rows))
+_SUMMARY_INDEX, _MUNI_NAME_TO_ID = _build_summary_index(MRD_ENDPOINT, AUTH_TOKEN)
 
 # %%
 # === FIELD MAPPING ============================================================
@@ -160,7 +230,8 @@ print("Pulled %d Tracked Project rows from MRD" % len(rows))
 #   latestActionTaken            ->  Last_Result    [= the "Results" column text]
 #   latestRequestSummary         ->  Terms              [= the "Description" column text]
 #   latestMeetingDate            ->  Hearing_Date   (DateOnly — coerced M/D/YYYY -> YYYY-MM-DD)
-#   latestYtSummaryUrl           ->  Summary            (latest summary / source-doc URL)
+#   (hearings.summary_doc)       ->  Summary            (Gemini summary DOC, resolved by juris+date;
+#                                                        NOT latestYtSummaryUrl, which is the video/agenda URL)
 #   driveFolderId (-> URL)       ->  FolderLink         (link to the project's tagged-documents Drive folder)
 #   mapId                        ->  GlobalID           (ID_FIELD match key — not written as an attribute)
 #
@@ -178,7 +249,6 @@ FIELD_MAP = {
     "latestActionTaken":    "Last_Result",   # "Results" column text — Agenda_Items outcome+vote;
                                              # blank when the project has no summarized hearing yet
     "latestRequestSummary": "Terms",         # "Description" column text — parsed "Request:" summary
-    "latestYtSummaryUrl":   "Summary",       # latest summary / source-doc URL
 }
 # NOTE: `lots` and `latestMeetingDate` are NOT in FIELD_MAP — their targets are
 # typed (Lots=Double, Hearing_Date=DateOnly), so they go through DERIVED_MAP with
@@ -193,6 +263,7 @@ DERIVED_MAP = {
     "Lots":         lambda r: _lots_num(r.get("lots")),                # Double — numeric token only
     "Hearing_Date": lambda r: _date_only(r.get("latestMeetingDate")),  # DateOnly — YYYY-MM-DD
     "Status":       lambda r: _status_label(r.get("status")),          # code -> MRD Status label
+    "Summary":      lambda r: _summary_doc_for(r),                     # Gemini summary DOC (not video/agenda)
 }
 # (For reference — the old derivation that is now a direct 1:1 map instead:
 #   "Terms": lambda r: _join_nonempty([r.get("latestMeetingType"),
