@@ -40,8 +40,10 @@ TERMS_SEP    = " — "     # separator joining meeting type + date into "Terms"
 
 # %%
 import json
+import re
 import urllib.request
 import urllib.parse
+from datetime import datetime
 from arcgis.gis import GIS
 from arcgis.features import FeatureLayer
 
@@ -81,6 +83,33 @@ def _drive_folder_url(folder_id):
     return ("https://drive.google.com/drive/folders/" + fid) if fid else None
 
 
+def _lots_num(v):
+    """MRD 'lots' is free text but the layer 'Lots' field is Double. Extract the
+    first numeric token; null-ish / non-numeric -> None (so the value is simply
+    not written, rather than failing the whole edit batch on a type error).
+    e.g. '96' -> 96.0, '~630 (322 single-family...)' -> 630.0, 'null' -> None."""
+    s = norm(v).lower()
+    if s in ("", "null", "none", "n/a", "na", "tbd", "?"):
+        return None
+    m = re.search(r"\d+(?:\.\d+)?", s)
+    return float(m.group(0)) if m else None
+
+
+def _date_only(v):
+    """MRD 'latestMeetingDate' is M/D/YYYY text; the layer 'Hearing_Date' field is
+    esriFieldTypeDateOnly, which the REST API writes as a 'YYYY-MM-DD' string.
+    Unparseable -> None. e.g. '5/26/2026' -> '2026-05-26'."""
+    s = norm(v)
+    if not s:
+        return None
+    for fmt in ("%m/%d/%Y", "%m-%d-%Y", "%Y-%m-%d", "%Y/%m/%d"):
+        try:
+            return datetime.strptime(s, fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    return None
+
+
 def fetch_mrd_rows(endpoint, token=""):
     """GET list_tracked_projects_detailed. Tolerates a bare array or a
     {result|projects|rows: [...]} envelope."""
@@ -110,10 +139,10 @@ print("Pulled %d Tracked Project rows from MRD" % len(rows))
 #   status                       ->  Status
 #   petitionerDisplay            ->  OwnerName
 #   builder                      ->  Builder        (domain-constrained, coded-value List 18)
-#   lots                         ->  Lots
+#   lots                         ->  Lots           (Double — first numeric token; non-numeric -> blank)
 #   latestActionTaken            ->  Last_Result    [= the "Results" column text]
 #   latestRequestSummary         ->  Terms              [= the "Description" column text]
-#   latestMeetingDate            ->  Hearing_Date
+#   latestMeetingDate            ->  Hearing_Date   (DateOnly — coerced M/D/YYYY -> YYYY-MM-DD)
 #   latestYtSummaryUrl           ->  Summary            (latest summary / source-doc URL)
 #   driveFolderId (-> URL)       ->  FolderLink         (link to the project's tagged-documents Drive folder)
 #   mapId                        ->  GlobalID           (ID_FIELD match key — not written as an attribute)
@@ -130,19 +159,23 @@ FIELD_MAP = {
     "petitionerDisplay":    "OwnerName",
     "builder":              "Builder",       # domain-constrained (List 18) —
                                              # MRD builder text must match an allowed value
-    "lots":                 "Lots",
     "latestActionTaken":    "Last_Result",   # "Results" column text — Agenda_Items outcome+vote;
                                              # blank when the project has no summarized hearing yet
     "latestRequestSummary": "Terms",         # "Description" column text — parsed "Request:" summary
-    "latestMeetingDate":    "Hearing_Date",  # latest meeting / hearing date (M/D/YYYY text)
     "latestYtSummaryUrl":   "Summary",       # latest summary / source-doc URL
 }
+# NOTE: `lots` and `latestMeetingDate` are NOT in FIELD_MAP — their targets are
+# typed (Lots=Double, Hearing_Date=DateOnly), so they go through DERIVED_MAP with
+# a type-coercing function instead of a raw string copy (a raw string write would
+# fail the edit batch on a non-numeric / non-date value).
 
 # Computed -> feature-layer field. Each value is a function of the MRD row.
 #   FolderLink = the project's tagged-documents Google Drive folder, as a
 #   clickable URL built from driveFolderId. Rows with no folder id -> None (skipped).
 DERIVED_MAP = {
-    "FolderLink": lambda r: _drive_folder_url(r.get("driveFolderId")),
+    "FolderLink":   lambda r: _drive_folder_url(r.get("driveFolderId")),
+    "Lots":         lambda r: _lots_num(r.get("lots")),                # Double — numeric token only
+    "Hearing_Date": lambda r: _date_only(r.get("latestMeetingDate")),  # DateOnly — YYYY-MM-DD
 }
 # (For reference — the old derivation that is now a direct 1:1 map instead:
 #   "Terms": lambda r: _join_nonempty([r.get("latestMeetingType"),
