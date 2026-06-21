@@ -229,6 +229,7 @@ _SUMMARY_INDEX, _MUNI_NAME_TO_ID = _build_summary_index(MRD_ENDPOINT, AUTH_TOKEN
 #   lots                         ->  Lots           (Double — first numeric token; non-numeric -> blank)
 #   latestActionTaken            ->  Last_Result    [= the "Results" column text]
 #   latestRequestSummary         ->  Terms              [= the "Description" column text]
+#   latestAgendaUrl              ->  Recent_Agenda      (latest agenda document URL)
 #   latestMeetingDate            ->  Hearing_Date   (DateOnly — coerced M/D/YYYY -> YYYY-MM-DD)
 #   (hearings.summary_doc)       ->  Summary            (Gemini summary DOC, resolved by juris+date;
 #                                                        NOT latestYtSummaryUrl, which is the video/agenda URL)
@@ -249,6 +250,7 @@ FIELD_MAP = {
     "latestActionTaken":    "Last_Result",   # "Results" column text — Agenda_Items outcome+vote;
                                              # blank when the project has no summarized hearing yet
     "latestRequestSummary": "Terms",         # "Description" column text — parsed "Request:" summary
+    "latestAgendaUrl":      "Recent_Agenda",  # latest agenda document URL (latest_* cache)
 }
 # NOTE: `lots` and `latestMeetingDate` are NOT in FIELD_MAP — their targets are
 # typed (Lots=Double, Hearing_Date=DateOnly), so they go through DERIVED_MAP with
