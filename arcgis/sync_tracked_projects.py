@@ -334,18 +334,27 @@ if len(changed_log) > 25:
 
 # %%
 # Apply (gated by DRY_RUN), chunked.
+# Print the exact write target so it can be confirmed against the layer you view
+# in AGO (a "success but nothing changed" symptom is usually a wrong target/view
+# or a stale table cache — the read-back below disambiguates).
+print("Write target -> layer:", lyr.properties.name, "| url:", lyr.url)
 if DRY_RUN:
     print("DRY_RUN=True — no writes performed. Set DRY_RUN=False to apply.")
 elif not updates:
     print("Nothing to update — all matched features already current.")
 else:
     ok = err = 0
-    for batch in chunked(updates, BATCH_SIZE):
+    edited_oids = []
+    for bi, batch in enumerate(chunked(updates, BATCH_SIZE)):
         try:
             res = lyr.edit_features(updates=batch)
+            if bi == 0:
+                print("Raw edit_features response (first batch, truncated):")
+                print("   ", json.dumps(res)[:1500])
             for r in res.get("updateResults", []):
                 if r.get("success"):
                     ok += 1
+                    edited_oids.append(r.get("objectId"))
                 else:
                     err += 1
                     print("  update failed:", r)
@@ -353,6 +362,21 @@ else:
             err += len(batch)
             print("  batch error:", e)
     print("Applied: %d updated, %d failed" % (ok, err))
+
+    # Read-back verification — re-query the just-edited features and confirm the
+    # write actually persisted on THIS layer. If Status here shows the new value
+    # ('active') + a fresh EditDate, the write landed (you were viewing a cache);
+    # if it still shows the OLD value, the edit did not persist to this layer.
+    oids = [o for o in edited_oids if o is not None]
+    if oids:
+        vq = lyr.query(where="%s IN (%s)" % (oid_field, ",".join(str(o) for o in oids)),
+                       out_fields="%s,Status,EditDate" % oid_field,
+                       return_geometry=False)
+        print("Read-back of %d edited feature(s):" % len(vq.features))
+        for f in vq.features:
+            a = f.attributes
+            print("   FID %s  Status=%r  EditDate=%r"
+                  % (a.get(oid_field), a.get("Status"), a.get("EditDate")))
 
 # %% [markdown]
 # ## Scheduling
