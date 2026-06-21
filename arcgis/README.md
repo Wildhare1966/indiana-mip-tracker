@@ -32,10 +32,26 @@ After editing the `.py`, regenerate with:
 | MRD field | → Feature-layer field | Notes |
 |---|---|---|
 | `projectName` | `LeadsDeals` | |
+| `jurisdiction` | `Jurisdiction` | |
+| `status` | `Status` | |
+| `petitionerDisplay` | `OwnerName` | |
 | `builder` | `Builder` | **domain-constrained (List 18)** — MRD's builder text must exactly match an allowed value, or that one field's edit is rejected |
-| `latestActionTaken` | `Last_Result` | |
-| `latestMeetingType` + `latestMeetingDate` | `Terms` | computed: `"<type> — <date>"` |
-| `driveFolderId` | `FolderLink` | computed: `https://drive.google.com/drive/folders/<id>` |
+| `lots` | `Lots` | |
+| `latestActionTaken` | `Last_Result` | = the **Results** column text on Competitor Tracked Projects (blank when no summarized hearing yet) |
+| `latestRequestSummary` | `Terms` | = the **Description** column text (parsed "Request:" summary) |
+| `latestMeetingDate` | `Hearing_Date` | latest meeting / hearing date (M/D/YYYY text) |
+| `latestYtSummaryUrl` | `Summary` | latest summary / source-doc URL |
+| `driveFolderId` (→ URL) | `FolderLink` | computed `https://drive.google.com/drive/folders/<id>` — link to the project's tagged-documents Drive folder |
+
+> **Two field names are REPURPOSED** from the original draft: `Terms` now holds the
+> Description text (not meeting type+date) and `FolderLink` now holds the summary URL
+> (not the Drive-folder link). Check the AGO field **aliases** read sensibly.
+
+**Create these layer fields first** (String unless noted) if they don't already
+exist: `Jurisdiction`, `Status`, `OwnerName`, `Lots`, `Hearing_Date` (String 20),
+`Summary` (String 400), plus confirm `LeadsDeals`, `Builder`, `Last_Result`, `Terms`,
+`FolderLink`. Any target missing on the layer is
+skipped with a `WARNING` during the dry run — that's your schema check.
 
 Edit `FIELD_MAP` / `DERIVED_MAP` in the notebook to add or change fields.
 
@@ -61,11 +77,13 @@ Edit `FIELD_MAP` / `DERIVED_MAP` in the notebook to add or change fields.
    features, and a per-field before→after diff. **Writes nothing.** Review it.
 2. **First real push** (`DRY_RUN=False`): applies the updates; confirm in Map
    Viewer or via a query that the matched features changed.
-3. **Schedule:** notebook editor → **Tasks → Schedule a task** → daily
-   (15-minute minimum). Put live values (incl. `DRY_RUN=False`) in the task's
-   **Parameters** cell so secrets aren't saved in the shared notebook body.
-   Programmatic alternative (`gis.tasks.create(..., task_type="ExecuteNotebook",
-   cron="0 7 * * *")`) is shown in the final notebook cell.
+3. **Schedule:** in ArcGIS Online a scheduled task runs the notebook **exactly as
+   saved**, so set `DRY_RUN = False` in the PARAMETERS cell and **Save** the
+   notebook first. Then notebook editor → **Tasks** pane → **Create task / Schedule**
+   → *Run notebook* → **Daily** (15-minute minimum). `AUTH_TOKEN` stays blank (the
+   endpoint is public), so there's no secret to keep out of the body. Programmatic
+   alternative (`gis.tasks.create(..., task_type="ExecuteNotebook", cron="0 7 * * *")`)
+   is shown in the final notebook cell.
 
 ## Behavior notes
 
@@ -76,6 +94,9 @@ Edit `FIELD_MAP` / `DERIVED_MAP` in the notebook to add or change fields.
 - **Unmatched MapIDs** (no feature with that `ID_FIELD` value) are logged as
   skipped, not errors. A MapID that matches **multiple** features updates all of
   them.
+- **Invalid MapIDs:** when matching on a GUID/GlobalID field, a `map_id` that is
+  not a well-formed GUID (e.g. a map URL pasted into the wrong field) is skipped
+  with a `WARNING` rather than aborting the query. Fix the value in MRD.
 - **`ONLY_ACTIVE=True`** restricts the sync to MRD projects with `status=active`.
 
 ## Verification checklist

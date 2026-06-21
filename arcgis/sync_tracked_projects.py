@@ -101,22 +101,52 @@ print("Pulled %d Tracked Project rows from MRD" % len(rows))
 # %%
 # === FIELD MAPPING ============================================================
 # Targets may be given as the field NAME or its display ALIAS — resolved
-# case-insensitively against the live layer schema below.
+# case-insensitively against the live layer schema below. A target that does not
+# yet exist on the layer is skipped with a WARNING (create it in AGO first).
+#
+#   MRD (Tracked Projects JSON)  ->  LeadsDeals_Arbor field   [Competitor Tracked Projects column]
+#   projectName                  ->  LeadsDeals
+#   jurisdiction                 ->  Jurisdiction
+#   status                       ->  Status
+#   petitionerDisplay            ->  OwnerName
+#   builder                      ->  Builder        (domain-constrained, coded-value List 18)
+#   lots                         ->  Lots
+#   latestActionTaken            ->  Last_Result    [= the "Results" column text]
+#   latestRequestSummary         ->  Terms              [= the "Description" column text]
+#   latestMeetingDate            ->  Hearing_Date
+#   latestYtSummaryUrl           ->  Summary            (latest summary / source-doc URL)
+#   driveFolderId (-> URL)       ->  FolderLink         (link to the project's tagged-documents Drive folder)
+#   mapId                        ->  GlobalID           (ID_FIELD match key — not written as an attribute)
+#
+# NOTE — two AGO field names are REPURPOSED from the original P94/P95 draft:
+#   * "Terms"      now holds latestRequestSummary (Description text), not meeting type+date.
+#   * "FolderLink" now holds latestYtSummaryUrl (summary URL), not the Drive-folder link.
 
-# 1:1 — MRD (Tracked Projects JSON) field  ->  feature-layer field
+# 1:1 — MRD field  ->  feature-layer field (all direct string copies).
 FIELD_MAP = {
-    "projectName":       "LeadsDeals",
-    "builder":           "Builder",      # NOTE: domain-constrained (List 18) —
-                                         # MRD builder text must match an allowed value
-    "latestActionTaken": "Last_Result",
+    "projectName":          "LeadsDeals",
+    "jurisdiction":         "Jurisdiction",
+    "status":               "Status",
+    "petitionerDisplay":    "OwnerName",
+    "builder":              "Builder",       # domain-constrained (List 18) —
+                                             # MRD builder text must match an allowed value
+    "lots":                 "Lots",
+    "latestActionTaken":    "Last_Result",   # "Results" column text — Agenda_Items outcome+vote;
+                                             # blank when the project has no summarized hearing yet
+    "latestRequestSummary": "Terms",         # "Description" column text — parsed "Request:" summary
+    "latestMeetingDate":    "Hearing_Date",  # latest meeting / hearing date (M/D/YYYY text)
+    "latestYtSummaryUrl":   "Summary",       # latest summary / source-doc URL
 }
 
 # Computed -> feature-layer field. Each value is a function of the MRD row.
+#   FolderLink = the project's tagged-documents Google Drive folder, as a
+#   clickable URL built from driveFolderId. Rows with no folder id -> None (skipped).
 DERIVED_MAP = {
-    "Terms":      lambda r: _join_nonempty([r.get("latestMeetingType"),
-                                            r.get("latestMeetingDate")], TERMS_SEP),
     "FolderLink": lambda r: _drive_folder_url(r.get("driveFolderId")),
 }
+# (For reference — the old derivation that is now a direct 1:1 map instead:
+#   "Terms": lambda r: _join_nonempty([r.get("latestMeetingType"),
+#                                      r.get("latestMeetingDate")], TERMS_SEP),)
 
 # %%
 # Filter to rows that carry a non-empty map_id (and optionally status==active).
@@ -175,7 +205,32 @@ def sql_val(v):
     return sql_quote(v) if is_quoted_id else str(v)
 
 
-ids = sorted({canon(p.get("mapId")) for p in sync_rows})
+# Guard: when matching on a GUID/GlobalID field, every map_id must be a
+# well-formed GUID. A stray URL or placeholder pasted into MRD map_id would
+# otherwise make the whole `IN (...)` query invalid (ArcGIS 400 "Invalid query
+# parameters") and abort the run. Such ids are skipped + logged, not fatal.
+import re as _re
+_GUID_RE = _re.compile(r"^\{[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}\}$")
+
+
+def _valid_id(canon_val):
+    if not canon_val:
+        return False
+    return bool(_GUID_RE.match(canon_val)) if is_guid_id else True
+
+
+_all_ids = sorted({canon(p.get("mapId")) for p in sync_rows})
+ids      = [x for x in _all_ids if _valid_id(x)]
+_bad_ids = [x for x in _all_ids if not _valid_id(x)]
+if _bad_ids:
+    _bad_names = sorted({norm(p.get("projectName")) for p in sync_rows
+                         if not _valid_id(canon(p.get("mapId")))})
+    print("WARNING: skipping %d map_id value(s) that are not valid %s GUIDs "
+          "(fix these in MRD):" % (len(_bad_ids), ID_FIELD))
+    for _b in _bad_ids[:20]:
+        print("    ", _b[:90])
+    print("    affected projects:", ", ".join(_bad_names[:20]))
+
 id_to_features = {}   # canon(id) -> list of current attribute dicts (>1 if id not unique)
 for chunk in chunked(ids, QUERY_CHUNK):
     where = "%s IN (%s)" % (ID_FIELD, ",".join(sql_val(x) for x in chunk))
