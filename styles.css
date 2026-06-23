@@ -1237,6 +1237,20 @@
      has to scroll down to the bottom of a long table to slide it sideways. */
   .tp-hscroll-proxy { position: sticky; bottom: 0; left: 0; overflow-x: auto; overflow-y: hidden; height: 16px; z-index: 6; background: var(--bg); border: 1px solid var(--border, #333); border-top: none; border-radius: 0 0 6px 6px; display: none; }
   .tp-hscroll-proxy > div { height: 1px; }
+  /* P142 item 2: hide the native horizontal scrollbar on the table viewport so the
+     sticky proxy above is the ONLY visible bar (single-bar, P136 intent). The
+     container still scrolls programmatically (proxy sync) + via trackpad. */
+  #tp-table-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+  #tp-table-scroll::-webkit-scrollbar { height: 0; width: 0; display: none; }
+
+  /* P142 item 1: compact-fit so all columns fit when the sidebar is collapsed.
+     Cell padding is set inline (shorthand) on each th/td, so override needs
+     !important. Trims horizontal padding ~45% and tightens the two widest
+     columns (Description / Results) without losing click-to-expand. */
+  #tp-table th, #tp-table td { padding-left: 5px !important; padding-right: 5px !important; }
+  #tp-table .tp-desc-cell .tp-desc-text,
+  #tp-table .tp-action-cell .tp-action-text { font-size: 11px; }
+  #tp-table .tp-status-select, #tp-table .tp-builder-select { max-width: 132px; }
   /* P79 A3 — Petitioner cell: narrowed (max-width 80px) + truncate-with-
      click-to-expand. Mirrors .tp-action-cell behavior but with a much
      smaller default max-width since petitioner names are usually short. */

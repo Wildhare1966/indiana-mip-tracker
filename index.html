@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p138 -->
+<!-- MIP build p142 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p136">
+<link rel="stylesheet" href="styles.css?v=p142">
 </head>
 <body>
 
@@ -402,6 +402,7 @@
               <option value="past_week">Past Week</option>
               <option value="active" selected>Competitor Proposed</option>
               <option value="competitor_active">Competitor Active</option>
+              <option value="arbor_active">Arbor Active</option>
               <option value="archived">Archive</option>
             </select>
             <input id="tp-filter-text" type="search" placeholder="Search project/petitioner/builder…" oninput="tpRenderTable()" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-card,#1a1a1a);color:inherit;border-radius:4px;font-size:12px;width:280px;">
@@ -438,7 +439,7 @@
             <thead>
               <tr style="background:var(--bg-card,#1a1a1a);text-align:left;">
                 <th style="padding:8px 4px;border-bottom:1px solid var(--border,#333);width:28px;"></th>
-                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;min-width:173px;">Project</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;min-width:140px;">Project</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;" title="Total lots / homesites in proposed residential project — Gemini-extracted, manually editable">Lots</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Jurisdiction</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Builder</th>
@@ -458,7 +459,11 @@
             <tbody id="tp-tbody"></tbody>
           </table>
         </div>
-        <!-- P136: P95 sticky proxy scrollbar removed (operator: single scrollbar) -->
+        <!-- P142 item 2: sticky horizontal scrollbar pinned to the viewport bottom so
+             it's reachable without scrolling to the end of the list. The native bar on
+             #tp-table-scroll is hidden in CSS so this is still a SINGLE bar (P136 intent),
+             just always visible. tpSyncHScroll() mirrors scrollLeft both ways. -->
+        <div id="tp-hscroll-proxy" class="tp-hscroll-proxy" aria-hidden="true"><div id="tp-hscroll-spacer"></div></div>
       </div>
     </div>
 
@@ -775,6 +780,28 @@ function getWebAppUrl() {
   }
   return base + '?_v=20';
 }
+
+// P142 item 3: ROOT fix for "Status update… Failed to fetch". A stale `mip_webapp_url`
+// override in localStorage (a valid-format but OLD/dead deployment slug) passes the
+// format check in getWebAppUrl, so WRITES are routed to the dead slug and fail with
+// "Failed to fetch" — while reads still load off the CDN snapshot, hiding the breakage.
+// P136's mipWriteFetch only recovered reactively (after a failed request + alert race);
+// P138 stopped the Settings panel from CREATING bad overrides. This purges any EXISTING
+// override whose deployment slug differs from the built-in default, ONCE on load, before
+// any fetch runs — so the very first write hits the live deployment. Runs unconditionally
+// (no-op when there's no override or it already matches). Reversible: the operator can
+// re-point via Settings, which now stores only a bare base URL (P138).
+(function _purgeStaleWebappOverride() {
+  try {
+    var ovr = localStorage.getItem(WEBAPP_URL_KEY) || '';
+    if (!ovr) return;
+    var slug = function(u){ return (String(u).match(/\/s\/([^/]+)\/exec/) || [])[1] || ''; };
+    if (slug(ovr) !== slug(DEFAULT_WEBAPP_URL)) {
+      localStorage.removeItem(WEBAPP_URL_KEY);
+      console.warn('[mrd] P142: purged stale webapp URL override (slug ≠ default) — writes now use the live deployment.');
+    }
+  } catch (e) {}
+})();
 
 // P136: resilient write fetch. Reads are served snapshot-first from the CDN, so a
 // STALE webapp-URL override in localStorage (an old/dead deployment slug) breaks
@@ -6321,9 +6348,12 @@ function tpRenderTable() {
     // item (Agenda_Items item_summary "Request:" line, surfaced as
     // latestRequestSummary). Truncated to 2 lines; click to expand (reuses
     // tpToggleAction's .expanded toggle, styled by .tp-desc-cell).
-    var descCell = p.latestRequestSummary
+    // P142 item 5: effective Description = manual override (shown until a newer
+    // summary lands — the backend blanks manualDescription once stale) else derived.
+    var effDesc = (p.manualDescription || '').toString().trim() || p.latestRequestSummary;
+    var descCell = effDesc
       ? '<div class="tp-desc-cell" onclick="tpToggleAction(this)" title="Click to expand / collapse">' +
-          '<div class="tp-desc-text">' + esc(p.latestRequestSummary) + '</div>' +
+          '<div class="tp-desc-text">' + esc(effDesc) + '</div>' +
         '</div>'
       : '<span style="color:var(--muted,#888);">—</span>';
 
@@ -6371,6 +6401,8 @@ function tpRenderTable() {
       '<select class="tp-status-select" data-status-select="' + pidAttr + '" onchange="tpStatusChange(this)">' +
         '<option value="active"'            + (status === 'active' ? ' selected' : '')            + '>Competitor Proposed</option>' +
         '<option value="competitor_active"' + (status === 'competitor_active' ? ' selected' : '') + '>Competitor Active</option>' +
+        // P142 item 4: Arbor Active — Arbor's own active project (visible + synced to ArcGIS).
+        '<option value="arbor_active"'      + (status === 'arbor_active' ? ' selected' : '')      + '>Arbor Active</option>' +
         '<option value="archived"'          + (status === 'archived' ? ' selected' : '')          + '>Archive</option>' +
       '</select>';
 
@@ -6415,8 +6447,8 @@ function tpRenderTable() {
       '<td style="padding:8px 10px;vertical-align:top;">' + builderCell + '</td>' +
       '<td style="padding:8px 4px;vertical-align:top;max-width:106px;">' + meetingTypeCell + '</td>' +
       '<td style="padding:8px 6px;vertical-align:top;white-space:nowrap;">' + meetingDateCell + '</td>' +
-      '<td style="padding:8px 10px;vertical-align:top;min-width:240px;max-width:450px;">' + descCell + '</td>' +
-      '<td style="padding:8px 10px;vertical-align:top;min-width:180px;max-width:260px;">' + resultsCell + '</td>' +
+      '<td style="padding:8px 10px;vertical-align:top;min-width:170px;max-width:300px;">' + descCell + '</td>' +
+      '<td style="padding:8px 10px;vertical-align:top;min-width:130px;max-width:210px;">' + resultsCell + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' + yt + '</td>' +
       '<td class="tp-agendas-cell" style="padding:8px 6px;vertical-align:top;font-size:11px;">' + agendaRefsCell + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;white-space:nowrap;">' + taggedCell + '</td>' +
@@ -6560,6 +6592,13 @@ function _tpRenderEditDropdown(p, pidAttr) {
         '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);">Meeting Date (override)' +
           '<input id="tpe-mdate-' + pidAttr + '" type="text" value="' + escAttr(p.manualMeetingDate || '') + '" placeholder="' + escAttr(p.latestRefDate || 'M/D/YYYY') + '" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
         '</label>' +
+        // P142 item 5: Description override. Like the others it YIELDS to a newer
+        // summary — when the next hearing summary is matched to this project, the
+        // fresh summary replaces this text (it's a convenience edit, not a pin).
+        '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);grid-column:1/-1;">Description (override) ' +
+          '<span style="font-weight:400;color:var(--muted,#888);">— replaced when a newer summary is matched</span>' +
+          '<textarea id="tpe-desc-' + pidAttr + '" rows="2" placeholder="' + escAttr(p.latestRequestSummary || 'Request summary — leave blank to use the auto value') + '" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;resize:vertical;font-family:inherit;">' + esc(p.manualDescription || '') + '</textarea>' +
+        '</label>' +
         '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);grid-column:1/-1;">Results (override)' +
           '<textarea id="tpe-results-' + pidAttr + '" rows="2" placeholder="Outcome / Vote / Additional Notes — leave blank to use the auto value" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;resize:vertical;font-family:inherit;">' + esc(p.manualResults || '') + '</textarea>' +
         '</label>' +
@@ -6590,6 +6629,8 @@ function tpSaveEditRow(pid) {
   var mtypeEl   = document.getElementById('tpe-mtype-' + pid);
   var mdateEl   = document.getElementById('tpe-mdate-' + pid);
   var resultsEl = document.getElementById('tpe-results-' + pid);
+  // P142 item 5: Description override field.
+  var descEl    = document.getElementById('tpe-desc-' + pid);
   var msgEl  = document.getElementById('tpe-msg-' + pid);
   if (!nameEl || !ordEl || !aliEl) return;
   var current = tpProjects.find(function(p) { return p.projectId === pid; });
@@ -6603,6 +6644,12 @@ function tpSaveEditRow(pid) {
   var mtype   = mtypeEl   ? (mtypeEl.value   || '').trim() : (current.manualMeetingType || '');
   var mdate   = mdateEl   ? (mdateEl.value   || '').trim() : (current.manualMeetingDate || '');
   var results = resultsEl ? (resultsEl.value || '').trim() : (current.manualResults || '');
+  var desc    = descEl    ? (descEl.value    || '').trim() : (current.manualDescription || '');
+  // P142 item 5: stamp the override as-of date = the project's CURRENT derived latest
+  // summary date. The backend (P71) shows the edits only until a NEWER summary lands,
+  // then the fresh summary overwrites them. Only stamp when an override is actually set.
+  var anyOverride = !!(mtype || mdate || results || desc);
+  var asof = anyOverride ? (current.latestRefDate || '') : '';
   if (!name) {
     if (msgEl) { msgEl.textContent = 'Project name required.'; msgEl.style.color = '#d65a5a'; }
     return;
@@ -6612,7 +6659,8 @@ function tpSaveEditRow(pid) {
   if (msgEl) { msgEl.textContent = 'Saving…'; msgEl.style.color = 'var(--muted,#888)'; }
   // Optimistic local update
   var prev = { projectName: current.projectName, ordinanceId: current.ordinanceId, aliases: current.aliases, petitionerApplicant: current.petitionerApplicant, lots: current.lots,
-               manualMeetingType: current.manualMeetingType, manualMeetingDate: current.manualMeetingDate, manualResults: current.manualResults };
+               manualMeetingType: current.manualMeetingType, manualMeetingDate: current.manualMeetingDate, manualResults: current.manualResults,
+               manualDescription: current.manualDescription };
   current.projectName         = name;
   current.ordinanceId         = ord;
   current.aliases             = ali;
@@ -6622,10 +6670,14 @@ function tpSaveEditRow(pid) {
   current.manualMeetingType   = mtype;
   current.manualMeetingDate   = mdate;
   current.manualResults       = results;
+  // P142 item 5: optimistic Description override. As-of == now's derived date so it
+  // shows immediately (not stale until a NEWER summary later lands, per P71).
+  current.manualDescription   = desc;
   // P61 hotfix: doPost doesn't route update_tracked_project — use GET with
   // individual field URL params (the proven pattern from tpInlineSave).
   // P79 A1: lots param joins the persisted fields.
   // P124: manual_meeting_date/type/results override params.
+  // P142: manual_description + manual_overrides_asof (yield-to-new-summary stamp).
   var q = '&action=update_tracked_project'
         + '&project_id=' + encodeURIComponent(pid)
         + '&project_name=' + encodeURIComponent(name)
@@ -6635,9 +6687,11 @@ function tpSaveEditRow(pid) {
         + '&lots=' + encodeURIComponent(lots)
         + '&manual_meeting_type=' + encodeURIComponent(mtype)
         + '&manual_meeting_date=' + encodeURIComponent(mdate)
-        + '&manual_results=' + encodeURIComponent(results);
-  fetch(webappUrl + q)
-    .then(function(r) { return r.json(); })
+        + '&manual_results=' + encodeURIComponent(results)
+        + '&manual_description=' + encodeURIComponent(desc)
+        + '&manual_overrides_asof=' + encodeURIComponent(asof);
+  // P142 item 3: route through mipWriteFetch so a stale URL override can't break the save.
+  mipWriteFetch(q)
     .then(function(res) {
       if (res && (res.ok || res.success)) {
         if (msgEl) { msgEl.textContent = 'Saved ✓'; msgEl.style.color = '#4ac49a'; }
@@ -6654,6 +6708,7 @@ function tpSaveEditRow(pid) {
         current.manualMeetingType   = prev.manualMeetingType;
         current.manualMeetingDate   = prev.manualMeetingDate;
         current.manualResults       = prev.manualResults;
+        current.manualDescription   = prev.manualDescription;
         if (msgEl) { msgEl.textContent = 'Failed: ' + ((res && res.error) || 'unknown'); msgEl.style.color = '#d65a5a'; }
       }
     })
@@ -6666,6 +6721,7 @@ function tpSaveEditRow(pid) {
       current.manualMeetingType   = prev.manualMeetingType;
       current.manualMeetingDate   = prev.manualMeetingDate;
       current.manualResults       = prev.manualResults;
+      current.manualDescription   = prev.manualDescription;
       if (msgEl) { msgEl.textContent = 'Network error.'; msgEl.style.color = '#d65a5a'; }
       console.error('tpSaveEditRow error:', err);
     });
@@ -6905,8 +6961,8 @@ function tpInlineSave(inputEl) {
   var q = '&action=update_tracked_project'
         + '&project_id=' + encodeURIComponent(pid)
         + '&' + field + '=' + encodeURIComponent(newVal);
-  fetch(webappUrl + q)
-    .then(function(r) { return r.json(); })
+  // P142 item 3: route through mipWriteFetch so a stale URL override can't break it.
+  mipWriteFetch(q)
     .then(function(res) {
       if (res && res.success) {
         inputEl.style.borderColor = '#4ac49a';
