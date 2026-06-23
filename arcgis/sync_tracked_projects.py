@@ -38,12 +38,14 @@ LAYER_URL    = ""        # alternative to ITEM_ID:
 ID_FIELD     = "GlobalID"  # durable GUID match field; MRD map_id holds the GlobalID
 
 DRY_RUN      = True      # True = compute + print the diff, write NOTHING
-ONLY_ACTIVE  = True      # True = sync only the "active" statuses in SYNC_STATUSES
-# P142: which MRD status codes push to ArcGIS when ONLY_ACTIVE. 'active' =
-# "Competitor Proposed"; 'arbor_active' = "Arbor Active" (Arbor's own live deals).
-# NOTE: the AGO layer's Status field domain (if coded) must include "Arbor Active"
-# or edit_features will reject the value — add it in AGO before the first live run.
-SYNC_STATUSES = {"active", "arbor_active"}
+ONLY_ACTIVE  = True      # True = sync only the statuses in SYNC_STATUSES
+# P142: which MRD status codes push to ArcGIS when ONLY_ACTIVE. Only 'active'
+# ("Competitor Proposed") syncs. 'arbor_active' ("Arbor Active") = Arbor's OWN
+# deals and is intentionally EXCLUDED — those rows must never push to, or overwrite
+# fields on, the competitor feature layer. A record flipped to arbor_active is just
+# skipped here; its existing ArcGIS feature (if any) is left untouched — not
+# updated, not deleted.
+SYNC_STATUSES = {"active"}
 BATCH_SIZE   = 200       # features per edit_features call
 QUERY_CHUNK  = 500       # ids per query IN(...) clause
 TERMS_SEP    = " — "     # separator joining meeting type + date into "Terms"
