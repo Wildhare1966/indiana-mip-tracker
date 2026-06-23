@@ -38,7 +38,12 @@ LAYER_URL    = ""        # alternative to ITEM_ID:
 ID_FIELD     = "GlobalID"  # durable GUID match field; MRD map_id holds the GlobalID
 
 DRY_RUN      = True      # True = compute + print the diff, write NOTHING
-ONLY_ACTIVE  = True      # only sync rows whose MRD status == 'active'
+ONLY_ACTIVE  = True      # True = sync only the "active" statuses in SYNC_STATUSES
+# P142: which MRD status codes push to ArcGIS when ONLY_ACTIVE. 'active' =
+# "Competitor Proposed"; 'arbor_active' = "Arbor Active" (Arbor's own live deals).
+# NOTE: the AGO layer's Status field domain (if coded) must include "Arbor Active"
+# or edit_features will reject the value — add it in AGO before the first live run.
+SYNC_STATUSES = {"active", "arbor_active"}
 BATCH_SIZE   = 200       # features per edit_features call
 QUERY_CHUNK  = 500       # ids per query IN(...) clause
 TERMS_SEP    = " — "     # separator joining meeting type + date into "Terms"
@@ -121,6 +126,7 @@ def _date_only(v):
 _STATUS_LABELS = {
     "active":            "Competitor Proposed",
     "competitor_active": "Competitor Active",
+    "arbor_active":      "Arbor Active",
     "archived":          "Archive",
 }
 
@@ -279,11 +285,11 @@ sync_rows = []
 for p in rows:
     if not norm(p.get("mapId")):
         continue
-    if ONLY_ACTIVE and norm(p.get("status")).lower() != "active":
+    if ONLY_ACTIVE and norm(p.get("status")).lower() not in SYNC_STATUSES:
         continue
     sync_rows.append(p)
 print("%d row(s) have a non-empty mapId%s"
-      % (len(sync_rows), " and status=active" if ONLY_ACTIVE else ""))
+      % (len(sync_rows), " and status in %s" % sorted(SYNC_STATUSES) if ONLY_ACTIVE else ""))
 
 # Connect as the notebook owner and resolve the target layer.
 gis = GIS("home")
