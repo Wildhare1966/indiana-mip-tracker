@@ -314,6 +314,29 @@ for f in lyr.properties.fields:
     print("  %-18s | %-18s | %s" % (f["name"], f.get("alias", ""), f["type"]))
 print("ObjectID field:", oid_field)
 
+# Per-field max string lengths from the LIVE layer schema. A string value longer
+# than its target column would fail the whole `edit_features` batch with SQL
+# error 1000 ("String or binary data would be truncated") and roll EVERY other
+# row in the batch back (code 1003). Clamp each outgoing string to its field
+# length so a long Results/Description never blocks the sync. (Read live, not
+# from the catalog CSV — the catalog lengths are only suggestions; the deployed
+# layer is authoritative.)
+field_lengths = {f["name"]: f.get("length")
+                 for f in lyr.properties.fields
+                 if f["type"] == "esriFieldTypeString" and f.get("length")}
+_truncated = []   # (dst, original_len, max_len) for the post-build summary
+
+
+def _clip(dst, val):
+    """Truncate a string value to its layer field length (logs the truncation).
+    Non-strings (Double/DateOnly) and within-length strings pass through."""
+    if isinstance(val, str):
+        maxlen = field_lengths.get(dst)
+        if maxlen and len(val) > maxlen:
+            _truncated.append((dst, len(val), maxlen))
+            return val[:maxlen]
+    return val
+
 # %%
 # Resolve OBJECTIDs for every map_id by querying the shared ID field (chunked).
 id_field_type = next((f["type"] for f in lyr.properties.fields if f["name"] == ID_FIELD),
@@ -402,6 +425,7 @@ for label, fn in DERIVED_MAP.items():
 
 
 def diff_into(attrs, diffs, dst, new_val, cur):
+    new_val = _clip(dst, new_val)            # clamp to the field's max length
     old_val = cur.get(dst)
     old_norm = None if (isinstance(old_val, str) and old_val.strip() == "") else old_val
     if new_val != old_norm:
@@ -431,6 +455,15 @@ for mid, oid, diffs in changed_log[:25]:
         print("      %s: %r -> %r" % (dst, o, n))
 if len(changed_log) > 25:
     print("  ... and %d more" % (len(changed_log) - 25))
+if _truncated:
+    by_field = {}
+    for dst, olen, mx in _truncated:
+        cur = by_field.get(dst, (0, 0, mx))
+        by_field[dst] = (cur[0] + 1, max(cur[1], olen), mx)
+    print("Clamped %d oversized string value(s) to field length:" % len(_truncated))
+    for dst, (cnt, worst, mx) in sorted(by_field.items()):
+        print("    %s: %d value(s) > %d chars (longest %d) -> truncated to %d"
+              % (dst, cnt, mx, worst, mx))
 
 # %%
 # Apply (gated by DRY_RUN), chunked.
@@ -447,7 +480,10 @@ else:
     edited_oids = []
     for bi, batch in enumerate(chunked(updates, BATCH_SIZE)):
         try:
-            res = lyr.edit_features(updates=batch)
+            # rollback_on_failure=False: commit the rows that succeed even if one
+            # in the batch is rejected (a stray domain/length violation no longer
+            # rolls the entire batch back). Per-row failures are logged below.
+            res = lyr.edit_features(updates=batch, rollback_on_failure=False)
             if bi == 0:
                 print("Raw edit_features response (first batch, truncated):")
                 print("   ", json.dumps(res)[:1500])
