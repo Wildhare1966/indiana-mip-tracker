@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Competitor Entitlement Reporter</title>
+
+<link rel="stylesheet" href="https://js.arcgis.com/4.31/esri/themes/dark/main.css" />
+<script src="https://js.arcgis.com/4.31/"></script>
+
+<style>
+  :root {
+    --bg:        #0f1722;
+    --panel:     #16202e;
+    --panel-2:   #1d2a3c;
+    --line:      #2c3e556e;
+    --line-s:    #2c3e55;
+    --ink:       #e6edf5;
+    --ink-soft:  #9fb2c8;
+    --ink-faint: #62748c;
+    --blue:      #3d8bdc;
+    --blue-deep: #2563b0;
+    --blue-soft: #1c4a7e;
+    --link:      #6bb4ee;
+    --radius:    6px;
+    --sidebar-w: 392px;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%;
+    background: var(--bg); color: var(--ink);
+    font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+    overflow: hidden;
+  }
+
+  #app { display: flex; height: 100%; }
+  #map { flex: 1 1 auto; height: 100%; position: relative; }
+
+  #sidebar {
+    flex: 0 0 var(--sidebar-w);
+    width: var(--sidebar-w);
+    height: 100%;
+    background: var(--panel);
+    border-left: 1px solid var(--line-s);
+    display: flex; flex-direction: column;
+    transition: flex-basis .22s ease, width .22s ease;
+    overflow: visible;
+    position: relative;
+  }
+  #sidebar.collapsed { flex-basis: 0; width: 0; border-left: none; }
+
+  /* ---- Floating button bar over the map ---- */
+  #buttonbar {
+    position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+    z-index: 25;
+    display: flex; gap: 6px; padding: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--line-s);
+    border-radius: var(--radius);
+    box-shadow: 0 4px 16px rgba(0,0,0,.45);
+  }
+  .viewbtn {
+    flex: 0 0 auto; min-width: 116px;
+    padding: 9px 14px;
+    background: transparent; color: var(--ink-soft);
+    border: 1px solid var(--line-s); border-radius: var(--radius);
+    font-size: 12px; font-weight: 600; letter-spacing: .02em;
+    cursor: pointer; white-space: nowrap;
+    transition: all .15s ease;
+  }
+  .viewbtn:hover { color: var(--ink); border-color: var(--blue); }
+  .viewbtn.active {
+    background: var(--blue); color: #fff; border-color: var(--blue); font-weight: 700;
+  }
+  .viewbtn .count { display: inline-block; margin-left: 5px; font-size: 10px; font-weight: 700; opacity: .8; }
+
+  /* ---- Rail toolbar (filter / settings) ---- */
+  #railbar {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 10px; background: var(--panel-2);
+    border-bottom: 1px solid var(--line-s); flex: 0 0 auto;
+  }
+  .railtool {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 6px 11px; background: transparent; color: var(--ink-soft);
+    border: 1px solid var(--line-s); border-radius: var(--radius);
+    font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s;
+  }
+  .railtool:hover { color: var(--ink); border-color: var(--blue); }
+  .railtool.active { color: #fff; background: var(--blue-soft); border-color: var(--blue); }
+  .railtool.hidden { display: none; }
+  #railbar .spacer { flex: 1; }
+
+  #listhead {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 7px 14px; font-size: 11px; color: var(--ink-faint);
+    border-bottom: 1px solid var(--line-s); flex: 0 0 auto;
+    letter-spacing: .04em; text-transform: uppercase;
+  }
+  #listhead .total { color: var(--blue); font-weight: 600; }
+
+  #list { flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; }
+  #list::-webkit-scrollbar { width: 9px; }
+  #list::-webkit-scrollbar-thumb { background: var(--line-s); border-radius: 5px; }
+
+  .card {
+    padding: 12px 14px; border-bottom: 1px solid var(--line-s);
+    cursor: pointer; border-left: 3px solid transparent;
+    transition: background .12s, border-color .12s;
+  }
+  .card:hover { background: var(--panel-2); }
+  .card.selected { background: var(--panel-2); border-left-color: var(--blue); }
+  .card-row1 { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .card-name { color: var(--blue); font-weight: 700; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card-juris { color: var(--ink-soft); font-size: 12px; flex: 0 0 auto; }
+  .card-row2 { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-top: 4px; }
+  .card-builder { color: var(--ink); font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card-hearing { color: var(--ink-soft); font-size: 11px; }
+  .card-date { color: var(--ink-soft); font-size: 11px; margin-left: 6px; }
+  .card-terms { margin-top: 6px; color: var(--ink-soft); font-size: 12px; line-height: 1.45;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .card-summary { display: inline-block; margin-top: 7px; color: var(--link);
+    font-size: 12px; font-weight: 600; text-decoration: none; }
+  .card-summary:hover { text-decoration: underline; }
+
+  /* ---- Popover panels beside the rail (filter / settings) ---- */
+  .popover {
+    position: absolute; top: 46px; right: calc(var(--sidebar-w) - 6px);
+    width: 250px; background: var(--panel-2);
+    border: 1px solid var(--blue-soft); border-radius: var(--radius);
+    box-shadow: -8px 8px 24px rgba(0,0,0,.5); z-index: 40;
+    padding: 14px; display: none;
+  }
+  .popover.open { display: block; }
+  .popover h4 { margin: 0 0 10px; font-size: 12px; color: var(--blue);
+    text-transform: uppercase; letter-spacing: .05em; }
+  .field { margin-bottom: 11px; }
+  .field label { display: block; font-size: 11px; color: var(--ink-faint);
+    margin-bottom: 4px; text-transform: uppercase; letter-spacing: .03em; }
+  .field select, .field input {
+    width: 100%; padding: 7px 9px; background: var(--panel); color: var(--ink);
+    border: 1px solid var(--line-s); border-radius: 5px; font-size: 13px;
+  }
+  .field.range { display: flex; gap: 6px; }
+  .field.range input { width: 50%; }
+  .popover .actions { display: flex; gap: 6px; margin-top: 6px; }
+  .popover .btn {
+    flex: 1; padding: 7px; border-radius: 5px; font-size: 12px; font-weight: 600;
+    cursor: pointer; border: 1px solid var(--line-s); background: transparent; color: var(--ink-soft);
+  }
+  .popover .btn.primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+  .popover .btn:hover { border-color: var(--blue); color: var(--ink); }
+  .popover .btn.primary:hover { background: var(--blue-deep); color: #fff; }
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 5px 0; font-size: 13px; }
+  .toggle-row input { accent-color: var(--blue); width: 16px; height: 16px; }
+  .field input[type="range"] { width: 100%; accent-color: var(--blue); padding: 0; }
+  .slv { color: var(--blue); font-weight: 700; }
+
+  /* ---- Detail overlay ---- */
+  #detail {
+    position: absolute; top: 0; right: 0; height: 100%; width: var(--sidebar-w);
+    background: var(--panel); border-left: 1px solid var(--blue-soft);
+    transform: translateX(100%); transition: transform .22s ease;
+    display: flex; flex-direction: column; z-index: 45; box-shadow: -8px 0 24px rgba(0,0,0,.4);
+  }
+  #detail.open { transform: translateX(0); }
+  #detail-head { display: flex; align-items: center; gap: 10px; padding: 14px;
+    border-bottom: 1px solid var(--line-s); flex: 0 0 auto; }
+  #detail-head .title { color: var(--blue); font-weight: 700; font-size: 16px; flex: 1; }
+  #detail-back { background: transparent; border: 1px solid var(--line-s); color: var(--ink-soft);
+    border-radius: var(--radius); padding: 6px 10px; cursor: pointer; font-size: 13px; }
+  #detail-back:hover { color: var(--ink); border-color: var(--blue); }
+  #detail-body { flex: 1 1 auto; overflow-y: auto; }
+  .frow { display: flex; border-bottom: 1px solid var(--line-s); }
+  .frow:nth-child(even) { background: var(--panel-2); }
+  .fkey { flex: 0 0 132px; padding: 9px 12px; color: var(--ink-faint); font-size: 11px;
+    font-weight: 600; text-transform: uppercase; letter-spacing: .03em; word-break: break-word; }
+  .fval { flex: 1; padding: 9px 12px; color: var(--ink); font-size: 13px; line-height: 1.5; word-break: break-word; }
+  .fval a { color: var(--link); text-decoration: none; }
+  .fval a:hover { text-decoration: underline; }
+  .fval.empty { color: var(--ink-faint); font-style: italic; }
+
+  /* ---- Map widgets ---- */
+  #layerbtn, #basemapbtn {
+    position: absolute; z-index: 26; background: var(--panel); border: 1px solid var(--line-s);
+    color: var(--ink); border-radius: var(--radius); padding: 8px 12px; cursor: pointer;
+    font-size: 12px; font-weight: 600;
+  }
+  #basemapbtn { top: 14px; left: 14px; }
+  #layerbtn { top: 52px; left: 14px; }
+  #layerbtn:hover, #basemapbtn:hover { border-color: var(--blue); }
+
+  #layerpanel, #basemappanel {
+    position: absolute; z-index: 26; background: var(--panel); border: 1px solid var(--line-s);
+    border-radius: var(--radius); padding: 8px; display: none; max-height: 70vh; overflow-y: auto;
+  }
+  #layerpanel { top: 90px; left: 14px; width: 280px; }
+  #basemappanel { top: 52px; left: 14px; width: 200px; }
+  #layerpanel.open, #basemappanel.open { display: block; }
+  .lyr { display: flex; align-items: center; gap: 8px; padding: 6px 8px; font-size: 12px; }
+  .lyr input { accent-color: var(--blue); flex: 0 0 auto; }
+  .lyr label { cursor: pointer; line-height: 1.3; flex: 1; }
+  .lyr .reorder { display: flex; flex-direction: column; gap: 1px; flex: 0 0 auto; }
+  .lyr .reorder button {
+    background: transparent; border: 1px solid var(--line-s); color: var(--ink-soft);
+    border-radius: 3px; cursor: pointer; font-size: 9px; line-height: 1; padding: 1px 4px;
+  }
+  .lyr .reorder button:hover { color: var(--ink); border-color: var(--blue); }
+  .lyr .reorder button:disabled { opacity: .3; cursor: default; }
+  .lyr.err label { color: #e07a7a; }
+  .lyr-group { font-size: 10px; color: var(--ink-faint); text-transform: uppercase;
+    letter-spacing: .05em; padding: 8px 8px 3px; border-top: 1px solid var(--line-s); margin-top: 4px; }
+  .lyr-group:first-child { border-top: none; margin-top: 0; }
+
+  #empty { flex: 1; display: flex; align-items: center; justify-content: center;
+    color: var(--ink-faint); font-size: 13px; text-align: center; padding: 30px; line-height: 1.6; }
+  .pill { color: var(--blue); font-weight: 600; }
+
+  @media (max-width: 720px) {
+    :root { --sidebar-w: 100%; }
+    #app { flex-direction: column; }
+    #map { height: 42%; }
+    #sidebar { flex-basis: 58%; width: 100%; border-left: none; border-top: 1px solid var(--line-s); }
+    #sidebar.collapsed { flex-basis: 0; }
+    #detail { width: 100%; }
+    .popover { right: 8px; left: 8px; width: auto; }
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="map">
+    <div id="buttonbar">
+      <button class="viewbtn" data-view="weekly">Weekly <span class="count" id="c-weekly"></span></button>
+      <button class="viewbtn" data-view="proposed">Competitor Proposed <span class="count" id="c-proposed"></span></button>
+      <button class="viewbtn" data-view="all">All <span class="count" id="c-all"></span></button>
+    </div>
+    <button id="layerbtn">Layers</button>
+    <button id="basemapbtn">Basemap</button>
+    <div id="layerpanel"></div>
+    <div id="basemappanel">
+      <div class="lyr"><input type="radio" name="bm" id="bm-streets" /><label for="bm-streets">Streets</label></div>
+      <div class="lyr"><input type="radio" name="bm" id="bm-hybrid" checked /><label for="bm-hybrid">Hybrid (aerial + roads)</label></div>
+      <div class="lyr"><input type="radio" name="bm" id="bm-topo" /><label for="bm-topo">Topographic</label></div>
+      <div class="lyr"><input type="radio" name="bm" id="bm-darkgray" /><label for="bm-darkgray">Dark Gray</label></div>
+    </div>
+  </div>
+
+  <div id="sidebar" class="collapsed">
+    <div id="railbar">
+      <button class="railtool hidden" id="filterbtn">⚲ Filter</button>
+      <button class="railtool" id="settingsbtn">⚙ Settings</button>
+      <span class="spacer"></span>
+    </div>
+    <div id="listhead">
+      <span id="sortlabel">Hearing Date · newest first</span>
+      <span class="total" id="totallabel"></span>
+    </div>
+    <div id="list"></div>
+
+    <!-- Filter popover -->
+    <div class="popover" id="filterpop">
+      <h4>Filter list</h4>
+      <div class="field" id="ff-status" style="display:none">
+        <label>Status</label>
+        <select id="f-status"><option value="">All statuses</option></select>
+      </div>
+      <div class="field">
+        <label>Jurisdiction</label>
+        <select id="f-juris"><option value="">All jurisdictions</option></select>
+      </div>
+      <div class="field">
+        <label>Builder</label>
+        <select id="f-builder"><option value="">All builders</option></select>
+      </div>
+      <div class="field range">
+        <div style="flex:1"><label>Hearing from</label><input type="date" id="f-from" /></div>
+        <div style="flex:1"><label>Hearing to</label><input type="date" id="f-to" /></div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="f-clear">Clear</button>
+        <button class="btn primary" id="f-apply">Apply</button>
+      </div>
+    </div>
+
+    <!-- Settings popover -->
+    <div class="popover" id="settingspop">
+      <h4>Settings</h4>
+      <div class="toggle-row"><span>Labels</span><input type="checkbox" id="s-labels" checked /></div>
+      <div class="field" style="margin-top:10px">
+        <label>Labels visible at zoom ≥ <span class="slv" id="lv-labelzoom">13</span></label>
+        <input type="range" id="s-labelzoom" min="6" max="18" step="1" value="13" />
+      </div>
+      <div class="field">
+        <label>Projects visible at zoom ≥ <span class="slv" id="lv-minzoom">11</span></label>
+        <input type="range" id="s-minzoom" min="6" max="18" step="1" value="11" />
+      </div>
+      <div class="field">
+        <label>Hide projects above zoom (off = no limit): <span class="slv" id="lv-maxzoom">off</span></label>
+        <input type="range" id="s-maxzoom" min="10" max="24" step="1" value="24" />
+      </div>
+    </div>
+  </div>
+
+  <div id="detail">
+    <div id="detail-head">
+      <button id="detail-back">‹ Back</button>
+      <span class="title" id="detail-title"></span>
+    </div>
+    <div id="detail-body"></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   CONFIG
+   ============================================================ */
+const SERVICE_URL =
+  "https://services.arcgis.com/sW49gHAAsKKspEo8/arcgis/rest/services/LeadsDeals_Arbor/FeatureServer/0";
+
+const VIEWS = {
+  weekly:   { label: "Weekly",              where: "Weekly = 'yes'",              filter: false },
+  proposed: { label: "Competitor Proposed", where: "Status = 'Competitor Proposed'", filter: true,  status: false },
+  all:      { label: "All",
+              where: "Status IN ('Arbor Active','Under Contract','Competitor Proposed','Competitor Active')",
+              filter: true,  status: true }
+};
+
+const SORT_ORDER = "DESC";
+
+const DETAIL_FIELDS = [
+  ["LeadsDeals","LeadsDeals"], ["Status","Status"], ["Jurisdiction","Jurisdiction"],
+  ["Builder","Builder"], ["Lots","Lots"], ["Summary","Summary"], ["Terms","Terms"],
+  ["Last_Result","Last Result"], ["Recent_Hearing","Recent Hearing"], ["Hearing_Date","Hearing Date"],
+  ["Recent_Agenda","Recent Agenda"], ["FolderLink","FolderLink"],
+  ["OwnerName","Owner Name"], ["Broker","Broker Contact"]
+];
+const LINK_FIELDS = ["Summary","Recent_Agenda","FolderLink"];
+
+const CARD = { name:"LeadsDeals", juris:"Jurisdiction", builder:"Builder",
+               hearing:"Recent_Hearing", date:"Hearing_Date", terms:"Terms" };
+
+// Status-driven symbology
+const STATUS_SYMBOLS = {
+  "Competitor Active":   { fill:[37,99,235,0.5],  border:[255,255,255,1], style:"solid"  },  // royal blue / solid
+  "Competitor Proposed": { fill:[32,178,170,0.5], border:[255,255,255,1], style:"dash"   },  // teal / dashed
+  "Arbor Active":        { fill:[34,160,90,0.5],  border:[255,255,255,1], style:"solid"  },  // green / solid
+  "Under Contract":      { fill:[34,160,90,0.5],  border:[255,255,255,1], style:"dash"   }   // green / dashed
+};
+
+// Additional layers for the Layer widget (all default OFF)
+const EXTRA_LAYERS = [
+  { group:"Reference", id:"parcels",   title:"IN Parcel Boundaries (current)",  type:"feature",
+    url:"https://gisdata.in.gov/server/rest/services/Hosted/Parcel_Boundaries_of_Indiana_Current/FeatureServer/0" },
+  { group:"Reference", id:"schooldist",title:"School Districts (TIGER)",        type:"feature",
+    url:"https://gisdata.in.gov/server/rest/services/Hosted/Census_TIGER_Unified_School_Districts_of_Indiana/FeatureServer/0" },
+  { group:"Market",    id:"zonda",     title:"Zonda Project Details 1Q26",      type:"feature",
+    sizeTheme:"Annual_Starts", opacity:0.3,
+    url:"https://services.arcgis.com/sW49gHAAsKKspEo8/arcgis/rest/services/ZondaProjectDetails_1Q26/FeatureServer/0" },
+  { group:"Market",    id:"blcltm",    title:"BLC LTM",                         type:"feature",
+    colorTheme:"Close_Price", opacity:0.85,
+    url:"https://services.arcgis.com/sW49gHAAsKKspEo8/arcgis/rest/services/BLC_LTM/FeatureServer/0" },
+  { group:"Environmental", id:"flood", title:"Flood Hazard (DNR)",              type:"feature",
+    url:"https://gisdata.in.gov/server/rest/services/Hosted/FloodHazard_BestAvai_DNR_Water_PROD/FeatureServer/0" },
+  { group:"Environmental", id:"wetlands", title:"National Wetlands Inventory",  type:"feature",
+    url:"https://gisdata.in.gov/server/rest/services/Hosted/National_Wetlands_Inventory/FeatureServer/3720" },
+  { group:"Terrain",   id:"contours",  title:"USGS Contours 24K",              type:"feature",
+    url:"https://gisdata.in.gov/server/rest/services/Hosted/CONTOURS_24K_USGS_IN/FeatureServer/53" },
+  { group:"Terrain",   id:"dem",       title:"Indiana DEM 2011–2013",          type:"image",
+    url:"https://di-ingov.img.arcgis.com/arcgis/rest/services/DynamicWebMercator/Indiana_2011_2013_DEM/ImageServer" },
+  { group:"Utilities", id:"util_san", title:"Sanitary Service Territories", type:"feature",
+    theme:"NAME", opacity:0.5,
+    url:"https://services.arcgis.com/sW49gHAAsKKspEo8/arcgis/rest/services/Utility_Service_Territories/FeatureServer/0" },
+  { group:"Utilities", id:"util_water", title:"Water Service Territories", type:"feature",
+    theme:"NAME", opacity:0.5,
+    url:"https://services.arcgis.com/sW49gHAAsKKspEo8/arcgis/rest/services/Utility_Service_Territories/FeatureServer/1" },
+  { group:"Utilities", id:"util_gas", title:"Gas Service Territories", type:"feature",
+    theme:"NAME", opacity:0.5,
+    url:"https://services.arcgis.com/sW49gHAAsKKspEo8/arcgis/rest/services/Utility_Service_Territories/FeatureServer/2" },
+  { group:"Utilities", id:"util_elec", title:"Electric Service Territories", type:"feature",
+    theme:"Utility_Name", opacity:0.5,
+    url:"https://gisdata.in.gov/server/rest/services/Hosted/IURC_Prod_Boundaries_View/FeatureServer/0" }
+];
+
+/* ============================================================ */
+require([
+  "esri/Map", "esri/views/MapView", "esri/layers/FeatureLayer",
+  "esri/layers/ImageryLayer", "esri/Graphic", "esri/layers/GraphicsLayer"
+], function (Map, MapView, FeatureLayer, ImageryLayer, Graphic, GraphicsLayer) {
+
+  const $ = (id) => document.getElementById(id);
+  let fieldMap = {}, dateFields = new Set();
+  let currentView = null, selectedOID = null, baseWhere = "", extraWhere = "";
+  let leadsLayer, view, flashLayer;
+  let settings = { labels:true, minZoom:11, labelZoom:13, maxZoom:24 };
+
+  function rf(n){
+    if (!n) return null;
+    const exact = fieldMap[n.toLowerCase()];
+    if (exact) return exact;
+    // fuzzy fallback (schema-drift safety net): strip non-alphanumerics, then equality, then substring
+    const norm = s => String(s).toLowerCase().replace(/[^a-z0-9]/g,"");
+    const w = norm(n), keys = Object.keys(fieldMap);
+    let k = keys.find(x => norm(x) === w);
+    if (!k) k = keys.find(x => norm(x).includes(w) || w.includes(norm(x)));
+    return k ? fieldMap[k] : n;
+  }
+  function fmtDate(v){
+    if (v===null||v===undefined||v==="") return "";
+    const d = new Date(v); if (isNaN(d)) return v;
+    // use UTC getters: Hearing_Date is a date-only field (UTC midnight) — local getters roll back a day
+    return (d.getUTCMonth()+1)+"/"+d.getUTCDate()+"/"+String(d.getUTCFullYear()).slice(2);
+  }
+  function esc(s){ if(s===null||s===undefined) return "";
+    return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
+
+  /* ---- map + basemap ---- */
+  const map = new Map({ basemap: "hybrid" });
+  view = new MapView({ container:"map", map:map, center:[-86.13,40.0], zoom:14 });
+  flashLayer = new GraphicsLayer(); map.add(flashLayer);
+  let selectLayer = new GraphicsLayer(); map.add(selectLayer);
+
+  const BASEMAPS = { "bm-streets":"streets-vector", "bm-hybrid":"hybrid",
+                     "bm-topo":"topo-vector", "bm-darkgray":"dark-gray-vector" };
+  Object.keys(BASEMAPS).forEach(id => {
+    $(id).addEventListener("change", () => { if ($(id).checked) map.basemap = BASEMAPS[id]; });
+  });
+
+  /* ---- renderer from Status ---- */
+  function buildRenderer(){
+    const infos = Object.keys(STATUS_SYMBOLS).map(stat => {
+      const s = STATUS_SYMBOLS[stat];
+      return { value: stat, symbol: {
+        type:"simple-fill", color:s.fill,
+        outline:{ color:s.border, width:1.4, style:s.style }
+      }};
+    });
+    return {
+      type:"unique-value",
+      field: rf("Status"),
+      defaultSymbol: null,
+      uniqueValueInfos: infos
+    };
+  }
+
+  /* ---- labels: LeadsDeals (yellow/black) over Builder (black/dimmed-white) ---- */
+  function buildLabels(){
+    const nameF = rf("LeadsDeals"), bldF = rf("Builder");
+    const labelMinScale = 591657527 / Math.pow(2, settings.labelZoom-1); // labels appear at zoom >= labelZoom
+    return [
+      { labelExpressionInfo:{ expression:"$feature."+nameF }, labelPlacement:"always-horizontal",
+        minScale: labelMinScale, maxScale: 0,
+        symbol:{ type:"text", color:[255,221,0,1], haloColor:[0,0,0,1], haloSize:1.6,
+                 font:{ size:11, weight:"bold" }, yoffset:7 } },
+      { labelExpressionInfo:{ expression:"$feature."+bldF }, labelPlacement:"always-horizontal",
+        minScale: labelMinScale, maxScale: 0,
+        symbol:{ type:"text", color:[0,0,0,1], haloColor:[235,235,235,1], haloSize:1.4,
+                 font:{ size:10, weight:"normal" }, yoffset:-7 } }
+    ];
+  }
+
+  leadsLayer = new FeatureLayer({ url:SERVICE_URL, outFields:["*"] });
+  map.add(leadsLayer);
+
+  leadsLayer.when(() => {
+    leadsLayer.fields.forEach(f => {
+      fieldMap[f.name.toLowerCase()] = f.name;
+      if (/date/i.test(f.type)) dateFields.add(f.name);   // catches "date" and "date-only" (Hearing_Date)
+    });
+    if (!fieldMap[CARD.date.toLowerCase()]) {
+      const g = leadsLayer.fields.find(f=>/hearing.*date|date.*hearing/i.test(f.name));
+      if (g) CARD.date = g.name;
+    }
+    leadsLayer.renderer = buildRenderer();
+    leadsLayer.definitionExpression =
+      rf("Status") + " IN ('Competitor Proposed','Competitor Active','Arbor Active','Under Contract')";
+    leadsLayer.labelingInfo = buildLabels();
+    leadsLayer.labelsVisible = settings.labels;
+    applyZoomVisibility();
+    preloadCounts();
+  }).catch(err => {
+    $("list").innerHTML = `<div id="empty">Couldn't load LeadsDeals.<br><span class="pill">${(err&&err.message)||err}</span></div>`;
+    openSidebar();
+  });
+
+  function applyZoomVisibility(){
+    // approximate web-mercator map scale for a given zoom level
+    const z2s = z => 591657527 / Math.pow(2, z-1);
+    // LeadsDeals polygons visible at zoom >= minZoom
+    leadsLayer.minScale = settings.minZoom<=0 ? 0 : z2s(settings.minZoom);
+    leadsLayer.maxScale = settings.maxZoom>=24 ? 0 : z2s(settings.maxZoom);
+    // labels have their own (higher) zoom threshold, re-apply via labelingInfo
+    if (leadsLayer.loaded) { leadsLayer.labelingInfo = buildLabels(); }
+  }
+
+  function preloadCounts(){
+    Object.keys(VIEWS).forEach(k=>{
+      const q=leadsLayer.createQuery(); q.where=VIEWS[k].where; q.returnGeometry=false;
+      leadsLayer.queryFeatureCount(q).then(n=>$("c-"+k).textContent="("+n+")").catch(()=>{});
+    });
+  }
+
+  /* ---- extra layers widget ---- */
+  const layerObjs = {};
+  // ordered list of entries, top of list = top of map draw order
+  let layerOrder = [{ id:"leads", title:"Tracked Projects", group:"Entitlement", base:true }]
+                    .concat(EXTRA_LAYERS.map(c=>({ id:c.id, title:c.title, group:c.group, cfg:c })));
+
+  function buildLayerPanel(){
+    const panel = $("layerpanel"); panel.innerHTML = "";
+    const hint=document.createElement("div"); hint.className="lyr-group"; hint.textContent="Layers"; panel.appendChild(hint);
+    layerOrder.forEach((entry,idx)=>{
+      const row=document.createElement("div"); row.className="lyr"; row.id="row-"+entry.id;
+      const checked = entry.base ? "checked" : "";
+      row.innerHTML =
+        `<input type="checkbox" id="lyr-${entry.id}" ${checked} />
+         <label for="lyr-${entry.id}">${entry.title}<span style="color:var(--ink-faint);font-size:10px"> · ${entry.group}</span></label>`;
+      panel.appendChild(row);
+
+      // visibility toggle
+      row.querySelector("input").addEventListener("change",e=>{
+        if (entry.base) leadsLayer.visible=e.target.checked;
+        else toggleExtra(entry.cfg, e.target.checked, row);
+      });
+    });
+  }
+
+  function moveLayer(idx,dir){
+    const j=idx+dir; if(j<0||j>=layerOrder.length) return;
+    const tmp=layerOrder[idx]; layerOrder[idx]=layerOrder[j]; layerOrder[j]=tmp;
+    applyMapOrder();
+    buildLayerPanel();
+  }
+
+  function applyMapOrder(){
+    // map.reorder index: higher index = drawn on top. Our list top = top, so reverse.
+    const n=layerOrder.length;
+    layerOrder.forEach((entry,i)=>{
+      const targetIndex = (n-1)-i;   // invert: list-top gets highest draw index
+      const L = entry.base ? leadsLayer : layerObjs[entry.id];
+      if (L && map.layers.includes(L)) { try { map.reorder(L, targetIndex); } catch(e){} }
+    });
+    // keep flash + select highlight on very top
+    if (flashLayer && map.layers.includes(flashLayer)) map.reorder(flashLayer, map.layers.length-1);
+    if (selectLayer && map.layers.includes(selectLayer)) map.reorder(selectLayer, map.layers.length-1);
+  }
+  function themeColor(i){
+    // distinct categorical palette
+    const pal = [[31,119,180],[255,127,14],[44,160,44],[214,39,40],[148,103,189],
+                 [140,86,75],[227,119,194],[127,127,127],[188,189,34],[23,190,207],
+                 [174,199,232],[255,187,120],[152,223,138],[255,152,150],[197,176,213]];
+    return pal[i % pal.length];
+  }
+  function applyTheme(layer, themeField, opacity){
+    layer.when(()=>{
+      // resolve field name case-insensitively
+      const real = (layer.fields.find(f=>f.name.toLowerCase()===themeField.toLowerCase())||{}).name || themeField;
+      const q = layer.createQuery();
+      q.where="1=1"; q.outFields=[real]; q.returnGeometry=false;
+      q.returnDistinctValues=true; q.orderByFields=[real]; q.num=2000;
+      layer.queryFeatures(q).then(r=>{
+        const vals=[...new Set(r.features.map(f=>f.attributes[real]).filter(v=>v!==null&&v!==""))];
+        const infos = vals.map((v,i)=>{ const c=themeColor(i);
+          return { value:v, symbol:{ type:"simple-fill",
+            color:[c[0],c[1],c[2], opacity], outline:{color:[255,255,255,0.8],width:0.7} } }; });
+        layer.renderer = { type:"unique-value", field:real,
+          defaultSymbol:{ type:"simple-fill", color:[150,150,150,opacity], outline:{color:[255,255,255,0.6],width:0.7} },
+          uniqueValueInfos: infos };
+      }).catch(()=>{});
+    });
+  }
+  function resolveField(layer, wanted){
+    // exact case-insensitive match, else fuzzy on stripped non-alphanumerics
+    const norm = s => String(s).toLowerCase().replace(/[^a-z0-9]/g,"");
+    let f = layer.fields.find(x=>x.name.toLowerCase()===wanted.toLowerCase());
+    if (!f) f = layer.fields.find(x=>norm(x.name)===norm(wanted));
+    if (!f) f = layer.fields.find(x=>norm(x.name).includes(norm(wanted)) || norm(wanted).includes(norm(x.name)));
+    return f ? f.name : null;
+  }
+  function fieldStats(layer, field){
+    const q=layer.createQuery(); q.where=field+" IS NOT NULL"; q.returnGeometry=false;
+    q.outStatistics=[
+      { statisticType:"min", onStatisticField:field, outStatisticFieldName:"mn" },
+      { statisticType:"max", onStatisticField:field, outStatisticFieldName:"mx" }
+    ];
+    return layer.queryFeatures(q).then(r=>{
+      const a=r.features[0]&&r.features[0].attributes||{}; return { min:a.mn, max:a.mx };
+    });
+  }
+  // graduated CIRCLE SIZE (Zonda by Annual Starts)
+  function applySizeTheme(layer, wanted, opacity){
+    layer.when(()=>{
+      const field = resolveField(layer, wanted);
+      if(!field){ return; }
+      fieldStats(layer, field).then(({min,max})=>{
+        if(min==null||max==null||min===max){ min=0; max=Math.max(max||10,10); }
+        layer.renderer = {
+          type:"simple",
+          symbol:{ type:"simple-marker", style:"circle",
+                   color:[37,99,235,opacity], outline:{color:[255,255,255,0.9],width:0.8} },
+          visualVariables:[{
+            type:"size", field:field, minDataValue:min, maxDataValue:max,
+            minSize:6, maxSize:36
+          }]
+        };
+      }).catch(()=>{});
+    });
+  }
+  // graduated COLOR (BLC LTM by Sale Price)
+  function applyColorTheme(layer, wanted, opacity){
+    layer.when(()=>{
+      const field = resolveField(layer, wanted);
+      if(!field){ return; }
+      fieldStats(layer, field).then(({min,max})=>{
+        if(min==null||max==null||min===max){ min=0; max=Math.max(max||1,1); }
+        const mid=(min+max)/2, q1=(min+(max-min)*0.25), q3=(min+(max-min)*0.75);
+        layer.renderer = {
+          type:"simple",
+          symbol:{ type:"simple-marker", style:"circle", size:7,
+                   outline:{color:[255,255,255,0.7],width:0.6} },
+          visualVariables:[{
+            type:"color", field:field,
+            // highest -> lowest intensity ramp (high = darkest/hottest red)
+            stops:[
+              { value:max, color:[103,0,13,opacity] },
+              { value:q3,  color:[203,24,29,opacity] },
+              { value:mid, color:[239,101,72,opacity] },
+              { value:q1,  color:[252,174,145,opacity] },
+              { value:min, color:[254,229,217,opacity] }
+            ]
+          }]
+        };
+      }).catch(()=>{});
+    });
+  }
+
+  function toggleExtra(cfg,on,row){
+    if (on && !layerObjs[cfg.id]){
+      const L = cfg.type==="image" ? new ImageryLayer({url:cfg.url})
+                                   : new FeatureLayer({url:cfg.url, outFields:["*"], opacity: cfg.opacity!=null?cfg.opacity:1});
+      layerObjs[cfg.id]=L; map.add(L,0);  // add beneath leads layer
+      if (cfg.theme) applyTheme(L, cfg.theme, cfg.opacity!=null?cfg.opacity:0.5);
+      if (cfg.sizeTheme) applySizeTheme(L, cfg.sizeTheme, cfg.opacity!=null?cfg.opacity:0.5);
+      if (cfg.colorTheme) applyColorTheme(L, cfg.colorTheme, cfg.opacity!=null?cfg.opacity:0.85);
+      L.when(()=>{ applyMapOrder(); }, ()=>{ row.classList.add("err");
+        row.querySelector("label").textContent = cfg.title+" — unavailable (use Drive)"; });
+    } else if (layerObjs[cfg.id]){
+      layerObjs[cfg.id].visible = on;
+    }
+  }
+  buildLayerPanel();
+
+  $("layerbtn").addEventListener("click",()=>{ $("layerpanel").classList.toggle("open"); $("basemappanel").classList.remove("open"); });
+  $("basemapbtn").addEventListener("click",()=>{ $("basemappanel").classList.toggle("open"); $("layerpanel").classList.remove("open"); });
+
+  /* ---- views ---- */
+  document.querySelectorAll(".viewbtn").forEach(b=>b.addEventListener("click",()=>selectView(b.dataset.view)));
+  function openSidebar(){ $("sidebar").classList.remove("collapsed"); }
+  function closeDetail(){ $("detail").classList.remove("open"); selectedOID=null; paintSelection(); if(selectLayer) selectLayer.removeAll(); }
+
+  function selectView(key){
+    if (currentView===key) return;
+    currentView=key; extraWhere="";
+    document.querySelectorAll(".viewbtn").forEach(b=>b.classList.toggle("active",b.dataset.view===key));
+    // filter button only on proposed + all
+    $("filterbtn").classList.toggle("hidden", !VIEWS[key].filter);
+    $("ff-status").style.display = VIEWS[key].status ? "block" : "none";
+    $("filterpop").classList.remove("open"); $("settingspop").classList.remove("open");
+    baseWhere = VIEWS[key].where;
+    openSidebar(); closeDetail();
+    populateFilterOptions(key);
+    loadList();
+  }
+
+  function whereClause(){ return extraWhere ? "("+baseWhere+") AND ("+extraWhere+")" : baseWhere; }
+
+  function loadList(){
+    const listEl=$("list");
+    listEl.innerHTML=`<div id="empty">Loading…</div>`;
+    const q=leadsLayer.createQuery();
+    q.where=whereClause(); q.outFields=["*"]; q.returnGeometry=false;
+    q.orderByFields=[ rf(CARD.date)+" "+SORT_ORDER ];
+    leadsLayer.queryFeatures(q).then(res=>{
+      const feats=res.features;
+      $("totallabel").textContent="Total: "+feats.length;
+      if(!feats.length){ listEl.innerHTML=`<div id="empty">No records match.</div>`; return; }
+      listEl.innerHTML="";
+      feats.forEach(f=>listEl.appendChild(makeCard(f)));
+    }).catch(err=>{
+      listEl.innerHTML=`<div id="empty">Query failed.<br><span class="pill">${(err&&err.message)||err}</span></div>`;
+    });
+  }
+
+  function val(a,role){ const n=rf(CARD[role]); let v=a[n]; if(dateFields.has(n)) v=fmtDate(v);
+    return (v===null||v===undefined)?"":v; }
+
+  function makeCard(feature){
+    const a=feature.attributes, oid=a[leadsLayer.objectIdField];
+    const el=document.createElement("div"); el.className="card"; el.dataset.oid=oid;
+    if(oid===selectedOID) el.classList.add("selected");
+    el.innerHTML=
+      `<div class="card-row1"><span class="card-name">${esc(val(a,"name"))||"(unnamed)"}</span>
+         <span class="card-juris">${esc(val(a,"juris"))}</span></div>
+       <div class="card-row2"><span class="card-builder">${esc(val(a,"builder"))}</span>
+         <span><span class="card-hearing">${esc(val(a,"hearing"))}</span>
+         <span class="card-date">${esc(val(a,"date"))}</span></span></div>
+       <div class="card-terms">${esc(val(a,"terms"))}</div>`;
+    el.addEventListener("click",()=>openDetail(feature));
+    return el;
+  }
+  function paintSelection(){ document.querySelectorAll(".card").forEach(c=>
+    c.classList.toggle("selected", Number(c.dataset.oid)===selectedOID)); }
+
+  /* ---- detail + zoom + bloom flash ---- */
+  function openDetail(feature){
+    const a=feature.attributes; selectedOID=a[leadsLayer.objectIdField]; paintSelection();
+    $("detail-title").textContent=a[rf(CARD.name)]||"Record";
+    const body=$("detail-body"); body.innerHTML="";
+    DETAIL_FIELDS.forEach(([fld,alias])=>{
+      const real=rf(fld); let raw=a[real]; if(dateFields.has(real)) raw=fmtDate(raw);
+      const empty=(raw===null||raw===undefined||raw==="");
+      let vh;
+      if(empty) vh=`<span class="fval empty">—</span>`;
+      else if(LINK_FIELDS.includes(fld)&&/^https?:\/\//i.test(String(raw))) vh=`<div class="fval"><a href="${esc(raw)}" target="_blank" rel="noopener">View</a></div>`;
+      else vh=`<div class="fval">${esc(raw)}</div>`;
+      const row=document.createElement("div"); row.className="frow";
+      row.innerHTML=`<div class="fkey">${esc(alias)}</div>${vh}`; body.appendChild(row);
+    });
+    $("detail").classList.add("open");
+
+    const sel=leadsLayer.createQuery(); sel.objectIds=[selectedOID];
+    sel.returnGeometry=true; sel.outFields=[leadsLayer.objectIdField];
+    leadsLayer.queryFeatures(sel).then(r=>{
+      if(r.features.length && r.features[0].geometry){
+        const geom=r.features[0].geometry;
+        view.goTo({ target:geom, zoom:14 }).catch(()=>{});
+        highlightSelected(geom);
+        bloomFlash(geom);
+      }
+    }).catch(()=>{});
+  }
+
+  function highlightSelected(geom){
+    selectLayer.removeAll();
+    selectLayer.add(new Graphic({ geometry:geom, symbol:{
+      type:"simple-fill", color:[0,0,0,0],
+      outline:{ color:[20,255,210,1], width:3.5 }   // bright neon teal
+    }}));
+  }
+
+  function bloomFlash(geom){
+    flashLayer.removeAll();
+    const sym={ type:"simple-fill", color:[255,255,150,0.0],
+      outline:{ color:[120,200,255,1], width:3 } };
+    const g=new Graphic({ geometry:geom, symbol:sym });
+    flashLayer.add(g);
+    let n=0; const on={color:[120,200,255,0.55],outline:{color:[180,230,255,1],width:5}};
+    const off={color:[255,255,150,0.0],outline:{color:[120,200,255,1],width:2}};
+    const iv=setInterval(()=>{
+      g.symbol={ type:"simple-fill", ...(n%2===0?on:off) };
+      n++; if(n>=6){ clearInterval(iv); setTimeout(()=>flashLayer.removeAll(),350); }
+    },230);
+  }
+
+  $("detail-back").addEventListener("click",closeDetail);
+
+  view.on("click",(e)=>{
+    view.hitTest(e).then(resp=>{
+      const hit=resp.results.find(r=>r.graphic&&r.graphic.layer===leadsLayer);
+      if(!hit) return;
+      const oid=hit.graphic.attributes[leadsLayer.objectIdField];
+      const q=leadsLayer.createQuery(); q.objectIds=[oid]; q.outFields=["*"]; q.returnGeometry=false;
+      leadsLayer.queryFeatures(q).then(r=>{ if(r.features.length){ openSidebar(); openDetail(r.features[0]); } });
+    });
+  });
+
+  /* ---- filter popover ---- */
+  $("filterbtn").addEventListener("click",()=>{
+    $("filterpop").classList.toggle("open"); $("settingspop").classList.remove("open");
+    $("filterbtn").classList.toggle("active",$("filterpop").classList.contains("open"));
+  });
+  function populateFilterOptions(key){
+    const fill=(sel,field)=>{
+      const el=$(sel); const keep=el.value;
+      const q=leadsLayer.createQuery(); q.where=VIEWS[key].where; q.outFields=[rf(field)];
+      q.returnGeometry=false; q.returnDistinctValues=true; q.orderByFields=[rf(field)];
+      leadsLayer.queryFeatures(q).then(r=>{
+        const vals=[...new Set(r.features.map(f=>f.attributes[rf(field)]).filter(v=>v!==null&&v!==""))].sort();
+        el.innerHTML = `<option value="">All</option>` + vals.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("");
+        if(keep) el.value=keep;
+      }).catch(()=>{});
+    };
+    fill("f-juris","Jurisdiction"); fill("f-builder","Builder");
+    if(VIEWS[key].status) fill("f-status","Status");
+  }
+  $("f-apply").addEventListener("click",()=>{
+    const parts=[];
+    const st=$("f-status").value, ju=$("f-juris").value, bl=$("f-builder").value,
+          fr=$("f-from").value, to=$("f-to").value;
+    if(st && VIEWS[currentView].status) parts.push(`Status = '${st.replace(/'/g,"''")}'`);
+    if(ju) parts.push(`${rf("Jurisdiction")} = '${ju.replace(/'/g,"''")}'`);
+    if(bl) parts.push(`${rf("Builder")} = '${bl.replace(/'/g,"''")}'`);
+    if(fr) parts.push(`${rf(CARD.date)} >= DATE '${fr}'`);
+    if(to) parts.push(`${rf(CARD.date)} <= DATE '${to}'`);
+    extraWhere=parts.join(" AND ");
+    loadList();
+  });
+  $("f-clear").addEventListener("click",()=>{
+    $("f-status").value="";$("f-juris").value="";$("f-builder").value="";$("f-from").value="";$("f-to").value="";
+    extraWhere=""; loadList();
+  });
+
+  /* ---- settings popover ---- */
+  $("settingsbtn").addEventListener("click",()=>{
+    $("settingspop").classList.toggle("open"); $("filterpop").classList.remove("open");
+    $("settingsbtn").classList.toggle("active",$("settingspop").classList.contains("open"));
+  });
+  $("s-labels").addEventListener("change",e=>{ settings.labels=e.target.checked; leadsLayer.labelsVisible=e.target.checked; });
+  $("s-labelzoom").addEventListener("input",e=>{ settings.labelZoom=+e.target.value; $("lv-labelzoom").textContent=e.target.value; if(leadsLayer.loaded) leadsLayer.labelingInfo=buildLabels(); });
+  $("s-minzoom").addEventListener("input",e=>{ settings.minZoom=+e.target.value; $("lv-minzoom").textContent=e.target.value; applyZoomVisibility(); });
+  $("s-maxzoom").addEventListener("input",e=>{ const v=+e.target.value; settings.maxZoom=v; $("lv-maxzoom").textContent = v>=24 ? "off" : v; applyZoomVisibility(); });
+});
+</script>
+</body>
+</html>
