@@ -286,6 +286,12 @@ License: MIT
         <input type="text" id="fSubdiv" list="subdivList" placeholder="Builder-active subdivisions — type or pick" autocomplete="off">
         <datalist id="subdivList"></datalist>
       </div>
+      <div class="ctrl enrich-only">
+        <label for="fSchool">School district</label>
+        <select id="fSchool">
+          <option value="">All districts</option>
+        </select>
+      </div>
       <div class="ctrl">
         <label>Property class</label>
         <div class="ms" id="msClass">
@@ -374,9 +380,10 @@ let COLS = [
   {k:'rep_street',         t:'Address'},
   {k:'subdiv_name',        t:'Subdivision'},
   {k:'prop_class_descs',   t:'Class Desc'},
+  {k:'school_district',    t:'School District'},
 ];
 // keys that only exist in sales_enriched.csv — dropped if an un-enriched file is loaded
-const ENRICH_KEYS=['transaction_kind','subdiv_canonical','builder_canonical','buyer_builder_canonical'];
+const ENRICH_KEYS=['transaction_kind','subdiv_canonical','builder_canonical','buyer_builder_canonical','school_district'];
 let RAW=[], VIEW=[], page=0, PER=100, sortKey='conveyance_date', sortDir=-1, HAS_ENRICH=false;
 let charts={}, SUB_ACTIVE=new Set(), selClasses=new Set(), CLASS_OPTS=[];
 
@@ -543,16 +550,21 @@ function boot(){
       const s=(r.subdiv_canonical||'').trim(); if(s)SUB_ACTIVE.add(s); } });
     const subs=[...SUB_ACTIVE].sort((a,b)=>a.localeCompare(b));
     $('subdivList').innerHTML=subs.map(s=>`<option value="${s.replace(/"/g,'&quot;')}">`).join('');
+    // school district dropdown — alphabetical, with per-district record counts
+    const scmap={};
+    RAW.forEach(r=>{const s=(r.school_district||'').trim();if(s)scmap[s]=(scmap[s]||0)+1;});
+    Object.entries(scmap).sort((a,b)=>a[0].localeCompare(b[0])).forEach(([s,n])=>{
+      $('fSchool').insertAdjacentHTML('beforeend',`<option value="${s.replace(/"/g,'&quot;')}">${s} (${n.toLocaleString()})</option>`);});
   }else{
     document.querySelectorAll('.enrich-only').forEach(el=>el.classList.add('hidden'));
     COLS=COLS.filter(c=>!ENRICH_KEYS.includes(c.k));
   }
   buildThead();
   // wire filters
-  ['fCounty','fCity','fKind','fBuilder','fLandBuyer','fSubdiv','fFrom','fTo','fSearch']
+  ['fCounty','fCity','fKind','fBuilder','fLandBuyer','fSubdiv','fSchool','fFrom','fTo','fSearch']
     .forEach(id=>$(id).addEventListener('input',()=>{page=0;apply();}));
   $('reset').addEventListener('click',()=>{
-    ['fCounty','fCity','fKind','fBuilder','fLandBuyer','fSubdiv','fFrom','fTo','fSearch'].forEach(id=>$(id).value='');
+    ['fCounty','fCity','fKind','fBuilder','fLandBuyer','fSubdiv','fSchool','fFrom','fTo','fSearch'].forEach(id=>$(id).value='');
     selClasses.clear(); syncClassUI();
     page=0; apply();
   });
@@ -571,6 +583,7 @@ function apply(){
   const from=$('fFrom').value?new Date($('fFrom').value):null;
   const to=$('fTo').value?new Date($('fTo').value):null;
   const builder=$('fBuilder').value, kind=$('fKind').value, landBuyer=$('fLandBuyer').value;
+  const school=$('fSchool').value;
   const city=$('fCity').value.trim().toLowerCase();
   const subdiv=$('fSubdiv').value.trim().toLowerCase();
   const q=$('fSearch').value.trim().toLowerCase();
@@ -584,6 +597,7 @@ function apply(){
     else if(builder&&r.builder_canonical!==builder)return false;
     if(landBuyer==='__any'){if(!(r.buyer_builder_canonical||'').trim())return false;}
     else if(landBuyer&&r.buyer_builder_canonical!==landBuyer)return false;
+    if(school&&r.school_district!==school)return false;
     if(kind==='__resale'){if((r.transaction_kind||'').trim())return false;}
     else if(kind&&r.transaction_kind!==kind)return false;
     if(city&&!(r._city||'').toLowerCase().startsWith(city))return false;
@@ -595,7 +609,7 @@ function apply(){
     if(from&&(!r._date||r._date<from))return false;
     if(to&&(!r._date||r._date>to))return false;
     if(q){
-      const hay=(r.rep_street+' '+r.rep_city+' '+r._city+' '+r.buyers+' '+r.sellers+' '+r.preparers+' '+r.parcel_numbers+' '+r.SDF_ID+' '+(r.builder_canonical||'')+' '+(r.subdiv_canonical||'')).toLowerCase();
+      const hay=(r.rep_street+' '+r.rep_city+' '+r._city+' '+r.buyers+' '+r.sellers+' '+r.preparers+' '+r.parcel_numbers+' '+r.SDF_ID+' '+(r.builder_canonical||'')+' '+(r.subdiv_canonical||'')+' '+(r.school_district||'')).toLowerCase();
       if(!hay.includes(q))return false;
     }
     return true;
