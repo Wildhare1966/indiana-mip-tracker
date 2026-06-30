@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p142 -->
+<!-- MIP build p143 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p142">
+<link rel="stylesheet" href="styles.css?v=p143">
 </head>
 <body>
 
@@ -819,6 +819,36 @@ function mipWriteFetch(query){
       return attempt(getWebAppUrl());
     }
     return attempt(base); // one transient retry
+  });
+}
+
+// Read analog of mipWriteFetch. The version gate (checkDataVersion) and the
+// bootstrap / scraped_documents reads ARE the freshness path. A stale
+// `mip_webapp_url` override (valid format but a DEAD/old deployment slug) makes
+// every live read throw, so refreshMuniDataIfStale / fetchScrapedDocuments
+// keep serving the WARM stale localStorage cache indefinitely — the CDN
+// optimistic paint only fires on a COLD open, so a populated cache is never
+// overwritten. That is the recurring "frozen since last week" symptom (the
+// P142 startup purge can't help when an OLD cached shell lacks it). On any
+// failure we drop the override and retry the built-in default ONCE, so reads
+// self-heal with no manual cache clear. `query` must start with '&action=…'.
+function mipReadFetch(query, timeoutMs){
+  function attempt(url){
+    var opts = (typeof AbortSignal !== 'undefined' && AbortSignal.timeout)
+      ? { signal: AbortSignal.timeout(timeoutMs || 45000) } : {};
+    return fetch(url + query, opts).then(function(r){
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    });
+  }
+  var base = getWebAppUrl();
+  return attempt(base).catch(function(err){
+    if (localStorage.getItem(WEBAPP_URL_KEY)){
+      localStorage.removeItem(WEBAPP_URL_KEY);
+      console.warn('[mrd] read failed via webapp URL override — purged stale mip_webapp_url, retrying live default.');
+      return attempt(getWebAppUrl());
+    }
+    throw err;
   });
 }
 
@@ -1670,9 +1700,9 @@ window.exportBriefing = exportBriefing;
 const MUNI_CACHE_VER_KEY = 'mip_muni_data_ver';
 async function checkDataVersion() {
   try {
-    const resp = await fetch(getWebAppUrl() + '&action=data_version', { signal: AbortSignal.timeout(8000) });
-    if (!resp.ok) return null;
-    const data = await resp.json();
+    // Via mipReadFetch so a dead `mip_webapp_url` override self-heals here, at
+    // the freshness gate, before it can freeze the warm cache (see mipReadFetch).
+    const data = await mipReadFetch('&action=data_version', 8000);
     return (data && data.version) ? String(data.version) : null;
   } catch(e) { return null; }
 }
@@ -1720,8 +1750,9 @@ async function refreshMuniDataIfStale() {
   if (!shouldRefetch) return false;
 
   try {
-    const resp = await fetch(url + '&action=bootstrap', { signal: AbortSignal.timeout(45000) });
-    const data = await resp.json();
+    // mipReadFetch self-heals a stale override (purge + retry default) so a dead
+    // slug can't strand this on the warm cache — recompute via getWebAppUrl().
+    const data = await mipReadFetch('&action=bootstrap', 45000);
 
     let changed = false;
     if (data && Array.isArray(data.municipalities) && data.municipalities.length && data.municipalities[0].id && data.municipalities[0].name) {
@@ -1831,8 +1862,7 @@ async function fetchScrapedDocuments() {
   }
 
   try {
-    const resp = await fetch(url + '&action=scraped_documents', { signal: AbortSignal.timeout(45000) });
-    const data = await resp.json();
+    const data = await mipReadFetch('&action=scraped_documents', 45000);
     if (Array.isArray(data) && data.length) {
       _sdLive = true;
       SCRAPED_DOCS = data;
