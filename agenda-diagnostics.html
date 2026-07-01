@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MRD · Agenda Tracker Diagnostics</title>
+<style>
+  :root{
+    --bg:#0f0f1e; --bg-page:#0d0d0d; --panel:#15152a; --panel-2:#1a1a2e;
+    --border:#2a2a44; --text:#e8e8f0; --text-dim:#9a9ab0;
+    --accent:#e8a020; --accent-blue:#4a9eff;
+    --ok:#1c7c3a; --warn:#e8a020; --bad:#d65a5a; --idle:#666; --loading:#4a9eff;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size:13px;line-height:1.45;}
+  a{color:var(--accent-blue);text-decoration:none;}
+  a:hover{text-decoration:underline;}
+  .wrap{max-width:1400px;margin:0 auto;padding:22px 26px 60px;}
+
+  /* ── Header ─────────────────────────────────────────────── */
+  .head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:6px;}
+  .head-title{font-size:22px;font-weight:700;letter-spacing:.01em;}
+  .head-title span{color:var(--accent);}
+  .head-sub{font-size:12px;color:var(--text-dim);margin-top:3px;max-width:720px;}
+  .head-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .btn{font-size:12px;font-weight:600;padding:7px 14px;border-radius:5px;border:1px solid var(--border);
+    background:var(--panel-2);color:var(--text);cursor:pointer;white-space:nowrap;}
+  .btn:hover{border-color:var(--accent);}
+  .btn.primary{background:rgba(232,160,32,0.15);color:var(--accent);border-color:rgba(232,160,32,0.45);}
+  .btn:disabled{opacity:.5;cursor:default;}
+  .conn{font-size:10.5px;color:var(--text-dim);margin:8px 0 2px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+  .conn b{color:var(--text);font-weight:600;}
+
+  /* ── Pipeline flow strip ────────────────────────────────── */
+  .flow{display:flex;align-items:stretch;gap:0;flex-wrap:wrap;margin:16px 0 6px;padding:12px;
+    background:var(--panel);border:1px solid var(--border);border-radius:8px;}
+  .flow-pill{display:flex;flex-direction:column;justify-content:center;min-width:96px;flex:1 1 96px;
+    padding:8px 6px;border-radius:6px;text-align:center;position:relative;cursor:pointer;
+    border:1px solid transparent;}
+  .flow-pill:hover{border-color:var(--border);background:rgba(255,255,255,0.02);}
+  .flow-pill .fp-dot{font-size:13px;line-height:1;margin-bottom:3px;}
+  .flow-pill .fp-name{font-size:10px;font-weight:600;color:var(--text);line-height:1.2;}
+  .flow-pill .fp-val{font-size:10px;color:var(--text-dim);margin-top:2px;min-height:12px;}
+  .flow-arrow{align-self:center;color:var(--border);font-size:14px;padding:0 1px;user-select:none;}
+
+  /* ── Diagnosis banner ───────────────────────────────────── */
+  .diagnosis{margin:14px 0 20px;border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+  .diagnosis-head{padding:11px 15px;font-weight:700;font-size:13px;display:flex;align-items:center;gap:9px;}
+  .diagnosis-body{padding:2px 15px 13px;font-size:12px;}
+  .diag-finding{display:flex;gap:9px;padding:6px 0;border-top:1px solid var(--border);align-items:flex-start;}
+  .diag-finding:first-child{border-top:0;}
+  .diag-sev{flex-shrink:0;font-size:10px;font-weight:700;padding:2px 8px;border-radius:9px;color:#fff;letter-spacing:.03em;}
+  .diag-msg b{color:var(--text);}
+
+  /* ── Stage cards ────────────────────────────────────────── */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(390px,1fr));gap:14px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px 15px;
+    display:flex;flex-direction:column;border-left:3px solid var(--idle);transition:border-color .2s;}
+  .card-head{display:flex;align-items:center;gap:9px;margin-bottom:3px;}
+  .card-num{flex-shrink:0;width:22px;height:22px;border-radius:50%;background:var(--panel-2);
+    border:1px solid var(--border);font-size:11px;font-weight:700;display:flex;align-items:center;
+    justify-content:center;color:var(--text-dim);}
+  .card-name{font-size:13.5px;font-weight:700;flex:1;}
+  .status-chip{font-size:9.5px;font-weight:700;padding:2px 9px;border-radius:9px;color:#fff;
+    white-space:nowrap;letter-spacing:.03em;}
+  .card-refresh{background:none;border:0;color:var(--text-dim);cursor:pointer;font-size:14px;padding:2px 4px;line-height:1;}
+  .card-refresh:hover{color:var(--accent);}
+  .card-desc{font-size:10.5px;color:var(--text-dim);margin-bottom:10px;}
+  .headline{font-size:12px;margin-bottom:8px;min-height:16px;}
+  .headline b{font-size:15px;color:var(--text);}
+  .metrics{display:flex;flex-wrap:wrap;gap:6px 8px;margin-bottom:9px;}
+  .metric{background:var(--panel-2);border:1px solid var(--border);border-radius:5px;padding:5px 9px;min-width:74px;}
+  .metric .m-val{font-size:15px;font-weight:700;line-height:1.1;}
+  .metric .m-lbl{font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em;margin-top:1px;}
+  .m-ok .m-val{color:#4bbf6b;} .m-warn .m-val{color:var(--warn);} .m-bad .m-val{color:var(--bad);}
+  .freshness{font-size:10.5px;color:var(--text-dim);margin-bottom:8px;}
+  .freshness .stale{color:var(--warn);font-weight:600;}
+  .freshness .old{color:var(--bad);font-weight:600;}
+  details.detail{margin-top:auto;border-top:1px solid var(--border);padding-top:8px;}
+  details.detail>summary{cursor:pointer;font-size:11px;color:var(--accent-blue);list-style:none;}
+  details.detail>summary::-webkit-details-marker{display:none;}
+  details.detail>summary::before{content:'▸ ';}
+  details.detail[open]>summary::before{content:'▾ ';}
+  .detail-body{margin-top:8px;}
+  table.dt{width:100%;border-collapse:collapse;font-size:10.5px;}
+  table.dt th{text-align:left;color:var(--text-dim);font-weight:600;padding:3px 6px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  table.dt td{padding:3px 6px;border-bottom:1px solid rgba(255,255,255,0.04);vertical-align:top;}
+  table.dt tr:last-child td{border-bottom:0;}
+  .badge{display:inline-block;font-size:9px;font-weight:700;padding:1px 7px;border-radius:8px;color:#fff;white-space:nowrap;}
+  pre.raw{background:var(--bg-page);border:1px solid var(--border);border-radius:5px;padding:8px;
+    font-size:10px;max-height:220px;overflow:auto;color:var(--text-dim);white-space:pre-wrap;word-break:break-word;margin:6px 0 0;}
+  .muted{color:var(--text-dim);}
+  .spin{display:inline-block;animation:spin 1s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .footer-note{font-size:10.5px;color:var(--text-dim);margin-top:26px;border-top:1px solid var(--border);padding-top:12px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head">
+    <div>
+      <div class="head-title">Agenda Tracker <span>Diagnostics</span></div>
+      <div class="head-sub">
+        A behind-the-scenes view of every background step that has to run for an agenda to be
+        scraped, parsed, and attached to a jurisdiction — and matched to a Tracked Project.
+        Each stage below reports its own health. Read the pipeline strip left-to-right: the first
+        red or amber stage is usually where agendas stop flowing through.
+      </div>
+    </div>
+    <div class="head-actions">
+      <button class="btn primary" id="run-all-btn" onclick="runAll()">▶ Run all checks</button>
+      <a class="btn" href="index.html" title="Return to the dashboard">← Back to MRD</a>
+    </div>
+  </div>
+  <div class="conn" id="conn"></div>
+
+  <!-- Pipeline flow strip (built by JS) -->
+  <div class="flow" id="flow"></div>
+
+  <!-- Overall diagnosis -->
+  <div class="diagnosis" id="diagnosis" style="display:none;">
+    <div class="diagnosis-head" id="diagnosis-head"></div>
+    <div class="diagnosis-body" id="diagnosis-body"></div>
+  </div>
+
+  <!-- Stage cards (built by JS) -->
+  <div class="grid" id="grid"></div>
+
+  <div class="footer-note">
+    This tool reads live data from the same Google Apps Script backend the dashboard uses (it reuses
+    the connection you have already configured under Settings). It only reads — it never changes agenda,
+    parse, or match data. Some checks call read-only operator ("admin_run") functions; if a stage shows
+    "not authorized," the backend token isn't set for this deployment. Open the browser console for raw errors.
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// Connection — mirrors index.html getWebAppUrl() so this standalone page uses
+// the same deployment + auth token the operator already configured. Same origin
+// ⇒ the mip_webapp_url override in localStorage is shared automatically.
+// ═══════════════════════════════════════════════════════════════════════════
+const WEBAPP_URL_KEY   = 'mip_webapp_url';
+const DEFAULT_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxvtkp5OZVq4sbEELnq5nN7KSXa5DCG8lYEgzL_awPbfunUsBTyr1r6CbOH1pIbgPUk/exec';
+const DEFAULT_AUTH_TOKEN = '457091386b65a26b4d11fb3b9fee7bd5233c952ceb5d4a41';
+
+function slugOf(u){ return (String(u).match(/\/s\/([^/]+)\/exec/) || [])[1] || ''; }
+function getWebAppUrl(){
+  var override = '';
+  try { override = localStorage.getItem(WEBAPP_URL_KEY) || ''; } catch(e){}
+  var base;
+  if (override && /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec/.test(override)) {
+    base = override;
+  } else {
+    base = DEFAULT_WEBAPP_URL;
+  }
+  if (!base) return '';
+  if (DEFAULT_AUTH_TOKEN) return base + '?token=' + encodeURIComponent(DEFAULT_AUTH_TOKEN);
+  return base + '?_v=diag';
+}
+// `query` must start with '&action=…'. Returns parsed JSON (throws on HTTP / parse error).
+function api(query, timeoutMs){
+  var base = getWebAppUrl();
+  if (!base) return Promise.reject(new Error('No dashboard connection configured.'));
+  var opts = (typeof AbortSignal !== 'undefined' && AbortSignal.timeout)
+    ? { signal: AbortSignal.timeout(timeoutMs || 45000) } : {};
+  return fetch(base + query, opts).then(function(r){
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  });
+}
+// admin_run responses wrap the payload in {result:{…}}; plain actions return the payload.
+function unwrap(res){ return (res && typeof res==='object' && 'result' in res) ? res.result : res; }
+
+// ── small helpers ────────────────────────────────────────────────────────────
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function num(n){ return (n==null||isNaN(n)) ? '—' : Number(n).toLocaleString(); }
+function todayYMD(){ return new Date().toISOString().slice(0,10); }
+function parseDate(s){ var t = Date.parse(String(s||'').slice(0,10)); return isNaN(t)?null:t; }
+function daysBetween(a,b){ return Math.round((a-b)/86400000); }
+// days from `dateStr` until today (positive = in the past, negative = future)
+function daysAgo(dateStr){ var t=parseDate(dateStr); if(t==null) return null; return daysBetween(Date.now(), t); }
+function fmtAgo(dateStr){
+  var d = daysAgo(dateStr); if(d==null) return '';
+  if(d===0) return 'today';
+  if(d>0)  return d + ' day' + (d===1?'':'s') + ' ago';
+  return 'in ' + (-d) + ' day' + (d===-1?'':'s');
+}
+// Normalize a jurisdiction id/name/code to a comparable token: lowercase, strip the
+// common "city/town of" / "county" prefixes-suffixes and all non-alphanumerics.
+// Returns an array (0 or 1 element) so callers can .concat() several fields cleanly.
+function normJuris(s){
+  var t = String(s==null?'':s).toLowerCase()
+    .replace(/\b(city|town|village)\s+of\s+/g,'')
+    .replace(/\bcounty\b/g,'')
+    .replace(/[^a-z0-9]+/g,'');
+  return t ? [t] : [];
+}
+
+var STATUS = {
+  ok:      {c:'var(--ok)',      label:'Healthy',   dot:'●'},
+  warn:    {c:'var(--warn)',    label:'Attention', dot:'●'},
+  bad:     {c:'var(--bad)',     label:'Problem',   dot:'●'},
+  idle:    {c:'var(--idle)',    label:'Idle',      dot:'○'},
+  na:      {c:'var(--idle)',    label:'No data',   dot:'○'},
+  loading: {c:'var(--loading)', label:'Checking…', dot:'◐'}
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STAGE DEFINITIONS. Each `run()` returns a Promise of a result object:
+//   { status, headline, metrics:[{val,label,tone}], freshness, detailHtml,
+//     pillVal, flags:[{sev:'bad'|'warn', msg}] }
+// Stages run in pipeline order; results are stashed in RESULTS so later stages
+// (e.g. Ingestion) can cross-reference earlier ones (e.g. Meeting Schedule).
+// ═══════════════════════════════════════════════════════════════════════════
+var RESULTS = {};
+
+function metricTone(status){ return status==='bad'?'m-bad':status==='warn'?'m-warn':status==='ok'?'m-ok':''; }
+
+function rawDetails(res){
+  return '<details class="detail"><summary>Raw response</summary><div class="detail-body">'
+    + '<pre class="raw">' + esc(JSON.stringify(res, null, 2)) + '</pre></div></details>';
+}
+function tableDetails(label, headHtml, rowsHtml, extra){
+  return '<details class="detail"><summary>' + esc(label) + '</summary><div class="detail-body">'
+    + (extra||'')
+    + '<table class="dt"><thead>' + headHtml + '</thead><tbody>' + rowsHtml + '</tbody></table>'
+    + '</div></details>';
+}
+
+var STAGES = [
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    id:'triggers', name:'Automation Jobs',
+    desc:'The scheduled background jobs (Apps Script triggers) that drive scraping, parsing, and matching. If none are installed, nothing runs on its own and agendas never get added automatically.',
+    run: function(){
+      return api('&action=admin_run&fn=listTriggers').then(function(res){
+        var r = unwrap(res) || {};
+        var count = r.count || (r.triggers ? r.triggers.length : 0) || 0;
+        var trigs = r.triggers || [];
+        var status = count>0 ? 'ok' : 'bad';
+        var flags = [];
+        if (count===0) flags.push({sev:'bad', msg:'<b>No background jobs are installed.</b> Scraping, parsing and matching only run when someone triggers them by hand — this alone can explain agendas not appearing. Re-install the time-driven triggers in Apps Script.'});
+        var head = '<tr><th>Handler</th><th>Type</th></tr>';
+        var rows = trigs.length ? trigs.map(function(t){
+          return '<tr><td>'+esc(t.handler||t.function||'—')+'</td><td class="muted">'+esc(t.type||t.event||t.interval||'')+'</td></tr>';
+        }).join('') : '<tr><td colspan="2" class="muted">No triggers reported.</td></tr>';
+        return {
+          status:status,
+          headline: count>0 ? '<b>'+count+'</b> background job'+(count===1?'':'s')+' active' : '<b>0</b> background jobs — automation is off',
+          metrics:[{val:count, label:'Active jobs', tone:metricTone(status)}],
+          pillVal: count+' jobs',
+          detailHtml: tableDetails('Installed jobs ('+trigs.length+')', head, rows) + rawDetails(res),
+          flags:flags
+        };
+      });
+    }
+  },
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    id:'gemini', name:'AI Extraction Service',
+    desc:'Agenda item extraction and meeting summaries call the Gemini AI service. When it is throttled (over quota), extraction stalls and freshly-scraped agendas stay unparsed.',
+    run: function(){
+      return api('&action=admin_run&fn=geminiQuotaStatus').then(function(res){
+        var r = unwrap(res) || {};
+        var throttled = !!r.active;   // `active` = a throttle/backoff window is active
+        var status = throttled ? 'warn' : 'ok';
+        var flags = [];
+        if (throttled) flags.push({sev:'warn', msg:'The AI service is <b>throttled</b> right now — agenda parsing and summaries are catching up slowly. Usually self-clears; if it persists for hours, check the Gemini quota/key.'});
+        var mets = [{val: throttled?'Throttled':'Healthy', label:'AI service', tone:metricTone(status)}];
+        if (r.remaining!=null) mets.push({val:num(r.remaining), label:'Quota left'});
+        if (r.used!=null)      mets.push({val:num(r.used), label:'Used today'});
+        return {
+          status:status,
+          headline: throttled ? '⚠ Temporarily throttled — extraction is catching up' : '✓ AI service has capacity',
+          metrics: mets,
+          pillVal: throttled?'throttled':'healthy',
+          detailHtml: rawDetails(res),
+          flags:flags
+        };
+      });
+    }
+  },
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    id:'schedule', name:'Meeting Schedule',
+    desc:'The known meeting dates per jurisdiction. Agendas attach to a meeting date — if a jurisdiction has no upcoming dates on file, a scraped agenda has nothing to hang on.',
+    run: function(){
+      return api('&action=meeting_dates').then(function(res){
+        // shape: { muniId: [ {date, body_type, status}, ... ] }
+        var map = (res && typeof res==='object') ? (res.result || res) : {};
+        var jurisIds = Object.keys(map||{});
+        var totalMeetings=0, upcoming=0, newestFuture=null, withDates=0;
+        var today = todayYMD();
+        var perJuris = [];
+        jurisIds.forEach(function(j){
+          var arr = map[j]||[]; if(!Array.isArray(arr)) return;
+          if(arr.length) withDates++;
+          var up=0, latest=null;
+          arr.forEach(function(m){
+            totalMeetings++;
+            var d=m.date||'';
+            if(d>=today){ up++; upcoming++; if(newestFuture==null||d>newestFuture) newestFuture=d; }
+            if(latest==null||d>latest) latest=d;
+          });
+          perJuris.push({j:j, total:arr.length, up:up, latest:latest});
+        });
+        RESULTS._meetingDates = map;
+        var status = jurisIds.length===0 ? 'bad' : (upcoming===0 ? 'warn' : 'ok');
+        var flags=[];
+        if(jurisIds.length===0) flags.push({sev:'bad', msg:'No meeting dates loaded at all — the schedule feed is empty, so agendas have no meetings to attach to.'});
+        else if(upcoming===0)  flags.push({sev:'warn', msg:'No <b>upcoming</b> meeting dates on file. Run the Meeting Schedule Scraper (Settings) so future meetings exist for agendas to attach to.'});
+        perJuris.sort(function(a,b){ return (b.up-a.up)||(b.total-a.total); });
+        var head='<tr><th>Jurisdiction</th><th>Meetings</th><th>Upcoming</th><th>Latest</th></tr>';
+        var rows=perJuris.slice(0,80).map(function(p){
+          return '<tr><td>'+esc(p.j)+'</td><td>'+p.total+'</td><td>'+(p.up? p.up : '<span class="muted">0</span>')+'</td><td class="muted">'+esc(p.latest||'—')+'</td></tr>';
+        }).join('');
+        return {
+          status:status,
+          headline:'<b>'+jurisIds.length+'</b> jurisdictions · <b>'+num(totalMeetings)+'</b> meeting dates',
+          metrics:[
+            {val:jurisIds.length, label:'Jurisdictions'},
+            {val:upcoming, label:'Upcoming', tone: upcoming===0?'m-warn':''},
+            {val:withDates, label:'With dates'}
+          ],
+          freshness: newestFuture ? 'Furthest known meeting: <b>'+esc(newestFuture)+'</b> ('+fmtAgo(newestFuture)+')' : '',
+          pillVal: jurisIds.length+' juris',
+          detailHtml: tableDetails('Per-jurisdiction schedule ('+perJuris.length+')', head, rows),
+          flags:flags
+        };
+      });
+    }
+  },
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    id:'ingest', name:'Agenda Ingestion',
+    desc:'The core step: scraped agenda documents landing in the system and getting approved onto the jurisdiction page. A stalled scraper (stale newest agenda) or agendas stuck unapproved are the top reasons "agendas are not being added."',
+    run: function(){
+      return api('&action=scraped_documents', 60000).then(function(res){
+        var arr = Array.isArray(res) ? res : (res && Array.isArray(res.result) ? res.result : (res && Array.isArray(res.documents) ? res.documents : []));
+        var agendas = arr.filter(function(d){ return String(d.document_type||'').toLowerCase().indexOf('agenda')!==-1; });
+        var today = todayYMD();
+        var appr={approved:0, pending:0, rejected:0, cancelled:0};
+        var parse={ok:0, noitems:0, err:0, pending:0};
+        var newest=null, recent45=0, futureCt=0, jurisSet={}, recentJurisNorm={};
+        agendas.forEach(function(d){
+          var st=String(d.approval_status||'').toLowerCase();
+          if(st==='approved') appr.approved++;
+          else if(st==='rejected') appr.rejected++;
+          else if(st==='cancelled') appr.cancelled++;
+          else appr.pending++;
+          var ps=String(d.parse_status||'').toLowerCase();
+          if(ps==='ok') parse.ok++; else if(ps==='noitems') parse.noitems++;
+          else if(ps==='err') parse.err++; else parse.pending++;
+          var md=d.meeting_date||'';
+          var j=d.jurisdiction||d.code||'—';
+          jurisSet[j]=1;
+          if(md){
+            if(newest==null||md>newest) newest=md;
+            var da=daysAgo(md);
+            if(da!=null){
+              if(da>=0 && da<=45){ recent45++; normJuris(d.jurisdiction).concat(normJuris(d.code)).forEach(function(n){ if(n) recentJurisNorm[n]=1; }); }
+              if(da<0) futureCt++;
+            }
+          }
+        });
+        RESULTS._agendas = agendas;
+        // Freshness judgement: newest agenda well in the past ⇒ scraper likely stalled.
+        var newestAgo = newest ? daysAgo(newest) : null;   // future agendas ⇒ negative
+        var staleDays = (newestAgo!=null && newestAgo>0) ? newestAgo : 0;
+        var status='ok', flags=[];
+        if(agendas.length===0){ status='bad'; flags.push({sev:'bad', msg:'<b>No scraped agendas at all.</b> The agenda scraper has never landed a document — check the scraper triggers and each jurisdiction\'s agenda source URL.'}); }
+        else {
+          if(staleDays>=21){ status='bad'; flags.push({sev:'bad', msg:'The newest scraped agenda is dated <b>'+staleDays+' days ago</b> and there are no newer/future ones. The agenda scraper looks <b>stalled</b> — this directly matches "agendas not being added."'}); }
+          else if(staleDays>=10){ status='warn'; flags.push({sev:'warn', msg:'Newest scraped agenda is <b>'+staleDays+' days old</b>. If jurisdictions have published newer agendas, the scraper may be falling behind.'}); }
+          if(appr.pending>0){
+            var sev = appr.pending>=10?'warn':'warn';
+            flags.push({sev:sev, msg:'<b>'+appr.pending+' agenda'+(appr.pending===1?'':'s')+' awaiting approval.</b> Unapproved agendas do not show on the jurisdiction page — approve them (Jurisdictions view) to make them appear.'});
+            if(status==='ok') status='warn';
+          }
+        }
+        // Cross-reference: jurisdictions that have upcoming meetings but no recent agenda.
+        // Meeting-date keys are muni IDs while agenda rows carry names/codes, so match on a
+        // normalized token. Guard: only trust the comparison if the two identifier sets
+        // actually overlap — otherwise the keys aren't comparable and we suppress it rather
+        // than flag every jurisdiction as "quiet."
+        var quiet=[];
+        var md2 = RESULTS._meetingDates;
+        if(md2){
+          var upcomingJuris=[], overlap=0;
+          Object.keys(md2).forEach(function(j){
+            var arr2=md2[j]||[]; if(!Array.isArray(arr2)||!arr2.length) return;
+            var hasUpcoming = arr2.some(function(m){ return (m.date||'')>=today; });
+            if(!hasUpcoming) return;
+            var norm = normJuris(j)[0] || '';
+            upcomingJuris.push({j:j, norm:norm});
+            if(norm && recentJurisNorm[norm]) overlap++;
+          });
+          if(overlap>0){   // normalization is aligning the two sets ⇒ result is meaningful
+            upcomingJuris.forEach(function(u){ if(!u.norm || !recentJurisNorm[u.norm]) quiet.push(u.j); });
+          }
+        }
+        var mets=[
+          {val:num(agendas.length), label:'Agendas total'},
+          {val:appr.approved, label:'Approved', tone:'m-ok'},
+          {val:appr.pending, label:'Pending', tone: appr.pending>0?'m-warn':''},
+          {val:recent45, label:'Last 45 days', tone: recent45===0?'m-bad':''}
+        ];
+        if(appr.cancelled) mets.push({val:appr.cancelled, label:'Cancelled'});
+        var fresh = newest
+          ? 'Newest agenda meeting date: <b>'+esc(newest)+'</b> <span class="'+(staleDays>=21?'old':staleDays>=10?'stale':'')+'">('+fmtAgo(newest)+')</span> · '+futureCt+' for future meetings'
+          : '';
+        // detail: approval + parse breakdown + quiet jurisdictions
+        var extra = '<div style="font-size:10.5px;margin-bottom:8px;">'
+          + '<b>Approval:</b> '+appr.approved+' approved · '+appr.pending+' pending · '+appr.rejected+' rejected · '+appr.cancelled+' cancelled<br>'
+          + '<b>Parse status on wire:</b> '+parse.ok+' parsed · '+parse.noitems+' no-items · '+parse.err+' error · '+parse.pending+' not yet parsed'
+          + '</div>';
+        var qHtml='';
+        if(quiet.length){
+          qHtml = '<div style="font-size:10.5px;margin:8px 0 4px;color:var(--warn);"><b>Jurisdictions with upcoming meetings but no agenda scraped in the last 45 days ('+quiet.length+'):</b></div>'
+            + '<div style="font-size:10.5px;" class="muted">'+quiet.slice(0,60).map(esc).join(', ')+(quiet.length>60?' …':'')+'</div>';
+          flags.push({sev:'warn', msg:'<b>'+quiet.length+' jurisdiction'+(quiet.length===1?'':'s')+'</b> with upcoming meetings but no agenda scraped in the last 45 days — expand this stage to see which ones.'});
+          if(status==='ok') status='warn';
+        }
+        return {
+          status:status,
+          headline:'<b>'+num(agendas.length)+'</b> agenda documents · <b>'+appr.approved+'</b> approved onto jurisdictions',
+          metrics:mets, freshness:fresh, pillVal:num(agendas.length)+' docs',
+          detailHtml: extra + qHtml,
+          flags:flags
+        };
+      });
+    }
+  },
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    id:'parse', name:'Agenda Parsing',
+    desc:'Turning each approved agenda into structured agenda items (the extraction pass). Errors or "no items" here mean an agenda is attached but its projects never surface.',
+    run: function(){
+      return api('&action=admin_run&fn=auditAgendaExtractionDocs', 60000).then(function(res){
+        var r = unwrap(res) || {};
+        // Defensive: accept totals/counts/by_status/by_bucket shapes.
+        var c = r.counts || r.totals || r.by_status || r.by_bucket || r.buckets || r;
+        function pick(){ for(var i=0;i<arguments.length;i++){ var k=arguments[i]; if(c && c[k]!=null) return c[k]; } return null; }
+        var okC   = pick('ok','parsed','has_items');
+        var noC   = pick('noitems','no_items','empty');
+        var errC  = pick('err','error','errors','failed');
+        var pendC = pick('pending','unparsed','not_parsed','queued');
+        var total = pick('total','in_scope','scanned');
+        if(total==null){ total = (okC||0)+(noC||0)+(errC||0)+(pendC||0) || null; }
+        var status='ok', flags=[];
+        if(errC && errC>0){ status='warn'; flags.push({sev:'warn', msg:'<b>'+errC+' agenda'+(errC===1?'':'s')+' failed to parse.</b> Their items never surface. Re-queue them from the Agenda Parse Status page.'}); }
+        if(pendC && pendC>= (total? Math.max(5,total*0.25):20)){ if(status!=='warn') status='warn'; flags.push({sev:'warn', msg:'<b>'+pendC+' agendas are still waiting to be parsed.</b> If this only grows, extraction is backed up (check Automation Jobs and the AI service).'}); }
+        if(okC==null && noC==null && errC==null && pendC==null){ status='na'; }
+        var mets=[];
+        if(okC!=null)   mets.push({val:num(okC), label:'Parsed', tone:'m-ok'});
+        if(noC!=null)   mets.push({val:num(noC), label:'No items'});
+        if(errC!=null)  mets.push({val:num(errC), label:'Errors', tone: errC>0?'m-bad':''});
+        if(pendC!=null) mets.push({val:num(pendC), label:'Pending', tone: pendC>0?'m-warn':''});
+        return {
+          status:status,
+          headline: (okC!=null||total!=null) ? '<b>'+num(okC||0)+'</b>'+(total!=null?' of <b>'+num(total)+'</b>':'')+' agendas parsed into items' : 'Extraction audit',
+          metrics: mets.length?mets:[{val:'—', label:'No parse data'}],
+          pillVal: errC? errC+' err' : (okC!=null? okC+' ok' : 'ok'),
+          detailHtml: rawDetails(res),
+          flags:flags
+        };
+      });
+    }
+  },
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    id:'parseReview', name:'Parse Review Queue',
+    desc:'Agendas that were scraped but did not parse into items, flagged for a human to triage (empty-OK, needs-fix, re-queue). A growing "needs fix / unreviewed" pile means real misses are piling up.',
+    run: function(){
+      return api('&action=admin_run&fn=getAgendaParseReviewJSON&status=all', 60000).then(function(res){
+        var r = unwrap(res) || {};
+        if(r.exists===false){
+          return { status:'idle', headline:'Queue not built yet',
+            metrics:[{val:'—', label:'Not built'}], pillVal:'not built',
+            detailHtml:'<div class="muted" style="font-size:10.5px;">Open the Agenda Parse Status page and click "Rebuild from scan" to populate it.</div>'+rawDetails(res),
+            flags:[] };
+        }
+        var s = r.by_status || {};
+        var unrev=s.unreviewed||0, needs=s.needs_fix||0, empty=s.empty_ok||0, req=s.requeued||0, ign=s.ignored||0, canc=s.cancelled||0;
+        var total = r.total!=null ? r.total : (unrev+needs+empty+req+ign+canc);
+        var status='ok', flags=[];
+        if(needs>0){ status='warn'; flags.push({sev:'warn', msg:'<b>'+needs+' agenda'+(needs===1?'':'s')+' flagged "needs fix"</b> — confirmed extraction misses awaiting a code/parse fix.'}); }
+        if(unrev>= 15){ if(status==='ok') status='warn'; flags.push({sev:'warn', msg:'<b>'+unrev+' unreviewed</b> unparsed agendas in the triage queue — a person needs to work through them.'}); }
+        var mets=[
+          {val:unrev, label:'Unreviewed', tone: unrev>0?'m-warn':''},
+          {val:needs, label:'Needs fix', tone: needs>0?'m-bad':''},
+          {val:empty, label:'Empty-OK'},
+          {val:req, label:'Re-queued'}
+        ];
+        return {
+          status:status,
+          headline:'<b>'+num(total)+'</b> flagged agendas · <b>'+(unrev+needs)+'</b> need attention',
+          metrics:mets, pillVal:(unrev+needs)+' open',
+          detailHtml: rawDetails(res),
+          flags:flags
+        };
+      });
+    }
+  },
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    id:'candidates', name:'Detected Projects',
+    desc:'Potential Tracked Projects the system auto-detected from parsed agendas (P109). These are the new items that show up in the "Agenda Items" review queue for you to Track or Dismiss.',
+    run: function(){
+      return api('&action=admin_run&fn=getAgendaCandidatesJSON&status=new', 60000).then(function(res){
+        var r = unwrap(res) || {};
+        var items = r.items || r.candidates || (Array.isArray(r)?r:[]);
+        var newCt = items.length;
+        var high = items.filter(function(c){ return String(c.confidence||'').toLowerCase()==='high'; }).length;
+        var newest=null, jset={};
+        items.forEach(function(c){
+          var d=c.last_seen_date||c.first_seen_date||'';
+          if(d && (newest==null||d>newest)) newest=d;
+          if(c.jurisdiction) jset[c.jurisdiction]=1;
+        });
+        var status = 'ok', flags=[];
+        // This queue is expected to be non-empty in normal operation; empty is only
+        // notable if upstream shows fresh parsed agendas but nothing was detected.
+        var mets=[
+          {val:newCt, label:'New candidates'},
+          {val:high, label:'High confidence'},
+          {val:Object.keys(jset).length, label:'Jurisdictions'}
+        ];
+        return {
+          status:status,
+          headline:'<b>'+newCt+'</b> newly detected project'+(newCt===1?'':'s')+' awaiting Track/Dismiss',
+          metrics:mets,
+          freshness: newest ? 'Most recent detection: <b>'+esc(newest)+'</b> ('+fmtAgo(newest)+')' : '',
+          pillVal:newCt+' new',
+          detailHtml: rawDetails(res),
+          flags:flags
+        };
+      });
+    }
+  },
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    id:'suggested', name:'Suggested Matches',
+    desc:'Name-only matches between an agenda/summary and an existing Tracked Project, awaiting your Approve/Dismiss. This is how new agenda items get attached to a project you already track.',
+    run: function(){
+      return api('&action=suggested_references', 60000).then(function(res){
+        var ok = res && res.ok;
+        var items = (res && res.items) || [];
+        var jset={}; items.forEach(function(s){ if(s.jurisdiction) jset[s.jurisdiction]=1; });
+        var status = ok ? 'ok' : 'na', flags=[];
+        if(!ok){ status='na'; }
+        return {
+          status:status,
+          headline: ok ? '<b>'+items.length+'</b> suggested match'+(items.length===1?'':'es')+' awaiting review' : 'Could not load suggested matches',
+          metrics:[
+            {val:items.length, label:'Suggested'},
+            {val:Object.keys(jset).length, label:'Jurisdictions'}
+          ],
+          pillVal: ok ? items.length+' sugg' : 'n/a',
+          detailHtml: rawDetails(res),
+          flags:flags
+        };
+      });
+    }
+  },
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    id:'pending', name:'Summary Queue',
+    desc:'Meetings still waiting to be summarized or retried. A large backlog here means the AI/automation pipeline is saturated, which slows everything upstream including agenda extraction.',
+    run: function(){
+      return api('&action=admin_run&fn=probePendingGate&max=25', 60000).then(function(res){
+        var r = unwrap(res) || {};
+        var c = r.counts || {};
+        var waiting = c.gate_match||0, fresh=c.is_fresh_pending||0, retry=c.is_coverage_retry||0;
+        var samples = r.samples || [];
+        var status = waiting===0 ? 'ok' : (waiting>=40 ? 'warn' : 'ok');
+        var flags=[];
+        if(waiting>=40) flags.push({sev:'warn', msg:'<b>'+waiting+' meetings queued</b> for processing — a large backlog can slow agenda extraction. Confirm Automation Jobs are running and the AI service isn\'t throttled.'});
+        var head='<tr><th>Jurisdiction</th><th>Date</th><th>Status</th></tr>';
+        var rows = samples.length ? samples.map(function(x){
+          return '<tr><td>'+esc(x.jurisdiction||'—')+'</td><td class="muted">'+esc(x.meeting_date||'')+'</td><td class="muted">'+esc(x.status||x.coverage_state||'')+'</td></tr>';
+        }).join('') : '<tr><td colspan="3" class="muted">Nothing waiting. ✓</td></tr>';
+        return {
+          status:status,
+          headline: waiting===0 ? '✓ Nothing waiting — all caught up' : '<b>'+waiting+'</b> meeting'+(waiting===1?'':'s')+' waiting to process',
+          metrics:[
+            {val:waiting, label:'Waiting', tone: waiting>=40?'m-warn':''},
+            {val:fresh, label:'New'},
+            {val:retry, label:'Retry'}
+          ],
+          pillVal: waiting+' queued',
+          detailHtml: tableDetails('Sample of the queue ('+samples.length+')', head, rows) + rawDetails(res),
+          flags:flags
+        };
+      });
+    }
+  }
+];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Rendering
+// ═══════════════════════════════════════════════════════════════════════════
+function renderConn(){
+  var base = getWebAppUrl();
+  var override='';
+  try { override = localStorage.getItem(WEBAPP_URL_KEY)||''; } catch(e){}
+  var slug = slugOf(base) || '(none)';
+  var src = (override && slugOf(override)===slug) ? 'Settings override' : 'built-in default';
+  var el = document.getElementById('conn');
+  el.innerHTML = 'Connected to deployment <b>'+esc(slug.slice(0,14))+'…</b> ('+esc(src)+') · token '+(DEFAULT_AUTH_TOKEN?'set':'<span style="color:var(--bad)">missing</span>')
+    + ' · last run <b id="last-run">—</b>';
+}
+
+function buildScaffold(){
+  // Flow strip
+  var flow = document.getElementById('flow');
+  flow.innerHTML = STAGES.map(function(s, i){
+    var pill = '<div class="flow-pill" id="pill-'+s.id+'" onclick="scrollToCard(\''+s.id+'\')" title="'+esc(s.name)+'">'
+      + '<div class="fp-dot" style="color:var(--idle)">○</div>'
+      + '<div class="fp-name">'+esc(s.name)+'</div>'
+      + '<div class="fp-val" id="pillval-'+s.id+'"></div></div>';
+    var arrow = i<STAGES.length-1 ? '<div class="flow-arrow">›</div>' : '';
+    return pill + arrow;
+  }).join('');
+  // Cards
+  var grid = document.getElementById('grid');
+  grid.innerHTML = STAGES.map(function(s, i){
+    return '<div class="card" id="card-'+s.id+'">'
+      + '<div class="card-head">'
+      +   '<div class="card-num">'+(i+1)+'</div>'
+      +   '<div class="card-name">'+esc(s.name)+'</div>'
+      +   '<span class="status-chip" id="chip-'+s.id+'" style="background:var(--idle)">Idle</span>'
+      +   '<button class="card-refresh" title="Re-check this stage" onclick="runStage(\''+s.id+'\')">↻</button>'
+      + '</div>'
+      + '<div class="card-desc">'+esc(s.desc)+'</div>'
+      + '<div id="content-'+s.id+'"><div class="muted" style="font-size:11px;">Not checked yet.</div></div>'
+      + '</div>';
+  }).join('');
+}
+
+function scrollToCard(id){
+  var el=document.getElementById('card-'+id);
+  if(el){ el.scrollIntoView({behavior:'smooth', block:'center'});
+    el.style.transition='border-color .2s'; el.style.borderLeftColor='var(--accent)';
+    setTimeout(function(){ paintCardBorder(id, RESULTS[id] && RESULTS[id].status); }, 900); }
+}
+
+function paintCardBorder(id, status){
+  var el=document.getElementById('card-'+id); if(!el) return;
+  el.style.borderLeftColor = (STATUS[status]||STATUS.idle).c;
+}
+
+function setStagePending(id){
+  var st=STATUS.loading;
+  var chip=document.getElementById('chip-'+id);
+  if(chip){ chip.textContent=st.label; chip.style.background=st.c; }
+  var pd=document.querySelector('#pill-'+id+' .fp-dot'); if(pd){ pd.textContent='◐'; pd.className='fp-dot spin'; pd.style.color=st.c; }
+  paintCardBorder(id,'loading');
+  var content=document.getElementById('content-'+id);
+  if(content) content.innerHTML='<div class="muted" style="font-size:11px;">Checking…</div>';
+}
+
+function renderStage(id, r){
+  RESULTS[id]=r;
+  var st=STATUS[r.status]||STATUS.na;
+  var chip=document.getElementById('chip-'+id);
+  if(chip){ chip.textContent=st.label; chip.style.background=st.c; }
+  // pill
+  var pd=document.querySelector('#pill-'+id+' .fp-dot');
+  if(pd){ pd.textContent=st.dot; pd.className='fp-dot'; pd.style.color=st.c; }
+  var pv=document.getElementById('pillval-'+id); if(pv) pv.textContent=r.pillVal||'';
+  paintCardBorder(id, r.status);
+  // content
+  var metricsHtml = (r.metrics||[]).map(function(m){
+    return '<div class="metric '+(m.tone||'')+'"><div class="m-val">'+(typeof m.val==='number'?num(m.val):esc(m.val))+'</div><div class="m-lbl">'+esc(m.label)+'</div></div>';
+  }).join('');
+  var html = '';
+  if(r.headline) html += '<div class="headline">'+r.headline+'</div>';
+  if(metricsHtml) html += '<div class="metrics">'+metricsHtml+'</div>';
+  if(r.freshness) html += '<div class="freshness">'+r.freshness+'</div>';
+  if(r.detailHtml) html += r.detailHtml;
+  var content=document.getElementById('content-'+id);
+  if(content) content.innerHTML=html;
+}
+
+function renderError(id, err){
+  var msg = (err && err.message) || String(err);
+  var isAuth = /HTTP 40[13]|not authorized|unauthorized/i.test(msg);
+  var r = {
+    status:'bad',
+    headline: isAuth ? '⚠ Not authorized for this check' : '⚠ Could not run this check',
+    metrics:[{val:'error', label:'Failed', tone:'m-bad'}],
+    pillVal:'error',
+    detailHtml:'<div class="muted" style="font-size:10.5px;">'+esc(msg)+(isAuth?'<br>This read-only operator check needs the backend token; other stages may still work.':'')+'</div>',
+    flags:[{sev:'bad', msg:'<b>'+esc(STAGES.filter(function(s){return s.id===id;})[0].name)+'</b> check failed: '+esc(msg)}]
+  };
+  renderStage(id, r);
+}
+
+function runStage(id){
+  var stage = STAGES.filter(function(s){ return s.id===id; })[0];
+  if(!stage) return Promise.resolve();
+  setStagePending(id);
+  return stage.run().then(function(r){ renderStage(id, r); }).catch(function(e){ renderError(id, e); });
+}
+
+// Run every stage in pipeline order (sequential so later stages can use earlier
+// results, and so the flow strip visibly fills left-to-right).
+var _running=false;
+function runAll(){
+  if(_running) return; _running=true;
+  RESULTS={};
+  var btn=document.getElementById('run-all-btn');
+  btn.disabled=true; btn.innerHTML='<span class="spin">◐</span> Running…';
+  document.getElementById('diagnosis').style.display='none';
+  var chain=Promise.resolve();
+  STAGES.forEach(function(s){ chain=chain.then(function(){ return runStage(s.id); }); });
+  chain.then(function(){
+    renderDiagnosis();
+    var lr=document.getElementById('last-run'); if(lr) lr.textContent=new Date().toLocaleTimeString();
+  }).catch(function(){}).then(function(){
+    btn.disabled=false; btn.innerHTML='▶ Run all checks'; _running=false;
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Overall diagnosis — collect flags across stages in pipeline order.
+// ═══════════════════════════════════════════════════════════════════════════
+function renderDiagnosis(){
+  var findings=[];
+  STAGES.forEach(function(s){
+    var r=RESULTS[s.id]; if(!r||!r.flags) return;
+    r.flags.forEach(function(f){ findings.push({stage:s.name, sev:f.sev, msg:f.msg}); });
+  });
+  // order: bad before warn, keeping pipeline order within each severity
+  var bad=findings.filter(function(f){return f.sev==='bad';});
+  var warn=findings.filter(function(f){return f.sev!=='bad';});
+  var ordered=bad.concat(warn);
+
+  var box=document.getElementById('diagnosis');
+  var head=document.getElementById('diagnosis-head');
+  var body=document.getElementById('diagnosis-body');
+  box.style.display='block';
+
+  var overall = bad.length ? 'bad' : (warn.length ? 'warn' : 'ok');
+  var st=STATUS[overall];
+  head.style.background = overall==='ok' ? 'rgba(28,124,58,0.14)' : overall==='warn' ? 'rgba(232,160,32,0.14)' : 'rgba(214,90,90,0.14)';
+  head.style.color = st.c;
+  head.innerHTML = '<span style="font-size:15px;">'+st.dot+'</span> '
+    + (overall==='ok'
+        ? 'Pipeline looks healthy — no blocking issues detected'
+        : overall==='bad'
+          ? 'Found '+bad.length+' blocking issue'+(bad.length===1?'':'s')+' likely stopping agendas from flowing'
+          : 'Pipeline running, but '+warn.length+' thing'+(warn.length===1?'':'s')+' need attention');
+
+  if(!ordered.length){
+    body.innerHTML='<div style="padding-top:9px;font-size:12px;" class="muted">Every stage reported healthy. If agendas still aren\'t appearing for a specific jurisdiction, expand <b>Agenda Ingestion</b> and check that jurisdiction\'s recent scrape count and approval status.</div>';
+    return;
+  }
+  body.innerHTML = ordered.map(function(f){
+    var sc = f.sev==='bad' ? 'var(--bad)' : 'var(--warn)';
+    return '<div class="diag-finding">'
+      + '<span class="diag-sev" style="background:'+sc+'">'+(f.sev==='bad'?'BLOCKING':'CHECK')+'</span>'
+      + '<div class="diag-msg"><b>'+esc(f.stage)+':</b> '+f.msg+'</div></div>';
+  }).join('');
+}
+
+// ── boot ─────────────────────────────────────────────────────────────────────
+renderConn();
+buildScaffold();
+runAll();
+</script>
+</body>
+</html>

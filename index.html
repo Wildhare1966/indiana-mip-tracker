@@ -195,6 +195,16 @@
             </div>
             <div class="settings-card-sub">Behind-the-scenes checks on the dashboard's health and data. Use the reports below to spot meetings that need a person to look at them, see what's still being processed, and confirm the automatic background jobs are running — without opening the technical tools.</div>
             <div id="diagnostics-body" style="display:none;margin-top:10px;">
+              <!-- Agenda Tracker pipeline diagnostics — a full-page view of every background
+                   step that has to run for agendas to be scraped, parsed, and attached to a
+                   jurisdiction. Standalone page (agenda-diagnostics.html) so it opens in its own
+                   tab; reuses this session's backend connection + token. -->
+              <div style="background:rgba(74,158,255,0.08);border:1px solid rgba(74,158,255,0.35);border-radius:6px;padding:11px 13px;margin-bottom:12px;">
+                <div style="font-weight:600;font-size:12px;margin-bottom:3px;">Agenda Tracker Diagnostics</div>
+                <div style="font-size:10.5px;color:var(--text-dim);margin-bottom:9px;">Trace the agenda pipeline end-to-end — scraping, approval, parsing, project detection, and matching — to see exactly where agendas are (or aren't) being added to a jurisdiction.</div>
+                <a href="agenda-diagnostics.html" target="_blank" style="display:inline-block;padding:7px 14px;background:rgba(74,158,255,0.16);color:#4a9eff;border:1px solid rgba(74,158,255,0.45);border-radius:4px;text-decoration:none;font-size:12px;font-weight:600;">▶ Open Agenda Tracker Diagnostics ↗</a>
+              </div>
+
               <a href="tests/smoke.html" target="_blank" style="display:inline-block;padding:7px 14px;background:rgba(232,160,32,0.15);color:#e8a020;border:1px solid rgba(232,160,32,0.4);border-radius:4px;text-decoration:none;font-size:12px;font-weight:600;">▶ Run security self-test</a>
 
               <!-- P96: in-app operator diagnostics (so routine review doesn't require Apps Script) -->
