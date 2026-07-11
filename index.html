@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p147r1 -->
+<!-- MIP build p147r2 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -24,7 +24,9 @@
     <!-- Intelligence Feed nav temporarily removed (P13) — view element and data pipeline retained in code for future re-enable. -->
     <!-- P96: "Hearing Schedule" (Public Hearings) page temporarily hidden per operator request — view element (#view-publichearings) and data pipeline retained in code for future re-enable. To restore, uncomment the button below. -->
     <!-- <button class="topbar-btn" onclick="switchView('publichearings')" id="nav-publichearings">Hearing Schedule</button> -->
-    <button class="topbar-btn" onclick="switchView('candidates')" id="nav-candidates">Agenda Items <span id="nav-cand-badge" style="display:none;background:#1c7c3a;color:#fff;font-size:9px;font-weight:700;padding:0 6px;border-radius:9px;margin-left:2px;vertical-align:middle;"></span></button>
+    <button class="topbar-btn" onclick="switchView('agendaitems')" id="nav-agendaitems">Agenda Items</button>
+    <button class="topbar-btn" onclick="switchView('youtubeitems')" id="nav-youtubeitems">Youtube Items</button>
+    <button class="topbar-btn" onclick="switchView('candidates')" id="nav-candidates">Candidates <span id="nav-cand-badge" style="display:none;background:#1c7c3a;color:#fff;font-size:9px;font-weight:700;padding:0 6px;border-radius:9px;margin-left:2px;vertical-align:middle;"></span></button>
     <button class="topbar-btn" onclick="switchView('suggested')" id="nav-suggested">Suggested Matches <span id="nav-sugg-badge" style="display:none;background:#0b6ea8;color:#fff;font-size:9px;font-weight:700;padding:0 6px;border-radius:9px;margin-left:2px;vertical-align:middle;"></span></button>
     <button class="topbar-btn" onclick="switchView('parsestatus')" id="nav-parsestatus">Parse Status</button>
     <button class="topbar-btn" onclick="switchView('tracked')" id="nav-tracked">Competitor Tracked Projects</button>
@@ -473,8 +475,8 @@
         <div class="cand-main" style="padding:24px 32px;">
         <div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;">
           <div>
-            <div class="overview-title">Agenda Items</div>
-            <div class="overview-sub">Potential Tracked Projects auto-detected from scraped Council / Plan-Commission agendas. Review each one — <b>Track</b> creates a Tracked Project (and auto-associates every related agenda item, past &amp; future); <b>Dismiss</b> removes it from the queue.</div>
+            <div class="overview-title">Candidates</div>
+            <div class="overview-sub">Potential Tracked Projects auto-detected from scraped Council / Plan-Commission agendas (collapsed, land-use-filtered review queue). Review each one — <b>Track</b> creates a Tracked Project (and auto-associates every related agenda item, past &amp; future); <b>Dismiss</b> removes it from the queue. For the full unfiltered item list see the <b>Agenda Items</b> / <b>Youtube Items</b> tabs.</div>
           </div>
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
             <select id="cand-filter-juris" onchange="candSetJuris(this.value)" title="Filter by jurisdiction" style="font-size:12px;padding:4px 8px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:6px;cursor:pointer;"><option value="">All jurisdictions</option></select>
@@ -492,6 +494,52 @@
     </div>
 
     <!-- SUGGESTED MATCHES VIEW — Medium-confidence approval queue (P134) -->
+    <!-- P145: ALL PARSED AGENDA ITEMS — audit / auto-match transparency (agenda-doc stream) -->
+    <div id="view-agendaitems" class="view">
+      <div style="padding:24px 32px;">
+        <div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;">
+          <div>
+            <div class="overview-title">Agenda Items</div>
+            <div class="overview-sub">Every item parsed from scraped Council / Plan-Commission <b>agenda documents</b> — unfiltered. Each row shows its <b>Candidate</b> confidence and its <b>Match</b> confidence to a Tracked Project (with the exact criteria), so you can audit the auto-matching. Read-only except <b>Track</b> / <b>Add to…</b>.</div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <select id="ai-ag-juris" onchange="aiSetJuris('ag',this.value)" title="Filter by jurisdiction" style="font-size:12px;padding:4px 8px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:6px;cursor:pointer;"><option value="">All jurisdictions</option></select>
+            <select id="ai-ag-date" onchange="aiSetDate('ag',this.value)" title="Filter by meeting date" style="font-size:12px;padding:4px 8px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:6px;cursor:pointer;"><option value="7">Past Week</option><option value="30">Past 30 days</option><option value="90">Past 90 days</option><option value="custom">Custom range…</option></select>
+            <span id="ai-ag-custom" style="display:none;gap:6px;align-items:center;"><input type="date" id="ai-ag-from" onchange="aiSetCustom('ag')" title="From date (inclusive)" style="font-size:12px;padding:3px 6px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:6px;"><span style="color:var(--text-dim);font-size:11px;">to</span><input type="date" id="ai-ag-to" onchange="aiSetCustom('ag')" title="To date (inclusive)" style="font-size:12px;padding:3px 6px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:6px;"></span>
+            <select id="ai-ag-conf" onchange="aiSetConf('ag',this.value)" title="Filter by Tracked-Project match confidence" style="font-size:12px;padding:4px 8px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:6px;cursor:pointer;"><option value="">All match confidence</option><option value="High" selected>Match: High</option><option value="Medium">Match: Medium</option><option value="None">Match: None</option></select>
+            <input type="text" id="ai-ag-search" oninput="aiSetSearch('ag',this.value)" placeholder="Search project / petitioner / ord#" style="font-size:12px;padding:4px 10px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:6px;min-width:210px;">
+            <select id="ai-ag-pagesize" onchange="aiSetPageSize('ag',this.value)" title="Rows per page" style="font-size:12px;padding:4px 8px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:6px;cursor:pointer;"><option value="50">50 / page</option><option value="100">100 / page</option><option value="250">250 / page</option><option value="999999">Show all</option></select>
+            <button class="refresh-btn" id="ai-ag-expand" onclick="aiToggleAllDesc('ag')" title="Expand or collapse every Description field at once">Expand all</button>
+            <button class="refresh-btn" onclick="aiLoad('ag',true)" title="Re-fetch all agenda items from the backend">↺ Refresh</button>
+          </div>
+        </div>
+        <div id="ai-ag-list"><div style="color:var(--text-dim);">Loading agenda items…</div></div>
+      </div>
+    </div>
+
+    <!-- P145: ALL PARSED AGENDA ITEMS — audit / auto-match transparency (YouTube / minutes stream) -->
+    <div id="view-youtubeitems" class="view">
+      <div style="padding:24px 32px;">
+        <div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;">
+          <div>
+            <div class="overview-title">Youtube Items</div>
+            <div class="overview-sub">Every item parsed from <b>YouTube hearing videos</b> &amp; minutes summaries — unfiltered. Each row shows its <b>Candidate</b> confidence and its <b>Match</b> confidence to a Tracked Project (with the exact criteria), so you can audit the auto-matching. Read-only except <b>Track</b> / <b>Add to…</b>.</div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <select id="ai-yt-juris" onchange="aiSetJuris('yt',this.value)" title="Filter by jurisdiction" style="font-size:12px;padding:4px 8px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:6px;cursor:pointer;"><option value="">All jurisdictions</option></select>
+            <select id="ai-yt-date" onchange="aiSetDate('yt',this.value)" title="Filter by meeting date" style="font-size:12px;padding:4px 8px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:6px;cursor:pointer;"><option value="7">Past Week</option><option value="30">Past 30 days</option><option value="90">Past 90 days</option><option value="custom">Custom range…</option></select>
+            <span id="ai-yt-custom" style="display:none;gap:6px;align-items:center;"><input type="date" id="ai-yt-from" onchange="aiSetCustom('yt')" title="From date (inclusive)" style="font-size:12px;padding:3px 6px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:6px;"><span style="color:var(--text-dim);font-size:11px;">to</span><input type="date" id="ai-yt-to" onchange="aiSetCustom('yt')" title="To date (inclusive)" style="font-size:12px;padding:3px 6px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:6px;"></span>
+            <select id="ai-yt-conf" onchange="aiSetConf('yt',this.value)" title="Filter by Tracked-Project match confidence" style="font-size:12px;padding:4px 8px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:6px;cursor:pointer;"><option value="">All match confidence</option><option value="High" selected>Match: High</option><option value="Medium">Match: Medium</option><option value="None">Match: None</option></select>
+            <input type="text" id="ai-yt-search" oninput="aiSetSearch('yt',this.value)" placeholder="Search project / petitioner / ord#" style="font-size:12px;padding:4px 10px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:6px;min-width:210px;">
+            <select id="ai-yt-pagesize" onchange="aiSetPageSize('yt',this.value)" title="Rows per page" style="font-size:12px;padding:4px 8px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:6px;cursor:pointer;"><option value="50">50 / page</option><option value="100">100 / page</option><option value="250">250 / page</option><option value="999999">Show all</option></select>
+            <button class="refresh-btn" id="ai-yt-expand" onclick="aiToggleAllDesc('yt')" title="Expand or collapse every Description field at once">Expand all</button>
+            <button class="refresh-btn" onclick="aiLoad('yt',true)" title="Re-fetch all youtube items from the backend">↺ Refresh</button>
+          </div>
+        </div>
+        <div id="ai-yt-list"><div style="color:var(--text-dim);">Loading youtube items…</div></div>
+      </div>
+    </div>
+
     <div id="view-suggested" class="view">
       <div style="padding:24px 32px;">
         <div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;">
@@ -9945,6 +9993,312 @@ window.candSetJuris=candSetJuris; window.candSetSearch=candSetSearch; window.can
 window.candGoPage=candGoPage; window.candToggleSel=candToggleSel; window.candSelectAllPage=candSelectAllPage;
 window.candSelectAllFiltered=candSelectAllFiltered; window.candClearSel=candClearSel; window.candBulkDismiss=candBulkDismiss;
 registerViewInit('candidates', candLoad);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// P145 — ALL PARSED AGENDA ITEMS audit views (Agenda Items = 'ag' stream,
+// Youtube Items = 'yt' stream). One shared component, keyed by stream. Shows
+// every raw Agenda_Items row (unfiltered) with BOTH confidence signals + the
+// criteria that produced each, so the operator can audit auto-matching.
+// Backend: getAgendaItemsFeedJSON / addAgendaItemToProject (+ create_tracked_project).
+// ═══════════════════════════════════════════════════════════════════════════
+var _aiState = {
+  ag: { data:[], loaded:false, juris:'', conf:'High', dateDays:7, dateFrom:'', dateTo:'', search:'', page:0, pageSize:50, descExp:false },
+  yt: { data:[], loaded:false, juris:'', conf:'High', dateDays:7, dateFrom:'', dateTo:'', search:'', page:0, pageSize:50, descExp:false }
+};
+// yyyy-mm-dd cutoff = today − N days (lexical compare works on ISO dates).
+function _aiCutoff(days){
+  var d=new Date(); d.setDate(d.getDate()-(Number(days)||7));
+  return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
+}
+function _aiCfg(stream){
+  return { list:'ai-'+stream+'-list', juris:'ai-'+stream+'-juris', conf:'ai-'+stream+'-conf',
+           pagesize:'ai-'+stream+'-pagesize', expand:'ai-'+stream+'-expand',
+           noun:(stream==='yt'?'youtube items':'agenda items') };
+}
+function _aiById(stream, id){ var s=_aiState[stream]; for(var i=0;i<s.data.length;i++){ if(String(s.data[i].item_id)===String(id)) return s.data[i]; } return null; }
+
+function aiLoad(stream, force){
+  var s=_aiState[stream], cfg=_aiCfg(stream);
+  var el=document.getElementById(cfg.list); if(!el) return;
+  if(s.loaded && !force){ aiRender(stream); return; }
+  el.innerHTML='<div style="color:var(--text-dim);">Loading '+cfg.noun+'…</div>';
+  var base=getWebAppUrl(); if(!base){ el.innerHTML='<div style="color:var(--text-dim);">No dashboard connection configured.</div>'; return; }
+  fetch(base+'&action=admin_run&fn=getAgendaItemsFeedJSON&stream='+encodeURIComponent(stream)).then(function(r){return r.json();}).then(function(res){
+    var rr=res&&res.result;
+    if(!rr||!rr.ok){ el.innerHTML='<div style="color:var(--text-dim);">Could not load '+cfg.noun+': '+_diagEsc((rr&&rr.error)||(res&&res.error)||'unknown')+'</div>'; return; }
+    s.data=rr.items||[]; s.loaded=true; s.page=0;
+    aiPopulateJuris(stream); aiRender(stream);
+  }).catch(function(e){ el.innerHTML='<div style="color:var(--text-dim);">Network error: '+_diagEsc(e.message)+'</div>'; });
+}
+
+function aiPopulateJuris(stream){
+  var s=_aiState[stream], cfg=_aiCfg(stream);
+  var sel=document.getElementById(cfg.juris); if(!sel) return;
+  var counts={};
+  s.data.forEach(function(it){ var j=it.jurisdiction||'—'; counts[j]=(counts[j]||0)+1; });
+  if(s.juris && !counts[s.juris]) s.juris='';
+  var names=Object.keys(counts).sort();
+  var html='<option value="">All jurisdictions ('+s.data.length+')</option>';
+  names.forEach(function(j){ html+='<option value="'+_diagEsc(j)+'"'+(j===s.juris?' selected':'')+'>'+_diagEsc(j)+' ('+counts[j]+')</option>'; });
+  sel.innerHTML=html;
+}
+
+function _aiFiltered(stream){
+  var s=_aiState[stream], term=s.search;
+  var cutoff=_aiCutoff(s.dateDays);
+  return s.data.filter(function(it){
+    if(s.juris && it.jurisdiction!==s.juris) return false;
+    if(s.conf){ var mc=(it.match_confidence||'None'); if(mc!==s.conf) return false; }
+    if(s.dateDays==='custom'){
+      var mdc=String(it.meeting_date||'');
+      if(s.dateFrom && (!mdc || mdc<s.dateFrom)) return false;
+      if(s.dateTo && (!mdc || mdc>s.dateTo)) return false;
+    } else if(cutoff){ var md=String(it.meeting_date||''); if(!md || md<cutoff) return false; }
+    if(term){
+      var hay=((it.project_name||'')+' '+(it.petitioner||'')+' '+(it.ordinance_number||'')+' '+(it.matched_project_name||'')+' '+(it.description||'')).toLowerCase();
+      if(hay.indexOf(term)===-1) return false;
+    }
+    return true;
+  });
+}
+
+function aiSetJuris(stream,v){ _aiState[stream].juris=v||''; _aiState[stream].page=0; aiRender(stream); }
+function aiSetConf(stream,v){ _aiState[stream].conf=v||''; _aiState[stream].page=0; aiRender(stream); }
+function aiSetDate(stream,v){
+  var s=_aiState[stream];
+  s.dateDays = (v==='custom') ? 'custom' : (parseInt(v,10)||7);
+  var box=document.getElementById('ai-'+stream+'-custom');
+  if(box) box.style.display = (v==='custom') ? 'inline-flex' : 'none';
+  s.page=0; aiRender(stream);
+}
+function aiSetCustom(stream){
+  var s=_aiState[stream];
+  var f=document.getElementById('ai-'+stream+'-from'), t=document.getElementById('ai-'+stream+'-to');
+  s.dateFrom=f?f.value:''; s.dateTo=t?t.value:''; s.page=0; aiRender(stream);
+}
+function aiSetSearch(stream,v){ _aiState[stream].search=String(v||'').toLowerCase().trim(); _aiState[stream].page=0; aiRender(stream); }
+function aiSetPageSize(stream,v){ var n=parseInt(v,10); _aiState[stream].pageSize=(n>0?n:50); _aiState[stream].page=0; aiRender(stream); }
+function aiGoPage(stream,p){ _aiState[stream].page=p; aiRender(stream); }
+function aiToggleAllDesc(stream){
+  var s=_aiState[stream]; s.descExp=!s.descExp;
+  document.querySelectorAll('#'+_aiCfg(stream).list+' .cand-desc').forEach(function(x){ x.classList.toggle('expanded', s.descExp); });
+  var b=document.getElementById(_aiCfg(stream).expand); if(b) b.textContent=s.descExp?'Collapse all':'Expand all';
+}
+
+// Candidate confidence pill (high/low). Match confidence pill (High/Medium/None).
+function _aiCandPill(it){
+  var hi=it.candidate_confidence==='high';
+  return '<span title="'+_diagEsc(it.candidate_criteria||'')+'" style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:9px;font-weight:700;cursor:help;'+(hi?'background:#1c7c3a;color:#fff;':'background:var(--border,#444);color:var(--text-dim);')+'">'+(hi?'HIGH':'low')+'</span>';
+}
+function _aiMatchPill(it){
+  var mc=it.match_confidence||'None';
+  var bg = mc==='High' ? 'background:#1c7c3a;color:#fff;' : mc==='Medium' ? 'background:#b7791f;color:#fff;' : 'background:var(--border,#444);color:var(--text-dim);';
+  var warn = (mc==='High' && !it.auto_linked) ? ' <span title="matches at High but no Project_Reference exists — auto-match gap" style="color:#e8a020;">⚠</span>' : '';
+  return '<span title="'+_diagEsc(it.match_criteria||'')+'" style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:9px;font-weight:700;cursor:help;'+bg+'">'+_diagEsc(mc)+'</span>'+warn;
+}
+function _aiMatchedCell(it){
+  var mc=it.match_confidence||'None';
+  if(mc==='None') return '<span style="color:var(--text-dim);">—</span>';
+  var link = it.auto_linked
+    ? '<span title="a live Project_Reference exists" style="color:#3ba55d;font-size:9px;">● linked</span>'
+    : '<span title="not currently linked" style="color:var(--text-dim);font-size:9px;">○ not linked</span>';
+  var more = (it.match_count>1) ? ' <span title="'+it.match_count+' tracked projects match this item (ambiguous)" style="color:#e8a020;font-size:9px;">(+'+(it.match_count-1)+' more)</span>' : '';
+  return '<div style="font-size:10px;">'+_diagEsc(it.matched_project_name||'—')+'</div><div>'+link+more+'</div>';
+}
+
+function aiRender(stream){
+  var s=_aiState[stream], cfg=_aiCfg(stream);
+  var el=document.getElementById(cfg.list); if(!el) return;
+  var nAll=s.data.length;
+  var nHiMatch=s.data.filter(function(it){ return it.match_confidence==='High'; }).length;
+  var nGap=s.data.filter(function(it){ return it.match_confidence==='High' && !it.auto_linked; }).length;
+  var filtered=_aiFiltered(stream);
+  var nF=filtered.length;
+
+  var pageSize=s.pageSize>0?s.pageSize:50;
+  var totalPages=Math.max(1, Math.ceil(nF/pageSize));
+  if(s.page>=totalPages) s.page=totalPages-1;
+  if(s.page<0) s.page=0;
+  var start=s.page*pageSize;
+  var pageRows=filtered.slice(start, start+pageSize);
+
+  var summary='<div style="margin-bottom:10px;font-size:12px;color:var(--text-dim);">'+
+    '<b style="color:inherit;">'+nAll+'</b> parsed items · <b style="color:inherit;">'+nHiMatch+'</b> High match'+
+    (nGap?' · <b style="color:#e8a020;">'+nGap+'</b> High but not linked (⚠ gap)':'')+
+    (nF!==nAll?' · <b style="color:inherit;">'+nF+'</b> match filter':'')+'</div>';
+
+  if(!nAll){ el.innerHTML=summary+'<div style="color:var(--text-dim);padding:12px 0;">No parsed '+cfg.noun+' found.</div>'; return; }
+  if(!nF){ el.innerHTML=summary+'<div style="color:var(--text-dim);padding:12px 0;">No items match the current filter. Adjust the jurisdiction / match-confidence / search filters above.</div>'; return; }
+
+  var head='<tr style="text-align:left;color:var(--text-dim);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">'+
+    '<th style="padding:6px 8px;" title="Candidate confidence: high if the item has an ordinance/case # or a named petitioner">Cand.</th>'+
+    '<th style="padding:6px 8px;" title="Tracked-Project match confidence: High (identifier hit) / Medium (summary only) / None">Match</th>'+
+    '<th style="padding:6px 8px;width:260px;">Criteria</th>'+
+    '<th style="padding:6px 8px;">Jurisdiction</th>'+
+    '<th style="padding:6px 8px;width:140px;">Project</th>'+
+    '<th style="padding:6px 8px;">Ord #</th>'+
+    '<th style="padding:6px 8px;">Type</th>'+
+    '<th style="padding:6px 8px;width:320px;">Description</th>'+
+    '<th style="padding:6px 8px;">Petitioner</th>'+
+    '<th style="padding:6px 8px;width:150px;">Matched Project</th>'+
+    '<th style="padding:6px 8px;">Date</th>'+
+    '<th style="padding:6px 8px;">Source</th>'+
+    '<th style="padding:6px 8px;text-align:right;">Action</th></tr>';
+
+  var body=pageRows.map(function(it){
+    var id=_diagEsc(it.item_id);
+    var resolved=!!it._aiResolved;
+    var descText=String(it.description||'').trim();
+    var descCell=descText
+      ? '<span class="cand-desc'+(s.descExp?' expanded':'')+'" title="Click to expand / collapse" onclick="this.classList.toggle(\'expanded\')">'+_diagEsc(descText)+'</span>'
+      : '<span style="color:var(--text-dim);">—</span>';
+    var srcCell=String(it.source_url||'').trim()
+      ? '<a href="'+escUrl(inlineViewerUrl(it.source_url))+'" target="_blank" rel="noopener" data-doc-link="agenda" style="font-size:10px;">open</a>'
+      : '<span style="color:var(--text-dim);">—</span>';
+    var critCell='<div style="font-size:9px;line-height:1.35;"><div><b>Cand:</b> '+_diagEsc(it.candidate_criteria||'—')+'</div><div style="margin-top:2px;"><b>Match:</b> '+_diagEsc(it.match_criteria||'—')+'</div></div>';
+    var actCell = resolved
+      ? '<span style="font-size:10px;color:#3ba55d;">✓ '+_diagEsc(it._aiResolved)+'</span>'
+      : '<div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;max-width:150px;margin-left:auto;">'+
+          '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;background:#1c7c3a;color:#fff;border-color:#1c7c3a;" title="Create a NEW Tracked Project from this item" onclick="aiTrack(\''+stream+'\',\''+id+'\')">＋ Track</button>'+
+          '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;" title="Attach this item to an EXISTING Tracked Project" onclick="aiOpenAddTo(\''+stream+'\',\''+id+'\',this)">Add to… ▾</button>'+
+        '</div>';
+    return '<tr data-ai-id="'+id+'" style="border-top:1px solid var(--border);'+(it.match_confidence==='None'?'':'')+'">'+
+      '<td style="padding:6px 8px;">'+_aiCandPill(it)+'</td>'+
+      '<td style="padding:6px 8px;">'+_aiMatchPill(it)+'</td>'+
+      '<td style="padding:6px 8px;vertical-align:top;">'+critCell+'</td>'+
+      '<td style="padding:6px 8px;white-space:nowrap;">'+_diagEsc(it.jurisdiction||'—')+'</td>'+
+      '<td style="padding:6px 8px;vertical-align:top;"><span class="cand-proj" title="Click to expand / collapse" onclick="this.classList.toggle(\'expanded\')">'+_diagEsc(it.project_name||'—')+'</span></td>'+
+      '<td style="padding:6px 8px;white-space:nowrap;font-size:10px;">'+_diagEsc(it.ordinance_number||'—')+'</td>'+
+      '<td style="padding:6px 8px;white-space:nowrap;">'+_diagEsc(it.request_type||'—')+'</td>'+
+      '<td style="padding:6px 8px;width:320px;max-width:360px;">'+descCell+'</td>'+
+      '<td style="padding:6px 8px;vertical-align:top;">'+(String(it.petitioner||'').trim()?'<span class="cand-petitioner" title="Click to expand / collapse" onclick="this.classList.toggle(\'expanded\')">'+_diagEsc(it.petitioner)+'</span>':'<span style="color:var(--text-dim);">—</span>')+'</td>'+
+      '<td style="padding:6px 8px;vertical-align:top;">'+_aiMatchedCell(it)+'</td>'+
+      '<td style="padding:6px 8px;white-space:nowrap;font-size:10px;">'+_diagEsc(it.meeting_date||'—')+'</td>'+
+      '<td style="padding:6px 8px;white-space:nowrap;">'+srcCell+'</td>'+
+      '<td style="padding:6px 8px;">'+actCell+'</td></tr>';
+  }).join('');
+
+  var pager='';
+  if(totalPages>1){
+    var from=start+1, to=Math.min(start+pageSize, nF);
+    pager='<div style="display:flex;gap:10px;align-items:center;justify-content:flex-end;margin-top:10px;font-size:11px;color:var(--text-dim);">'+
+      '<span>'+from+'–'+to+' of '+nF+'</span>'+
+      '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;'+(s.page<=0?'opacity:.4;pointer-events:none;':'')+'" onclick="aiGoPage(\''+stream+'\','+(s.page-1)+')">‹ Prev</button>'+
+      '<span>Page '+(s.page+1)+' / '+totalPages+'</span>'+
+      '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;'+(s.page>=totalPages-1?'opacity:.4;pointer-events:none;':'')+'" onclick="aiGoPage(\''+stream+'\','+(s.page+1)+')">Next ›</button>'+
+      '</div>';
+  }
+  el.innerHTML=summary+'<div class="cand-table-scroll"><table style="width:100%;border-collapse:collapse;font-size:11px;"><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>'+pager;
+}
+
+// ── per-item Track (create a NEW Tracked Project) ──────────────────────────
+function aiTrack(stream, itemId){
+  var it=_aiById(stream, itemId); if(!it) return;
+  aiOpenTrackModal(stream, itemId, String(it.project_name||''));
+}
+function aiOpenTrackModal(stream, itemId, name){
+  var ov=document.getElementById('ai-track-ov');
+  if(!ov){
+    ov=document.createElement('div'); ov.id='ai-track-ov'; ov.className='cand-track-ov';
+    ov.innerHTML='<div class="cand-track-box">'+
+        '<div class="cand-track-h">Create Tracked Project</div>'+
+        '<label class="cand-track-l" for="ai-track-name">Project name</label>'+
+        '<input id="ai-track-name" class="cand-track-input" type="text" autocomplete="off" />'+
+        '<div class="cand-track-err" id="ai-track-err"></div>'+
+        '<div class="cand-track-actions">'+
+          '<button class="refresh-btn" onclick="aiCloseTrackModal()">Cancel</button>'+
+          '<button class="refresh-btn" id="ai-track-go" style="background:#1c7c3a;color:#fff;border-color:#1c7c3a;" onclick="aiTrackConfirm()">Create project</button>'+
+        '</div></div>';
+    document.body.appendChild(ov);
+    ov.addEventListener('click',function(e){ if(e.target===ov) aiCloseTrackModal(); });
+  }
+  ov.setAttribute('data-stream', stream);
+  ov.setAttribute('data-item', itemId);
+  var inp=document.getElementById('ai-track-name'); inp.value=name||'';
+  document.getElementById('ai-track-err').textContent='';
+  var go=document.getElementById('ai-track-go'); go.disabled=false; go.textContent='Create project';
+  ov.classList.add('open');
+  setTimeout(function(){ inp.focus(); inp.select(); },30);
+}
+function aiCloseTrackModal(){ var ov=document.getElementById('ai-track-ov'); if(ov) ov.classList.remove('open'); }
+function aiTrackConfirm(){
+  var ov=document.getElementById('ai-track-ov'); if(!ov) return;
+  var stream=ov.getAttribute('data-stream'), itemId=ov.getAttribute('data-item');
+  var it=_aiById(stream, itemId); if(!it) return;
+  var name=(document.getElementById('ai-track-name').value||'').trim();
+  if(!name){ document.getElementById('ai-track-err').textContent='Project name is required.'; return; }
+  var go=document.getElementById('ai-track-go'); go.disabled=true; go.textContent='Creating…';
+  var base=getWebAppUrl(); if(!base) return;
+  var q='&action=create_tracked_project'
+      +'&project_name='+encodeURIComponent(name)
+      +'&ordinance_id='+encodeURIComponent(it.ordinance_number||'')
+      +'&jurisdiction='+encodeURIComponent(it.jurisdiction||'')
+      +'&aliases='+encodeURIComponent(it.project_name && it.project_name!==name ? it.project_name : '')
+      +'&notes='+encodeURIComponent('Tracked from parsed '+(stream==='yt'?'YouTube':'agenda')+' item '+(it.meeting_date||''));
+  fetch(base+q).then(function(r){return r.json();}).then(function(res){
+    if(!res||!res.success){ go.disabled=false; go.textContent='Failed — retry'; return; }
+    aiCloseTrackModal();
+    it._aiResolved='Tracked → '+name;
+    if(typeof tpLoad==='function'){ try{ tpLoad(true); }catch(e){} }
+    aiRender(stream);
+  }).catch(function(){ go.disabled=false; go.textContent='Failed — retry'; });
+}
+
+// ── per-item Add to an EXISTING Tracked Project ────────────────────────────
+function aiOpenAddTo(stream, itemId, btn){
+  var it=_aiById(stream, itemId); if(!it||!btn) return;
+  var td=btn.closest('td'); if(!td) return;
+  var loaded=(typeof tpProjects!=='undefined' && Array.isArray(tpProjects) && tpProjects.length);
+  if(!loaded){
+    if(typeof tpLoad==='function'){ try{ tpLoad(false); }catch(e){} }
+    btn.textContent='Loading…'; btn.disabled=true;
+    setTimeout(function(){ aiOpenAddTo(stream, itemId, btn); }, 1200);
+    return;
+  }
+  var jn=(typeof _normJurisName==='function') ? _normJurisName(it.jurisdiction) : (it.jurisdiction||'');
+  var opts=tpProjects.filter(function(p){
+    var st=(p.status||'active').toLowerCase();
+    if(st==='closed'||st==='archived'||st==='deleted') return false;
+    var pj=(typeof _normJurisName==='function') ? _normJurisName(p.jurisdiction) : (p.jurisdiction||'');
+    return pj===jn;
+  }).sort(function(a,b){ return String(a.projectName||'').localeCompare(String(b.projectName||'')); });
+  if(!opts.length){
+    td.innerHTML='<span style="font-size:10px;color:var(--text-dim);">No tracked projects in '+_diagEsc(it.jurisdiction||'this jurisdiction')+'. <a href="#" onclick="aiRender(\''+stream+'\');return false;" style="color:#3be3ff;">cancel</a></span>';
+    return;
+  }
+  var optionHtml=opts.map(function(p){
+    return '<option value="'+_diagEsc(p.projectId)+'">'+_diagEsc(p.projectName||p.projectId)+(p.ordinanceId?(' ('+_diagEsc(p.ordinanceId)+')'):'')+'</option>';
+  }).join('');
+  td.innerHTML='<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">'
+    +'<select id="aiae-sel-'+_diagEsc(itemId)+'" style="font-size:10px;max-width:160px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:5px;padding:2px 4px;cursor:pointer;">'+optionHtml+'</select>'
+    +'<div style="display:flex;gap:4px;">'
+    +  '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;background:#1c7c3a;color:#fff;border-color:#1c7c3a;" onclick="aiAddTo(\''+stream+'\',\''+itemId+'\',this)">Add</button>'
+    +  '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;" onclick="aiRender(\''+stream+'\')">Cancel</button>'
+    +'</div></div>';
+}
+function aiAddTo(stream, itemId, btn){
+  var sel=document.getElementById('aiae-sel-'+itemId);
+  var pid=sel?sel.value:''; if(!pid) return;
+  var pname=sel&&sel.options[sel.selectedIndex]?sel.options[sel.selectedIndex].text:'';
+  if(btn){ btn.disabled=true; btn.textContent='Adding…'; }
+  var base=getWebAppUrl(); if(!base) return;
+  fetch(base+'&action=admin_run&fn=addAgendaItemToProject&item_id='+encodeURIComponent(itemId)+'&project_id='+encodeURIComponent(pid))
+    .then(function(r){return r.json();}).then(function(res){
+      var rr=res&&res.result;
+      if(!rr||!rr.ok){ if(btn){ btn.disabled=false; btn.textContent='Failed — retry'; } return; }
+      var it=_aiById(stream, itemId); if(it) it._aiResolved='Added → '+pname;
+      if(typeof tpLoad==='function'){ try{ tpLoad(true); }catch(e){} }
+      aiRender(stream);
+    }).catch(function(){ if(btn){ btn.disabled=false; btn.textContent='Add'; } });
+}
+
+window.aiLoad=aiLoad; window.aiRender=aiRender; window.aiSetJuris=aiSetJuris; window.aiSetConf=aiSetConf;
+window.aiSetSearch=aiSetSearch; window.aiSetPageSize=aiSetPageSize; window.aiGoPage=aiGoPage; window.aiToggleAllDesc=aiToggleAllDesc;
+window.aiSetDate=aiSetDate; window.aiSetCustom=aiSetCustom;
+window.aiTrack=aiTrack; window.aiCloseTrackModal=aiCloseTrackModal; window.aiTrackConfirm=aiTrackConfirm;
+window.aiOpenAddTo=aiOpenAddTo; window.aiAddTo=aiAddTo;
+registerViewInit('agendaitems', function(){ aiLoad('ag'); });
+registerViewInit('youtubeitems', function(){ aiLoad('yt'); });
 // Populate the nav badge shortly after boot (without forcing the operator to open the view).
 setTimeout(function(){ try{ candLoad(); }catch(e){} }, 3000);
 
