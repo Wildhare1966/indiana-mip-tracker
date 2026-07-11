@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p143 -->
+<!-- MIP build p147r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p143">
+<link rel="stylesheet" href="styles.css?v=p147r1">
 </head>
 <body>
 
@@ -447,7 +447,7 @@
                 <th style="padding:8px 6px;border-bottom:1px solid var(--border,#333);">Meeting<br>Date</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);" title="The Request Summary from the matching meeting's agenda item. Click a cell to expand.">Description</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);" title="From the matching YouTube-video agenda item: Outcome + Vote, then Additional Notes.">Results</th>
-                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Youtube<br>Summary</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;" title="AI summary of the latest hearing. 'Detailed Summary' = item-scoped detail for this project; 'Summary' = full-hearing doc.">Summary</th>
                 <th style="padding:8px 6px;border-bottom:1px solid var(--border,#333);" title="All agenda documents this project was referenced on (newest first)">Agendas</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Tagged Docs</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Status</th>
@@ -6291,8 +6291,11 @@ function tpRenderTable() {
     // when one is available for this project's latest meeting. Falls back
     // to the YouTube video URL (legacy behavior) when no summary exists.
     var summaryDocUrl = _tpFindSummaryDocFor(p);
-    var ytHref = summaryDocUrl || p.latestYtSummaryUrl || '';
-    var ytLabel = summaryDocUrl ? 'Summary' : (p.latestYtSummaryUrl ? 'YouTube' : '');
+    // P147: the P146 wire emits latestYtSummaryUrl as the ITEM-SCOPED detailed
+    // summary doc when one exists (summaryIsDetailed=true; otherwise it's the
+    // legacy full-hearing/video URL, which we ignore here as before). Prefer
+    // the detailed doc over the full-hearing doc resolved from PUBLIC_HEARINGS.
+    var detailedSummaryUrl = (p.summaryIsDetailed && p.latestYtSummaryUrl) ? String(p.latestYtSummaryUrl) : '';
     // P118 rev6: all agenda docs this project appeared on, as #-links (newest
     // first), mirroring the Agenda Items page. Wrapped in inlineViewerUrl so
     // force-download hosts open in the viewer. P118r6: show #1–5 inline; any
@@ -6323,8 +6326,12 @@ function tpRenderTable() {
     // NOTHING: no raw "YouTube" link (it typically pointed at the agenda) and no
     // "Detail" Ask button (operator request). Future meetings → blank too.
     var yt;
-    if (tpIsFuture || !summaryDocUrl) {
+    if (tpIsFuture || !(detailedSummaryUrl || summaryDocUrl)) {
       yt = '';
+    } else if (detailedSummaryUrl) {
+      // P147: item-scoped detailed summary (P146 backend) — labeled so the
+      // operator can tell it apart from the full-hearing doc.
+      yt = '<a class="tp-doc-link tp-page-doc-link" href="' + esc(detailedSummaryUrl) + '" target="_blank" rel="noopener" data-doc-link="summary" title="Item-scoped detailed summary of the latest hearing">Detailed Summary</a>';
     } else {
       yt = '<a class="tp-doc-link tp-page-doc-link" href="' + esc(summaryDocUrl) + '" target="_blank" rel="noopener" data-doc-link="summary">Summary</a>';
       // P136: per-project "✦ Detail" Ask button removed (operator request) — the
