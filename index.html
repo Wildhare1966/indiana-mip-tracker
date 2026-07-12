@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p147r2 -->
+<!-- MIP build p148r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -500,7 +500,7 @@
         <div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;">
           <div>
             <div class="overview-title">Agenda Items</div>
-            <div class="overview-sub">Every item parsed from scraped Council / Plan-Commission <b>agenda documents</b> — unfiltered. Each row shows its <b>Candidate</b> confidence and its <b>Match</b> confidence to a Tracked Project (with the exact criteria), so you can audit the auto-matching. Read-only except <b>Track</b> / <b>Add to…</b>.</div>
+            <div class="overview-sub">Every item parsed from scraped Council / Plan-Commission <b>agenda documents</b> — unfiltered. Each row shows its <b>Candidate</b> confidence and its <b>Match</b> confidence to a Tracked Project (with the exact criteria), so you can audit the auto-matching. Read-only except <b>Track</b> / <b>Add to…</b> / <b>Dismiss</b>.</div>
           </div>
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
             <select id="ai-ag-juris" onchange="aiSetJuris('ag',this.value)" title="Filter by jurisdiction" style="font-size:12px;padding:4px 8px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:6px;cursor:pointer;"><option value="">All jurisdictions</option></select>
@@ -523,7 +523,7 @@
         <div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;">
           <div>
             <div class="overview-title">Youtube Items</div>
-            <div class="overview-sub">Every item parsed from <b>YouTube hearing videos</b> &amp; minutes summaries — unfiltered. Each row shows its <b>Candidate</b> confidence and its <b>Match</b> confidence to a Tracked Project (with the exact criteria), so you can audit the auto-matching. Read-only except <b>Track</b> / <b>Add to…</b>.</div>
+            <div class="overview-sub">Every item parsed from <b>YouTube hearing videos</b> &amp; minutes summaries — unfiltered. Each row shows its <b>Candidate</b> confidence, its <b>Match</b> confidence to a Tracked Project (with the exact criteria), and the corresponding parsed <b>Agenda Item</b> for the same meeting. Read-only except <b>Track</b> / <b>Add to…</b> / <b>Dismiss</b>.</div>
           </div>
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
             <select id="ai-yt-juris" onchange="aiSetJuris('yt',this.value)" title="Filter by jurisdiction" style="font-size:12px;padding:4px 8px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:6px;cursor:pointer;"><option value="">All jurisdictions</option></select>
@@ -10103,7 +10103,11 @@ function _aiMatchedCell(it){
     ? '<span title="a live Project_Reference exists" style="color:#3ba55d;font-size:9px;">● linked</span>'
     : '<span title="not currently linked" style="color:var(--text-dim);font-size:9px;">○ not linked</span>';
   var more = (it.match_count>1) ? ' <span title="'+it.match_count+' tracked projects match this item (ambiguous)" style="color:#e8a020;font-size:9px;">(+'+(it.match_count-1)+' more)</span>' : '';
-  return '<div style="font-size:10px;">'+_diagEsc(it.matched_project_name||'—')+'</div><div>'+link+more+'</div>';
+  // P148: High match with NO live link = auto-match gap → project name in yellow.
+  var gap = (mc==='High' && !it.auto_linked);
+  var nameStyle = 'font-size:10px;' + (gap ? 'color:#eab308;font-weight:600;' : '');
+  var nameTitle = gap ? ' title="High match but not linked — auto-match gap"' : '';
+  return '<div style="'+nameStyle+'"'+nameTitle+'>'+_diagEsc(it.matched_project_name||'—')+'</div><div>'+link+more+'</div>';
 }
 
 function aiRender(stream){
@@ -10130,21 +10134,29 @@ function aiRender(stream){
   if(!nAll){ el.innerHTML=summary+'<div style="color:var(--text-dim);padding:12px 0;">No parsed '+cfg.noun+' found.</div>'; return; }
   if(!nF){ el.innerHTML=summary+'<div style="color:var(--text-dim);padding:12px 0;">No items match the current filter. Adjust the jurisdiction / match-confidence / search filters above.</div>'; return; }
 
-  var head='<tr style="text-align:left;color:var(--text-dim);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">'+
-    '<th style="padding:6px 8px;" title="Candidate confidence: high if the item has an ordinance/case # or a named petitioner">Cand.</th>'+
-    '<th style="padding:6px 8px;" title="Tracked-Project match confidence: High (identifier hit) / Medium (summary only) / None">Match</th>'+
-    '<th style="padding:6px 8px;width:260px;">Criteria</th>'+
-    '<th style="padding:6px 8px;">Jurisdiction</th>'+
-    '<th style="padding:6px 8px;width:140px;">Project</th>'+
-    '<th style="padding:6px 8px;">Ord #</th>'+
-    '<th style="padding:6px 8px;">Type</th>'+
-    '<th style="padding:6px 8px;width:320px;">Description</th>'+
-    '<th style="padding:6px 8px;">Petitioner</th>'+
-    '<th style="padding:6px 8px;width:150px;">Matched Project</th>'+
-    '<th style="padding:6px 8px;">Date</th>'+
-    '<th style="padding:6px 8px;">Source</th>'+
-    '<th style="padding:6px 8px;text-align:right;">Action</th></tr>';
+  // P148: per-stream layout — Ord# trimmed (ag −30%, yt −70% of its former
+  // ~100px), the freed width moved onto Project; yt adds Agenda Item + Action.
+  var isYt=(stream==='yt');
+  var ordW=isYt?30:70, projW=isYt?210:170;
+  var thS='padding:6px 8px;text-align:left;vertical-align:top;';
+  var head='<tr style="color:var(--text-dim);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">'+
+    '<th style="'+thS+'" title="Candidate confidence: high if the item has an ordinance/case # or a named petitioner">Cand.</th>'+
+    '<th style="'+thS+'" title="Tracked-Project match confidence: High (identifier hit) / Medium (summary only) / None">Match</th>'+
+    '<th style="'+thS+'width:260px;">Criteria</th>'+
+    '<th style="'+thS+'">Jurisdiction</th>'+
+    '<th style="'+thS+'width:150px;">Matched Project</th>'+
+    '<th style="'+thS+'width:'+projW+'px;">Project</th>'+
+    '<th style="'+thS+'width:'+ordW+'px;">Ord #</th>'+
+    '<th style="'+thS+'">Type</th>'+
+    '<th style="'+thS+'width:320px;">Description</th>'+
+    '<th style="'+thS+'">Petitioner</th>'+
+    '<th style="'+thS+'">Date</th>'+
+    '<th style="'+thS+'">Source</th>'+
+    (isYt?'<th style="'+thS+'" title="The parsed agenda-document item for the same meeting (matched by ordinance # / project name — agendas always parse before the video summary)">Agenda Item</th>':'')+
+    (isYt?'<th style="'+thS+'" title="Action taken / outcome parsed from the hearing">Action</th>':'')+
+    '<th style="'+thS+'">Manage</th></tr>';
 
+  var tdS='padding:6px 8px;text-align:left;vertical-align:top;';
   var body=pageRows.map(function(it){
     var id=_diagEsc(it.item_id);
     var resolved=!!it._aiResolved;
@@ -10152,30 +10164,49 @@ function aiRender(stream){
     var descCell=descText
       ? '<span class="cand-desc'+(s.descExp?' expanded':'')+'" title="Click to expand / collapse" onclick="this.classList.toggle(\'expanded\')">'+_diagEsc(descText)+'</span>'
       : '<span style="color:var(--text-dim);">—</span>';
-    var srcCell=String(it.source_url||'').trim()
-      ? '<a href="'+escUrl(inlineViewerUrl(it.source_url))+'" target="_blank" rel="noopener" data-doc-link="agenda" style="font-size:10px;">open</a>'
+    var srcUrl=String(it.source_url||'').trim();
+    var srcLabel=isYt?(/youtu\.?be/i.test(srcUrl)?'YouTube':'Minutes'):'Agenda';
+    var srcCell=srcUrl
+      ? '<a href="'+escUrl(inlineViewerUrl(srcUrl))+'" target="_blank" rel="noopener" data-doc-link="agenda" style="font-size:10px;">'+srcLabel+'</a>'
       : '<span style="color:var(--text-dim);">—</span>';
     var critCell='<div style="font-size:9px;line-height:1.35;"><div><b>Cand:</b> '+_diagEsc(it.candidate_criteria||'—')+'</div><div style="margin-top:2px;"><b>Match:</b> '+_diagEsc(it.match_criteria||'—')+'</div></div>';
+    // P148 (yt only): the -A agenda-item twin for this hearing + the action taken.
+    var agCell='', outCell='';
+    if(isYt){
+      var agTip=_diagEsc((it.agenda_match_how||'')+(it.agenda_item_date?(' · agenda date '+it.agenda_item_date):'')+(it.agenda_item_name?(' · '+it.agenda_item_name):''));
+      var agLabel=_diagEsc(it.agenda_item_ord||it.agenda_item_name||'open');
+      agCell = it.agenda_item_id
+        ? (String(it.agenda_item_url||'').trim()
+            ? '<a href="'+escUrl(inlineViewerUrl(it.agenda_item_url))+'" target="_blank" rel="noopener" data-doc-link="agenda" title="'+agTip+'" style="font-size:10px;">'+agLabel+'</a>'
+            : '<span title="'+agTip+'" style="font-size:10px;">'+agLabel+'</span>')
+        : '<span title="no parsed agenda-document item matched this meeting / ordinance / name" style="color:var(--text-dim);">—</span>';
+      var outcomeTxt=String(it.outcome||'').trim()||String(it.action_taken||'').trim();
+      outCell = outcomeTxt
+        ? '<span style="font-size:10px;">'+_diagEsc(outcomeTxt)+'</span>'
+        : '<span style="color:var(--text-dim);">—</span>';
+    }
     var actCell = resolved
       ? '<span style="font-size:10px;color:#3ba55d;">✓ '+_diagEsc(it._aiResolved)+'</span>'
-      : '<div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;max-width:150px;margin-left:auto;">'+
+      : '<div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-start;max-width:170px;">'+
           '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;background:#1c7c3a;color:#fff;border-color:#1c7c3a;" title="Create a NEW Tracked Project from this item" onclick="aiTrack(\''+stream+'\',\''+id+'\')">＋ Track</button>'+
           '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;" title="Attach this item to an EXISTING Tracked Project" onclick="aiOpenAddTo(\''+stream+'\',\''+id+'\',this)">Add to… ▾</button>'+
+          '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;" title="Dismiss this item — hides it from these tabs (reversible in the backend via dismissAgendaItem&undo=true)" onclick="aiDismiss(\''+stream+'\',\''+id+'\',this)">✕ Dismiss</button>'+
         '</div>';
-    return '<tr data-ai-id="'+id+'" style="border-top:1px solid var(--border);'+(it.match_confidence==='None'?'':'')+'">'+
-      '<td style="padding:6px 8px;">'+_aiCandPill(it)+'</td>'+
-      '<td style="padding:6px 8px;">'+_aiMatchPill(it)+'</td>'+
-      '<td style="padding:6px 8px;vertical-align:top;">'+critCell+'</td>'+
-      '<td style="padding:6px 8px;white-space:nowrap;">'+_diagEsc(it.jurisdiction||'—')+'</td>'+
-      '<td style="padding:6px 8px;vertical-align:top;"><span class="cand-proj" title="Click to expand / collapse" onclick="this.classList.toggle(\'expanded\')">'+_diagEsc(it.project_name||'—')+'</span></td>'+
-      '<td style="padding:6px 8px;white-space:nowrap;font-size:10px;">'+_diagEsc(it.ordinance_number||'—')+'</td>'+
-      '<td style="padding:6px 8px;white-space:nowrap;">'+_diagEsc(it.request_type||'—')+'</td>'+
-      '<td style="padding:6px 8px;width:320px;max-width:360px;">'+descCell+'</td>'+
-      '<td style="padding:6px 8px;vertical-align:top;">'+(String(it.petitioner||'').trim()?'<span class="cand-petitioner" title="Click to expand / collapse" onclick="this.classList.toggle(\'expanded\')">'+_diagEsc(it.petitioner)+'</span>':'<span style="color:var(--text-dim);">—</span>')+'</td>'+
-      '<td style="padding:6px 8px;vertical-align:top;">'+_aiMatchedCell(it)+'</td>'+
-      '<td style="padding:6px 8px;white-space:nowrap;font-size:10px;">'+_diagEsc(it.meeting_date||'—')+'</td>'+
-      '<td style="padding:6px 8px;white-space:nowrap;">'+srcCell+'</td>'+
-      '<td style="padding:6px 8px;">'+actCell+'</td></tr>';
+    return '<tr data-ai-id="'+id+'" style="border-top:1px solid var(--border);">'+
+      '<td style="'+tdS+'">'+_aiCandPill(it)+'</td>'+
+      '<td style="'+tdS+'">'+_aiMatchPill(it)+'</td>'+
+      '<td style="'+tdS+'">'+critCell+'</td>'+
+      '<td style="'+tdS+'white-space:nowrap;">'+_diagEsc(it.jurisdiction||'—')+'</td>'+
+      '<td style="'+tdS+'">'+_aiMatchedCell(it)+'</td>'+
+      '<td style="'+tdS+'width:'+projW+'px;"><span class="cand-proj" title="Click to expand / collapse" onclick="this.classList.toggle(\'expanded\')">'+_diagEsc(it.project_name||'—')+'</span></td>'+
+      '<td style="'+tdS+'width:'+ordW+'px;max-width:'+ordW+'px;font-size:10px;word-break:break-word;">'+_diagEsc(it.ordinance_number||'—')+'</td>'+
+      '<td style="'+tdS+'white-space:nowrap;">'+_diagEsc(it.request_type||'—')+'</td>'+
+      '<td style="'+tdS+'width:320px;max-width:360px;">'+descCell+'</td>'+
+      '<td style="'+tdS+'">'+(String(it.petitioner||'').trim()?'<span class="cand-petitioner" title="Click to expand / collapse" onclick="this.classList.toggle(\'expanded\')">'+_diagEsc(it.petitioner)+'</span>':'<span style="color:var(--text-dim);">—</span>')+'</td>'+
+      '<td style="'+tdS+'white-space:nowrap;font-size:10px;">'+_diagEsc(it.meeting_date||'—')+'</td>'+
+      '<td style="'+tdS+'white-space:nowrap;">'+srcCell+'</td>'+
+      (isYt?('<td style="'+tdS+'">'+agCell+'</td><td style="'+tdS+'">'+outCell+'</td>'):'')+
+      '<td style="'+tdS+'">'+actCell+'</td></tr>';
   }).join('');
 
   var pager='';
@@ -10292,6 +10323,20 @@ function aiAddTo(stream, itemId, btn){
     }).catch(function(){ if(btn){ btn.disabled=false; btn.textContent='Add'; } });
 }
 
+// ── P148: per-item Dismiss (reversible backend stamp; row leaves the feed) ──
+function aiDismiss(stream, itemId, btn){
+  if(btn){ btn.disabled=true; btn.textContent='Dismissing…'; }
+  var base=getWebAppUrl(); if(!base) return;
+  fetch(base+'&action=admin_run&fn=dismissAgendaItem&item_id='+encodeURIComponent(itemId))
+    .then(function(r){return r.json();}).then(function(res){
+      var rr=res&&res.result;
+      if(!rr||!rr.ok){ if(btn){ btn.disabled=false; btn.textContent='Failed — retry'; } return; }
+      var s=_aiState[stream];
+      for(var i=0;i<s.data.length;i++){ if(String(s.data[i].item_id)===String(itemId)){ s.data.splice(i,1); break; } }
+      aiPopulateJuris(stream); aiRender(stream);
+    }).catch(function(){ if(btn){ btn.disabled=false; btn.textContent='✕ Dismiss'; } });
+}
+window.aiDismiss=aiDismiss;
 window.aiLoad=aiLoad; window.aiRender=aiRender; window.aiSetJuris=aiSetJuris; window.aiSetConf=aiSetConf;
 window.aiSetSearch=aiSetSearch; window.aiSetPageSize=aiSetPageSize; window.aiGoPage=aiGoPage; window.aiToggleAllDesc=aiToggleAllDesc;
 window.aiSetDate=aiSetDate; window.aiSetCustom=aiSetCustom;
