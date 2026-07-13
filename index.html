@@ -10002,8 +10002,8 @@ registerViewInit('candidates', candLoad);
 // Backend: getAgendaItemsFeedJSON / addAgendaItemToProject (+ create_tracked_project).
 // ═══════════════════════════════════════════════════════════════════════════
 var _aiState = {
-  ag: { data:[], loaded:false, juris:'', conf:'High', dateDays:7, dateFrom:'', dateTo:'', search:'', page:0, pageSize:50, descExp:false },
-  yt: { data:[], loaded:false, juris:'', conf:'High', dateDays:7, dateFrom:'', dateTo:'', search:'', page:0, pageSize:50, descExp:false }
+  ag: { data:[], loaded:false, juris:'', conf:'High', dateDays:7, dateFrom:'', dateTo:'', search:'', page:0, pageSize:50, descExp:false, sel:{} },
+  yt: { data:[], loaded:false, juris:'', conf:'High', dateDays:7, dateFrom:'', dateTo:'', search:'', page:0, pageSize:50, descExp:false, sel:{} }
 };
 // yyyy-mm-dd cutoff = today − N days (lexical compare works on ISO dates).
 function _aiCutoff(days){
@@ -10026,7 +10026,7 @@ function aiLoad(stream, force){
   fetch(base+'&action=admin_run&fn=getAgendaItemsFeedJSON&stream='+encodeURIComponent(stream)).then(function(r){return r.json();}).then(function(res){
     var rr=res&&res.result;
     if(!rr||!rr.ok){ el.innerHTML='<div style="color:var(--text-dim);">Could not load '+cfg.noun+': '+_diagEsc((rr&&rr.error)||(res&&res.error)||'unknown')+'</div>'; return; }
-    s.data=rr.items||[]; s.loaded=true; s.page=0;
+    s.data=rr.items||[]; s.loaded=true; s.page=0; s.sel={};
     aiPopulateJuris(stream); aiRender(stream);
   }).catch(function(e){ el.innerHTML='<div style="color:var(--text-dim);">Network error: '+_diagEsc(e.message)+'</div>'; });
 }
@@ -10134,12 +10134,24 @@ function aiRender(stream){
   if(!nAll){ el.innerHTML=summary+'<div style="color:var(--text-dim);padding:12px 0;">No parsed '+cfg.noun+' found.</div>'; return; }
   if(!nF){ el.innerHTML=summary+'<div style="color:var(--text-dim);padding:12px 0;">No items match the current filter. Adjust the jurisdiction / match-confidence / search filters above.</div>'; return; }
 
+  // P150: bulk Accept — selection (checkbox col) over acceptable rows only
+  // (matched project present, not yet linked, not already resolved this session).
+  var nSel=filtered.filter(function(it){ return s.sel[it.item_id] && _aiAcceptable(it); }).length;
+  var bulkBar='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px;font-size:11px;color:var(--text-dim);">'+
+    '<span><b style="color:inherit;">'+nSel+'</b> selected</span>'+
+    '<button class="refresh-btn" id="ai-'+stream+'-bulk-accept" style="font-size:10px;padding:3px 10px;background:#1c7c3a;color:#fff;border-color:#1c7c3a;'+(nSel?'':'opacity:.5;pointer-events:none;')+'" onclick="aiBulkAccept(\''+stream+'\')" title="Attach each selected item to its Matched Project (same as Add to… with the matched project chosen)">✓ Accept selected</button>'+
+    (nSel?'<button class="refresh-btn" style="font-size:10px;padding:3px 10px;" onclick="aiClearSel(\''+stream+'\')" title="Clear selection">Clear</button>':'')+
+    '<span id="ai-'+stream+'-bulk-status"></span></div>';
+
   // P148: per-stream layout — Ord# trimmed (ag −30%, yt −70% of its former
   // ~100px), the freed width moved onto Project; yt adds Agenda Item + Action.
   var isYt=(stream==='yt');
   var ordW=isYt?30:70, projW=isYt?210:170;
   var thS='padding:6px 8px;text-align:left;vertical-align:top;';
+  var pageAcceptable=pageRows.filter(_aiAcceptable);
+  var allPageSel=pageAcceptable.length>0 && pageAcceptable.every(function(it){ return s.sel[it.item_id]; });
   var head='<tr style="color:var(--text-dim);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">'+
+    '<th style="'+thS+'width:24px;"><input type="checkbox" onchange="aiSelectAllPage(\''+stream+'\',this)"'+(allPageSel?' checked':'')+(pageAcceptable.length?'':' disabled')+' title="Select all acceptable rows on this page" style="cursor:pointer;"></th>'+
     '<th style="'+thS+'" title="Candidate confidence: high if the item has an ordinance/case # or a named petitioner">Cand.</th>'+
     '<th style="'+thS+'" title="Tracked-Project match confidence: High (identifier hit) / Medium (summary only) / None">Match</th>'+
     '<th style="'+thS+'width:260px;">Criteria</th>'+
@@ -10192,7 +10204,12 @@ function aiRender(stream){
           '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;" title="Attach this item to an EXISTING Tracked Project" onclick="aiOpenAddTo(\''+stream+'\',\''+id+'\',this)">Add to… ▾</button>'+
           '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;" title="Dismiss this item — hides it from these tabs (reversible in the backend via dismissAgendaItem&undo=true)" onclick="aiDismiss(\''+stream+'\',\''+id+'\',this)">✕ Dismiss</button>'+
         '</div>';
+    // P150: bulk-Accept checkbox — only rows with an unlinked matched project.
+    var selCell=_aiAcceptable(it)
+      ? '<input type="checkbox" data-ai-sel="'+id+'" onchange="aiToggleSel(\''+stream+'\',\''+id+'\',this)"'+(s.sel[it.item_id]?' checked':'')+' style="cursor:pointer;">'
+      : '<span style="color:var(--text-dim);" title="'+(it._aiResolved?'already resolved':(it.auto_linked?'already linked to its matched project':'no matched project to accept'))+'">—</span>';
     return '<tr data-ai-id="'+id+'" style="border-top:1px solid var(--border);">'+
+      '<td style="'+tdS+'">'+selCell+'</td>'+
       '<td style="'+tdS+'">'+_aiCandPill(it)+'</td>'+
       '<td style="'+tdS+'">'+_aiMatchPill(it)+'</td>'+
       '<td style="'+tdS+'">'+critCell+'</td>'+
@@ -10219,7 +10236,7 @@ function aiRender(stream){
       '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;'+(s.page>=totalPages-1?'opacity:.4;pointer-events:none;':'')+'" onclick="aiGoPage(\''+stream+'\','+(s.page+1)+')">Next ›</button>'+
       '</div>';
   }
-  el.innerHTML=summary+'<div class="cand-table-scroll"><table style="width:100%;border-collapse:collapse;font-size:11px;"><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>'+pager;
+  el.innerHTML=summary+bulkBar+'<div class="cand-table-scroll"><table style="width:100%;border-collapse:collapse;font-size:11px;"><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>'+pager;
 }
 
 // ── per-item Track (create a NEW Tracked Project) ──────────────────────────
@@ -10333,9 +10350,61 @@ function aiDismiss(stream, itemId, btn){
       if(!rr||!rr.ok){ if(btn){ btn.disabled=false; btn.textContent='Failed — retry'; } return; }
       var s=_aiState[stream];
       for(var i=0;i<s.data.length;i++){ if(String(s.data[i].item_id)===String(itemId)){ s.data.splice(i,1); break; } }
+      delete s.sel[itemId];
       aiPopulateJuris(stream); aiRender(stream);
     }).catch(function(){ if(btn){ btn.disabled=false; btn.textContent='✕ Dismiss'; } });
 }
+// ── P150: bulk Accept — check rows, attach each to its Matched Project ─────
+// "Acceptable" = a Matched Project exists, no live link yet, not already
+// resolved this session. Accept = the same addAgendaItemToProject call the
+// per-row "Add to…" makes, with the matched project pre-chosen.
+function _aiAcceptable(it){ return !!it.matched_project_id && !it.auto_linked && !it._aiResolved; }
+function aiToggleSel(stream, id, cb){
+  var s=_aiState[stream];
+  if(cb&&cb.checked){ s.sel[id]=true; } else { delete s.sel[id]; }
+  aiRender(stream);
+}
+function aiSelectAllPage(stream, cb){
+  var s=_aiState[stream], on=!!(cb&&cb.checked);
+  document.querySelectorAll('#'+_aiCfg(stream).list+' input[data-ai-sel]').forEach(function(box){
+    var id=box.getAttribute('data-ai-sel');
+    if(on){ s.sel[id]=true; } else { delete s.sel[id]; }
+  });
+  aiRender(stream);
+}
+function aiClearSel(stream){ _aiState[stream].sel={}; aiRender(stream); }
+// Sequential (one backend call at a time — each accept folds aliases + re-scans
+// the project, so parallel calls would hammer the Sheet).
+function aiBulkAccept(stream){
+  var s=_aiState[stream];
+  var rows=_aiFiltered(stream).filter(function(it){ return s.sel[it.item_id] && _aiAcceptable(it); });
+  if(!rows.length) return;
+  if(!window.confirm('Accept '+rows.length+' selected item'+(rows.length===1?'':'s')+'? Each will be attached to its Matched Project (name/ord # folded into aliases, references re-scanned).')) return;
+  var base=getWebAppUrl(); if(!base) return;
+  var btn=document.getElementById('ai-'+stream+'-bulk-accept'); if(btn){ btn.style.pointerEvents='none'; btn.style.opacity='.5'; }
+  var statusEl=document.getElementById('ai-'+stream+'-bulk-status');
+  var done=0, failed=0, total=rows.length;
+  function step(i){
+    if(i>=rows.length){
+      if(typeof tpLoad==='function'){ try{ tpLoad(true); }catch(e){} }   // refresh projects once at the end
+      aiRender(stream);
+      var st=document.getElementById('ai-'+stream+'-bulk-status');
+      if(st) st.textContent='Accepted '+done+' / '+total+(failed?(' · '+failed+' failed'):'')+'.';
+      return;
+    }
+    var it=rows[i];
+    if(statusEl) statusEl.textContent='Accepting '+(i+1)+' / '+total+'…';
+    fetch(base+'&action=admin_run&fn=addAgendaItemToProject&item_id='+encodeURIComponent(it.item_id)+'&project_id='+encodeURIComponent(it.matched_project_id))
+      .then(function(r){return r.json();}).then(function(res){
+        var rr=res&&res.result;
+        if(rr&&rr.ok){ done++; it._aiResolved='Accepted → '+(it.matched_project_name||it.matched_project_id); it.auto_linked=true; delete s.sel[it.item_id]; }
+        else { failed++; }
+      }).catch(function(){ failed++; }).then(function(){ step(i+1); });
+  }
+  step(0);
+}
+window.aiToggleSel=aiToggleSel; window.aiSelectAllPage=aiSelectAllPage;
+window.aiClearSel=aiClearSel; window.aiBulkAccept=aiBulkAccept;
 window.aiDismiss=aiDismiss;
 window.aiLoad=aiLoad; window.aiRender=aiRender; window.aiSetJuris=aiSetJuris; window.aiSetConf=aiSetConf;
 window.aiSetSearch=aiSetSearch; window.aiSetPageSize=aiSetPageSize; window.aiGoPage=aiGoPage; window.aiToggleAllDesc=aiToggleAllDesc;
