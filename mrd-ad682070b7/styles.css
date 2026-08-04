@@ -1,0 +1,3494 @@
+  /* Fonts: system sans stack (Zonda parity) — IBM Plex import removed P93 Phase 2. */
+
+  /* P93 Phase 2 — DARK theme derived from the Zonda visual format:
+     deep-navy ground (#1b4965 family), teal #2c7da0 as the primary highlight,
+     amber #e8a30c as the restrained accent. */
+  :root {
+    --navy: #1b4965;
+    --navy-dark: #0f2c3f;
+    --navy-mid: #2c7da0;
+    --navy-light: #4a9fc4;
+    --accent: #4a9fc4;
+    --accent-light: #6bb6d4;
+    --accent-warn: #e8a30c;
+    /* P94 r3: brighter/fluorescent name color (TP names + county rail names) and
+       fluorescent yellow (rail tagged-doc links + per-project + button). Dark. */
+    --tp-bright: #3be3ff;
+    --tp-yellow: #ffe81a;
+    --white: #f4f6f9;
+    --gray-100: #e3e9f0;
+    --gray-200: #c2ccd9;
+    --gray-400: #8b96a8;
+    --gray-600: #4a5568;
+    --success: #3fa06a;
+    --warn: #e8a30c;
+    --profile-a: #4a9fc4;
+    --profile-b: #3fa06a;
+    --profile-c: #d4615a;
+    --bg: #0e2233;
+    --panel: #143247;
+    --panel-hover: #1b4060;
+    --border: rgba(255,255,255,0.09);
+    --text: #cdd9e4;
+    --text-dim: #8198ab;
+    --intel-bg: #0a1a28;
+  }
+
+  /* P86 — Light Mode "Cool Slate Elevated" · replaces P57 Palette A.
+     Picked from p86_light_palette_revision.html mockup. Key shifts vs Palette A:
+       - Page bg pure-white (#fff) → cool slate (#e8ecf2) so white panels lift
+       - Sidebar bg #eef1f5 → #d8dee8 (deeper slate, parity with new bg gap)
+       - Borders rgba(0,0,0,0.16) → rgba(30,41,59,0.22) — table grids actually visible
+       - Stat-box / card bg #f5f7fa → #ffffff with --card-shadow elevation
+       - Crimson #c0392b replaces blood-red #8a1e1e for ✗ No / Reject CTAs
+       - Navy restored to #1b4965 (dark-theme parity) — was #14304f Palette A
+       - Text deepened to #1f2733 (cool near-black) for AAA contrast
+       - --card-shadow new variable — `0 1px 3px ... 0 1px 2px ...` lift */
+  /* P93 Phase 2 — LIGHT theme = the Zonda dashboard palette.
+     bg #f1f4f8 slate · panels #fff · ink #1f2733 · muted #6b7785 · lines #dfe5ec
+     navy #1b4965 (structure/values/titles) · teal #2c7da0 (actions/links)
+     amber #e8a30c (restrained accent only) · good #2e8b57 · bad #c0392b */
+  [data-theme="light"] {
+    --bg: #f1f4f8;
+    --panel: #ffffff;
+    --panel-hover: #f3f9fc;
+    --border: #dfe5ec;
+    --text: #1f2733;
+    --text-dim: #6b7785;
+    --intel-bg: #e8edf3;
+    --navy: #1b4965;
+    --navy-dark: #143247;
+    --navy-mid: #2c7da0;
+    --navy-light: #3a92b8;
+    --accent: #1b4965;
+    --accent-light: #2c7da0;
+    --accent-warn: #e8a30c;
+    /* P94 r3: light-theme variants — vivid but legible on white (pure
+       fluorescent values would wash out on a light bg). */
+    --tp-bright: #0891b2;
+    --tp-yellow: #9a7b0a;
+    --white: #1f2733;
+    --gray-100: #dfe5ec;
+    --gray-200: #b8c2cf;
+    --gray-400: #6b7785;
+    --gray-600: #3a4452;
+    --success: #2e8b57;
+    --warn: #e8a30c;
+    --profile-a: #1b4965;
+    --profile-b: #2e8b57;
+    --profile-c: #c0392b;
+    --card-shadow: 0 1px 3px rgba(16,30,54,0.08), 0 1px 2px rgba(16,30,54,0.06);
+  }
+  /* ── Topbar ──
+     The topbar bg is dark navy in BOTH themes (an "inverted island").
+     Foreground colors must therefore be light regardless of page theme,
+     so override every interior text/icon color explicitly. */
+  [data-theme="light"] .topbar { background: #1b4965; border-bottom-color: rgba(255,255,255,0.12); }
+  [data-theme="light"] .topbar-logo { color: #ffffff; }
+  [data-theme="light"] .topbar-logo span { color: rgba(255,255,255,0.65); }
+  [data-theme="light"] .topbar-btn { color: rgba(255,255,255,0.78); }
+  [data-theme="light"] .topbar-btn:hover { background: rgba(255,255,255,0.10); color: #ffffff; }
+  [data-theme="light"] .topbar-btn.active { background: rgba(255,255,255,0.12); color: #ffffff; box-shadow: inset 0 -3px 0 #e8a30c; }
+  [data-theme="light"] .topbar-badge {
+    background: rgba(255,255,255,0.14);
+    border-color: rgba(255,255,255,0.24);
+    color: #cfe1f5;
+  }
+  [data-theme="light"] .refresh-btn {
+    background: rgba(255,255,255,0.10);
+    border-color: rgba(255,255,255,0.24);
+    color: rgba(255,255,255,0.85);
+  }
+  [data-theme="light"] .refresh-btn:hover { background: rgba(255,255,255,0.18); color: #ffffff; border-color: rgba(255,255,255,0.35); }
+  [data-theme="light"] .export-btn { background: #2c7da0; color: #ffffff; }
+  [data-theme="light"] .export-btn:hover { background: #256a87; }
+  /* ── Sidebar ── */
+  [data-theme="light"] .sidebar { background: #ffffff; border-right-color: #dfe5ec; }
+  [data-theme="light"] .sidebar .county-header { color: #1b4965; }
+  [data-theme="light"] .sidebar .muni-item { color: #14304f; }
+  [data-theme="light"] .sidebar .muni-item:hover { background: rgba(30,58,95,0.10); }
+  [data-theme="light"] .sidebar .muni-item.active { background: rgba(30,58,95,0.18); color: #1f2733; font-weight: 600; }
+  [data-theme="light"] #sidebar-search { background: #fff; border-color: rgba(30,41,59,0.22); color: #1f2733; }
+  /* ── Overview ── */
+  [data-theme="light"] .overview-title { color: #1f2733; }
+  [data-theme="light"] .overview-sub { color: #6b7785; }
+  /* Panels elevate off the slate bg via shadow rather than tinted bg. */
+  [data-theme="light"] .stat-box { background: #ffffff; border: 1px solid rgba(30,41,59,0.16); box-shadow: var(--card-shadow); }
+  [data-theme="light"] .stat-value { color: var(--tp-bright); }
+  [data-theme="light"] .stat-label { color: #6b7785; }
+  [data-theme="light"] .county-card { background: #ffffff; border-color: rgba(30,41,59,0.16); box-shadow: var(--card-shadow); }
+  [data-theme="light"] .county-card .county-card-title { color: #1b4965; }
+  /* ── Members view ── */
+  [data-theme="light"] .muni-title { color: #1f2733; }
+  [data-theme="light"] .muni-county { color: #6b7785; }
+  [data-theme="light"] .muni-summary-card { background: #ffffff; border-color: rgba(30,41,59,0.16); box-shadow: var(--card-shadow); }
+  [data-theme="light"] .member-card { background: #ffffff; border-color: rgba(30,41,59,0.16); box-shadow: var(--card-shadow); }
+  [data-theme="light"] .member-card:hover { background: #f0f4fa; border-color: rgba(30,58,95,0.32); }
+  [data-theme="light"] .member-name { color: #1f2733; }
+  [data-theme="light"] .member-role { color: #6b7785; }
+  [data-theme="light"] .member-detail { background: #f0f4fa; border-left-color: rgba(30,41,59,0.18); }
+  [data-theme="light"] .member-detail .member-detail-name { color: #1f2733; }
+  [data-theme="light"] .members-tab { color: #6b7785; }
+  [data-theme="light"] .members-tab:hover { color: #1b4965; }
+  [data-theme="light"] .members-tab.active { background: rgba(30,73,101,0.10); color: #1b4965; box-shadow: inset 0 -3px 0 #e8a30c; border-bottom-color: transparent; }
+  [data-theme="light"] .members-tabs { border-bottom-color: rgba(30,41,59,0.18); }
+  [data-theme="light"] .profile-badge { border-color: rgba(30,41,59,0.28); }
+  /* ── Settings ── */
+  [data-theme="light"] .settings-card { background: #ffffff; border-color: rgba(30,41,59,0.16); box-shadow: var(--card-shadow); }
+  [data-theme="light"] .settings-card-title { color: #1b4965; }
+  [data-theme="light"] .settings-input,
+  [data-theme="light"] .settings-select { background: #ffffff; border-color: rgba(30,41,59,0.22); color: #1f2733; }
+  [data-theme="light"] .settings-save-btn { background: #1b4965; color: #fff; }
+  /* ── Public Hearings ── */
+  [data-theme="light"] .hearings-th { background: #eef3f9; color: #1f2733; border-bottom: 2px solid #dfe5ec; }
+  [data-theme="light"] .hearings-td { color: #1f2733; border-bottom-color: rgba(30,41,59,0.18); }
+  [data-theme="light"] .hearing-row { border-bottom-color: rgba(30,41,59,0.18); }
+  [data-theme="light"] .hearings-table-row:hover { background: rgba(30,58,95,0.06); }
+  /* P69: YouTube button repainted to match Agenda/Minutes default (blue palette). */
+  [data-theme="light"] .hearing-link.yt { background: rgba(30,58,95,0.10); color: #1b4965; border-color: rgba(30,58,95,0.32); }
+  /* P58.8 r5: light-theme teal default / orange flagged for Summary. */
+  [data-theme="light"] .hearing-link.doc { background: rgba(44,125,160,0.10); color: #2c7da0; border-color: rgba(44,125,160,0.32); }
+  /* P75: flagged Summary repainted to crimson per Option 3 CTA palette. */
+  [data-theme="light"] .hearing-link.doc.summary-flagged { background: rgba(185,28,28,0.12); color: #c0392b; border-color: rgba(185,28,28,0.45); }
+  /* P80 Stage 1.9: coverage_state visitor palette (light theme). */
+  [data-theme="light"] .hearing-link.doc.summary-partial-accept,
+  [data-theme="light"] .ph-meeting-link.yt.summary-partial-accept { background: rgba(232,163,12,0.12); color: #b87a0a; border-color: rgba(232,163,12,0.36); }
+  [data-theme="light"] .hearing-link.doc.summary-partial-nosrc,
+  [data-theme="light"] .ph-meeting-link.yt.summary-partial-nosrc { background: rgba(100,116,139,0.12); color: #475569; border-color: rgba(100,116,139,0.32); }
+  [data-theme="light"] .summary-pending-placeholder { color: #64748b; font-style: italic; font-size: 10px; }
+  /* P58.8 r5: Agenda+Minutes light defaults → blue. Green is approved-state overlay. */
+  [data-theme="light"] .hearing-link.ag,
+  [data-theme="light"] .hearing-link.min { background: rgba(30,58,95,0.10); color: #1b4965; border-color: rgba(30,58,95,0.32); }
+  [data-theme="light"] .ag-item.ag-approved .hearing-link.ag,
+  [data-theme="light"] .mn-cell.mn-approved .hearing-link.min,
+  [data-theme="light"] .hearing-link.doc.summary-confirmed { background: rgba(21,128,61,0.14); color: #2e8b57; border-color: rgba(21,128,61,0.38); }
+  [data-theme="light"] .yt-resubmit-btn { background: rgba(30,58,95,0.08); border-color: rgba(30,58,95,0.26); color: #1b4965; }
+  [data-theme="light"] .ag-correct-btn.yes { background: rgba(21,128,61,0.10); border-color: rgba(21,128,61,0.32); color: #2e8b57; }
+  /* P86: crimson CTA — was #8a1e1e (dark blood red), now slate-palette crimson. */
+  [data-theme="light"] .ag-correct-btn.no { background: rgba(185,28,28,0.10); border-color: rgba(185,28,28,0.32); color: #c0392b; }
+  [data-theme="light"] .ph-review-btn { background: rgba(30,58,95,0.08); border-color: rgba(30,58,95,0.26); color: #6b7785; }
+  [data-theme="light"] .ph-review-btn.done { background: rgba(21,128,61,0.10); border-color: rgba(21,128,61,0.32); color: #2e8b57; }
+  /* ── Intel Feed ── */
+  [data-theme="light"] .intel-item { background: #ffffff; border-color: rgba(30,41,59,0.14); box-shadow: var(--card-shadow); }
+  [data-theme="light"] .tag-filter-btn { background: rgba(30,58,95,0.08); border-color: rgba(30,58,95,0.22); color: #6b7785; }
+  /* ── Gemini chat ── */
+  [data-theme="light"] .gemini-chat-header { background: rgba(30,58,95,0.10); color: #1b4965; }
+  [data-theme="light"] .gemini-chat-input { background: #ffffff; border-color: rgba(30,41,59,0.22); color: #1f2733; }
+  /* ── Tracked projects ── */
+  [data-theme="light"] .tracked-project-card { background: #ffffff; border-color: rgba(30,41,59,0.16); box-shadow: var(--card-shadow); }
+  /* ── Schedule ── */
+  [data-theme="light"] .sched-step { border-left-color: #2c7da0; }
+  [data-theme="light"] .sched-step::before { background: #2c7da0; }
+  [data-theme="light"] .sched-step-date { color: #2c7da0; }
+  /* ── Warning banner ── */
+  [data-theme="light"] .muni-warn-banner { background: rgba(232,163,12,0.10); border-color: rgba(232,163,12,0.28); color: #b87a0a; }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  
+  body {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* TOP NAV */
+  .topbar {
+    background: var(--navy-dark);
+    border-bottom: 1px solid var(--border);
+    padding: 0 20px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-shrink: 0;
+    z-index: 100;
+  }
+  .topbar-logo {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    color: #ffffff;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+  }
+  .topbar-logo span { color: var(--gray-400); font-weight: 400; }
+  .topbar-nav {
+    display: flex;
+    gap: 2px;
+    flex: 1;
+  }
+  .topbar-btn {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 6px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    letter-spacing: 0.03em;
+    transition: all 0.15s;
+  }
+  .topbar-btn:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+  .topbar-btn.active { background: rgba(255,255,255,0.10); color: #ffffff; box-shadow: inset 0 -3px 0 #e8a30c; }
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .topbar-badge {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 10px;
+    background: rgba(46,95,160,0.3);
+    border: 1px solid rgba(46,95,160,0.5);
+    color: #7aacdf;
+    padding: 2px 8px;
+    border-radius: 3px;
+    letter-spacing: 0.05em;
+  }
+  .export-btn {
+    background: var(--accent);
+    color: var(--navy-dark);
+    border: none;
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 5px 14px;
+    border-radius: 3px;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    transition: background 0.15s;
+  }
+  .export-btn:hover { background: var(--accent-light); }
+  .refresh-btn {
+    background: rgba(255,255,255,0.05);
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 5px 12px;
+    border-radius: 3px;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: all 0.15s;
+  }
+  .refresh-btn:hover { background: rgba(255,255,255,0.1); color: var(--text); border-color: rgba(255,255,255,0.15); }
+  .refresh-btn.loading { color: var(--accent); border-color: rgba(232,160,32,0.4); cursor: wait; }
+  .refresh-btn.ok  { color: #6dc49a; border-color: rgba(26,122,74,0.5); }
+  .refresh-btn.err { color: #e08888; border-color: rgba(200,50,50,0.5); }
+
+  /* MAIN LAYOUT */
+  .main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    position: relative; /* P115: anchor for the sidebar collapse toggle */
+  }
+
+  /* LEFT SIDEBAR */
+  .sidebar {
+    width: 260px;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow: hidden;
+    transition: width .18s ease; /* P115: animate collapse/expand */
+  }
+  /* P115: collapsible County/Muni rail. Default expanded; toggle button lives
+     in .main so it stays visible when the rail is at width 0. */
+  .sidebar.collapsed { width: 0; border-right: none; }
+  .sidebar-toggle {
+    position: absolute; top: 12px; left: 260px;
+    width: 18px; height: 30px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--panel); color: var(--text-dim);
+    border: 1px solid var(--border); border-left: none;
+    border-radius: 0 6px 6px 0;
+    cursor: pointer; z-index: 30; font-size: 13px; line-height: 1;
+    padding: 0; transition: left .18s ease;
+  }
+  .sidebar-toggle:hover { color: var(--text); background: var(--card, #1a1a1a); }
+  .main.sidebar-collapsed .sidebar-toggle { left: 0; }
+  .sidebar-header {
+    padding: 12px 14px 8px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .sidebar-search {
+    width: 100%;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 12px;
+    padding: 6px 10px;
+    outline: none;
+    transition: border 0.15s;
+  }
+  .sidebar-search:focus { border-color: rgba(232,160,32,0.4); }
+  .sidebar-search::placeholder { color: var(--text-dim); }
+  .sidebar-scroll { overflow-y: auto; flex: 1; }
+  .sidebar-scroll::-webkit-scrollbar { width: 4px; }
+  .sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+  .sidebar-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+  .county-group { border-bottom: 1px solid var(--border); }
+  .county-header {
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    background: rgba(0,0,0,0.2);
+    transition: background 0.15s;
+  }
+  .county-header:hover { background: rgba(0,0,0,0.3); }
+  .county-name {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    /* P94 r3: brighter/fluorescent for legibility (matches TP names). */
+    color: var(--tp-bright);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .county-count {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+  .county-arrow {
+    color: var(--text-dim);
+    font-size: 10px;
+    transition: transform 0.2s;
+  }
+  .county-arrow.open { transform: rotate(90deg); }
+
+  .muni-list { display: none; }
+  .muni-list.open { display: block; }
+
+  .muni-item {
+    padding: 6px 14px 6px 22px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: background 0.1s;
+    border-left: 2px solid transparent;
+  }
+  .muni-item:hover { background: var(--panel-hover); }
+  .muni-item.active {
+    background: rgba(232,160,32,0.08);
+    border-left-color: var(--accent);
+  }
+  .muni-name { font-size: 12px; color: var(--text); }
+  .muni-meta {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .profile-badge {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 9px;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 2px;
+    letter-spacing: 0.05em;
+  }
+  .badge-a { background: rgba(42,95,165,0.25); color: #7aacdf; border: 1px solid rgba(42,95,165,0.4); }
+  .badge-b { background: rgba(26,122,74,0.25); color: #6dc49a; border: 1px solid rgba(26,122,74,0.4); }
+  .badge-c { background: rgba(139,48,48,0.25); color: #e08888; border: 1px solid rgba(139,48,48,0.4); }
+  .muni-count { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size: 9px; color: var(--text-dim); }
+
+  /* MAIN CONTENT */
+  .content {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* VIEWS */
+  .view { display: none; height: 100%; overflow: auto; }
+  .view.active { display: flex; flex-direction: column; }
+  .view::-webkit-scrollbar { width: 6px; }
+  .view::-webkit-scrollbar-track { background: transparent; }
+  .view::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+
+  /* OVERVIEW VIEW */
+  #view-overview {
+    padding: 20px;
+    gap: 16px;
+  }
+  .overview-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .overview-title {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--white);
+  }
+  .overview-sub { font-size: 12px; color: var(--text-dim); margin-top: 3px; }
+  .stat-row {
+    display: flex;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  .stat-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 16px;
+    flex: 1;
+    min-width: 0;
+  }
+  .stat-label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; }
+  .stat-value { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size: 22px; font-weight: 600; color: var(--tp-bright); }
+  .stat-sub { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+
+  .county-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+    flex: 1;
+    align-content: start;
+    align-items: start;
+  }
+  .county-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 8px 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-self: start;
+  }
+  .county-card:hover { border-color: rgba(232,160,32,0.3); background: var(--panel-hover); }
+  .county-card-name {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--tp-bright);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .county-card-munis { font-size: 10px; color: var(--text-dim); }
+  .county-card-profiles {
+    display: flex;
+    gap: 3px;
+    flex-wrap: wrap;
+  }
+  .county-card-stat {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 9px;
+    color: var(--text-dim);
+    border-top: 1px solid var(--border);
+    padding-top: 4px;
+    margin-top: 2px;
+  }
+
+  /* MUNICIPALITY VIEW */
+  #view-muni {
+    padding: 0;
+    overflow: hidden;
+  }
+  .muni-view-inner {
+    display: flex;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .muni-panel {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .muni-panel::-webkit-scrollbar { width: 6px; }
+  .muni-panel::-webkit-scrollbar-track { background: transparent; }
+  .muni-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
+
+  .muni-title-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .muni-title {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--white);
+  }
+  .muni-county { font-size: 12px; color: var(--text-dim); font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; }
+  .muni-archetype-tag {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 3px;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .tag-a { background: rgba(42,95,165,0.2); color: #7aacdf; border: 1px solid rgba(42,95,165,0.4); }
+  .tag-b { background: rgba(26,122,74,0.2); color: #6dc49a; border: 1px solid rgba(26,122,74,0.4); }
+  .tag-c { background: rgba(139,48,48,0.2); color: #e08888; border: 1px solid rgba(139,48,48,0.4); }
+
+  .muni-summary-box {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px;
+  }
+  /* P58.7 R3: collapsible header (caret toggle inside the lighter panel). */
+  .muni-summary-toggle { cursor: pointer; user-select: none; display: flex; align-items: center; gap: 8px; margin-bottom: 0; }
+  .muni-summary-box.open .muni-summary-toggle { margin-bottom: 10px; }
+  .muni-summary-caret { display: inline-block; width: 10px; text-align: center; color: var(--accent); }
+  .muni-summary-toggle:hover { color: var(--text); }
+
+  /* P58.7 R4: divider between Tracked Projects and members tabs row. */
+  .muni-section-divider { height: 1px; background: var(--border); margin: 4px 0; opacity: 0.7; }
+
+  /* P58.7 R6: sticky highlight on the last-clicked Agenda/Summary/Minutes button. */
+  a.hearing-link.last-doc-selected,
+  a.ph-meeting-link.last-doc-selected,
+  a.tp-doc-link.last-doc-selected {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+    box-shadow: 0 0 0 2px rgba(232,160,32,0.25);
+    font-weight: 700;
+  }
+
+  /* P58.7 R13d: high-contrast link styling for the Tracked Projects table.
+     Default <a> inherits browser blue which has poor contrast on the dark
+     navy table. Use the accent color (matches other doc-link surfaces). */
+  a.tp-doc-link {
+    color: var(--accent);
+    font-weight: 600;
+    text-decoration: underline;
+    text-decoration-color: rgba(232,160,32,0.5);
+    text-underline-offset: 2px;
+  }
+  a.tp-doc-link:hover { color: var(--accent-light, #f1c068); text-decoration-color: var(--accent); }
+  a.tp-doc-link:visited { color: var(--accent); }
+  [data-theme="light"] a.tp-doc-link { color: #b87a08; text-decoration-color: rgba(184,122,8,0.5); }
+  [data-theme="light"] a.tp-doc-link:hover { color: #8b5a00; }
+
+  /* P94 item 2: Summary / Agenda links on the GLOBAL Tracked Projects page take
+     the teal the project names used to be (#14b8a6 dark / #0f766e light). Scoped
+     class so the shared .tp-doc-link surfaces elsewhere keep the accent color.
+     Equal specificity to a.tp-doc-link — source order (later) makes these win. */
+  a.tp-page-doc-link { color: #14b8a6; text-decoration-color: rgba(20,184,166,0.5); }
+  a.tp-page-doc-link:hover { color: #36cfbf; text-decoration-color: #14b8a6; }
+  a.tp-page-doc-link:visited { color: #14b8a6; }
+  [data-theme="light"] a.tp-page-doc-link { color: #0f766e; text-decoration-color: rgba(15,118,110,0.5); }
+  [data-theme="light"] a.tp-page-doc-link:hover { color: #0b5a54; }
+  [data-theme="light"] a.tp-page-doc-link:visited { color: #0f766e; }
+
+  /* P94 r3: tagged-document links in the per-muni Tracked Projects RAIL recolored
+     to bright/fluorescent yellow (var(--tp-yellow): #ffe81a dark / #9a7b0a light —
+     pure yellow is illegible on the light bg). The rail anchors carry .tp-doc-link
+     too, so override here. */
+  a.tpr-doc-link { color: var(--tp-yellow); text-decoration-color: rgba(255,232,26,0.45); }
+  a.tpr-doc-link:hover { color: #fff05a; text-decoration-color: var(--tp-yellow); }
+  a.tpr-doc-link:visited { color: var(--tp-yellow); }
+  [data-theme="light"] a.tpr-doc-link { color: var(--tp-yellow); text-decoration-color: rgba(154,123,10,0.5); }
+  [data-theme="light"] a.tpr-doc-link:hover { color: #7d6408; }
+  [data-theme="light"] a.tpr-doc-link:visited { color: var(--tp-yellow); }
+
+  /* P58.7 R13c: status dropdown in the Tracked Projects table. */
+  .tp-status-select {
+    /* P95: dropdown ground = a shade darker than the main window blue (--bg #0e2233). */
+    background: #0a1c2b;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 11px;
+    padding: 3px 6px;
+    cursor: pointer;
+    min-width: 80px;
+  }
+  .tp-status-select:focus { outline: 1px solid var(--accent); }
+
+  /* P58.7 R7: when on the per-juris Public Hearings sub-tab, hide the
+     right-side member-detail pane so the muni-panel expands full-width. */
+  .muni-view-inner.hide-member-detail .member-detail { display: none; }
+
+  /* P91 r3: when on the Council Members or Plan Commission Members sub-tab,
+     hide the Tracked Projects rail so the Member profile rail can take its
+     place on the right. Tab-driven via applyMuniDetailVisibility. */
+  .muni-view-inner.hide-tp-rail .muni-tp-rail { display: none; }
+
+  /* P58.8: Tracked Projects rail. Sticky right column on per-juris page,
+     populated by renderTpRail(). Sits between muni-panel and member-detail.
+     Has its own inner scroll so the muni-panel scroll stays independent.
+     Hidden when no muni is selected (no #muni-tp-rail content). */
+  .muni-tp-rail {
+    flex: 0 0 300px;
+    overflow-y: auto;
+    border-left: 1px solid var(--border);
+    background: rgba(255,255,255,0.015);
+    padding: 16px 14px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    font-size: 12px;
+  }
+  .muni-tp-rail:empty { display: none; }
+  [data-theme="light"] .muni-tp-rail { background: rgba(0,0,0,0.015); border-left-color: rgba(0,0,0,0.1); }
+  .muni-tp-rail::-webkit-scrollbar { width: 6px; }
+  .muni-tp-rail::-webkit-scrollbar-track { background: transparent; }
+  .muni-tp-rail::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
+
+  /* ============================================================
+     P115: Project Candidates — right rail listing Tracked Projects
+     grouped by Muni. Two-pane flex layout; rail width matches the
+     left County/Muni sidebar (260px). Rail collapsible (default
+     expanded); per-Muni groups collapsible (default collapsed).
+     ============================================================ */
+  .cand-layout { flex: 1; display: flex; flex-direction: row; min-height: 0; overflow: hidden; }
+  .cand-main { flex: 1; overflow-y: auto; min-width: 0; }
+  .cand-tp-rail {
+    flex: 0 0 260px; width: 260px; overflow-y: auto;
+    border-left: 1px solid var(--border);
+    background: rgba(255,255,255,0.015);
+    padding: 16px 14px 24px;
+    font-size: 12px;
+    transition: flex-basis .18s ease;
+  }
+  .cand-tp-rail.collapsed { flex-basis: 26px; width: 26px; padding: 10px 0; overflow: hidden; }
+  [data-theme="light"] .cand-tp-rail { background: rgba(0,0,0,0.015); border-left-color: rgba(0,0,0,0.1); }
+  .cand-tp-rail::-webkit-scrollbar { width: 6px; }
+  .cand-tp-rail::-webkit-scrollbar-track { background: transparent; }
+  .cand-tp-rail::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
+  .ctr-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; gap: 8px; }
+  .ctr-title { font-size: 12px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--text); }
+  .ctr-title-count { color: var(--text-dim); font-weight: 400; margin-left: 4px; }
+  .ctr-collapse, .ctr-expand {
+    background: transparent; border: 1px solid var(--border); color: var(--text-dim);
+    border-radius: 5px; cursor: pointer; font-size: 12px; line-height: 1; padding: 3px 7px;
+  }
+  .ctr-collapse:hover, .ctr-expand:hover { color: var(--text); }
+  .ctr-expand { width: 100%; padding: 8px 0; }
+  .ctr-muni { border-top: 1px solid var(--border); }
+  .ctr-muni-head {
+    display: flex; align-items: center; gap: 6px; padding: 7px 2px;
+    cursor: pointer; user-select: none; color: var(--text);
+  }
+  .ctr-muni-head:hover { color: var(--accent, #e8a020); }
+  .ctr-muni-arrow { display: inline-block; transition: transform .15s ease; font-size: 10px; color: var(--text-dim); }
+  .ctr-muni-arrow.open { transform: rotate(90deg); }
+  .ctr-muni-name { flex: 1; font-weight: 600; font-size: 12px; color: var(--tp-bright); /* P116: match left-rail .county-name color; .ctr-proj-name stays var(--text) */ }
+  .ctr-muni-count { color: var(--text-dim); font-size: 11px; }
+  .ctr-muni-list { display: none; padding: 2px 0 8px 16px; }
+  .ctr-muni-list.open { display: block; }
+  .ctr-proj { padding: 5px 0; border-top: 1px dotted var(--border); }
+  .ctr-proj:first-child { border-top: none; }
+  .ctr-proj-name { font-weight: 600; font-size: 11.5px; color: var(--text); }
+  .ctr-proj-meta { font-size: 10.5px; color: var(--text-dim); margin-top: 2px; }
+  .ctr-empty { color: var(--text-dim); padding: 10px 2px; }
+
+  .tpr-header {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .tpr-title {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 11px; font-weight: 600;
+    color: var(--text);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .tpr-title-count { color: var(--text-dim); font-weight: 400; margin-left: 4px; }
+
+  .tpr-empty {
+    color: var(--text-dim);
+    font-style: italic;
+    padding: 12px 0;
+    text-align: center;
+    font-size: 11px;
+  }
+
+  .tpr-project {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .tpr-project-head {
+    display: flex; align-items: flex-start; gap: 6px;
+  }
+  .tpr-project-name {
+    flex: 1; min-width: 0;
+    font-weight: 600;
+    /* P94 r3: brighter/fluorescent for legibility — fluorescent cyan #3be3ff in
+       dark, vivid cyan #0891b2 in light (var(--tp-bright)). Shared with
+       .tp-project-name on the global Tracked Projects page + .county-name rail.
+       P95 r2: rail names recolored to exactly match the left-rail county names
+       (full var(--tp-bright), no dimming). */
+    color: var(--tp-bright);
+    line-height: 1.3;
+    word-break: break-word;
+  }
+
+  /* P94 r3: matching rule for the global Tracked Projects page project-name cell. */
+  .tp-project-name {
+    font-weight: 600;
+    color: var(--tp-bright);
+  }
+  .tpr-project-ord {
+    font-weight: 400;
+    color: var(--text-dim);
+    font-size: 10px;
+    margin-left: 6px;
+  }
+  .tpr-project-meta {
+    font-size: 10px;
+    color: var(--text-dim);
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  }
+
+  /* When the per-juris hearings sub-tab gives the muni-panel full width
+     (hide-member-detail), we still want the rail visible — only member-detail
+     should disappear. No extra rule needed; default behavior is correct. */
+
+  /* P58.8 commit 4: Add Project button in rail header. P58.8 r3: allow text
+     to wrap to two lines when the rail is narrow ("+ Add" / "Project" stack).
+     P75: repainted to green so the rail action is visually distinct from the
+     orange accent already used across other rail headers. */
+  .tpr-add-btn {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 3px;
+    background: rgba(26,122,74,0.22);
+    color: #6dc49a;
+    border: 1px solid rgba(26,122,74,0.5);
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.2;
+    flex: 0 0 auto;
+    max-width: 90px;
+  }
+  .tpr-add-btn:hover:not(:disabled) { background: rgba(26,122,74,0.34); }
+  .tpr-add-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  /* P75 light-theme parity. */
+  [data-theme="light"] .tpr-add-btn { background: rgba(13,90,42,0.15); color: #0d5428; border-color: rgba(13,90,42,0.4); }
+  [data-theme="light"] .tpr-add-btn:hover:not(:disabled) { background: rgba(13,90,42,0.25); }
+
+  /* P58.8 commit 4: Add-project form (chip input + ord + name). */
+  .tpr-add-form {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .tpr-input {
+    width: 100%;
+    box-sizing: border-box;
+    background: var(--intel-bg, #1a2540);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 5px 8px;
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 11px;
+  }
+  .tpr-input:focus { outline: 1px solid rgba(232,160,32,0.5); border-color: rgba(232,160,32,0.5); }
+  .tpr-input::placeholder { color: var(--text-dim); }
+
+  /* Chip input — wrapping flex container that behaves like a single field. */
+  .tpr-chip-input {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    background: var(--intel-bg, #1a2540);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 4px 6px;
+    min-height: 26px;
+    cursor: text;
+  }
+  .tpr-chip-input:focus-within { border-color: rgba(232,160,32,0.5); outline: 1px solid rgba(232,160,32,0.3); }
+  .tpr-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    background: rgba(232,160,32,0.15);
+    color: var(--accent);
+    border: 1px solid rgba(232,160,32,0.35);
+    border-radius: 3px;
+    padding: 1px 4px 1px 6px;
+    font-size: 10px;
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    white-space: nowrap;
+  }
+  .tpr-chip-x {
+    background: transparent;
+    color: var(--accent);
+    border: 0;
+    padding: 0 2px;
+    margin: 0;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+  }
+  .tpr-chip-x:hover { color: #fff; }
+  .tpr-chip-input-field {
+    flex: 1; min-width: 80px;
+    background: transparent;
+    color: var(--text);
+    border: 0;
+    outline: none;
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 11px;
+    padding: 1px 0;
+  }
+  .tpr-chip-input-field::placeholder { color: var(--text-dim); }
+
+  /* Form row — Save / Cancel buttons. */
+  .tpr-form-row { display: flex; gap: 6px; }
+  .tpr-save-btn, .tpr-cancel-btn {
+    flex: 1;
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+  }
+  .tpr-save-btn {
+    background: rgba(232,160,32,0.22);
+    color: var(--accent);
+    border: 1px solid rgba(232,160,32,0.5);
+  }
+  .tpr-save-btn:hover { background: rgba(232,160,32,0.32); }
+  .tpr-cancel-btn {
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+  }
+  .tpr-cancel-btn:hover { color: var(--text); border-color: rgba(255,255,255,0.25); }
+
+  /* Inline form status row. */
+  .tpr-form-msg {
+    font-size: 10px;
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    color: var(--text-dim);
+    padding: 2px 0;
+  }
+  .tpr-form-msg-warn { color: #e08888; }
+  .tpr-form-msg-ok   { color: #6dc49a; }
+
+  /* Per-project icon tag button. */
+  .tpr-tag-btn {
+    flex: 0 0 22px;
+    width: 22px;
+    height: 22px;
+    line-height: 1;
+    border-radius: 3px;
+    background: rgba(232,160,32,0.12);
+    /* P94 r3: + glyph in bright/fluorescent yellow to match the rail doc links. */
+    color: var(--tp-yellow);
+    border: 1px solid rgba(232,160,32,0.3);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 0;
+    text-align: center;
+  }
+  .tpr-tag-btn:hover { background: rgba(232,160,32,0.25); }
+
+  /* Per-project tag input panel (expands on click). */
+  .tpr-tag-input {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px dashed var(--border);
+  }
+
+  /* P58.8 commit 5a: per-project description list. Compact dot-separated
+     pills under each project; "Analyzing…" rows pulse while pending. */
+  .tpr-desc-list {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    margin-top: 4px;
+    font-size: 10px;
+    color: var(--text-dim);
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    line-height: 1.4;
+  }
+  .tpr-desc-item {
+    color: var(--text);
+    background: rgba(255,255,255,0.04);
+    border-radius: 2px;
+    padding: 1px 5px;
+  }
+  [data-theme="light"] .tpr-desc-item { background: rgba(0,0,0,0.04); }
+  .tpr-desc-sep { color: var(--text-dim); opacity: 0.6; }
+  .tpr-desc-analyzing {
+    color: var(--accent);
+    background: rgba(232,160,32,0.1);
+    animation: tprPulse 1.4s ease-in-out infinite;
+  }
+  @keyframes tprPulse {
+    0%, 100% { opacity: 0.65; }
+    50%      { opacity: 1; }
+  }
+  .tpr-desc-failed {
+    color: #e08888;
+    background: rgba(220,80,80,0.08);
+  }
+  .tpr-desc-more {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 9px;
+    color: var(--text-dim);
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    padding: 0 4px;
+    text-decoration: underline;
+  }
+  .tpr-desc-more:hover { color: var(--accent); }
+
+  /* P58.7 R2: Report Issue input row at the top of each jurisdiction page. */
+  .report-issue-row { display: flex; align-items: flex-start; gap: 6px; flex-wrap: wrap; }
+  .report-issue-input {
+    flex: 1; min-width: 0; min-height: 30px; resize: vertical;
+    background: var(--intel-bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size: 12px;
+    padding: 6px 10px; outline: none; box-sizing: border-box;
+  }
+  .report-issue-input:focus { border-color: rgba(232,160,32,0.5); }
+  .report-issue-input::placeholder { color: var(--text-dim); }
+  .report-issue-send {
+    background: rgba(232,160,32,0.18); color: var(--accent);
+    border: 1px solid rgba(232,160,32,0.4);
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size: 11px; font-weight: 600;
+    padding: 6px 14px; border-radius: 4px; cursor: pointer;
+    letter-spacing: 0.04em;
+  }
+  .report-issue-send:hover { background: rgba(232,160,32,0.28); }
+  .report-issue-msg { width: 100%; font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size: 10px; color: var(--text-dim); min-height: 14px; }
+  .report-issue-msg.ok   { color: #6ec56e; }
+  .report-issue-msg.warn { color: #e8a020; }
+
+  /* P58.7 R1: Document Display Name input (matches existing .tdf-url). */
+  .tdf-name { width: 100%; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 3px; color: var(--text); font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size: 11px; padding: 5px 8px; outline: none; box-sizing: border-box; }
+  .tdf-name:focus { border-color: rgba(232,160,32,0.4); }
+  .tdf-name::placeholder { color: var(--text-dim); }
+
+  .section-label {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+  .summary-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 10px;
+  }
+  .summary-item { }
+  .summary-key { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 2px; font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; }
+  .summary-val { font-size: 12px; color: var(--text); font-weight: 500; }
+  .receptivity-dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-right: 5px;
+  }
+  .rec-high { background: #2d7a4f; }
+  .rec-med { background: #b88a1a; }
+  .rec-low { background: #8b3030; }
+  .rec-mixed { background: #5a4a8b; }
+
+  /* P58.7 R5: members-section gets the same lighter-bg panel treatment as
+     Municipality Summary and Tracked Projects. Tabs become the section's
+     "title" row, sitting inside the panel rather than floating above it. */
+  .members-section {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px;
+  }
+  .members-tabs {
+    display: flex;
+    gap: 2px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0;
+  }
+  .members-tab {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 6px 14px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all 0.15s;
+  }
+  .members-tab:hover { color: var(--text); }
+  /* P95: selected sub-nav matches the top-nav (.topbar-btn.active) — subtle
+     panel tint + white label + orange underline bar. */
+  .members-tab.active { background: rgba(255,255,255,0.10); color: #ffffff; box-shadow: inset 0 -3px 0 #e8a30c; border-bottom-color: transparent; border-radius: 4px 4px 0 0; }
+
+  /* SETTINGS VIEW */
+  .settings-wrap { display: flex; gap: 16px; padding: 20px; overflow-y: auto; height: 100%; }
+  .settings-col { display: flex; flex-direction: column; gap: 16px; flex: 1; min-width: 0; }
+  .settings-card { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 16px; }
+  .settings-card-title { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size: 11px; font-weight: 600; color: var(--accent); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 4px; }
+  .settings-card-sub { font-size: 11px; color: var(--text-dim); line-height: 1.5; margin-bottom: 12px; }
+  .settings-input { width: 100%; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size: 12px; padding: 7px 10px; margin-bottom: 8px; outline: none; }
+  .settings-input:focus { border-color: rgba(232,160,32,0.4); }
+  .settings-select { background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 12px; padding: 5px 8px; outline: none; }
+  .settings-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .settings-row:last-of-type { border-bottom: none; }
+  .settings-label { font-size: 12px; color: var(--text-dim); }
+  .settings-save-btn { background: var(--accent); color: var(--navy-dark); border: none; font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size: 11px; font-weight: 600; padding: 5px 14px; border-radius: 3px; cursor: pointer; margin-top: 10px; letter-spacing: 0.04em; }
+  .settings-save-btn:hover { background: var(--accent-light); }
+  .settings-add-btn { background: rgba(255,255,255,0.06); color: var(--text-dim); border: 1px solid var(--border); font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size: 10px; padding: 4px 12px; border-radius: 3px; cursor: pointer; margin-top: 10px; letter-spacing: 0.04em; }
+  .settings-add-btn:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+  .source-row { display: flex; gap: 6px; align-items: center; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04); flex-wrap: wrap; }
+  .source-name { font-size: 12px; color: var(--text); min-width: 140px; }
+  .source-badge { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size: 9px; padding: 1px 6px; border-radius: 2px; }
+  .source-free { background: rgba(26,122,74,0.2); color: #6dc49a; border: 1px solid rgba(26,122,74,0.35); }
+  .source-paid { background: rgba(232,160,32,0.15); color: var(--accent); border: 1px solid rgba(232,160,32,0.3); }
+  .source-creds { display: flex; gap: 4px; flex: 1; }
+  .source-creds input { flex: 1; background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 3px; color: var(--text); font-size: 11px; padding: 3px 7px; min-width: 80px; }
+  .source-del { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 13px; padding: 0 4px; }
+  .source-del:hover { color: #e08888; }
+  .tag-cat-row { display: flex; align-items: center; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .tag-cat-name { font-size: 12px; color: var(--text); }
+  .tag-cat-actions { display: flex; gap: 6px; align-items: center; }
+
+  /* INTELLIGENCE FEED ITEMS — clickable */
+  .intel-item { cursor: pointer; }
+  .intel-item:hover { background: var(--panel-hover); }
+  .intel-item-linked { cursor: pointer; }
+  .intel-item-linked:hover { background: var(--panel-hover); }
+  .intel-headline a { color: var(--text); text-decoration: none; }
+  .intel-headline a:hover { color: var(--accent); }
+
+  /* MUNI INTEL FEED (on jurisdiction page) */
+  .muni-intel-section { margin-top: 0; border-top: 1px solid var(--border); padding-top: 12px; }
+  .muni-intel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .muni-intel-title { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size: 10px; font-weight: 600; color: var(--accent); letter-spacing: 0.06em; text-transform: uppercase; }
+  .muni-intel-expand { background: none; border: 1px solid var(--border); color: var(--text-dim); font-size: 10px; font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; padding: 2px 8px; border-radius: 3px; cursor: pointer; }
+  .muni-intel-expand:hover { color: var(--text); border-color: rgba(255,255,255,0.2); }
+  .muni-intel-item { padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04); display: flex; gap: 10px; align-items: flex-start; }
+  .muni-intel-item:last-child { border-bottom: none; }
+  .muni-intel-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+  .muni-intel-text { font-size: 12px; line-height: 1.45; flex: 1; }
+  .muni-intel-text a { color: var(--text); text-decoration: none; }
+  .muni-intel-text a:hover { color: var(--accent); }
+  .muni-intel-meta { font-size: 10px; color: var(--text-dim); margin-top: 2px; display: flex; gap: 8px; }
+  .muni-intel-empty { font-size: 11px; color: var(--text-dim); padding: 8px 0; }
+
+  /* TRACKED PROJECTS — P58.7 R5: lighter-bg container so title sits inside
+     the same panel as the contents (matches Municipality Summary).
+     P58.7 R8: collapsible — collapsed state has no inner content, just the
+     clickable header bar. */
+  .tracked-section { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 14px; margin-bottom: 4px; }
+  .tracked-section.collapsed { padding: 10px 14px; }
+  .tracked-section.collapsed .tracked-header { margin-bottom: 0; }
+  .tracked-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .tracked-header-toggle { cursor: pointer; user-select: none; }
+  .tracked-header-toggle:hover { color: var(--text); }
+  .tracked-caret { display: inline-block; width: 10px; text-align: center; color: var(--accent); margin-right: 4px; }
+  .tracked-title { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size: 10px; font-weight: 600; color: var(--accent); letter-spacing: 0.08em; text-transform: uppercase; }
+  .tracked-header-btns { display: flex; gap: 6px; }
+  .tracked-add-btn { background: rgba(232,160,32,0.15); color: var(--accent); border: 1px solid rgba(232,160,32,0.35); font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size: 9px; padding: 2px 8px; border-radius: 3px; cursor: pointer; }
+  .tracked-add-btn:hover { background: rgba(232,160,32,0.25); }
+  .tracked-expand-btn { background: none; border: 1px solid var(--border); color: var(--text-dim); font-size: 10px; font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; padding: 2px 8px; border-radius: 3px; cursor: pointer; }
+  .tracked-expand-btn:hover { color: var(--text); border-color: rgba(255,255,255,0.2); }
+  .tracked-project-card { background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 4px; padding: 8px 10px; margin-bottom: 6px; cursor: pointer; transition: border-color 0.15s; }
+  .tracked-project-card:hover { border-color: rgba(232,160,32,0.3); }
+  .tracked-project-card.active { border-color: rgba(232,160,32,0.5); background: rgba(232,160,32,0.05); }
+  .tracked-project-name { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+  .tracked-project-meta { display: flex; gap: 10px; font-size: 10px; color: var(--text-dim); flex-wrap: wrap; align-items: center; }
+  .tracked-nature-badge { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size: 9px; padding: 1px 6px; border-radius: 2px; text-transform: uppercase; }
+  /* P71 — Tracked Projects global tab: YT badge + Meeting Name + Action Taken
+     truncate-with-click-to-expand. .tp-action-cell wraps a 2-line clamp that
+     expands to full text on click; .tp-meeting-name is single-line ellipsis. */
+  .tp-yt-badge {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 9px;
+    padding: 0 5px;
+    border-radius: 2px;
+    background: rgba(220,40,40,0.18);
+    color: #e07070;
+    border: 1px solid rgba(220,40,40,0.35);
+    letter-spacing: 0.5px;
+  }
+  .tp-meeting-name {
+    font-size: 11px;
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 220px;
+  }
+  .tp-action-cell {
+    cursor: pointer;
+    position: relative;
+    line-height: 1.35;
+  }
+  .tp-action-cell .tp-action-text {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: 11px;
+    /* P124r2: Results column narrowed ~50% (520→260) to give the Description
+       column the room; clamp still hides overflow until clicked. */
+    max-width: 260px;
+  }
+  .tp-action-cell.expanded .tp-action-text {
+    display: block;
+    -webkit-line-clamp: unset;
+    overflow: visible;
+    white-space: pre-wrap;
+  }
+  .tp-action-cell:hover .tp-action-text { color: var(--accent, #e8a020); }
+  /* P124: Description column — the "Request Summary" bullet, 2-line clamp +
+     click-to-expand (reuses tpToggleAction's .expanded toggle). Narrower than
+     the Results column so the table stays compact. */
+  .tp-desc-cell { cursor: pointer; position: relative; line-height: 1.35; }
+  .tp-desc-cell .tp-desc-text {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: 11px;
+    /* P124r2: Description widened ~50% (300→450), the width taken from Results. */
+    max-width: 450px;
+  }
+  .tp-desc-cell.expanded .tp-desc-text {
+    display: block;
+    -webkit-line-clamp: unset;
+    overflow: visible;
+    white-space: pre-wrap;
+  }
+  .tp-desc-cell:hover .tp-desc-text { color: var(--accent, #e8a020); }
+  /* P124: future (not-yet-held) meeting date renders in orange.
+     P124r2: compound selector (0,2,0) so it beats the later `.tp-meeting-date`
+     rule (0,1,0, defined further down) — otherwise that muted color won on
+     source order and the orange never showed. */
+  .tp-meeting-date.tp-meeting-date-future,
+  .tp-meeting-date-future { color: #e8862a !important; font-weight: 600; }
+  /* P95: Lots — truncated to a narrow field, click-to-expand (reuses
+     tpToggleAction which toggles .expanded). */
+  .tp-lots-cell { cursor: pointer; }
+  .tp-lots-cell .tp-lots-text { display: inline-block; max-width: 52px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; font-weight: 600; }
+  .tp-lots-cell.expanded .tp-lots-text { max-width: none; overflow: visible; white-space: normal; }
+  .tp-lots-cell:hover .tp-lots-text { color: var(--accent, #e8a020); }
+  /* P95: Results column — Outcome+Vote line (bold) over Additional Notes,
+     reusing the .tp-action-cell 2-line clamp (≈ old Notes column width). */
+  .tp-results-outcome { font-weight: 600; }
+  .tp-results-notes { display: block; margin-top: 2px; color: var(--text-dim); }
+  /* P95: persistent horizontal scrollbar pinned to the bottom of the TP table
+     viewport, synced to the table's own horizontal scroll so the user never
+     has to scroll down to the bottom of a long table to slide it sideways. */
+  .tp-hscroll-proxy { position: sticky; bottom: 0; left: 0; overflow-x: auto; overflow-y: hidden; height: 16px; z-index: 6; background: var(--bg); border: 1px solid var(--border, #333); border-top: none; border-radius: 0 0 6px 6px; display: none; }
+  .tp-hscroll-proxy > div { height: 1px; }
+  /* P142 item 2: hide the native horizontal scrollbar on the table viewport so the
+     sticky proxy above is the ONLY visible bar (single-bar, P136 intent). The
+     container still scrolls programmatically (proxy sync) + via trackpad. */
+  #tp-table-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+  #tp-table-scroll::-webkit-scrollbar { height: 0; width: 0; display: none; }
+
+  /* P142 item 1: compact-fit so all columns fit when the sidebar is collapsed.
+     Cell padding is set inline (shorthand) on each th/td, so override needs
+     !important. Trims horizontal padding ~45% and tightens the two widest
+     columns (Description / Results) without losing click-to-expand. */
+  #tp-table th, #tp-table td { padding-left: 5px !important; padding-right: 5px !important; }
+  #tp-table .tp-desc-cell .tp-desc-text,
+  #tp-table .tp-action-cell .tp-action-text { font-size: 11px; }
+  #tp-table .tp-status-select, #tp-table .tp-builder-select { max-width: 132px; }
+  /* P79 A3 — Petitioner cell: narrowed (max-width 80px) + truncate-with-
+     click-to-expand. Mirrors .tp-action-cell behavior but with a much
+     smaller default max-width since petitioner names are usually short. */
+  .tp-pet-cell { cursor: pointer; position: relative; line-height: 1.35; max-width: 80px; }
+  .tp-pet-cell .tp-action-text {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  .tp-pet-cell.expanded { max-width: 280px; }
+  .tp-pet-cell.expanded .tp-action-text {
+    display: block;
+    -webkit-line-clamp: unset;
+    overflow: visible;
+    white-space: pre-wrap;
+  }
+  .tp-pet-cell:hover .tp-action-text { color: var(--accent, #e8a020); }
+  /* P79 B1 — Aggregate/Segregated toggle on the per-juris Public Hearings
+     Council & Plan Commission section. Sits as a right-aligned toolbar above
+     the section header(s) so it visually pairs with the title line. */
+  .cpc-controls {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 6px;
+    margin: 6px 0 -8px 0;
+    font-size: 11px;
+  }
+  /* P95: pair the landing-page buttons (Agenda/Minutes Page) and the
+     Aggregate/Segregated toggle on a single row, removing the vertical gap so
+     the toggle aligns with the page buttons. */
+  .ph-controls-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin: 8px 0 6px; }
+  .ph-controls-row .landing-buttons { margin: 0; }
+  .ph-controls-row .cpc-controls { margin: 0; }
+  .cpc-controls-label { color: var(--muted, #888); font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .cpc-toggle-btn {
+    padding: 3px 10px;
+    background: transparent;
+    color: var(--text, #ddd);
+    border: 1px solid var(--border, #444);
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+    font-family: inherit;
+  }
+  .cpc-toggle-btn.active {
+    background: var(--accent, #e8a020);
+    color: #1a1a1a;
+    border-color: var(--accent, #e8a020);
+    font-weight: 600;
+  }
+  .cpc-toggle-btn:not(.active):hover { border-color: var(--accent, #e8a020); color: var(--accent, #e8a020); }
+  /* P71 R3 — Builder dropdown + split Meeting Type/Date cells. */
+  .tp-builder-select {
+    padding: 3px 6px;
+    /* P95: dropdown ground = a shade darker than the main window blue (--bg #0e2233). */
+    background: #0a1c2b;
+    border: 1px solid var(--border, #444);
+    color: inherit;
+    border-radius: 3px;
+    font-size: 11px;
+    max-width: 140px;
+  }
+  /* P95: keep the expanded option list on the same dark-blue ground. */
+  .tp-status-select option, .tp-builder-select option { background: #0a1c2b; color: var(--text); }
+  [data-theme="light"] .tp-status-select, [data-theme="light"] .tp-builder-select { background: #ffffff; color: #1f2733; }
+  [data-theme="light"] .tp-status-select option, [data-theme="light"] .tp-builder-select option { background: #ffffff; color: #1f2733; }
+  /* P95 r3: size to the widest value ("Plan Commission") on one line — no stacking. */
+  /* P124: narrowed to make room for the Description column — allow wrapping
+     within the cell instead of forcing a single nowrap line.
+     P136: widened so "Commission" never breaks mid-word — wrap only at spaces
+     (word-break:normal), break a word only if it alone overflows the cell. */
+  .tp-meeting-type { font-size: 11px; line-height: 1.3; white-space: normal; word-break: normal; overflow-wrap: break-word; max-width: 130px; }
+  /* P136 (Problem B): "⏳ pending <date>" under the Meeting Date when a newer
+     un-summarized agenda exists beyond the latest summarized hearing. */
+  .tp-pending-summary { font-size: 9px; line-height: 1.2; color: var(--accent,#e8a020); margin-top: 2px; white-space: nowrap; }
+  .tp-meeting-date {
+    font-size: 11px;
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    color: var(--muted, #aaa);
+  }
+  .nature-approved   { background: rgba(26,122,74,0.2);  color: #6dc49a; border: 1px solid rgba(26,122,74,0.35); }
+  .nature-denied     { background: rgba(220,80,80,0.15); color: #e08888; border: 1px solid rgba(220,80,80,0.3); }
+  .nature-tabled     { background: rgba(160,122,223,0.15); color: #c9a7f5; border: 1px solid rgba(160,122,223,0.3); }
+  .nature-continued  { background: rgba(160,122,223,0.15); color: #c9a7f5; border: 1px solid rgba(160,122,223,0.3); }
+  .nature-introduced { background: rgba(122,172,223,0.15); color: #7aacdf; border: 1px solid rgba(122,172,223,0.3); }
+  .nature-discussed  { background: rgba(255,255,255,0.07); color: var(--text-dim); border: 1px solid var(--border); }
+  .nature-public-hearing { background: rgba(232,160,32,0.15); color: var(--accent); border: 1px solid rgba(232,160,32,0.3); }
+  .nature-second-reading { background: rgba(122,172,223,0.15); color: #7aacdf; border: 1px solid rgba(122,172,223,0.3); }
+  .tracked-timeline { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.06); }
+  .tracked-timeline-item { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .tracked-timeline-item:last-child { border-bottom: none; }
+  .tracked-timeline-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; background: var(--accent); }
+  .tracked-timeline-body { flex: 1; min-width: 0; }
+  .tracked-timeline-excerpt { font-size: 11px; color: var(--text); line-height: 1.45; margin-bottom: 3px; }
+  .tracked-timeline-meta { display: flex; gap: 8px; font-size: 10px; color: var(--text-dim); flex-wrap: wrap; align-items: center; }
+  .tracked-timeline-link { color: var(--accent); text-decoration: none; font-size: 10px; }
+  .tracked-timeline-link:hover { text-decoration: underline; }
+  .tracked-empty { font-size: 11px; color: var(--text-dim); padding: 6px 0; }
+  .tracked-new-form { background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 4px; padding: 10px; margin-bottom: 8px; }
+  .tracked-new-form input { width: 100%; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 3px; color: var(--text); font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size: 11px; padding: 5px 8px; margin-bottom: 6px; outline: none; box-sizing: border-box; }
+  .tracked-new-form input:focus { border-color: rgba(232,160,32,0.4); }
+  .tracked-new-form input::placeholder { color: var(--text-dim); }
+  .tracked-form-row { display: flex; gap: 6px; margin-top: 4px; }
+
+  /* P58.7 — per-juris paste-URL "Tag document to Tracked Project" form */
+  .tdf-label { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size: 10px; font-weight: 600; color: var(--accent); letter-spacing: 0.06em; margin-bottom: 8px; text-transform: uppercase; }
+  .tdf-row { margin-bottom: 6px; }
+  .tdf-select, .tdf-url { width: 100%; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 3px; color: var(--text); font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size: 11px; padding: 5px 8px; outline: none; box-sizing: border-box; }
+  .tdf-select:focus, .tdf-url:focus { border-color: rgba(232,160,32,0.4); }
+  .tdf-url::placeholder { color: var(--text-dim); }
+  .tdf-empty { font-size: 11px; color: var(--text-dim); font-style: italic; }
+  .tdf-msg { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size: 10px; color: var(--text-dim); margin-top: 6px; min-height: 14px; }
+  .tdf-msg.ok   { color: #6ec56e; }
+  .tdf-msg.warn { color: #e8a020; }
+
+  /* PUBLIC HEARINGS TAB */
+  .hearings-section { padding: 4px 0; }
+  .hearings-year-group { margin-bottom: 16px; }
+  .hearings-year-label {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 4px 0 6px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 8px;
+  }
+  .hearing-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 7px 0;
+    /* P57 W3: bumped from rgba(255,255,255,0.04) — was barely visible against the
+       dark panel background. 0.18 reads as a clear hairline at normal viewing
+       distance without competing with content. Light-mode override below. */
+    border-bottom: 1px solid rgba(255,255,255,0.18);
+  }
+  .hearing-row:last-child { border-bottom: none; }
+  .hearing-date {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 11px;
+    color: var(--text-dim);
+    min-width: 96px;
+    flex-shrink: 0;
+    padding-top: 1px;
+  }
+  .hearing-type {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text);
+    min-width: 160px;
+    flex-shrink: 0;
+    padding-top: 1px;
+  }
+  .hearing-links { display: flex; gap: 5px; flex-wrap: wrap; }
+  .hearing-link {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    text-decoration: none;
+    letter-spacing: 0.03em;
+    transition: opacity 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
+  }
+  .hearing-link:hover { opacity: 0.75; }
+  /* P69: YouTube button repainted to match Agenda/Minutes default (blue palette). */
+  .hearing-link.yt  { background: rgba(42,95,165,0.2); color: #7aacdf; border: 1px solid rgba(42,95,165,0.35); }
+  .hearing-link.ag  { background: rgba(42,95,165,0.2);  color: #7aacdf; border: 1px solid rgba(42,95,165,0.35); }
+  /* P58.8 r5: Minutes default repainted from green-tint to the Agenda blue —
+     Minutes Yes/No now mirrors Agenda Yes/No (Yes → green, No → row removed),
+     so green is reserved for the approved state. */
+  .hearing-link.min { background: rgba(42,95,165,0.2);  color: #7aacdf; border: 1px solid rgba(42,95,165,0.35); }
+  /* P58.8 r5: Summary default → teal (was yellow in r4). The orange-accent
+     flagged state stays untouched so the flag signal still pops. */
+  .hearing-link.doc { background: rgba(50,180,180,0.15); color: #5dd5d5; border: 1px solid rgba(50,180,180,0.4); }
+  /* P75: flagged Summary repainted from orange to red — see light-theme rule above. */
+  .hearing-link.doc.summary-flagged { background: rgba(220,40,40,0.18); color: #e07070; border-color: rgba(220,40,40,0.5); }
+  /* P80 Stage 1.9: coverage_state visitor palette (dark theme).
+     accept_as_partial → muted amber; no_better_source → neutral grey;
+     retry_*/needs_human_review/force_redraft → render placeholder span. */
+  .hearing-link.doc.summary-partial-accept,
+  .ph-meeting-link.yt.summary-partial-accept { background: rgba(200,150,40,0.16); color: #d8b35e; border-color: rgba(200,150,40,0.45); }
+  .hearing-link.doc.summary-partial-nosrc,
+  .ph-meeting-link.yt.summary-partial-nosrc { background: rgba(140,140,140,0.18); color: #b0b0b0; border-color: rgba(140,140,140,0.35); }
+  .summary-pending-placeholder { color: var(--text-dim); font-style: italic; font-size: 10px; }
+  /* P58.8 r5: Approved-state green for the Agenda + Minutes anchor buttons
+     themselves — replaces the r4 `.ag-reviewed-badge` span. The button
+     becoming green is the persistent indicator the visitor's Yes click was
+     recorded. Selector is descendant-of-wrapper so the existing
+     `.ag-item.ag-approved` / new `.mn-cell.mn-approved` class added on render
+     (and on optimistic Yes click in agApprove/mnApprove) drives it. */
+  .ag-item.ag-approved .hearing-link.ag,
+  .mn-cell.mn-approved .hearing-link.min,
+  /* P67 R2: Summary anchor turns green once a visitor confirms the YouTube
+     summary is good via the new "Yes" button between Summary and Flag. */
+  .hearing-link.doc.summary-confirmed {
+    background: rgba(26,122,74,0.22); color: #6dc49a; border-color: rgba(26,122,74,0.5);
+  }
+  .hearings-empty { color: var(--text-dim); font-size: 12px; line-height: 1.6; padding: 20px 0; }
+  .hearings-empty code { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size: 11px; color: var(--text); background: rgba(255,255,255,0.06); padding: 1px 5px; border-radius: 3px; }
+
+  /* HEARINGS TABLE */
+  .hearings-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+  .hearings-th {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--accent);
+    padding: 5px 10px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    white-space: nowrap;
+    background: rgba(0,0,0,0.15);
+  }
+  .hearings-td {
+    padding: 5px 10px;
+    /* P57 W3: see .hearing-row note above. Same alpha bump for the table view. */
+    border-bottom: 1px solid rgba(255,255,255,0.18);
+    vertical-align: middle;
+  }
+  .hearings-td-date {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 10px;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+  .hearings-td-type {
+    font-size: 11px;
+    color: var(--text);
+    font-weight: 500;
+  }
+  .hearings-table-row:hover .hearings-td { background: rgba(255,255,255,0.02); }
+  .hearings-td-yt, .hearings-td-ag { vertical-align: top; }
+  .yt-hearing-item, .ag-item { margin-bottom: 6px; }
+  .yt-hearing-item:last-child, .ag-item:last-child { margin-bottom: 0; }
+  .yt-summary-toggle {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size: 9px; padding: 1px 6px;
+    border-radius: 3px; cursor: pointer; border: 1px solid rgba(232,160,32,0.35);
+    background: rgba(232,160,32,0.12); color: var(--accent-light); margin-left: 4px;
+  }
+  .yt-summary-toggle:hover { opacity: 0.75; }
+  .yt-summary-box {
+    font-size: 10px; color: var(--text-dim); line-height: 1.5; padding: 6px 8px;
+    margin-top: 4px; background: rgba(0,0,0,0.2); border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.05); max-height: 200px; overflow-y: auto;
+  }
+  .yt-resubmit-btn {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size: 9px; padding: 1px 6px;
+    border-radius: 3px; cursor: pointer; border: 1px solid rgba(200,50,50,0.4);
+    background: rgba(200,50,50,0.15); color: #e08888; margin-left: 4px;
+  }
+  .yt-resubmit-btn:hover { opacity: 0.75; }
+  .yt-resubmit-btn:disabled { opacity: 0.4; cursor: wait; }
+  .ag-correct-btn {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size: 9px; padding: 1px 6px;
+    border-radius: 3px; cursor: pointer; margin-left: 3px;
+  }
+  .ag-correct-btn.yes {
+    border: 1px solid rgba(26,122,74,0.45); background: rgba(26,122,74,0.15); color: #6dc49a;
+  }
+  .ag-correct-btn.no {
+    border: 1px solid rgba(200,50,50,0.4); background: rgba(200,50,50,0.12); color: #e08888;
+  }
+  /* P115: "Can" (mark Cancelled) — amber, distinct from Yes(green)/No(red). */
+  .ag-correct-btn.can {
+    border: 1px solid rgba(224,176,32,0.45); background: rgba(224,176,32,0.12); color: #e0b84d;
+  }
+  .ag-cancelled-badge { display: inline-block; font-size: 11px; font-weight: 600; color: #e0b84d; }
+  /* P123: keep the parse chip + the agenda link on one (non-wrapping) line so the
+     chip sits immediately left of "↓ Agenda"; the Yes/No/Can buttons wrap below. */
+  .ag-firstline { display: inline-flex; align-items: center; white-space: nowrap; }
+  /* P123: agenda-extraction status chip, left of the agenda link. */
+  .ag-parse {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 15px; height: 15px; margin-right: 5px; border-radius: 3px;
+    font-size: 10px; font-weight: 700; line-height: 1; vertical-align: middle;
+    flex: 0 0 auto;
+  }
+  .ag-parse.ok      { color: #1f9d57; background: rgba(31,157,87,0.16); }
+  .ag-parse.err     { color: #e06666; background: rgba(224,102,102,0.16); }
+  .ag-parse.noitems { color: #9aa7b4; background: rgba(154,167,180,0.16); }
+  .ag-correct-btn:hover { opacity: 0.75; }
+  .ag-correct-btn:disabled { opacity: 0.4; cursor: default; }
+  /* P67 R3: Remove-hearing-date button. Sits in the rightmost Actions column.
+     Same red family as ag-correct-btn.no (destructive signal) but slightly
+     dimmer so it doesn't shout from every row. */
+  .hearing-remove-btn {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size: 9px; padding: 1px 6px;
+    border-radius: 3px; cursor: pointer;
+    border: 1px solid rgba(200,50,50,0.3); background: rgba(200,50,50,0.08); color: #c97a7a;
+  }
+  .hearing-remove-btn:hover { opacity: 0.8; background: rgba(200,50,50,0.18); }
+  .hearing-remove-btn:disabled { opacity: 0.4; cursor: wait; }
+  /* P58.8 r5: approved-state visual is now the green button itself (see the
+     `.hearing-link.ag.ag-approved` / `.hearing-link.min.mn-approved` rules
+     above). Dropped the r4 wrapper opacity dim + `.ag-reviewed-badge` span. */
+  .ag-rejected { opacity: 0.3; text-decoration: line-through; transition: opacity 0.5s; }
+
+  /* P57 W7 — Per-juris Agenda Page / Minutes Page landing-link buttons.
+     Sits between the schedule banner and the body sections in the Public
+     Hearings tab. Solid panel-tinted background distinguishes them from
+     hearing-link badges (which are alpha-tinted by doc class). */
+  .landing-buttons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 8px 0 12px;
+  }
+  .landing-btn {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    padding: 5px 12px;
+    border-radius: 4px;
+    text-decoration: none;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    color: var(--text);
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .landing-btn:hover {
+    background: rgba(255,255,255,0.10);
+    border-color: var(--accent-light);
+    color: var(--text);
+  }
+  [data-theme="light"] .landing-btn {
+    background: rgba(20,48,79,0.06);
+    border-color: rgba(0,0,0,0.18);
+    color: #14304f;
+  }
+  [data-theme="light"] .landing-btn:hover {
+    background: rgba(20,48,79,0.12);
+    border-color: rgba(20,48,79,0.35);
+  }
+
+  /* P57 W5c — Minutes flagged-for-review state. Subtle amber wash so the row
+     stays readable but visibly distinct in a scan. The badge inline is the
+     primary signal; the cell tint is the secondary signal. */
+  .mn-cell.mn-flagged { background: rgba(232,160,32,0.10); border-radius: 3px; padding: 1px 4px; }
+  .mn-flag-badge {
+    display: inline-block;
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: rgba(232,160,32,0.2);
+    color: var(--accent-light);
+    border: 1px solid rgba(232,160,32,0.4);
+    vertical-align: middle;
+  }
+  [data-theme="light"] .mn-cell.mn-flagged { background: rgba(154,95,0,0.10); }
+  [data-theme="light"] .mn-flag-badge {
+    background: rgba(154,95,0,0.12);
+    color: #6a3f00;
+    border-color: rgba(154,95,0,0.30);
+  }
+
+  .members-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 8px;
+  }
+
+  .member-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+  }
+  .member-card:hover { border-color: rgba(232,160,32,0.25); background: var(--panel-hover); }
+  .member-card.selected { border-color: var(--accent); }
+  .member-name { font-size: 13px; font-weight: 600; color: var(--white); margin-bottom: 2px; }
+  .member-role { font-size: 11px; color: var(--text-dim); margin-bottom: 6px; }
+  .member-tags { display: flex; gap: 5px; flex-wrap: wrap; }
+  .member-tag {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 2px;
+    letter-spacing: 0.03em;
+  }
+  .tag-rep { background: rgba(180,40,40,0.2); color: #e08080; border: 1px solid rgba(180,40,40,0.3); }
+  .tag-dem { background: rgba(30,80,180,0.2); color: #80a8e0; border: 1px solid rgba(30,80,180,0.3); }
+  .tag-ind { background: rgba(60,60,60,0.3); color: #a0a0b0; border: 1px solid rgba(80,80,90,0.4); }
+  .tag-term { background: rgba(30,58,95,0.3); color: var(--text-dim); border: 1px solid var(--border); }
+  .tag-council { background: rgba(42,95,165,0.2); color: #7aacdf; border: 1px solid rgba(42,95,165,0.3); }
+  .tag-pc { background: rgba(26,122,74,0.2); color: #6dc49a; border: 1px solid rgba(26,122,74,0.3); }
+  .warn-tag { background: rgba(184,92,26,0.2); color: #e8a060; border: 1px solid rgba(184,92,26,0.3); }
+
+  /* MEMBER DETAIL PANEL */
+  .member-detail {
+    width: 25%;
+    flex-shrink: 0;
+    background: var(--intel-bg);
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 220px;
+  }
+  .member-detail::-webkit-scrollbar { width: 4px; }
+  .member-detail::-webkit-scrollbar-track { background: transparent; }
+  .member-detail::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); }
+  .member-detail.empty {
+    align-items: center;
+    justify-content: center;
+    color: var(--text-dim);
+    font-size: 12px;
+    text-align: center;
+  }
+  .detail-name { font-size: 16px; font-weight: 600; color: var(--white); }
+  .detail-role { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+  .detail-section {
+    border-top: 1px solid var(--border);
+    padding-top: 10px;
+  }
+  .detail-section-label {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    margin-bottom: 6px;
+  }
+  .detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .detail-key { font-size: 10px; color: var(--text-dim); flex-shrink: 0; }
+  .detail-val { font-size: 11px; color: var(--text); text-align: right; }
+  .detail-note {
+    font-size: 11px;
+    color: var(--text);
+    line-height: 1.5;
+    font-style: italic;
+    background: rgba(255,255,255,0.03);
+    border-left: 2px solid var(--accent);
+    padding: 6px 10px;
+    border-radius: 0 3px 3px 0;
+    margin-top: 4px;
+  }
+  .affiliation-list { display: flex; flex-direction: column; gap: 3px; }
+  .affiliation-item { font-size: 11px; color: var(--text); display: flex; align-items: center; gap: 5px; }
+  .affiliation-item::before { content: '·'; color: var(--text-dim); }
+  .no-detail-msg {
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.5;
+    text-align: center;
+    padding: 20px 0;
+  }
+  .no-detail-msg .no-detail-icon { font-size: 24px; margin-bottom: 8px; }
+
+  /* SOCIAL LINKS */
+  .social-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 3px;
+    text-decoration: none;
+    transition: opacity 0.15s;
+    border: 1px solid var(--border);
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .social-link:hover { opacity: 0.75; }
+  a.social-link { color: var(--text); background: rgba(255,255,255,0.04); }
+  .social-placeholder { color: var(--text-dim); background: transparent; cursor: default; }
+  .social-icon {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 9px;
+    font-weight: 700;
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+  .social-linkedin .social-icon { background: rgba(42,95,165,0.3); color: #7aacdf; }
+  .social-facebook .social-icon { background: rgba(30,60,170,0.3); color: #80a0e8; }
+  .social-twitter .social-icon  { background: rgba(40,40,40,0.4); color: var(--text); }
+  .social-campaign .social-icon { background: rgba(232,160,32,0.2); color: var(--accent); }
+  .social-placeholder .social-icon { background: rgba(255,255,255,0.05); color: var(--text-dim); }
+  .social-empty { margin-left: auto; font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size: 10px; color: var(--text-dim); }
+
+  /* INTELLIGENCE FEED VIEW */
+  #view-intel {
+    flex-direction: column;
+    overflow: hidden;
+    height: 100%;
+  }
+  .intel-feed-header {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 16px;
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    flex-shrink: 0;
+  }
+  .intel-feed-title {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .intel-feed-updated {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 0.04em;
+  }
+  .intel-new-badge {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 8px;
+    font-weight: 700;
+    background: rgba(232,160,32,0.25);
+    color: var(--accent);
+    border: 1px solid rgba(232,160,32,0.5);
+    padding: 1px 5px;
+    border-radius: 2px;
+    letter-spacing: 0.06em;
+    vertical-align: middle;
+    margin-left: 4px;
+  }
+  .intel-item-new {
+    border-left: 2px solid var(--accent) !important;
+  }
+  .intel-source-label {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 9px;
+    color: var(--text-dim);
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    border-radius: 2px;
+  }
+  .intel-source-link {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 9px;
+    color: #7aacdf;
+    background: rgba(42,95,165,0.15);
+    border: 1px solid rgba(42,95,165,0.3);
+    padding: 1px 6px;
+    border-radius: 2px;
+    text-decoration: none;
+    transition: opacity 0.15s;
+  }
+  .intel-source-link:hover { opacity: 0.75; }
+  .intel-filters {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 16px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+  .intel-filter-label { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size: 10px; color: var(--text-dim); letter-spacing: 0.05em; white-space: nowrap; }
+  .filter-select {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text);
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 11px;
+    padding: 4px 8px;
+    outline: none;
+    cursor: pointer;
+  }
+  .filter-select:focus { border-color: rgba(232,160,32,0.4); }
+  .tag-filters { display: flex; gap: 5px; margin-left: 8px; }
+  .tag-filter-btn {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text-dim);
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 9px;
+    font-weight: 600;
+    padding: 3px 8px;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: all 0.15s;
+  }
+  .tag-filter-btn:hover { border-color: rgba(255,255,255,0.2); color: var(--text); }
+  .tag-filter-btn.active-vote { background: rgba(30,80,180,0.2); border-color: rgba(30,80,180,0.5); color: #80a8e0; }
+  .tag-filter-btn.active-news { background: rgba(232,160,32,0.15); border-color: rgba(232,160,32,0.4); color: var(--accent); }
+  .tag-filter-btn.active-election { background: rgba(139,48,48,0.2); border-color: rgba(139,48,48,0.4); color: #e08888; }
+  .tag-filter-btn.active-social { background: rgba(26,122,74,0.2); border-color: rgba(26,122,74,0.4); color: #6dc49a; }
+
+  .intel-feed {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .intel-feed::-webkit-scrollbar { width: 6px; }
+  .intel-feed::-webkit-scrollbar-track { background: transparent; }
+  .intel-feed::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
+
+  .intel-item {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 10px 14px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    transition: border 0.15s;
+  }
+  .intel-item:hover { border-color: rgba(255,255,255,0.12); }
+  .intel-type-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-top: 3px;
+    flex-shrink: 0;
+  }
+  .type-vote { background: #4a8ae0; }
+  .type-news { background: var(--accent); }
+  .type-election { background: #e08888; }
+  .type-social { background: #6dc49a; }
+  .intel-body { flex: 1; min-width: 0; }
+  .intel-headline { font-size: 12px; color: var(--text); font-weight: 500; line-height: 1.4; margin-bottom: 3px; }
+  .intel-meta { display: flex; gap: 10px; align-items: center; }
+  .intel-date { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size: 10px; color: var(--text-dim); }
+  .intel-muni { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size: 10px; color: #7aacdf; }
+  .intel-tag {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 9px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 2px;
+    letter-spacing: 0.04em;
+  }
+  .itag-vote { background: rgba(30,80,180,0.2); color: #80a8e0; border: 1px solid rgba(30,80,180,0.3); }
+  .itag-news { background: rgba(232,160,32,0.15); color: var(--accent); border: 1px solid rgba(232,160,32,0.3); }
+  .itag-election { background: rgba(139,48,48,0.2); color: #e08888; border: 1px solid rgba(139,48,48,0.3); }
+  .itag-social { background: rgba(26,122,74,0.2); color: #6dc49a; border: 1px solid rgba(26,122,74,0.3); }
+
+  /* EMPTY STATE */
+  .empty-state {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 8px;
+    color: var(--text-dim);
+  }
+  .empty-state-icon { font-size: 28px; }
+  .empty-state-text { font-size: 12px; }
+
+  /* WARN BANNER */
+  .warn-banner {
+    background: rgba(184,92,26,0.15);
+    border: 1px solid rgba(184,92,26,0.3);
+    border-radius: 4px;
+    padding: 8px 12px;
+    font-size: 11px;
+    color: #e8a060;
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+  .warn-banner-icon { flex-shrink: 0; }
+  
+  /* Data gap indicator */
+  .gap-indicator {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 9px;
+    color: #e8a060;
+    background: rgba(184,92,26,0.12);
+    border: 1px solid rgba(184,92,26,0.25);
+    padding: 2px 6px;
+    border-radius: 2px;
+  }
+
+  /* PUBLIC HEARINGS VIEW */
+  #view-publichearings {
+    overflow-y: auto;
+    padding: 0;
+  }
+  .ph-view-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    min-height: 100%;
+  }
+  .ph-add-form-wrap {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--navy-dark);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 20px;
+  }
+  .ph-add-form-title {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+  .ph-add-form-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .ph-input {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 12px;
+    padding: 6px 10px;
+    outline: none;
+    min-width: 180px;
+    flex: 1;
+    transition: border 0.15s;
+  }
+  .ph-input:focus { border-color: rgba(232,160,32,0.4); }
+  .ph-input::placeholder { color: var(--text-dim); }
+  .ph-input-wide { flex: 2; }
+  .ph-add-btn {
+    background: var(--accent);
+    color: var(--navy-dark);
+    border: none;
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 6px 18px;
+    border-radius: 3px;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+    transition: background 0.15s;
+  }
+  .ph-add-btn:hover { background: var(--accent-light); }
+  .ph-form-msg {
+    margin-top: 8px;
+    font-size: 11px;
+    padding: 5px 10px;
+    border-radius: 3px;
+  }
+  .ph-form-msg.duplicate {
+    background: rgba(232,160,32,0.12);
+    border: 1px solid rgba(232,160,32,0.3);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .ph-form-msg.success {
+    background: rgba(26,122,74,0.15);
+    border: 1px solid rgba(26,122,74,0.3);
+    color: #6dc49a;
+  }
+  .ph-confirm-btn {
+    background: rgba(232,160,32,0.2);
+    color: var(--accent);
+    border: 1px solid rgba(232,160,32,0.4);
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 10px;
+    padding: 2px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  .ph-confirm-btn:hover { background: rgba(232,160,32,0.3); }
+  .ph-tracked-section {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .ph-hearings-section {
+    padding: 14px 20px;
+    flex: 1;
+  }
+  .ph-section-label {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+  .ph-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .ph-section-header .ph-section-label { margin-bottom: 0; }
+  .ph-tracked-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .ph-tracked-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(232,160,32,0.08);
+    border: 1px solid rgba(232,160,32,0.25);
+    border-radius: 3px;
+    padding: 4px 10px;
+    font-size: 11px;
+    color: var(--text);
+  }
+  .ph-tracked-chip-ord {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 9px;
+    color: var(--text-dim);
+  }
+  .ph-tracked-empty {
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  /* P38 Option B: top-N collapse toggle — visually distinct from data chips. */
+  .ph-tracked-toggle {
+    background: transparent;
+    border: 1px dashed var(--border);
+    color: var(--text-dim);
+    cursor: pointer;
+    font: inherit;
+  }
+  .ph-tracked-toggle:hover { color: var(--text); border-color: var(--text-dim); }
+  /* P38 C.3: scope inline YT title to weekly-calendar columns — drop the
+     240px cap from the global .yt-title-inline rule so it shrinks to fit
+     the narrow .ph-meeting-info parent. */
+  .ph-meeting-info .yt-title-inline { max-width: 100%; }
+  .ph-hearings-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow-x: auto;
+  }
+  .ph-hearing-item {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: border-color 0.15s;
+  }
+  .ph-hearing-item.unreviewed { border-left: 2px solid rgba(232,160,32,0.5); }
+  .ph-hearing-item.reviewed { opacity: 0.5; }
+  .ph-hearing-item:hover { border-color: rgba(255,255,255,0.12); }
+  .ph-hearing-date {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 10px;
+    color: var(--text-dim);
+    min-width: 96px;
+    flex-shrink: 0;
+  }
+  .ph-hearing-juri {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 10px;
+    color: #7aacdf;
+    min-width: 100px;
+    flex-shrink: 0;
+  }
+  .ph-hearing-type {
+    font-size: 11px;
+    color: var(--text);
+    min-width: 80px;
+    flex-shrink: 0;
+  }
+  .ph-hearing-links {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+    flex: 1;
+  }
+  .ph-review-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: all 0.15s;
+  }
+  .ph-review-btn:hover { border-color: rgba(26,122,74,0.5); color: #6dc49a; }
+  .ph-review-btn.done { color: #6dc49a; border-color: rgba(26,122,74,0.4); }
+  .ph-reviewed-toggle {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 10px;
+    padding: 3px 12px;
+    border-radius: 3px;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: all 0.15s;
+  }
+  .ph-reviewed-toggle:hover { color: var(--text); border-color: rgba(255,255,255,0.2); }
+
+  /* HEARINGS TABLE */
+  .hearings-table { border-collapse: collapse; width: 100%; }
+  .hearings-th {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 9px;
+    color: var(--text-dim);
+    text-align: left;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .hearings-table-row { transition: background 0.12s; }
+  .hearings-table-row:hover { background: var(--panel-hover); }
+  .hearings-td {
+    font-size: 11px;
+    padding: 6px 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    vertical-align: middle;
+  }
+  .hearings-td-date {
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 10px;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+  .hearings-td-type { font-size: 10px; color: var(--text); white-space: nowrap; }
+  /* P31 R2: cadence-confirmed date highlight (overrides both .hearings-td-date defs) */
+  .hearings-td.hearings-td-date.cadence-confirmed { color: #e8a020 !important; font-weight: 600; }
+  [data-theme="light"] .hearings-td.hearings-td-date.cadence-confirmed { color: #b06d00 !important; }
+
+  /* P31 R6: visible truncated YouTube title — click to expand/collapse. */
+  .yt-title-inline {
+    display: block;
+    font-size: 10px;
+    line-height: 1.25;
+    color: var(--text-dim);
+    max-width: 240px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    margin-top: 3px;
+    padding: 1px 0;
+    user-select: none;
+  }
+  .yt-title-inline:hover { color: var(--text); }
+  .yt-title-inline.expanded {
+    white-space: normal;
+    overflow: visible;
+    max-width: none;
+    color: var(--text);
+  }
+
+  /* COUNTY VIEW */
+  #view-county {
+    padding: 20px;
+    gap: 16px;
+  }
+  .back-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size: 10px;
+    padding: 4px 12px;
+    border-radius: 3px;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: all 0.15s;
+    align-self: flex-start;
+  }
+  .back-btn:hover { border-color: rgba(255,255,255,0.2); color: var(--text); }
+
+/* ── GEMINI CHAT PANEL ── */
+.gemini-chat-panel {
+  background: var(--intel-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  height: 320px;
+}
+.gemini-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  font-size: 10px;
+  color: var(--accent);
+  letter-spacing: 0.06em;
+  flex-shrink: 0;
+}
+.gemini-chat-toggle {
+  background: none; border: none; color: var(--text-dim);
+  cursor: pointer; font-size: 12px; padding: 0 4px;
+}
+.gemini-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.gchat-msg-user {
+  align-self: flex-end;
+  background: var(--navy-mid);
+  color: var(--white);
+  padding: 6px 10px;
+  border-radius: 12px 12px 2px 12px;
+  max-width: 80%;
+  font-size: 11px;
+}
+.gchat-msg-ai {
+  align-self: flex-start;
+  background: var(--panel);
+  color: var(--text);
+  padding: 8px 12px;
+  border-radius: 2px 12px 12px 12px;
+  max-width: 90%;
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.gchat-msg-ai a { color: var(--accent); }
+.gchat-msg-error {
+  color: #e05252; font-size: 10px; padding: 4px 0;
+}
+.gemini-chat-input-row {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.gemini-chat-input {
+  flex: 1;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  font-size: 11px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  outline: none;
+  resize: none;
+}
+.gemini-chat-input:focus { border-color: var(--navy-light); }
+.gemini-chat-send {
+  background: var(--accent);
+  color: var(--navy-dark);
+  border: none;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.gemini-chat-send:hover { background: var(--accent-light); }
+.gemini-chat-send:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── VOTE HISTORY ── */
+.vote-history-section {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.vote-history-title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+.vote-history-item {
+  font-size: 11px;
+  color: var(--text);
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  line-height: 1.4;
+}
+.vote-history-item a { color: var(--accent); font-size: 10px; }
+.vote-history-empty { font-size: 10px; color: var(--text-dim); font-style: italic; }
+.update-profile-btn {
+  background: none;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  font-size: 10px;
+  padding: 4px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: all 0.15s;
+}
+.update-profile-btn:hover { background: rgba(232,160,32,0.1); }
+.update-profile-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── SCHEDULE & REQUIREMENTS ─────────────────────────── */
+.sched-input-wrap { display:flex; gap:16px; }
+.sched-input-col { flex:1; display:flex; flex-direction:column; gap:12px; }
+.stage-dropdown { position:relative; }
+.stage-dropdown-btn { width:100%; padding:8px 10px; font-size:12px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  background:var(--panel); border:1px solid var(--border); color:var(--text); border-radius:3px;
+  cursor:pointer; text-align:left; display:flex; justify-content:space-between; align-items:center; }
+.stage-dropdown-btn:hover { border-color:rgba(255,255,255,0.15); }
+.stage-dropdown-list { display:none; position:absolute; top:100%; left:0; right:0; z-index:50;
+  background:var(--panel); border:1px solid var(--border); border-top:none; border-radius:0 0 3px 3px;
+  max-height:260px; overflow-y:auto; }
+.stage-dropdown-list.open { display:block; }
+.stage-dropdown-item { display:flex; align-items:center; gap:8px; padding:6px 10px; cursor:pointer;
+  font-size:11px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; color:var(--text); transition:background 0.1s; }
+.stage-dropdown-item:hover { background:var(--panel-hover); }
+.stage-dropdown-item input[type="checkbox"] { accent-color:var(--accent); cursor:pointer; }
+.stage-custom-input { flex:1; background:transparent; border:none; border-bottom:1px solid var(--border);
+  color:var(--text); font-size:11px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; padding:2px 4px; outline:none; }
+.stage-custom-input:focus { border-bottom-color:var(--accent); }
+.stage-tags { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+.stage-tag { display:inline-flex; align-items:center; gap:4px; background:rgba(232,160,32,0.12);
+  border:1px solid rgba(232,160,32,0.3); color:var(--accent-light); font-size:10px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  padding:2px 8px; border-radius:2px; }
+.stage-tag-x { cursor:pointer; opacity:0.6; font-size:12px; }
+.stage-tag-x:hover { opacity:1; }
+[data-theme="light"] .stage-dropdown-btn { background:#f5f7fa; border-color:rgba(0,0,0,0.12); color:#1a2332; }
+[data-theme="light"] .stage-dropdown-list { background:#ffffff; border-color:rgba(0,0,0,0.1); }
+[data-theme="light"] .stage-dropdown-item:hover { background:#f5f7fa; }
+[data-theme="light"] .stage-tag { background:rgba(192,120,0,0.1); border-color:rgba(192,120,0,0.25); color:#c07800; }
+.sched-export-bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
+.sched-section { margin-bottom:20px; }
+.sched-section-title { font-size:14px; font-weight:700; color:var(--text); margin-bottom:12px; letter-spacing:0.03em; }
+.sched-step { display:flex; gap:14px; padding:12px 0 12px 16px; border-left:3px solid var(--accent); margin-left:8px; position:relative; }
+.sched-step::before { content:''; position:absolute; left:-6px; top:16px; width:9px; height:9px; border-radius:50%; background:var(--accent); }
+.sched-step-date { min-width:90px; font-size:12px; font-weight:700; color:var(--accent); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; padding-top:1px; }
+.sched-step-body { flex:1; }
+.sched-step-milestone { font-size:13px; font-weight:600; color:var(--text); margin-bottom:3px; }
+.sched-step-desc { font-size:11px; color:var(--text-dim); line-height:1.5; }
+.sched-step-meta { display:flex; gap:8px; align-items:center; margin-top:4px; }
+.sched-type-badge { font-size:9px; font-weight:700; letter-spacing:0.06em; padding:2px 7px; border-radius:3px; text-transform:uppercase; }
+.sched-type-filing { background:rgba(42,95,165,0.2); color:#7aacdf; }
+.sched-type-hearing { background:rgba(232,160,32,0.15); color:#e8a020; }
+.sched-type-notice { background:rgba(45,122,79,0.2); color:#5cb88a; }
+.sched-type-vote { background:rgba(184,92,26,0.2); color:#e8a060; }
+.sched-type-other { background:rgba(255,255,255,0.06); color:var(--text-dim); }
+.sched-days-badge { font-size:9px; color:var(--text-dim); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; }
+.sched-step-warning { background:rgba(184,92,26,0.08); border-left-color:#b85c1a; }
+.sched-step-warning::before { background:#b85c1a; }
+.sched-req-group { margin-bottom:14px; }
+.sched-req-group-title { font-size:11px; font-weight:700; color:var(--accent); letter-spacing:0.05em; text-transform:uppercase; margin-bottom:6px; }
+.sched-req-item { display:flex; gap:10px; padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.04); font-size:11px; }
+.sched-req-item-name { color:var(--text); font-weight:600; min-width:180px; }
+.sched-req-item-detail { color:var(--text-dim); flex:1; line-height:1.5; }
+.sched-req-item-source { color:var(--text-dim); font-size:10px; font-style:italic; min-width:120px; text-align:right; }
+.sched-assumption { font-size:11px; color:var(--text-dim); padding:4px 0 4px 16px; border-left:2px solid rgba(255,255,255,0.08); margin-bottom:4px; line-height:1.5; }
+.sched-loading-spinner { width:32px; height:32px; border:3px solid rgba(232,160,32,0.2); border-top-color:var(--accent); border-radius:50%; animation:sched-spin 0.8s linear infinite; margin:0 auto; }
+@keyframes sched-spin { to { transform:rotate(360deg); } }
+.sched-no-ref { color:var(--warn); font-style:italic; }
+.sched-view-toggle { display:inline-flex; gap:2px; background:rgba(255,255,255,0.04); border-radius:4px; padding:2px; margin-left:12px; }
+.sched-view-toggle button { background:none; border:none; color:var(--text-dim); font-size:10px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; padding:4px 10px; border-radius:3px; cursor:pointer; letter-spacing:0.04em; }
+.sched-view-toggle button.active { background:rgba(232,160,32,0.15); color:var(--accent); }
+.gantt-wrap { overflow-x:auto; margin-top:8px; }
+.gantt-row { display:flex; align-items:center; min-height:32px; border-bottom:1px solid rgba(255,255,255,0.04); }
+.gantt-label { min-width:200px; max-width:200px; font-size:10px; color:var(--text); padding:4px 8px 4px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:500; }
+.gantt-track { flex:1; position:relative; height:24px; }
+.gantt-bar { position:absolute; height:20px; top:2px; border-radius:3px; min-width:8px; display:flex; align-items:center; padding:0 6px; font-size:9px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; color:#fff; font-weight:600; white-space:nowrap; overflow:hidden; }
+.gantt-bar-filing { background:rgba(42,95,165,0.7); }
+.gantt-bar-hearing { background:rgba(232,160,32,0.7); }
+.gantt-bar-notice { background:rgba(45,122,79,0.7); }
+.gantt-bar-vote { background:rgba(184,92,26,0.7); }
+.gantt-bar-other { background:rgba(122,139,160,0.5); }
+.gantt-date-axis { display:flex; justify-content:space-between; padding-left:200px; margin-top:4px; font-size:9px; color:var(--text-dim); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; }
+@media (max-width:800px) { .sched-input-wrap { flex-direction:column; } }
+
+/* ═══ P12: Schedule Banner ═══ */
+.schedule-banner { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 14px; border-radius:6px; margin-bottom:12px; font-size:11px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; flex-wrap:wrap; }
+.schedule-banner.confirmed { background:rgba(26,122,74,0.12); border:1px solid rgba(26,122,74,0.3); color:#6dc49a; }
+.schedule-banner.projected { background:rgba(232,160,32,0.1); border:1px solid rgba(232,160,32,0.25); color:var(--accent); }
+.schedule-banner.none { background:rgba(122,139,160,0.08); border:1px solid rgba(122,139,160,0.2); color:var(--text-dim); }
+.schedule-banner-url { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.schedule-banner-url input { width:260px; max-width:100%; }
+
+/* ═══ P12: Body Section Header ═══ */
+.body-section-header { font-size:12px; font-weight:600; color:var(--white); letter-spacing:0.05em; text-transform:uppercase; padding:8px 0 4px 2px; margin-top:14px; border-bottom:1px solid var(--border); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; }
+
+/* ═══ P12: Status Badges ═══ */
+.status-badge { display:inline-block; font-size:9px; padding:1px 6px; border-radius:3px; margin-left:6px; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; vertical-align:middle; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; }
+.status-badge.confirmed { background:rgba(26,122,74,0.15); color:#6dc49a; border:1px solid rgba(26,122,74,0.3); }
+.status-badge.projected { background:rgba(232,160,32,0.12); color:var(--accent); border:1px solid rgba(232,160,32,0.25); }
+
+/* ═══ P12: Missing Content Row ═══ */
+.hearings-row-missing { background:rgba(224,136,136,0.04); }
+.hearings-row-missing td:first-child { border-left:2px solid rgba(224,136,136,0.25); }
+
+/* ═══ P12: Add URL Button ═══ */
+.add-url-btn { background:none; border:1px dashed rgba(255,255,255,0.15); color:var(--text-dim); font-size:10px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; padding:3px 8px; border-radius:3px; cursor:pointer; transition:all 0.15s; letter-spacing:0.02em; }
+.add-url-btn:hover { border-color:var(--accent); color:var(--accent); background:rgba(232,160,32,0.06); }
+
+/* ═══ P12: URL Popover ═══ */
+.url-popover { display:flex; gap:6px; align-items:center; margin-top:6px; flex-wrap:wrap; }
+.url-popover-input { background:var(--panel); border:1px solid var(--border); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:11px; padding:5px 8px; border-radius:4px; outline:none; width:220px; max-width:100%; }
+.url-popover-input:focus { border-color:var(--accent); }
+
+/* ═══ P12: Light Theme Overrides ═══ */
+[data-theme="light"] .schedule-banner.confirmed { background:rgba(26,122,74,0.08); border-color:rgba(26,122,74,0.25); color:#1a7a4a; }
+[data-theme="light"] .schedule-banner.projected { background:rgba(154,95,0,0.06); border-color:rgba(154,95,0,0.2); color:#9a5f00; }
+[data-theme="light"] .schedule-banner.none { background:rgba(74,85,104,0.06); border-color:rgba(74,85,104,0.15); color:#4a5568; }
+[data-theme="light"] .body-section-header { color:#111820; border-bottom-color:rgba(0,0,0,0.12); }
+[data-theme="light"] .status-badge.confirmed { background:rgba(26,122,74,0.1); color:#1a7a4a; border-color:rgba(26,122,74,0.25); }
+[data-theme="light"] .status-badge.projected { background:rgba(154,95,0,0.08); color:#9a5f00; border-color:rgba(154,95,0,0.2); }
+[data-theme="light"] .hearings-row-missing { background:rgba(220,80,80,0.04); }
+[data-theme="light"] .hearings-row-missing td:first-child { border-left-color:rgba(220,80,80,0.2); }
+[data-theme="light"] .add-url-btn { border-color:rgba(0,0,0,0.15); color:#4a5568; }
+[data-theme="light"] .add-url-btn:hover { border-color:#9a5f00; color:#9a5f00; background:rgba(154,95,0,0.04); }
+[data-theme="light"] .url-popover-input { background:#fff; border-color:rgba(0,0,0,0.12); color:#111820; }
+[data-theme="light"] .url-popover-input:focus { border-color:#9a5f00; }
+
+/* ── Public Hearings weekly calendar ── */
+.ph-week-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.ph-week-btn {
+  background: rgba(232,160,32,0.1);
+  border: 1px solid rgba(232,160,32,0.35);
+  color: var(--accent);
+  font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  font-size: 11px;
+  padding: 5px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.ph-week-btn:hover { background: rgba(232,160,32,0.2); border-color: var(--accent); }
+.ph-week-label {
+  font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  font-size: 12px;
+  color: var(--text);
+  letter-spacing: 0.05em;
+  margin: 0 6px;
+}
+.ph-week-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.ph-day-col {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
+}
+.ph-day-col.ph-day-today { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(232,160,32,0.2) inset; }
+.ph-day-header {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+}
+.ph-day-name {
+  font-size: 10px;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.ph-day-date {
+  font-size: 13px;
+  color: var(--text);
+  margin-top: 2px;
+}
+.ph-day-body {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+.ph-meeting-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 6px 8px;
+}
+.ph-meeting-info { flex: 1; min-width: 0; }
+.ph-meeting-muni {
+  font-size: 11px;
+  color: var(--text);
+  font-weight: 600;
+  line-height: 1.2;
+  word-break: break-word;
+}
+.ph-meeting-type {
+  font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  font-size: 9px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 2px;
+}
+.ph-meeting-links {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+.ph-meeting-link {
+  font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  font-size: 9px;
+  text-decoration: none;
+  padding: 2px 6px;
+  border-radius: 2px;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+.ph-meeting-link.ag { color: #e8a020; border-color: rgba(232,160,32,0.3); }
+.ph-meeting-link.yt { color: #e08888; border-color: rgba(224,136,136,0.3); }
+.ph-meeting-link.mn { color: #7aacdf; border-color: rgba(122,172,223,0.3); }
+.ph-meeting-link:hover { background: rgba(255,255,255,0.04); }
+.ph-meeting-link.disabled { opacity: 0.3; pointer-events: none; }
+.ph-day-empty {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-style: italic;
+  padding: 6px 4px;
+}
+@media (max-width: 900px) {
+  .ph-week-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 540px) {
+  .ph-week-grid { grid-template-columns: 1fr; }
+}
+[data-theme="light"] .ph-week-btn { background: rgba(154,95,0,0.08); border-color: rgba(154,95,0,0.3); color: #9a5f00; }
+[data-theme="light"] .ph-week-btn:hover { background: rgba(154,95,0,0.16); border-color: #9a5f00; }
+[data-theme="light"] .ph-meeting-item { background: rgba(0,0,0,0.02); }
+[data-theme="light"] .ph-meeting-link.ag { color: #9a5f00; border-color: rgba(154,95,0,0.3); }
+[data-theme="light"] .ph-meeting-link.yt { color: #b04848; border-color: rgba(176,72,72,0.3); }
+[data-theme="light"] .ph-meeting-link.mn { color: #2d6cb6; border-color: rgba(45,108,182,0.3); }
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* P58.2 — AGENDA SIDE-PANEL VIEWER                                          */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+/* Container — invisible / non-interactive until .open */
+.agenda-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  pointer-events: none;
+  visibility: hidden;
+}
+.agenda-panel.open {
+  pointer-events: auto;
+  visibility: visible;
+}
+
+/* Backdrop — dim the main content behind */
+.agenda-panel-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+.agenda-panel.open .agenda-panel-backdrop {
+  opacity: 1;
+}
+
+/* Shell — the panel itself, slides in from the right */
+.agenda-panel-shell {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(70vw, 1100px);
+  background: #1a1a1a;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 260ms cubic-bezier(0.2, 0, 0, 1);
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.4);
+}
+.agenda-panel.open .agenda-panel-shell {
+  transform: translateX(0);
+}
+
+/* Popup-mode override: panel fills the entire window, no slide, no backdrop. */
+.agenda-panel.popup-mode .agenda-panel-backdrop { display: none; }
+.agenda-panel.popup-mode .agenda-panel-shell {
+  position: static;
+  width: 100%;
+  height: 100vh;
+  transform: none;
+  border-left: none;
+  box-shadow: none;
+}
+
+/* When panel is open, prevent body scroll. */
+body.agenda-panel-locked { overflow: hidden; }
+
+/* ── Header ────────────────────────────────────────────────────────── */
+.agenda-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0) 100%);
+  flex-shrink: 0;
+}
+.agenda-panel-meta {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.agenda-panel-title-text {
+  font-size: 15px;
+  margin: 0 0 3px 0;
+  color: var(--text, #e8e8e8);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  letter-spacing: 0.02em;
+}
+.agenda-panel-subtitle {
+  font-size: 11px;
+  color: var(--text-dim, #888);
+  font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  letter-spacing: 0.04em;
+}
+.agenda-panel-versions {
+  display: inline-block;
+  margin-left: 10px;
+  font-size: 10px;
+  color: var(--text-dim, #888);
+}
+
+.agenda-panel-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.agenda-panel-controls button,
+.agenda-panel-controls a.agenda-panel-external,
+.agenda-panel-controls select {
+  font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  font-size: 11px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text, #e8e8e8);
+  cursor: pointer;
+  letter-spacing: 0.03em;
+  text-decoration: none;
+}
+.agenda-panel-controls button:hover,
+.agenda-panel-controls a.agenda-panel-external:hover,
+.agenda-panel-controls select:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+.agenda-panel-controls select:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.agenda-panel-tagmode.on {
+  background: rgba(160, 76, 184, 0.22);
+  border-color: rgba(160, 76, 184, 0.6);
+  color: #d49ce4;
+}
+.agenda-panel-project {
+  max-width: 240px;
+  text-overflow: ellipsis;
+}
+.agenda-panel-close {
+  font-size: 14px !important;
+  line-height: 1;
+  padding: 6px 9px !important;
+}
+
+/* ── Body (main + sidebar) ─────────────────────────────────────────── */
+/* P58.6a: sidebar is hidden in this cut; body is single-column so the
+   document iframe uses the full width. The 1fr 320px split returns in
+   P58.6b if/when the sidebar comes back for HTML-agenda routes. */
+.agenda-panel-body {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: 1fr;
+  min-height: 0;
+}
+/* P58.6a: action rail above the document — holds paste-URL + new-project
+   form. Sits between the header and the body so both interactive tools
+   are visible before the user has to scroll the PDF. */
+.agenda-panel-actions {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 10px 16px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+/* The paste-container's inner `.agenda-panel-paste` already has its own
+   card framing — no extra margin needed when sitting above the doc. */
+.agenda-panel-actions > #agenda-panel-paste-container:not(:empty) {
+  padding-bottom: 10px;
+}
+/* When new-project form expands, give it breathing room from paste-URL */
+.agenda-panel-actions > #agenda-panel-newproj-form:not([hidden]) {
+  margin-bottom: 4px;
+}
+[data-theme="light"] .agenda-panel-actions {
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+.agenda-panel-main {
+  position: relative;
+  background: #0f0f0f;
+  overflow: hidden;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+}
+.agenda-panel-iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #f5f5f5;
+}
+
+/* External-only state — when the host won't iframe-embed (OnBase, CivicClerk) */
+.agenda-panel-external-state {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  text-align: center;
+  gap: 16px;
+  color: var(--text, #e8e8e8);
+}
+.agenda-panel-external-icon {
+  font-size: 36px;
+  color: var(--text-dim, #888);
+  opacity: 0.6;
+}
+.agenda-panel-external-msg {
+  font-size: 13px;
+  line-height: 1.5;
+  max-width: 460px;
+  color: var(--text-dim, #aaa);
+}
+.agenda-panel-external-btn {
+  display: inline-block;
+  padding: 10px 22px;
+  border-radius: 4px;
+  background: rgba(232, 160, 32, 0.15);
+  color: #e8a020;
+  border: 1px solid rgba(232, 160, 32, 0.4);
+  font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+}
+.agenda-panel-external-btn:hover {
+  background: rgba(232, 160, 32, 0.25);
+  border-color: rgba(232, 160, 32, 0.6);
+}
+.agenda-panel-external-hint {
+  font-size: 10px;
+  color: var(--text-dim, #888);
+  opacity: 0.7;
+  letter-spacing: 0.04em;
+}
+
+/* ── P58.4 proxy loading state ─────────────────────────────────────── */
+.agenda-panel-proxy-loading {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 48px 32px;
+  text-align: center;
+}
+.agenda-panel-proxy-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(232, 160, 32, 0.18);
+  border-top-color: rgba(232, 160, 32, 0.8);
+  border-radius: 50%;
+  animation: agendaPanelProxySpin 0.9s linear infinite;
+}
+@keyframes agendaPanelProxySpin {
+  to { transform: rotate(360deg); }
+}
+.agenda-panel-proxy-msg {
+  font-size: 13px;
+  color: var(--text-dim, #ccc);
+  letter-spacing: 0.02em;
+}
+.agenda-panel-proxy-hint {
+  font-size: 10px;
+  max-width: 380px;
+  color: var(--text-dim, #888);
+  opacity: 0.7;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+}
+[data-theme="light"] .agenda-panel-proxy-msg { color: #444; }
+[data-theme="light"] .agenda-panel-proxy-hint { color: #666; }
+
+/* ── P58.5 manual paste-URL affordance ─────────────────────────────── */
+.agenda-panel-paste {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(232, 160, 32, 0.18);
+  border-radius: 4px;
+  background: rgba(232, 160, 32, 0.04);
+}
+.agenda-panel-paste-label {
+  display: block;
+  font-size: 9px;
+  font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(232, 160, 32, 0.85);
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.agenda-panel-paste-row {
+  display: flex;
+  gap: 6px;
+}
+.agenda-panel-paste-input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  color: #eee;
+  outline: none;
+}
+.agenda-panel-paste-input:focus {
+  border-color: rgba(232, 160, 32, 0.6);
+  background: rgba(0, 0, 0, 0.45);
+}
+.agenda-panel-paste-input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 10px;
+}
+.agenda-panel-paste-btn {
+  padding: 6px 10px;
+  font-size: 11px;
+  font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  font-weight: 600;
+  background: rgba(232, 160, 32, 0.15);
+  color: #e8a020;
+  border: 1px solid rgba(232, 160, 32, 0.4);
+  border-radius: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.agenda-panel-paste-btn:hover:not(:disabled) {
+  background: rgba(232, 160, 32, 0.25);
+  border-color: rgba(232, 160, 32, 0.6);
+}
+.agenda-panel-paste-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.agenda-panel-paste-hint {
+  font-size: 10px;
+  margin-top: 6px;
+  color: rgba(232, 160, 32, 0.7);
+  min-height: 13px;
+  letter-spacing: 0.02em;
+}
+.agenda-panel-paste-hint.warn {
+  color: #d9534f;
+}
+[data-theme="light"] .agenda-panel-paste {
+  background: rgba(232, 160, 32, 0.06);
+  border-color: rgba(232, 160, 32, 0.3);
+}
+[data-theme="light"] .agenda-panel-paste-input {
+  background: #fff;
+  color: #222;
+  border-color: rgba(0, 0, 0, 0.15);
+}
+[data-theme="light"] .agenda-panel-paste-input::placeholder { color: #999; }
+
+/* ── Sidebar ───────────────────────────────────────────────────────── */
+.agenda-panel-sidebar {
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  background: #121212;
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+/* P58.6a: when [hidden] is set, this needs higher specificity than the
+   base .agenda-panel-sidebar { display: flex } rule above. */
+.agenda-panel-sidebar[hidden] { display: none; }
+.agenda-panel-sidebar-title {
+  margin: 0 0 4px 0;
+  font-size: 10px;
+  font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-dim, #888);
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.agenda-panel-sidebar-count {
+  font-size: 9px;
+  font-weight: 400;
+  opacity: 0.65;
+  text-transform: none;
+  letter-spacing: 0.04em;
+}
+.agenda-panel-link.is-viewing {
+  border-color: rgba(160, 76, 184, 0.4);
+  background: rgba(160, 76, 184, 0.06);
+}
+.agenda-panel-link.is-viewing .agenda-panel-link-label {
+  color: #d49ce4;
+  font-weight: 600;
+}
+[data-theme="light"] .agenda-panel-link.is-viewing {
+  border-color: rgba(120, 50, 140, 0.35);
+  background: rgba(120, 50, 140, 0.04);
+}
+[data-theme="light"] .agenda-panel-link.is-viewing .agenda-panel-link-label {
+  color: #6d3284;
+}
+.agenda-panel-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.agenda-panel-link {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.agenda-panel-link-meta {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.agenda-panel-link-label {
+  font-size: 12px;
+  color: var(--text, #e8e8e8);
+  margin-bottom: 3px;
+  word-break: break-word;
+}
+.agenda-panel-link-url {
+  font-size: 10px;
+  color: var(--text-dim, #888);
+  font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  word-break: break-all;
+  opacity: 0.8;
+}
+.agenda-panel-tag-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  border: 1px solid rgba(160, 76, 184, 0.4);
+  background: rgba(160, 76, 184, 0.12);
+  color: #d49ce4;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  font-family: inherit;
+  opacity: 0.35;
+  transition: opacity 120ms ease, background 120ms ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+/* ✚ buttons only become interactive when tag-mode is on AND a project is selected. */
+.agenda-panel.tag-on .agenda-panel-tag-btn {
+  opacity: 1;
+}
+.agenda-panel-tag-btn:hover:not(:disabled) {
+  background: rgba(160, 76, 184, 0.24);
+  border-color: rgba(160, 76, 184, 0.7);
+}
+.agenda-panel-tag-btn:disabled {
+  cursor: default;
+}
+.agenda-panel-tag-btn.tagged {
+  background: rgba(76, 184, 124, 0.2);
+  border-color: rgba(76, 184, 124, 0.6);
+  color: #9ce4b8;
+  opacity: 1;
+}
+.agenda-panel-tag-btn.failed {
+  background: rgba(184, 76, 76, 0.2);
+  border-color: rgba(184, 76, 76, 0.6);
+  color: #e49c9c;
+  opacity: 1;
+}
+
+/* P58.3a — Layer 2 extracted-links section */
+.agenda-panel-extraction {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.agenda-panel-extraction-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.agenda-panel-extraction-label {
+  font-size: 10px;
+  font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-dim, #888);
+  font-weight: 600;
+}
+.agenda-panel-extraction-status {
+  font-size: 9px;
+  font-weight: 400;
+  opacity: 0.65;
+  letter-spacing: 0.04em;
+  color: var(--text-dim, #888);
+}
+.agenda-panel-extraction.loading .agenda-panel-extraction-status::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,0.2);
+  border-top-color: #d49ce4;
+  margin-right: 5px;
+  vertical-align: -1px;
+  animation: agenda-panel-spin 0.8s linear infinite;
+}
+@keyframes agenda-panel-spin { to { transform: rotate(360deg); } }
+.agenda-panel-extension-msg,
+.agenda-panel-extraction-msg {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-dim, #888);
+  padding: 8px 10px;
+  background: rgba(255,255,255,0.02);
+  border-radius: 4px;
+}
+.agenda-panel-extraction.error .agenda-panel-extraction-msg {
+  background: rgba(184, 76, 76, 0.08);
+  border: 1px solid rgba(184, 76, 76, 0.2);
+  color: #e49c9c;
+}
+.agenda-panel-link-kind {
+  display: inline-block;
+  font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-dim, #aaa);
+  letter-spacing: 0.06em;
+  margin-right: 4px;
+  vertical-align: 1px;
+}
+.agenda-panel-extlinks .agenda-panel-link {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+[data-theme="light"] .agenda-panel-extraction-head {
+  border-top-color: rgba(0, 0, 0, 0.08);
+}
+[data-theme="light"] .agenda-panel-extraction-msg {
+  background: rgba(0,0,0,0.03);
+}
+[data-theme="light"] .agenda-panel-link-kind {
+  background: rgba(0,0,0,0.06);
+}
+
+.agenda-panel-create-hint {
+  padding: 12px;
+  border-radius: 4px;
+  background: rgba(45, 108, 182, 0.08);
+  border: 1px solid rgba(45, 108, 182, 0.25);
+  font-size: 11px;
+  color: var(--text, #e8e8e8);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.agenda-panel-create-btn {
+  align-self: flex-start;
+  padding: 6px 12px;
+  background: rgba(45, 108, 182, 0.18);
+  border: 1px solid rgba(45, 108, 182, 0.5);
+  border-radius: 4px;
+  color: #6ca8e4;
+  cursor: pointer;
+  font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  font-size: 11px;
+}
+.agenda-panel-create-btn:hover {
+  background: rgba(45, 108, 182, 0.3);
+}
+
+/* ── Live region (visually hidden, screen-reader only) ─────────────── */
+.agenda-panel-live {
+  position: absolute;
+  left: -10000px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+/* ── P58.6a: New Tracked Project button + inline form ──────────────── */
+.agenda-panel-newproj-btn {
+  background: rgba(45, 108, 182, 0.18);
+  border: 1px solid rgba(45, 108, 182, 0.5);
+  color: #6ca8e4;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.agenda-panel-newproj-btn:hover {
+  background: rgba(45, 108, 182, 0.3);
+}
+.agenda-panel-newproj-btn[aria-expanded="true"] {
+  background: rgba(45, 108, 182, 0.4);
+  color: #fff;
+}
+.agenda-panel-newproj-form {
+  padding: 10px 16px 12px;
+  background: rgba(45, 108, 182, 0.06);
+  border-bottom: 1px solid rgba(45, 108, 182, 0.2);
+}
+.agenda-panel-newproj-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.agenda-panel-newproj-name,
+.agenda-panel-newproj-ord {
+  background: rgba(0,0,0,0.25);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: var(--text, #e8e8e8);
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  font-size: 11px;
+}
+.agenda-panel-newproj-name { flex: 1 1 240px; min-width: 200px; }
+.agenda-panel-newproj-ord  { flex: 0 1 160px; min-width: 120px; }
+.agenda-panel-newproj-name:focus,
+.agenda-panel-newproj-ord:focus {
+  outline: none;
+  border-color: rgba(45, 108, 182, 0.6);
+}
+.agenda-panel-newproj-name.invalid {
+  border-color: rgba(220,80,80,0.7);
+}
+.agenda-panel-newproj-save {
+  background: rgba(45, 108, 182, 0.4);
+  border: 1px solid rgba(45, 108, 182, 0.7);
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  font-size: 11px;
+  cursor: pointer;
+}
+.agenda-panel-newproj-save:hover {
+  background: rgba(45, 108, 182, 0.55);
+}
+.agenda-panel-newproj-save:disabled {
+  opacity: 0.5; cursor: not-allowed;
+}
+.agenda-panel-newproj-cancel {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.15);
+  color: var(--text-dim, #888);
+  width: 28px; height: 28px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.agenda-panel-newproj-cancel:hover {
+  color: var(--text, #e8e8e8);
+  border-color: rgba(255,255,255,0.3);
+}
+.agenda-panel-newproj-msg {
+  margin-top: 8px;
+  font-size: 11px;
+  min-height: 14px;
+  color: var(--text-dim, #888);
+}
+.agenda-panel-newproj-msg.success { color: #6ec07a; }
+.agenda-panel-newproj-msg.error   { color: #d9534f; }
+
+/* P58.6a: light-theme overrides for the new-project form */
+[data-theme="light"] .agenda-panel-newproj-form {
+  background: rgba(45, 108, 182, 0.05);
+  border-bottom-color: rgba(45, 108, 182, 0.18);
+}
+[data-theme="light"] .agenda-panel-newproj-name,
+[data-theme="light"] .agenda-panel-newproj-ord {
+  background: #fff;
+  color: #222;
+  border-color: rgba(0,0,0,0.15);
+}
+[data-theme="light"] .agenda-panel-newproj-cancel {
+  border-color: rgba(0,0,0,0.15);
+  color: #666;
+}
+
+/* ── P58.6a: Operator-mode badge ───────────────────────────────────── */
+.agenda-panel-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.agenda-panel-op-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  background: rgba(232, 160, 32, 0.18);
+  border: 1px solid rgba(232, 160, 32, 0.55);
+  color: #f0b84a;
+  border-radius: 3px;
+  font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  vertical-align: middle;
+}
+[data-theme="light"] .agenda-panel-op-badge {
+  color: #9a5f00;
+  background: rgba(232, 160, 32, 0.12);
+  border-color: rgba(232, 160, 32, 0.4);
+}
+
+/* ── P58.6a: Visible toast (paste-tag / new-project feedback) ──────── */
+.agenda-panel-toast {
+  position: fixed;
+  bottom: 20px;
+  right: 24px;
+  z-index: 100000;
+  padding: 10px 16px;
+  background: rgba(20, 48, 79, 0.96);
+  border: 1px solid rgba(108, 168, 228, 0.55);
+  border-radius: 4px;
+  color: #fff;
+  font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.4);
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition: opacity 220ms ease, transform 220ms ease;
+  max-width: 360px;
+}
+.agenda-panel-toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+.agenda-panel-toast.success {
+  border-color: rgba(110, 192, 122, 0.6);
+}
+.agenda-panel-toast.error {
+  border-color: rgba(217, 83, 79, 0.7);
+  background: rgba(60, 20, 20, 0.96);
+}
+[data-theme="light"] .agenda-panel-toast {
+  background: #14304f;
+  color: #fff;
+}
+
+/* ── Light theme overrides ─────────────────────────────────────────── */
+[data-theme="light"] .agenda-panel-shell {
+  background: #fafafa;
+  border-left-color: rgba(0, 0, 0, 0.08);
+}
+[data-theme="light"] .agenda-panel-header {
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+  background: linear-gradient(180deg, rgba(0,0,0,0.02) 0%, rgba(0,0,0,0) 100%);
+}
+[data-theme="light"] .agenda-panel-main { background: #e8e8e8; }
+[data-theme="light"] .agenda-panel-sidebar {
+  background: #f1f1f1;
+  border-left-color: rgba(0, 0, 0, 0.08);
+}
+[data-theme="light"] .agenda-panel-link {
+  background: #fff;
+  border-color: rgba(0, 0, 0, 0.06);
+}
+[data-theme="light"] .agenda-panel-controls button,
+[data-theme="light"] .agenda-panel-controls a.agenda-panel-external,
+[data-theme="light"] .agenda-panel-controls select {
+  background: #fff;
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+/* ── Responsive ────────────────────────────────────────────────────── */
+@media (max-width: 1023px) {
+  .agenda-panel-shell { width: 85vw; }
+  .agenda-panel-body { grid-template-columns: 1fr 220px; }
+  .agenda-panel-popout { display: none; } /* multi-monitor only makes sense on desktop */
+}
+@media (max-width: 767px) {
+  .agenda-panel-shell { width: 100vw; }
+  .agenda-panel-body { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+  .agenda-panel-sidebar { display: none; }   /* P58.2: hide sidebar on mobile; tabs land in a later phase */
+  .agenda-panel-header { flex-wrap: wrap; gap: 8px; }
+  .agenda-panel-controls { width: 100%; flex-wrap: wrap; }
+  .agenda-panel-project { max-width: 100%; flex: 1 1 100%; }
+  .agenda-panel-tag-btn { width: 44px; height: 44px; } /* touch target */
+}
+
+/* P90: sidecar "↓" link appears next to any Agenda/Minutes link whose URL
+   would be wrapped through Google Docs Viewer (CivicClerk, Greenfield).
+   Provides a manual fallback when the viewer rejects large PDFs (>25 MB)
+   with "Couldn't preview file — too large to preview." */
+.dl-sibling {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 4px;
+  font-size: 11px;
+  line-height: 1;
+  text-decoration: none;
+  color: var(--text-dim, #888);
+  border: 1px solid transparent;
+  border-radius: 3px;
+  opacity: 0.7;
+  vertical-align: baseline;
+  cursor: pointer;
+}
+.dl-sibling:hover {
+  opacity: 1;
+  color: var(--text, #ddd);
+  border-color: var(--border, rgba(255,255,255,0.15));
+  background: var(--surface-hover, rgba(255,255,255,0.04));
+}
+[data-theme="light"] .dl-sibling { color: #666; }
+[data-theme="light"] .dl-sibling:hover { color: #1b4965; border-color: rgba(30,58,95,0.32); background: rgba(30,58,95,0.06); }
