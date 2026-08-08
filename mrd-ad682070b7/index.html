@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p148r1 -->
+<!-- MIP build p151r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -480,6 +480,7 @@
           </div>
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
             <select id="cand-filter-juris" onchange="candSetJuris(this.value)" title="Filter by jurisdiction" style="font-size:12px;padding:4px 8px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:6px;cursor:pointer;"><option value="">All jurisdictions</option></select>
+            <select id="cand-sort" onchange="candSetSort(this.value)" title="Sort order" style="font-size:12px;padding:4px 8px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:6px;cursor:pointer;"><option value="date">Sort: Newest agenda</option><option value="juris">Sort: Jurisdiction (A–Z)</option></select>
             <input type="text" id="cand-search" oninput="candSetSearch(this.value)" placeholder="Search project / petitioner / ord#" style="font-size:12px;padding:4px 10px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:6px;min-width:210px;">
             <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--text-dim);cursor:pointer;"><input type="checkbox" id="cand-filter-high" onchange="candToggleHigh(this)" style="cursor:pointer;">High-confidence only</label>
             <select id="cand-pagesize" onchange="candSetPageSize(this.value)" title="Rows per page" style="font-size:12px;padding:4px 8px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:6px;cursor:pointer;"><option value="50">50 / page</option><option value="100">100 / page</option><option value="250">250 / page</option><option value="999999">Show all</option></select>
@@ -9232,6 +9233,7 @@ var _candJuris = '';        // '' = all jurisdictions
 var _candSearch = '';       // lowercased search term
 var _candPage = 0;          // 0-based page index (within current filter)
 var _candPageSize = 50;     // rows per page
+var _candSort = 'date';     // 'date' (newest agenda first) | 'juris' (A–Z, then newest)
 var _candSel = {};          // candidate_id -> true (bulk-dismiss selection)
 
 // P115: right-rail (Tracked Projects grouped by Muni) state.
@@ -9350,10 +9352,15 @@ function _candFiltered(){
     }
     return true;
   });
-  // P115: order by date of the most recent agenda, newest → oldest.
+  // Sort: default by date of the most recent agenda, newest → oldest (P115).
+  // 'juris' sorts by jurisdiction A–Z, then newest agenda within each.
   out.sort(function(a,b){
     var da=Date.parse(a.last_seen_date||a.first_seen_date||'')||0;
     var db=Date.parse(b.last_seen_date||b.first_seen_date||'')||0;
+    if(_candSort==='juris'){
+      var jc=String(a.jurisdiction||'').localeCompare(String(b.jurisdiction||''));
+      if(jc) return jc;
+    }
     return db-da;
   });
   return out;
@@ -9509,6 +9516,7 @@ function candToggleHigh(cb){ _candFilterHigh=!!(cb&&cb.checked); _candPage=0; ca
 function candSetJuris(v){ _candJuris=v||''; _candPage=0; candRender(); }
 function candSetSearch(v){ _candSearch=String(v||'').toLowerCase().trim(); _candPage=0; candRender(); }
 function candSetPageSize(v){ var n=parseInt(v,10); _candPageSize=(n>0?n:50); _candPage=0; candRender(); }
+function candSetSort(v){ _candSort=(v==='juris'?'juris':'date'); _candPage=0; candRender(); }
 function candGoPage(p){ _candPage=p; candRender(); }
 
 // ── Selection (bulk dismiss) ──
@@ -10134,12 +10142,13 @@ function aiRender(stream){
   if(!nAll){ el.innerHTML=summary+'<div style="color:var(--text-dim);padding:12px 0;">No parsed '+cfg.noun+' found.</div>'; return; }
   if(!nF){ el.innerHTML=summary+'<div style="color:var(--text-dim);padding:12px 0;">No items match the current filter. Adjust the jurisdiction / match-confidence / search filters above.</div>'; return; }
 
-  // P150: bulk Accept — selection (checkbox col) over acceptable rows only
-  // (matched project present, not yet linked, not already resolved this session).
-  var nSel=filtered.filter(function(it){ return s.sel[it.item_id] && _aiAcceptable(it); }).length;
+  // Bulk Accept — every row is selectable. Accept links each selected row that has
+  // an unlinked Matched Project, then clears ALL selected rows (matched or not)
+  // from the page. Session-local; a Refresh re-pulls the authoritative feed.
+  var nSel=filtered.filter(function(it){ return s.sel[it.item_id]; }).length;
   var bulkBar='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px;font-size:11px;color:var(--text-dim);">'+
     '<span><b style="color:inherit;">'+nSel+'</b> selected</span>'+
-    '<button class="refresh-btn" id="ai-'+stream+'-bulk-accept" style="font-size:10px;padding:3px 10px;background:#1c7c3a;color:#fff;border-color:#1c7c3a;'+(nSel?'':'opacity:.5;pointer-events:none;')+'" onclick="aiBulkAccept(\''+stream+'\')" title="Attach each selected item to its Matched Project (same as Add to… with the matched project chosen)">✓ Accept selected</button>'+
+    '<button class="refresh-btn" id="ai-'+stream+'-bulk-accept" style="font-size:10px;padding:3px 10px;background:#1c7c3a;color:#fff;border-color:#1c7c3a;'+(nSel?'':'opacity:.5;pointer-events:none;')+'" onclick="aiBulkAccept(\''+stream+'\')" title="Link each selected row that has an unlinked Matched Project, then clear all selected rows from this page">✓ Accept selected</button>'+
     (nSel?'<button class="refresh-btn" style="font-size:10px;padding:3px 10px;" onclick="aiClearSel(\''+stream+'\')" title="Clear selection">Clear</button>':'')+
     '<span id="ai-'+stream+'-bulk-status"></span></div>';
 
@@ -10148,10 +10157,9 @@ function aiRender(stream){
   var isYt=(stream==='yt');
   var ordW=isYt?30:70, projW=isYt?210:170;
   var thS='padding:6px 8px;text-align:left;vertical-align:top;';
-  var pageAcceptable=pageRows.filter(_aiAcceptable);
-  var allPageSel=pageAcceptable.length>0 && pageAcceptable.every(function(it){ return s.sel[it.item_id]; });
+  var allPageSel=pageRows.length>0 && pageRows.every(function(it){ return s.sel[it.item_id]; });
   var head='<tr style="color:var(--text-dim);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">'+
-    '<th style="'+thS+'width:24px;"><input type="checkbox" onchange="aiSelectAllPage(\''+stream+'\',this)"'+(allPageSel?' checked':'')+(pageAcceptable.length?'':' disabled')+' title="Select all acceptable rows on this page" style="cursor:pointer;"></th>'+
+    '<th style="'+thS+'width:24px;"><input type="checkbox" onchange="aiSelectAllPage(\''+stream+'\',this)"'+(allPageSel?' checked':'')+(pageRows.length?'':' disabled')+' title="Select all rows on this page" style="cursor:pointer;"></th>'+
     '<th style="'+thS+'" title="Candidate confidence: high if the item has an ordinance/case # or a named petitioner">Cand.</th>'+
     '<th style="'+thS+'" title="Tracked-Project match confidence: High (identifier hit) / Medium (summary only) / None">Match</th>'+
     '<th style="'+thS+'width:260px;">Criteria</th>'+
@@ -10179,7 +10187,7 @@ function aiRender(stream){
     var srcUrl=String(it.source_url||'').trim();
     var srcLabel=isYt?(/youtu\.?be/i.test(srcUrl)?'YouTube':'Minutes'):'Agenda';
     var srcCell=srcUrl
-      ? '<a href="'+escUrl(inlineViewerUrl(srcUrl))+'" target="_blank" rel="noopener" data-doc-link="agenda" style="font-size:10px;">'+srcLabel+'</a>'
+      ? '<a href="'+escUrl(inlineViewerUrl(srcUrl))+'" target="_blank" rel="noopener" data-doc-link="agenda" style="font-size:10px;color:#3be3ff;">'+srcLabel+'</a>'
       : '<span style="color:var(--text-dim);">—</span>';
     var critCell='<div style="font-size:9px;line-height:1.35;"><div><b>Cand:</b> '+_diagEsc(it.candidate_criteria||'—')+'</div><div style="margin-top:2px;"><b>Match:</b> '+_diagEsc(it.match_criteria||'—')+'</div></div>';
     // P148 (yt only): the -A agenda-item twin for this hearing + the action taken.
@@ -10189,8 +10197,8 @@ function aiRender(stream){
       var agLabel=_diagEsc(it.agenda_item_ord||it.agenda_item_name||'open');
       agCell = it.agenda_item_id
         ? (String(it.agenda_item_url||'').trim()
-            ? '<a href="'+escUrl(inlineViewerUrl(it.agenda_item_url))+'" target="_blank" rel="noopener" data-doc-link="agenda" title="'+agTip+'" style="font-size:10px;">'+agLabel+'</a>'
-            : '<span title="'+agTip+'" style="font-size:10px;">'+agLabel+'</span>')
+            ? '<a href="'+escUrl(inlineViewerUrl(it.agenda_item_url))+'" target="_blank" rel="noopener" data-doc-link="agenda" title="'+agTip+'" style="font-size:10px;color:#3be3ff;">'+agLabel+'</a>'
+            : '<span title="'+agTip+'" style="font-size:10px;color:#3be3ff;">'+agLabel+'</span>')
         : '<span title="no parsed agenda-document item matched this meeting / ordinance / name" style="color:var(--text-dim);">—</span>';
       var outcomeTxt=String(it.outcome||'').trim()||String(it.action_taken||'').trim();
       outCell = outcomeTxt
@@ -10204,10 +10212,9 @@ function aiRender(stream){
           '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;" title="Attach this item to an EXISTING Tracked Project" onclick="aiOpenAddTo(\''+stream+'\',\''+id+'\',this)">Add to… ▾</button>'+
           '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;" title="Dismiss this item — hides it from these tabs (reversible in the backend via dismissAgendaItem&undo=true)" onclick="aiDismiss(\''+stream+'\',\''+id+'\',this)">✕ Dismiss</button>'+
         '</div>';
-    // P150: bulk-Accept checkbox — only rows with an unlinked matched project.
-    var selCell=_aiAcceptable(it)
-      ? '<input type="checkbox" data-ai-sel="'+id+'" onchange="aiToggleSel(\''+stream+'\',\''+id+'\',this)"'+(s.sel[it.item_id]?' checked':'')+' style="cursor:pointer;">'
-      : '<span style="color:var(--text-dim);" title="'+(it._aiResolved?'already resolved':(it.auto_linked?'already linked to its matched project':'no matched project to accept'))+'">—</span>';
+    // Every row is selectable for bulk Accept (Accept links unlinked matches, then
+    // clears all selected rows — matched or not — from the page).
+    var selCell='<input type="checkbox" data-ai-sel="'+id+'" onchange="aiToggleSel(\''+stream+'\',\''+id+'\',this)"'+(s.sel[it.item_id]?' checked':'')+' style="cursor:pointer;">';
     return '<tr data-ai-id="'+id+'" style="border-top:1px solid var(--border);">'+
       '<td style="'+tdS+'">'+selCell+'</td>'+
       '<td style="'+tdS+'">'+_aiCandPill(it)+'</td>'+
@@ -10354,10 +10361,12 @@ function aiDismiss(stream, itemId, btn){
       aiPopulateJuris(stream); aiRender(stream);
     }).catch(function(){ if(btn){ btn.disabled=false; btn.textContent='✕ Dismiss'; } });
 }
-// ── P150: bulk Accept — check rows, attach each to its Matched Project ─────
-// "Acceptable" = a Matched Project exists, no live link yet, not already
-// resolved this session. Accept = the same addAgendaItemToProject call the
-// per-row "Add to…" makes, with the matched project pre-chosen.
+// ── Bulk Accept — link matchable rows, then clear ALL selected from the page ─
+// "Linkable" = a Matched Project exists, no live link yet, not already resolved
+// this session → Accept fires the same addAgendaItemToProject call the per-row
+// "Add to…" makes, with the matched project pre-chosen. Rows that are already
+// matched/linked (or have no match) aren't re-linked — they're just cleared from
+// the page. Clearing is session-local; a Refresh re-pulls the authoritative feed.
 function _aiAcceptable(it){ return !!it.matched_project_id && !it.auto_linked && !it._aiResolved; }
 function aiToggleSel(stream, id, cb){
   var s=_aiState[stream];
@@ -10377,29 +10386,40 @@ function aiClearSel(stream){ _aiState[stream].sel={}; aiRender(stream); }
 // the project, so parallel calls would hammer the Sheet).
 function aiBulkAccept(stream){
   var s=_aiState[stream];
-  var rows=_aiFiltered(stream).filter(function(it){ return s.sel[it.item_id] && _aiAcceptable(it); });
+  var rows=_aiFiltered(stream).filter(function(it){ return s.sel[it.item_id]; });
   if(!rows.length) return;
-  if(!window.confirm('Accept '+rows.length+' selected item'+(rows.length===1?'':'s')+'? Each will be attached to its Matched Project (name/ord # folded into aliases, references re-scanned).')) return;
+  var nLink=rows.filter(_aiAcceptable).length;
+  if(!window.confirm('Accept '+rows.length+' selected item'+(rows.length===1?'':'s')+'? '+
+      (nLink?(nLink+' with an unlinked Matched Project '+(nLink===1?'is':'are')+' attached to it (name/ord # folded into aliases, references re-scanned); '):'')+
+      'all selected rows are then cleared from this page.')) return;
   var base=getWebAppUrl(); if(!base) return;
   var btn=document.getElementById('ai-'+stream+'-bulk-accept'); if(btn){ btn.style.pointerEvents='none'; btn.style.opacity='.5'; }
   var statusEl=document.getElementById('ai-'+stream+'-bulk-status');
-  var done=0, failed=0, total=rows.length;
+  var linked=0, failed=0, cleared=0, total=rows.length;
+  function removeRow(it){
+    for(var j=0;j<s.data.length;j++){ if(String(s.data[j].item_id)===String(it.item_id)){ s.data.splice(j,1); break; } }
+    delete s.sel[it.item_id];
+  }
   function step(i){
     if(i>=rows.length){
       if(typeof tpLoad==='function'){ try{ tpLoad(true); }catch(e){} }   // refresh projects once at the end
-      aiRender(stream);
+      aiPopulateJuris(stream); aiRender(stream);
       var st=document.getElementById('ai-'+stream+'-bulk-status');
-      if(st) st.textContent='Accepted '+done+' / '+total+(failed?(' · '+failed+' failed'):'')+'.';
+      if(st) st.textContent='Cleared '+cleared+' / '+total+(linked?(' · '+linked+' linked'):'')+(failed?(' · '+failed+' failed (kept)'):'')+'.';
       return;
     }
     var it=rows[i];
-    if(statusEl) statusEl.textContent='Accepting '+(i+1)+' / '+total+'…';
-    fetch(base+'&action=admin_run&fn=addAgendaItemToProject&item_id='+encodeURIComponent(it.item_id)+'&project_id='+encodeURIComponent(it.matched_project_id))
-      .then(function(r){return r.json();}).then(function(res){
-        var rr=res&&res.result;
-        if(rr&&rr.ok){ done++; it._aiResolved='Accepted → '+(it.matched_project_name||it.matched_project_id); it.auto_linked=true; delete s.sel[it.item_id]; }
-        else { failed++; }
-      }).catch(function(){ failed++; }).then(function(){ step(i+1); });
+    if(statusEl) statusEl.textContent='Processing '+(i+1)+' / '+total+'…';
+    if(_aiAcceptable(it)){
+      fetch(base+'&action=admin_run&fn=addAgendaItemToProject&item_id='+encodeURIComponent(it.item_id)+'&project_id='+encodeURIComponent(it.matched_project_id))
+        .then(function(r){return r.json();}).then(function(res){
+          var rr=res&&res.result;
+          if(rr&&rr.ok){ linked++; cleared++; removeRow(it); }   // linked → clear
+          else { failed++; }                                     // keep failed rows for retry
+        }).catch(function(){ failed++; }).then(function(){ step(i+1); });
+    } else {
+      cleared++; removeRow(it); step(i+1);   // already matched / no match → just clear
+    }
   }
   step(0);
 }
