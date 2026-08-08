@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p151r1 -->
+<!-- MIP build p151r2 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -10143,12 +10143,12 @@ function aiRender(stream){
   if(!nF){ el.innerHTML=summary+'<div style="color:var(--text-dim);padding:12px 0;">No items match the current filter. Adjust the jurisdiction / match-confidence / search filters above.</div>'; return; }
 
   // Bulk Accept — every row is selectable. Accept links each selected row that has
-  // an unlinked Matched Project, then clears ALL selected rows (matched or not)
-  // from the page. Session-local; a Refresh re-pulls the authoritative feed.
+  // an unlinked Matched Project, then dismisses ALL selected rows (matched or not)
+  // on the backend so they leave these tabs for good (reversible via &undo=true).
   var nSel=filtered.filter(function(it){ return s.sel[it.item_id]; }).length;
   var bulkBar='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px;font-size:11px;color:var(--text-dim);">'+
     '<span><b style="color:inherit;">'+nSel+'</b> selected</span>'+
-    '<button class="refresh-btn" id="ai-'+stream+'-bulk-accept" style="font-size:10px;padding:3px 10px;background:#1c7c3a;color:#fff;border-color:#1c7c3a;'+(nSel?'':'opacity:.5;pointer-events:none;')+'" onclick="aiBulkAccept(\''+stream+'\')" title="Link each selected row that has an unlinked Matched Project, then clear all selected rows from this page">✓ Accept selected</button>'+
+    '<button class="refresh-btn" id="ai-'+stream+'-bulk-accept" style="font-size:10px;padding:3px 10px;background:#1c7c3a;color:#fff;border-color:#1c7c3a;'+(nSel?'':'opacity:.5;pointer-events:none;')+'" onclick="aiBulkAccept(\''+stream+'\')" title="Link each selected row that has an unlinked Matched Project, then dismiss all selected rows so they leave these tabs (reversible)">✓ Accept selected</button>'+
     (nSel?'<button class="refresh-btn" style="font-size:10px;padding:3px 10px;" onclick="aiClearSel(\''+stream+'\')" title="Clear selection">Clear</button>':'')+
     '<span id="ai-'+stream+'-bulk-status"></span></div>';
 
@@ -10213,7 +10213,7 @@ function aiRender(stream){
           '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;" title="Dismiss this item — hides it from these tabs (reversible in the backend via dismissAgendaItem&undo=true)" onclick="aiDismiss(\''+stream+'\',\''+id+'\',this)">✕ Dismiss</button>'+
         '</div>';
     // Every row is selectable for bulk Accept (Accept links unlinked matches, then
-    // clears all selected rows — matched or not — from the page).
+    // dismisses all selected rows — matched or not — so they leave these tabs).
     var selCell='<input type="checkbox" data-ai-sel="'+id+'" onchange="aiToggleSel(\''+stream+'\',\''+id+'\',this)"'+(s.sel[it.item_id]?' checked':'')+' style="cursor:pointer;">';
     return '<tr data-ai-id="'+id+'" style="border-top:1px solid var(--border);">'+
       '<td style="'+tdS+'">'+selCell+'</td>'+
@@ -10361,12 +10361,13 @@ function aiDismiss(stream, itemId, btn){
       aiPopulateJuris(stream); aiRender(stream);
     }).catch(function(){ if(btn){ btn.disabled=false; btn.textContent='✕ Dismiss'; } });
 }
-// ── Bulk Accept — link matchable rows, then clear ALL selected from the page ─
+// ── Bulk Accept — link matchable rows, then DISMISS all selected ────────────
 // "Linkable" = a Matched Project exists, no live link yet, not already resolved
 // this session → Accept fires the same addAgendaItemToProject call the per-row
-// "Add to…" makes, with the matched project pre-chosen. Rows that are already
-// matched/linked (or have no match) aren't re-linked — they're just cleared from
-// the page. Clearing is session-local; a Refresh re-pulls the authoritative feed.
+// "Add to…" makes, with the matched project pre-chosen. Rows already matched/
+// linked (or with no match) aren't re-linked. Every accepted row is then
+// dismissed on the backend (dismissAgendaItem stamps the item so the feed skips
+// it), so it stays gone across Refreshes. Reversible via &undo=true.
 function _aiAcceptable(it){ return !!it.matched_project_id && !it.auto_linked && !it._aiResolved; }
 function aiToggleSel(stream, id, cb){
   var s=_aiState[stream];
@@ -10391,7 +10392,7 @@ function aiBulkAccept(stream){
   var nLink=rows.filter(_aiAcceptable).length;
   if(!window.confirm('Accept '+rows.length+' selected item'+(rows.length===1?'':'s')+'? '+
       (nLink?(nLink+' with an unlinked Matched Project '+(nLink===1?'is':'are')+' attached to it (name/ord # folded into aliases, references re-scanned); '):'')+
-      'all selected rows are then cleared from this page.')) return;
+      'all selected rows are then dismissed so they leave these tabs (reversible in the backend via dismissAgendaItem&undo=true).')) return;
   var base=getWebAppUrl(); if(!base) return;
   var btn=document.getElementById('ai-'+stream+'-bulk-accept'); if(btn){ btn.style.pointerEvents='none'; btn.style.opacity='.5'; }
   var statusEl=document.getElementById('ai-'+stream+'-bulk-status');
@@ -10400,25 +10401,37 @@ function aiBulkAccept(stream){
     for(var j=0;j<s.data.length;j++){ if(String(s.data[j].item_id)===String(it.item_id)){ s.data.splice(j,1); break; } }
     delete s.sel[it.item_id];
   }
+  // Persistently dismiss the item on the backend (dismissAgendaItem stamps it so
+  // the feed skips it on every future load), then splice it out locally. Only a
+  // confirmed dismiss removes the row — a failed dismiss keeps it for retry.
+  function dismissThen(it, wasLinked, next){
+    fetch(base+'&action=admin_run&fn=dismissAgendaItem&item_id='+encodeURIComponent(it.item_id))
+      .then(function(r){return r.json();}).then(function(res){
+        var rr=res&&res.result;
+        if(rr&&rr.ok){ cleared++; if(wasLinked) linked++; removeRow(it); }
+        else { failed++; }
+      }).catch(function(){ failed++; }).then(next);
+  }
   function step(i){
     if(i>=rows.length){
       if(typeof tpLoad==='function'){ try{ tpLoad(true); }catch(e){} }   // refresh projects once at the end
       aiPopulateJuris(stream); aiRender(stream);
       var st=document.getElementById('ai-'+stream+'-bulk-status');
-      if(st) st.textContent='Cleared '+cleared+' / '+total+(linked?(' · '+linked+' linked'):'')+(failed?(' · '+failed+' failed (kept)'):'')+'.';
+      if(st) st.textContent='Dismissed '+cleared+' / '+total+(linked?(' · '+linked+' linked'):'')+(failed?(' · '+failed+' failed (kept)'):'')+'.';
       return;
     }
-    var it=rows[i];
+    var it=rows[i], next=function(){ step(i+1); };
     if(statusEl) statusEl.textContent='Processing '+(i+1)+' / '+total+'…';
     if(_aiAcceptable(it)){
+      // link to the matched project first, THEN dismiss from the feed.
       fetch(base+'&action=admin_run&fn=addAgendaItemToProject&item_id='+encodeURIComponent(it.item_id)+'&project_id='+encodeURIComponent(it.matched_project_id))
         .then(function(r){return r.json();}).then(function(res){
           var rr=res&&res.result;
-          if(rr&&rr.ok){ linked++; cleared++; removeRow(it); }   // linked → clear
-          else { failed++; }                                     // keep failed rows for retry
-        }).catch(function(){ failed++; }).then(function(){ step(i+1); });
+          if(rr&&rr.ok){ dismissThen(it, true, next); }   // linked → dismiss → remove
+          else { failed++; next(); }                       // link failed → keep row for retry
+        }).catch(function(){ failed++; next(); });
     } else {
-      cleared++; removeRow(it); step(i+1);   // already matched / no match → just clear
+      dismissThen(it, false, next);   // already matched / no match → dismiss → remove
     }
   }
   step(0);
