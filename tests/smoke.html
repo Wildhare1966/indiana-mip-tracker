@@ -101,13 +101,13 @@ const suites = {
       }},
   ],
   'Production CSP integrity (regression catch)': [
-    { name: 'MIP_Platform.html CSP allows script.googleusercontent.com (Apps Script redirect target)',
+    { name: 'index.html CSP allows script.googleusercontent.com (Apps Script redirect target)',
       run: async () => {
-        const r = await fetch('../MIP_Platform.html', { cache: 'no-cache' });
-        assert(r.ok, 'MIP_Platform.html fetch returned ' + r.status);
+        const r = await fetch('../index.html', { cache: 'no-cache' });
+        assert(r.ok, 'index.html fetch returned ' + r.status);
         const t = await r.text();
         const m = t.match(/Content-Security-Policy"\s+content="([^"]+)"/);
-        assert(m, 'No CSP meta tag found in MIP_Platform.html');
+        assert(m, 'No CSP meta tag found in index.html');
         const connectMatch = m[1].match(/connect-src[^;]+/);
         assert(connectMatch, 'CSP has no connect-src directive');
         assert(/script\.googleusercontent\.com/.test(connectMatch[0]),
