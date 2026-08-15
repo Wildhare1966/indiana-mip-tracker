@@ -1,0 +1,26 @@
+project_name,ordinance_id,aliases,jurisdiction,petitioner,builder,lots,status,map_url,map_id,manual_meeting_type,manual_meeting_date,manual_description,manual_results,manual_overrides_asof,created_date
+Maple Grove Estates,ORD-2025-14,"Maple Grove, Maple Grove PUD",Westfield,Arbor Homes LLC,Arbor,142,active,https://gis.example.org/parcel/1001,MRD-1001,Plan Commission,2025-03-11,,,,2025-01-15
+Prairie Crossing,RZ-24-08,Prairie Xing,Carmel,DR Horton Indiana,DR Horton,88,competitor_active,https://gis.example.org/parcel/1002,MRD-1002,Council,2025-02-18,,,,2025-01-20
+Smith & Sons Farmstead,ORD-2025-21,"Smith & Sons, S&S Farm",Noblesville,Smith & Sons Development,Custom,64,active,https://gis.example.org/parcel/1003,MRD-1003,Plan Commission,2025-04-08,Rezone AG to R-2 for a 64-lot subdivision <adjacent to school>,"Approved 5-2 vote; ""with conditions""",2025-04-09,2025-02-01
+Cedar Ridge <Phase II>,ORD-2025-30,"Cedar Ridge Ph 2, Cedar Ridge II",Fishers,Pulte Homes,Pulte,120,active,https://gis.example.org/parcel/1004,MRD-1004,Council,2025-05-06,Applicant requests density > 3.5 units/acre & waiver of setback,Continued to next meeting,2025-05-07,2025-02-10
+Willow Bend,RZ-25-02,,Zionsville,Fischer Homes,Fischer Homes,54,arbor_active,https://gis.example.org/parcel/1005,MRD-1005,,,,,,2025-02-14
+Stonebridge Commons,ORD-2025-09,Stonebridge,Brownsburg,Lennar Indiana,Lennar,210,active,https://gis.example.org/parcel/1006,MRD-1006,Plan Commission,2025-03-25,,,,2025-01-28
+O'Brien Meadows,ORD-2025-33,"O'Brien Tract, OBrien Meadows",Greenwood,O'Brien Land Co.,Davis,76,active,https://gis.example.org/parcel/1007,MRD-1007,Council,2025-05-20,Annexation & rezone; petitioner's counsel present,Tabled — petitioner's request,2025-05-21,2025-03-02
+Heritage Park,RZ-24-19,,Franklin,MI Homes,MI Homes,98,archived,https://gis.example.org/parcel/1008,MRD-1008,,2024-11-12,,,,2024-10-01
+Lakeside Village,ORD-2025-41,Lakeside,Lebanon,Beazer Homes,Beazer,133,competitor_active,https://gis.example.org/parcel/1009,MRD-1009,Plan Commission,2025-06-03,,,,2025-03-11
+Northgate Reserve,ORD-2025-45,,McCordsville,Drees Homes,Drees,67,active,https://gis.example.org/parcel/1010,MRD-1010,Council,2025-06-17,,,,2025-03-18
+"Vista Verde ""West""",RZ-25-07,Vista Verde West,Whitestown,Estridge Homes,Estridge,145,active,https://gis.example.org/parcel/1011,MRD-1011,Plan Commission,2025-04-22,"PUD amendment — 145 lots; note ""mixed-use"" parcel",Denied 4-3; will re-file,2025-04-23,2025-02-25
+Copper Creek,ORD-2025-12,,Cicero,Olthof Homes,Olthof,52,active,https://gis.example.org/parcel/1012,MRD-1012,,,,,,2025-01-30
+Sunfield Farms,ORD-2025-38,Sunfield,Sheridan,Ryan Homes,Ryan,89,active,https://gis.example.org/parcel/1013,MRD-1013,Council,2025-05-13,,,,2025-03-05
+Autumn Ridge,RZ-24-27,,Bargersville,Taylor Morris,Taylor Morris,71,archived,https://gis.example.org/parcel/1014,MRD-1014,,2024-09-24,,,,2024-08-15
+Brookhaven,ORD-2025-50,Brookhaven Estates,Greenfield,Epcon Communities,Epcon,44,active,https://gis.example.org/parcel/1015,MRD-1015,Plan Commission,2025-06-24,,,,2025-04-01
+Riverstone,ORD-2025-16,,Avon,Old Town Design,Old Town,58,arbor_active,https://gis.example.org/parcel/1016,MRD-1016,,,,,,2025-02-03
+Hunter's Glen,RZ-25-11,"Hunters Glen, Hunter's Glenn",Plainfield,Hallmark Homes,Hallmark,62,active,https://gis.example.org/parcel/1017,MRD-1017,Council,2025-05-27,Special exception for private drive < 20 ft width,Approved w/ variance,2025-05-28,2025-03-14
+Emerald Fields,ORD-2025-07,,Danville,Onyx East,Onyx_East,80,active,https://gis.example.org/parcel/1018,MRD-1018,Plan Commission,2025-03-04,,,,2025-01-22
+Kingsley Park,ORD-2025-29,Kingsley,Lapel,Forestar Group,Forestar,175,competitor_active,https://gis.example.org/parcel/1019,MRD-1019,Council,2025-04-29,,,,2025-02-18
+Wexford Trace,RZ-24-33,,Pendleton,David Weekly Homes,David Weekly,49,archived,https://gis.example.org/parcel/1020,MRD-1020,,2024-12-03,,,,2024-11-05
+Ironwood Estates,ORD-2025-53,,Westfield,Arbor Homes LLC,Arbor,101,active,https://gis.example.org/parcel/1021,MRD-1021,Plan Commission,2025-07-08,,,,2025-05-01
+Baker & Wells Tract,ORD-2025-58,"Baker & Wells, B&W Tract",Carmel,Baker & Wells Partners,Custom,37,active,https://gis.example.org/parcel/1022,MRD-1022,Council,2025-07-15,"Rezone from I-1 to R-3; abuts ""historic district""",Approved 6-1,2025-07-16,2025-05-12
+Silver Maple Woods,RZ-25-15,,Noblesville,Pulte Homes,Pulte,94,active,https://gis.example.org/parcel/1023,MRD-1023,,,,,,2025-05-20
+Harmony Ridge,ORD-2025-61,Harmony,Fishers,DR Horton Indiana,DR Horton,128,active,https://gis.example.org/parcel/1024,MRD-1024,Plan Commission,2025-07-22,,,,2025-06-02
+Legacy Farms,ORD-2025-04,,Zionsville,Lennar Indiana,Lennar,156,closed,https://gis.example.org/parcel/1025,MRD-1025,Council,2025-01-14,Original 200-lot plan; scaled back,Withdrawn by applicant,2025-02-01,2024-12-10
