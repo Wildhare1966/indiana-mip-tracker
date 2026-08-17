@@ -1,4 +1,4 @@
-STATUS-STAMP: 2026-08-15 | rev 1
+STATUS-STAMP: 2026-08-17 | rev 2
 
 > **Note:** this repository is **public**. Keep this file free of tokens, IDs, local paths, and any
 > operational detail that shouldn't be world-readable. Working notes belong in the private
@@ -12,10 +12,13 @@ non-`main` branches carry published data snapshots consumed by the app at runtim
 The backend, pipelines, and all engineering documentation live in a separate private repository.
 
 ## Current state
-- Build **p151r2** on `main`.
+- Build **p151r2** on `main`. Working tree clean; in sync with the remote.
 - This working copy is the **source of truth** for front-end edits (established 2026-08-15).
   Edit in place, commit, push — no per-session temporary clones.
 - Served locally for development on port 8778.
+- A commit-time credential guard is active and was verified working on 2026-08-17: a staged
+  credential-shaped string is blocked before it can be committed. The test fixture used for that
+  verification has been removed.
 
 ## In progress
 - Migration of the front end from GitHub Pages hosting to a local static server. Pages remains
