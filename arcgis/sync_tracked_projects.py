@@ -21,15 +21,14 @@
 # %%
 # === PARAMETERS (override the simple values in the scheduled-task cell) ========
 MRD_ENDPOINT = "https://script.google.com/macros/s/AKfycbxvtkp5OZVq4sbEELnq5nN7KSXa5DCG8lYEgzL_awPbfunUsBTyr1r6CbOH1pIbgPUk/exec"
-AUTH_TOKEN   = "457091386b65a26b4d11fb3b9fee7bd5233c952ceb5d4a41"
-                         # MRD read token. list_tracked_projects_detailed is public,
-                         # but the `hearings` wire (used to resolve the Summary doc
-                         # URL — see _summary_doc_for) requires it. This token is
-                         # already public in the MRD frontend; blank it to skip the
-                         # Summary-doc resolution (Summary then stays blank).
-
-# LeadsDeals_Arbor item (from arborhomes.maps.arcgis.com). Item-id path avoids
-# guessing the layer index; the notebook prints the resolved layer name to confirm.
+AUTH_TOKEN   = ""   # AGD-22: never commit a value here. This repo is PUBLIC, and the
+                         # literal that used to sit on this line was readable on github.com
+                         # against an endpoint open to the internet (AGD-21).
+                         # list_tracked_projects_detailed is public, so the sync runs fine
+                         # with this blank -- only Summary-doc resolution (the `hearings`
+                         # wire, see _summary_doc_for) needs it, and Summary simply stays
+                         # blank without it. For a scheduled run, put the live value in the
+                         # ArcGIS task's Parameters cell, not in this file.
 ITEM_ID      = "c82269644ad24569aaff749f3a1d1f4a"
 LAYER_INDEX  = 0
 LAYER_URL    = ""        # alternative to ITEM_ID:

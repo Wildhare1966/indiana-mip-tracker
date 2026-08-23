@@ -1,5 +1,15 @@
 <!DOCTYPE html>
 <!-- MIP build p80r4 -->
+<!-- ============================================================================
+     STALE COPY - NOT SERVED. The live front end is mrd-ad682070b7/index.html
+     (build p151r2), served at http://localhost:8778/mrd-ad682070b7/ by
+     serve-mrd.bat. This file is ~71 builds behind it and is referenced only by
+     the two smoke.html files.
+     AGD-22: its auth-token literal has been blanked. Do not "restore" it - the
+     token belongs in browser localStorage, entered in Settings -> Operator
+     Access on the live file. Whether this copy survives at all is an open
+     decision for Ty.
+     ============================================================================ -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -576,7 +586,7 @@ const PROFILE_CACHE_TTL_DEFAULT = 24;
 // P20: Auth token for Apps Script endpoint authentication.
 // This token must match the AUTH_TOKEN stored in Apps Script Script Properties.
 // Generate it by running setSecurityToken() in Apps Script, then paste the value here.
-const DEFAULT_AUTH_TOKEN = '457091386b65a26b4d11fb3b9fee7bd5233c952ceb5d4a41';
+const DEFAULT_AUTH_TOKEN = ''; // AGD-22: never store the token here. See mrd-ad682070b7/index.html.
 
 function getWebAppUrl() {
   // P21-H1: webapp URL override must point to the Google Apps Script domain.

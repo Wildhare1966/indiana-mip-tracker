@@ -1,4 +1,21 @@
-STATUS-STAMP: 2026-08-23 | rev 3
+STATUS-STAMP: 2026-08-23 | rev 4
+
+## Rev 4 delta — the auth token is gone from this public repo
+
+- **AGD-22 shipped here** (the item lives in `indiana-agenda-tracker`; the code is this repo's).
+  `mrd-ad682070b7/index.html` no longer contains `DEFAULT_AUTH_TOKEN`. It reads `mip_auth_token` from
+  `localStorage` through `getAuthToken()`, entered once in a new **Settings -> Operator Access** card.
+- **A sweep of this tree for 48-hex literals now returns nothing.** Also cleaned: the stale root
+  `MIP_Platform.html` (blanked, and headed with a note that it is ~71 builds behind the served build and
+  must not be "restored"), both `smoke.html` files (they now read the same localStorage key), and
+  `arcgis/sync_tracked_projects.py` + `.ipynb`.
+- ⛔ **This does not unpublish anything.** Public git history keeps the old token permanently — that is
+  why rotation was the fix and the scrub is hygiene. The rotated value is inert.
+- **Verified in the live browser**, not from the diff: public actions still answer at full size
+  (149,875 B) with no token in the URL; the token rides only when the operator has entered one.
+- Reading the dashboard is unaffected. **Operator actions stay inert until Ty enters the token**
+  (AGD-29).
+
 
 ## Rev 3 delta — both open items closed as MOOT; the AGO clicks finally boarded
 

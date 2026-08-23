@@ -30,7 +30,10 @@
 // async tests that return {name, pass, error}.
 // ============================================================
 const WEBAPP = 'https://script.google.com/macros/s/AKfycbxvtkp5OZVq4sbEELnq5nN7KSXa5DCG8lYEgzL_awPbfunUsBTyr1r6CbOH1pIbgPUk/exec';
-const TOKEN = '457091386b65a26b4d11fb3b9fee7bd5233c952ceb5d4a41';
+// AGD-22: the operator token is never committed. It is read from the same
+// localStorage key the app writes (Settings -> Operator Access). Token-gated
+// suites are skipped when it is unset; public-action suites still run.
+const TOKEN = (function(){ try { return (localStorage.getItem('mip_auth_token') || '').trim(); } catch(e) { return ''; } })();
 
 // Import the sanitizers from MIP_Platform by inline copy (keep in sync with the live file)
 function esc(s) {
