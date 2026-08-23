@@ -1,4 +1,21 @@
-STATUS-STAMP: 2026-08-17 | rev 2
+STATUS-STAMP: 2026-08-23 | rev 3
+
+## Rev 3 delta — both open items closed as MOOT; the AGO clicks finally boarded
+
+- **MIP-2 was false the day it was written.** It asserted "Pages is still serving this tracker."
+  Probed three ways today: `gh api …/pages` → `404`, `gh api repos/… --jq '.has_pages'` → **`false`**,
+  `curl -L https://wildhare1966.github.io/indiana-mip-tracker/` → `404`. And it was **already known** —
+  `Dexters-Dashboard/reports/DOC-SWEEP_pages-cutover_2026-08-16.md:13` says so outright and proves it
+  with a control probe against a second Pages site, so the 404s cannot be a network block. The 8/22
+  backfill read this repo's stale `STATUS.md` and not the report beside it. **That is the whole thesis
+  of SYS-8.**
+- **MIP-1 closed with it** — the local-server path is not merely verified but in daily use.
+- **The repo is still `public`, deliberately** — that half of decision D-B stands.
+- **MIP-3 added:** the three AGO clicks (schedule the sync daily, disable the arborhomes sync, delete
+  the dead-end wildhare `LeadsDeals`). Open since the 8/14 audit's D2, carried into X-4, and never
+  boarded. It is the **shared upstream of EMAP-1**: supplying `AGO_TOKEN` regenerates the map once,
+  but only the schedule keeps it current.
+
 
 > **Note:** this repository is **public**. Keep this file free of tokens, IDs, local paths, and any
 > operational detail that shouldn't be world-readable. Working notes belong in the private

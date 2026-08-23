@@ -1,6 +1,6 @@
 # Open items — Indiana MIP Tracker
 
-FILE-STAMP: 2026-08-22 | rev 1
+FILE-STAMP: 2026-08-23 | rev 2
 
 **Format contract: `Dexters-Dashboard/docs/OPEN-ITEMS-SPEC.md`.** These rows are rendered on
 the dashboard's **Items** page alongside every other project's, so keep to the spec — a row
@@ -15,15 +15,16 @@ carried forward.
 
 | ID | Owner | Item | Why it matters | Blocked by |
 |---|---|---|---|---|
-| **MIP-2** | TY | Disable GitHub Pages once the local-server checklist passes | Pages is still serving this tracker. It stays live until the local-server path is verified, and then it should be switched off deliberately rather than left running — it is a repo setting, so it is yours. | MIP-1 |
+| **MIP-3** | TY | Do the three AGO clicks — schedule the sync daily, disable the arborhomes sync, delete the dead-end wildhare `LeadsDeals` | Open since the 2026-08-14 audit (decision **D2**), carried into **X-4**, and **never boarded** until the SYS-8 sweep. Until the MRD → wildhare `Projects` sync runs on a timer, the feature layer only moves when someone runs the notebook by hand — and **everything downstream inherits that staleness**: the Entitlement Reporter, and via Zonda the `Entitlement_Map` that decision **D6** promoted to the primary vehicle for external audiences. This is the shared upstream of **EMAP-1**; supplying `AGO_TOKEN` regenerates the map once, but only the schedule keeps it current. | — |
 
 ## Claude Code can execute — say the word
 
 | ID | Owner | Item | Why it matters | Blocked by |
 |---|---|---|---|---|
-| **MIP-1** | CC | Complete the local-server verification checklist | The recorded next action. Until it passes, the Pages deployment cannot be retired and there are two live surfaces for one tracker. | — |
 
 ## Recently closed
 
 | ID | Closed | What happened |
 |---|---|---|
+| **MIP-2** | 2026-08-23 | **MOOT — Pages was already off, and had been for at least a week.** Probed three ways today: `gh api …/pages` -> `404`, `gh api repos/… --jq '.has_pages'` -> **`false`**, `curl -L https://wildhare1966.github.io/indiana-mip-tracker/` -> `404`. It was **already known**: `Dexters-Dashboard/reports/DOC-SWEEP_pages-cutover_2026-08-16.md:13` states "Phase 5 already landed. Pages is off" and proves it with a control probe against a second Pages site, so the 404s cannot be a network block. ⚠ **This row was false the day it was written** — the 8/22 backfill read this repo's stale `STATUS.md` and not the report beside it, which is the whole thesis of **SYS-8**. The repo is still `public`; that half of decision D-B stands deliberately. |
+| **MIP-1** | 2026-08-23 | Closed with **MIP-2**, which it existed only to unblock. The local-server path is not merely verified but **in daily use** — `serve-mrd.bat` binds `127.0.0.1:8778` and is started at login by `serve-mrd.vbs`. There are no longer two live surfaces for one tracker. |
