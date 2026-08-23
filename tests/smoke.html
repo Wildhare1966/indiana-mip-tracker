@@ -31,8 +31,11 @@
 // ============================================================
 const WEBAPP = 'https://script.google.com/macros/s/AKfycbxvtkp5OZVq4sbEELnq5nN7KSXa5DCG8lYEgzL_awPbfunUsBTyr1r6CbOH1pIbgPUk/exec';
 // AGD-22: the operator token is never committed. It is read from the same
-// localStorage key the app writes (Settings -> Operator Access). Token-gated
-// suites are skipped when it is unset; public-action suites still run.
+// localStorage key the app writes (Settings -> Operator Access).
+// ⚠ There is no skip mechanism here: with no token set, the token-gated suites
+// FAIL with Unauthorized rather than reporting as skipped. Public-action suites
+// still pass. Set the token in the live app first, in this same browser profile.
+// (Worth adding a real skip path; not done here.)
 const TOKEN = (function(){ try { return (localStorage.getItem('mip_auth_token') || '').trim(); } catch(e) { return ''; } })();
 
 // Import the sanitizers from MIP_Platform by inline copy (keep in sync with the live file)
