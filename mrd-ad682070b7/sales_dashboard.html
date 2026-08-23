@@ -205,6 +205,10 @@ License: MIT
   .mth{font-family:var(--mono);font-size:10px;letter-spacing:.02em;
     text-transform:uppercase;color:var(--muted)}
   .mth.addr{color:var(--accent)}
+  /* SDF-6: provenance on subdiv_canonical. Amber = "treat as a lead", not red = "wrong".
+     Only the INFERRED values are marked; a form-sourced name carries no pill, so the
+     visual noise lands exactly on the ~15% that can be wrong. */
+  .mth.infer{color:#f0bb55;background:rgba(232,163,12,.13);padding:1px 5px;border-radius:4px}
   .zero{color:var(--bad)}
   .pager{display:flex;align-items:center;justify-content:center;gap:14px;padding:11px;
     font-family:var(--mono);font-size:12px;color:var(--muted);flex:none;border-top:1px solid var(--line)}
@@ -285,6 +289,12 @@ License: MIT
         <label for="fSubdiv">Subdivision (canon)</label>
         <input type="text" id="fSubdiv" list="subdivList" placeholder="Builder-active subdivisions — type or pick" autocomplete="off">
         <datalist id="subdivList"></datalist>
+      </div>
+      <div class="ctrl enrich-only" id="ctrlSubdivSrc">
+        <label for="fSubdivSrc">Subdivision source</label>
+        <select id="fSubdivSrc">
+          <option value="">All sources</option>
+        </select>
       </div>
       <div class="ctrl enrich-only">
         <label for="fSchool">School district</label>
@@ -367,7 +377,7 @@ License: MIT
 let COLS = [
   {k:'County_Name',        t:'County'},
   {k:'_city',              t:'City'},
-  {k:'subdiv_canonical',   t:'Subdiv (canon)'},
+  {k:'subdiv_canonical',   t:'Subdiv (canon)', subdiv:1},
   {k:'sale_price_num',     t:'Price', n:1},
   {k:'_acres',             t:'Acres', acres:1},
   {k:'parcel_count',       t:'Parcels', n:1},
@@ -550,6 +560,20 @@ function boot(){
       const s=(r.subdiv_canonical||'').trim(); if(s)SUB_ACTIVE.add(s); } });
     const subs=[...SUB_ACTIVE].sort((a,b)=>a.localeCompare(b));
     $('subdivList').innerHTML=subs.map(s=>`<option value="${s.replace(/"/g,'&quot;')}">`).join('');
+    // SDF-6: subdivision-provenance filter. Populated from the data with counts, so the
+    // split between verified and inferred is visible before you filter on it. If the loaded
+    // file predates subdiv_source the control hides itself rather than offering options that
+    // would silently match nothing.
+    const srcmap={};
+    RAW.forEach(r=>{const v=(r.subdiv_source||'').trim(); if(v)srcmap[v]=(srcmap[v]||0)+1;});
+    const SRC_LABEL={form:'Form-sourced (verified)', legal_parsed:'Inferred from legal (~85% precise)', none:'No subdivision'};
+    if(Object.keys(srcmap).length){
+      Object.entries(srcmap).sort((a,b)=>b[1]-a[1]).forEach(([k,n])=>{
+        $('fSubdivSrc').insertAdjacentHTML('beforeend',
+          `<option value="${k}">${SRC_LABEL[k]||k} (${n.toLocaleString()})</option>`);});
+    }else{
+      $('ctrlSubdivSrc').classList.add('hidden');
+    }
     // school district dropdown — alphabetical, with per-district record counts
     const scmap={};
     RAW.forEach(r=>{const s=(r.school_district||'').trim();if(s)scmap[s]=(scmap[s]||0)+1;});
@@ -561,10 +585,10 @@ function boot(){
   }
   buildThead();
   // wire filters
-  ['fCounty','fCity','fKind','fBuilder','fLandBuyer','fSubdiv','fSchool','fFrom','fTo','fSearch']
+  ['fCounty','fCity','fKind','fBuilder','fLandBuyer','fSubdiv','fSubdivSrc','fSchool','fFrom','fTo','fSearch']
     .forEach(id=>$(id).addEventListener('input',()=>{page=0;apply();}));
   $('reset').addEventListener('click',()=>{
-    ['fCounty','fCity','fKind','fBuilder','fLandBuyer','fSubdiv','fSchool','fFrom','fTo','fSearch'].forEach(id=>$(id).value='');
+    ['fCounty','fCity','fKind','fBuilder','fLandBuyer','fSubdiv','fSubdivSrc','fSchool','fFrom','fTo','fSearch'].forEach(id=>$(id).value='');
     selClasses.clear(); syncClassUI();
     page=0; apply();
   });
@@ -583,6 +607,7 @@ function apply(){
   const from=$('fFrom').value?new Date($('fFrom').value):null;
   const to=$('fTo').value?new Date($('fTo').value):null;
   const builder=$('fBuilder').value, kind=$('fKind').value, landBuyer=$('fLandBuyer').value;
+  const subdivSrc=$('fSubdivSrc').value;
   const school=$('fSchool').value;
   const city=$('fCity').value.trim().toLowerCase();
   const subdiv=$('fSubdiv').value.trim().toLowerCase();
@@ -606,6 +631,7 @@ function apply(){
       // only return rows whose subdivision is builder/land-buyer-active (SUB_ACTIVE)
       if(!sc||!SUB_ACTIVE.has(sc)||!sc.toLowerCase().startsWith(subdiv))return false;
     }
+    if(subdivSrc&&(r.subdiv_source||'').trim()!==subdivSrc)return false;
     if(from&&(!r._date||r._date<from))return false;
     if(to&&(!r._date||r._date>to))return false;
     if(q){
@@ -768,6 +794,16 @@ function render(){
     if(c.kind){const v2=(v||'').trim(); if(!v2)return '<td><span class="pill unk">resale</span></td>';
       const cls=v2==='New Construction'?'nc':'vl';
       return `<td><span class="pill ${cls}">${v2}</span></td>`;}
+    if(c.subdiv){
+      const nm=(v||'').trim(); if(!nm)return '<td>—</td>';
+      // subdiv_source is absent from pre-2026-08-23 published files (23 columns). No
+      // column, no pill — an old file renders exactly as it always did.
+      const src=(r.subdiv_source||'').trim();
+      if(src==='legal_parsed'){
+        return `<td title="Inferred: parsed from the legal description, not taken from the disclosure form. Parser precision is about 85%, so treat this as a lead rather than a fact."><span>${nm}</span> <span class="mth infer">inferred</span></td>`;
+      }
+      return `<td title="${nm.replace(/"/g,'')}">${nm}</td>`;
+    }
     if(c.bld){return v?`<td><span class="bld ${c.land?'land':''}">${v}</span></td>`:'<td>—</td>';}
     if(c.mth){if(!v)return '<td>—</td>';
       const lbl={address:'addr',name_exact:'name',name_fuzzy:'name?'}[v]||v;
