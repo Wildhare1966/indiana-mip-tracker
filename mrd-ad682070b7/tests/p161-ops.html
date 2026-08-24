@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>P161 Ops — AGD-32 / AGD-16</title>
+<style>
+  body { font-family: -apple-system, Segoe UI, sans-serif; max-width: 1000px; margin: 20px auto; padding: 0 20px; background: #1a1f2e; color: #d8dde6; }
+  h1 { color: #e8a020; margin-bottom: 4px; }
+  h2 { font-size: 15px; color: #7aacdf; margin: 0 0 6px; }
+  .sub { color: #9ba8bc; margin-top: 0; }
+  .card { border: 1px solid #3d6494; border-radius: 6px; padding: 14px 16px; margin: 14px 0; background: #243447; }
+  .card.applied { border-color: #6dc49a; }
+  button { background: #e8a020; color: #1a1f2e; border: none; padding: 8px 14px; border-radius: 4px; cursor: pointer; font-weight: 600; margin-right: 8px; }
+  button.apply { background: #c0392b; color: #fff; }
+  button.undo  { background: #3d6494; color: #fff; }
+  button[disabled] { opacity: .4; cursor: not-allowed; }
+  pre { font-family: Menlo, Consolas, monospace; font-size: 11.5px; background: #0f1824; padding: 10px; border-radius: 4px; overflow: auto; max-height: 380px; white-space: pre-wrap; }
+  .ok { color: #6dc49a; } .bad { color: #e05252; } .warn { color: #e8a020; }
+  .expect { font-size: 12px; color: #9ba8bc; margin: 6px 0 10px; }
+  code { color: #7aacdf; }
+</style>
+</head>
+<body>
+<h1>◈ P161 Ops</h1>
+<p class="sub">Click-only runner for the P161 rulings, against backend <code>@421</code>.
+Reads the operator token from <code>localStorage</code> on this origin — nothing is typed or pasted.</p>
+
+<div class="card" id="tokcard">
+  <h2>Operator token</h2>
+  <div id="tok">checking…</div>
+</div>
+
+<div class="card">
+  <h2>AGD-32 — does the Greenfield pagination fix see the missing agendas?</h2>
+  <div class="expect">Read-only; runs the real scrape path and writes nothing.
+    <b>Slow — it walks 43 pages, allow a minute or two.</b>
+    Expect <code>paginated: true</code>, roughly <code>documents_found: 40+</code> for Council, and
+    <code>urls_still_carrying_a_page_offset: 0</code>.
+    <span class="warn">If that offset count is not 0, stop</span> — the run would mint a duplicate row
+    every time the alphabetical listing reshuffles.
+    The seven 2026 dates that were never ingested: Mar 11, Apr 8, Apr 22, May 13, May 27, Jun 10
+    (plus the clerk's typo'd "MARCH 125TH" row, which is correctly <em>refused</em>, not guessed at).</div>
+  <button onclick="run('probeCustomSiteScrape','a32','&muni=Greenfield&type=council')">Probe Greenfield Council</button>
+  <button onclick="run('probeCustomSiteScrape','a32','&muni=Greenfield')">Probe all Greenfield</button>
+  <pre id="a32">—</pre>
+</div>
+
+<div class="card">
+  <h2>AGD-16 — hard-delete the duplicate CivicEngage rows <span class="warn">(Ty ruled: delete, not reject)</span></h2>
+  <div class="expect">Expect <code>would_delete: 213</code> and
+    <code>groups_refused_as_not_the_bug_shape: 0</code>.
+    <span class="warn">If it says 214, stop</span> — the Noblesville <code>?fileID</code> pair
+    (two different minutes documents four months apart) may be in scope.
+    <b>Delete is permanent in the sheet</b>; every whole row is journalled to
+    <code>P161_Cleanup_Log</code> first and Undo re-appends them.</div>
+  <button onclick="run('hardDeleteCivicEngageHtmlRows','a16','')">Dry run</button>
+  <button class="apply" id="a16-apply" disabled onclick="applyDelete()">Apply — DELETE</button>
+  <button class="undo" onclick="undoDelete()">Undo</button>
+  <pre id="a16">—</pre>
+</div>
+
+<script>
+var WEBAPP = 'https://script.google.com/macros/s/AKfycbxvtkp5OZVq4sbEELnq5nN7KSXa5DCG8lYEgzL_awPbfunUsBTyr1r6CbOH1pIbgPUk/exec';
+function token(){ try { return (localStorage.getItem('mip_auth_token')||'').trim(); } catch(e){ return ''; } }
+
+(function showTok(){
+  var t = token(), el = document.getElementById('tok');
+  if (t) {
+    el.innerHTML = '<span class="ok">✓ present in this browser profile</span> — '
+      + t.length + ' characters. The value is not displayed.';
+  } else {
+    el.innerHTML = '<span class="bad">✗ not set in this origin/profile.</span> '
+      + 'Set it in the app at <b>Settings → Operator Access</b>, on <b>this same hostname</b>, then reload.';
+    document.getElementById('tokcard').style.borderColor = '#e05252';
+  }
+})();
+
+function call(fn, extra){
+  var t = token();
+  if (!t) return Promise.reject(new Error('No operator token in this browser profile.'));
+  var url = WEBAPP + '?token=' + encodeURIComponent(t) + '&action=admin_run&fn=' + encodeURIComponent(fn) + (extra||'');
+  return fetch(url).then(function(r){ return r.json(); });
+}
+
+function show(id, obj){ document.getElementById(id).textContent = JSON.stringify(obj, null, 2); }
+
+function run(fn, id, extra){
+  var el = document.getElementById(id);
+  el.textContent = 'running…';
+  var t0 = Date.now();
+  call(fn, extra).then(function(res){
+    var r = res && res.result ? res.result : res;
+    show(id, r);
+    var btn = document.getElementById(id + '-apply');
+    if (btn) btn.disabled = !(r && r.would_delete > 0);
+  }).catch(function(e){
+    el.innerHTML = '<span class="bad">' + e.message + ' (after ' + Math.round((Date.now()-t0)/1000) + 's)</span>';
+  });
+}
+
+function applyDelete(){
+  if (!confirm('HARD DELETE — this REMOVES rows from the sheet.\n\n'
+    + 'Every whole row is copied to P161_Cleanup_Log first, and Undo re-appends them.\n\n'
+    + 'Proceed?')) return;
+  var el = document.getElementById('a16');
+  el.textContent = 'deleting…';
+  call('hardDeleteCivicEngageHtmlRows', '&apply=true').then(function(res){
+    var r = res && res.result ? res.result : res;
+    show('a16', r);
+    document.getElementById('a16').parentElement.classList.add('applied');
+  }).catch(function(e){ el.innerHTML = '<span class="bad">' + e.message + '</span>'; });
+}
+
+function undoDelete(){
+  var el = document.getElementById('a16');
+  if (!confirm('UNDO the delete?\n\nThis runs DRY first and shows what it would restore.\n'
+    + 'Nothing is written by this click.')) return;
+  el.textContent = 'checking undo…';
+  call('undoP161Delete', '').then(function(res){
+    var r = res && res.result ? res.result : res;
+    show('a16', r);
+    if (r && r.would_restore > 0 &&
+        confirm('Undo would re-append ' + r.would_restore + ' row(s). Write the restore now?')) {
+      el.textContent = 'restoring…';
+      call('undoP161Delete', '&apply=true')
+        .then(function(res2){ show('a16', res2 && res2.result ? res2.result : res2); });
+    }
+  }).catch(function(e){ el.innerHTML = '<span class="bad">' + e.message + '</span>'; });
+}
+</script>
+</body>
+</html>
