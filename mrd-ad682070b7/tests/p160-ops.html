@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>P160 Ops — AGD-15 / AGD-16 / AGD-31</title>
+<style>
+  body { font-family: -apple-system, Segoe UI, sans-serif; max-width: 1000px; margin: 20px auto; padding: 0 20px; background: #1a1f2e; color: #d8dde6; }
+  h1 { color: #e8a020; margin-bottom: 4px; }
+  h2 { font-size: 15px; color: #7aacdf; margin: 0 0 6px; }
+  .sub { color: #9ba8bc; margin-top: 0; }
+  .card { border: 1px solid #3d6494; border-radius: 6px; padding: 14px 16px; margin: 14px 0; background: #243447; }
+  .card.applied { border-color: #6dc49a; }
+  button { background: #e8a020; color: #1a1f2e; border: none; padding: 8px 14px; border-radius: 4px; cursor: pointer; font-weight: 600; margin-right: 8px; }
+  button.apply { background: #c0392b; color: #fff; }
+  button.undo  { background: #3d6494; color: #fff; }
+  button[disabled] { opacity: .4; cursor: not-allowed; }
+  pre { font-family: Menlo, Consolas, monospace; font-size: 11.5px; background: #0f1824; padding: 10px; border-radius: 4px; overflow: auto; max-height: 340px; white-space: pre-wrap; }
+  .ok { color: #6dc49a; } .bad { color: #e05252; } .warn { color: #e8a020; }
+  .expect { font-size: 12px; color: #9ba8bc; margin: 6px 0 10px; }
+  code { color: #7aacdf; }
+</style>
+</head>
+<body>
+<h1>◈ P160 Ops</h1>
+<p class="sub">Click-only runner for the two ruled data passes and the AGD-31 detector check.
+Same origin as the app, so it reads the operator token from <code>localStorage</code> the way
+<code>smoke.html</code> does — nothing is typed, pasted, or put in a URL you can see.</p>
+
+<div class="card" id="tokcard">
+  <h2>Operator token</h2>
+  <div id="tok">checking…</div>
+</div>
+
+<div class="card">
+  <h2>AGD-16 — remove the duplicate CivicEngage rows</h2>
+  <div class="expect">Expect <code>would_reject: 213</code> and
+    <code>groups_refused_as_not_the_bug_shape: 0</code>.
+    <span class="warn">If it says 214, stop</span> — the sheet holds a shape the CDN snapshot did not,
+    and the Noblesville <code>?fileID</code> pair may be in scope.</div>
+  <button onclick="run('dedupeCivicEngageHtmlRows','a16',false)">Dry run</button>
+  <button class="apply" id="a16-apply" disabled onclick="applyPass('dedupeCivicEngageHtmlRows','a16','reject 213 duplicate rows')">Apply</button>
+  <button class="undo" onclick="undo('AGD-16','a16')">Undo</button>
+  <pre id="a16">—</pre>
+</div>
+
+<div class="card">
+  <h2>AGD-15 — reject Fishers' bare BZA rows as a block</h2>
+  <div class="expect">Expect <code>matched: 37</code> and <code>approved_among_matched: 2</code>
+    (both <code>FI-2026-03-04</code>, a Wednesday — by AGD-15's own evidence those are
+    <em>BZA Fishers</em> records, and the block ruling discards them).</div>
+  <button onclick="run('rejectFishersBareBzaRows','a15',false)">Dry run</button>
+  <button class="apply" id="a15-apply" disabled onclick="applyPass('rejectFishersBareBzaRows','a15','reject 37 Fishers BZA rows, including 2 approved ones')">Apply</button>
+  <button class="undo" onclick="undo('AGD-15','a15')">Undo</button>
+  <pre id="a15">—</pre>
+</div>
+
+<div class="card">
+  <h2>AGD-31 — is the cancellation fix live?</h2>
+  <div class="expect">Read-only. Expect alarms to carry a <code>last_cancelled</code> field, and
+    <code>Whitestown / BZA</code> to appear as a new alarm at ratio ≈ 3.1 (it read 1.89 before).</div>
+  <button onclick="verify31()">Check</button>
+  <pre id="a31">—</pre>
+</div>
+
+<script>
+var WEBAPP = 'https://script.google.com/macros/s/AKfycbxvtkp5OZVq4sbEELnq5nN7KSXa5DCG8lYEgzL_awPbfunUsBTyr1r6CbOH1pIbgPUk/exec';
+// AGD-22: read the token from the key the app writes (Settings → Operator Access).
+// It is never printed, never logged, and never placed anywhere durable.
+function token(){ try { return (localStorage.getItem('mip_auth_token')||'').trim(); } catch(e){ return ''; } }
+
+(function showTok(){
+  var t = token(), el = document.getElementById('tok');
+  if (t) {
+    el.innerHTML = '<span class="ok">✓ present in this browser profile</span> — '
+      + t.length + ' characters. The value is not displayed.';
+  } else {
+    el.innerHTML = '<span class="bad">✗ not set in this origin/profile.</span> '
+      + 'Set it in the app at <b>Settings → Operator Access</b>, on <b>this same hostname</b> '
+      + '(localhost and 127.0.0.1 are different origins to the browser), then reload this page.';
+    document.getElementById('tokcard').style.borderColor = '#e05252';
+  }
+})();
+
+function call(fn, extra){
+  var t = token();
+  if (!t) return Promise.reject(new Error('No operator token in this browser profile.'));
+  var url = WEBAPP + '?token=' + encodeURIComponent(t) + '&action=admin_run&fn=' + encodeURIComponent(fn) + (extra||'');
+  return fetch(url).then(function(r){ return r.json(); });
+}
+
+function show(id, obj){ document.getElementById(id).textContent = JSON.stringify(obj, null, 2); }
+
+function run(fn, id, apply){
+  var el = document.getElementById(id);
+  el.textContent = apply ? 'applying…' : 'running dry…';
+  call(fn, apply ? '&apply=true' : '').then(function(res){
+    var r = res && res.result ? res.result : res;
+    show(id, r);
+    // Enable Apply only after a dry run that actually found rows.
+    var btn = document.getElementById(id + '-apply');
+    if (btn && !apply) {
+      var n = (r && (r.would_reject || r.matched)) || 0;
+      btn.disabled = !(n > 0);
+    }
+    if (apply) document.getElementById(id).parentElement.classList.add('applied');
+  }).catch(function(e){ el.innerHTML = '<span class="bad">' + e.message + '</span>'; });
+}
+
+function applyPass(fn, id, what){
+  if (!confirm('APPLY — this writes to the sheet.\n\nAbout to ' + what + '.\n\n'
+    + 'Every write is journalled to P160_Cleanup_Log and the Undo button reverses it.\n\nProceed?')) return;
+  run(fn, id, true);
+}
+
+function undo(pass, id){
+  var el = document.getElementById(id);
+  if (!confirm('UNDO ' + pass + '?\n\nThis runs the reversal DRY first and shows what it would restore.\n'
+    + 'Nothing is written by this click.')) return;
+  el.textContent = 'checking undo…';
+  call('undoP160Cleanup', '&pass=' + encodeURIComponent(pass)).then(function(res){
+    var r = res && res.result ? res.result : res;
+    show(id, r);
+    if (r && r.would_restore > 0 &&
+        confirm('Undo would restore ' + r.would_restore + ' row(s). Write the reversal now?')) {
+      el.textContent = 'restoring…';
+      call('undoP160Cleanup', '&pass=' + encodeURIComponent(pass) + '&apply=true')
+        .then(function(res2){ show(id, res2 && res2.result ? res2.result : res2); });
+    }
+  }).catch(function(e){ el.innerHTML = '<span class="bad">' + e.message + '</span>'; });
+}
+
+function verify31(){
+  var el = document.getElementById('a31');
+  el.textContent = 'running…';
+  call('auditBodyFreshness', '').then(function(res){
+    var r = res && res.result ? res.result : res;
+    var alarms = (r && r.alarms) || [];
+    var wt = alarms.filter(function(a){ return /whitestown/i.test(a.muni||'') && /bza/i.test(a.body||''); });
+    var withCancel = alarms.filter(function(a){ return a.last_cancelled; });
+    var hasField = alarms.length ? Object.keys(alarms[0]).indexOf('last_cancelled') >= 0 : false;
+    show('a31', {
+      verdict: {
+        last_cancelled_field_present: hasField,
+        whitestown_bza_now_alarming: wt.length > 0,
+        whitestown: wt,
+        alarms_total: alarms.length,
+        alarms_carrying_a_cancellation: withCancel.length
+      },
+      alarms: alarms
+    });
+  }).catch(function(e){ el.innerHTML = '<span class="bad">' + e.message + '</span>'; });
+}
+</script>
+</body>
+</html>
