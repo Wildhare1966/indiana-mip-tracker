@@ -830,9 +830,12 @@ const PROFILE_CACHE_TTL_DEFAULT = 24;
 // Settings -> Operator Access. Same mechanism as `mip_gemini_key` and
 // `mip_webapp_url` above. Public actions (PUBLIC_ACTIONS in P20_Security.js)
 // work with no token at all, so an unconfigured browser still reads normally.
-const AUTH_TOKEN_KEY = 'mip_auth_token';
+// Named TOKEN_STORAGE_KEY, not AUTH_TOKEN_KEY: it holds a localStorage key NAME,
+// not a secret, and the pre-commit secret guard blocks `AUTH_TOKEN...=` assignments
+// by design (AGD-23). Keeping the guard strict is worth one clearer variable name.
+const TOKEN_STORAGE_KEY = 'mip_auth_token';
 function getAuthToken() {
-  try { return (localStorage.getItem(AUTH_TOKEN_KEY) || '').trim(); } catch(e) { return ''; }
+  try { return (localStorage.getItem(TOKEN_STORAGE_KEY) || '').trim(); } catch(e) { return ''; }
 }
 
 function getWebAppUrl() {
@@ -1136,8 +1139,8 @@ function saveGeminiKey(val) {
 function saveAuthToken(val) {
   var v = (val || '').trim();
   try {
-    if (v) localStorage.setItem(AUTH_TOKEN_KEY, v);
-    else localStorage.removeItem(AUTH_TOKEN_KEY);
+    if (v) localStorage.setItem(TOKEN_STORAGE_KEY, v);
+    else localStorage.removeItem(TOKEN_STORAGE_KEY);
   } catch(e) {}
   var el = document.getElementById('auth-token-status');
   if (el) el.textContent = v ? '✓ Operator actions enabled' : 'Not set — read-only';
