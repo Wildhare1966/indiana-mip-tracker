@@ -1095,6 +1095,73 @@ function mipSnapshot(file, timeoutMs) {
     .catch(function () { return null; });
 }
 
+// ── P160 / AGD-30: STALE-SNAPSHOT BANNER ─────────────────────────────────────
+// Every snapshot-first loader paints the CDN copy sub-second, then revalidates
+// against live GAS. When that live half fails AFTER the snapshot painted, the
+// view keeps rendering stale data and — before this — said nothing. The tab with
+// the safety net was the one that lied: on 2026-08-24 Candidates looked healthy
+// against a dead endpoint while the two tabs with no snapshot fallback honestly
+// showed "Unauthorized".
+//
+// ⚠ The failure is deliberately NOT fatal. Snapshot-first is P118's sub-second
+// win; this labels stale data, it never refuses it.
+var _mipStaleFeeds = {};   // key -> human label, for feeds whose live half failed
+var _mipSnapAgePromise = null;
+
+// Snapshot age comes from manifest.json — the per-file payloads carry no
+// published_at (checked live: candidates.json has none). Fetched once, lazily,
+// and ONLY when something has already failed, so the happy path is untouched.
+function _mipSnapPublishedAt() {
+  if (!_mipSnapAgePromise) _mipSnapAgePromise = mipSnapshot('manifest.json', 8000).then(function (m) {
+    return (m && m.published_at) || null;
+  }).catch(function () { return null; });
+  return _mipSnapAgePromise;
+}
+
+function _mipRenderStaleBanner() {
+  var keys = Object.keys(_mipStaleFeeds);
+  var el = document.getElementById('mip-stale-banner');
+  if (!keys.length) { if (el) el.remove(); return; }
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'mip-stale-banner';
+    el.style.cssText = 'background:#2a2410;border:1px solid #f0a020;color:#f0a020;padding:10px 20px;'
+      + 'text-align:center;font-size:13px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;';
+    // â  `.main-content` does NOT exist in this build â the layout is .topbar + .main.
+    // checkMuniDataBanner() still uses that dead selector and so falls back to
+    // <body>, which puts its banner ABOVE the topbar. Target the real content
+    // column first so this one lands inside the page, under the header.
+    var main = document.querySelector('.main') || document.querySelector('.main-content') || document.body;
+    main.prepend(el);
+  }
+  var names = keys.map(function (k) { return _mipStaleFeeds[k]; }).join(', ');
+  _mipSnapPublishedAt().then(function (pub) {
+    var age = '';
+    if (pub) {
+      var mins = Math.max(0, Math.round((Date.now() - Date.parse(pub)) / 60000));
+      var stamp = new Date(pub).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      age = ' from ' + stamp + ' (' + mins + ' min old)';
+    }
+    var cur = document.getElementById('mip-stale-banner');
+    if (cur) cur.innerHTML = '⚠ Live refresh failed — showing a CDN snapshot' + _diagEsc(age)
+      + '. Affected: ' + _diagEsc(names) + '.';
+  });
+}
+
+// Mark a feed's live refresh as failed while its snapshot is on screen.
+function mipMarkStale(key, label) {
+  if (_mipStaleFeeds[key]) return;          // already flagged; don't re-render
+  _mipStaleFeeds[key] = label;
+  try { _mipRenderStaleBanner(); } catch (e) { console.warn('[mrd] stale banner failed:', e.message); }
+}
+
+// Clear a feed once its live half succeeds (covers a later retry recovering).
+function mipMarkFresh(key) {
+  if (!_mipStaleFeeds[key]) return;
+  delete _mipStaleFeeds[key];
+  try { _mipRenderStaleBanner(); } catch (e) {}
+}
+
 // ── GEMINI CLIENT (P13: all calls proxied through Apps Script backend) ────────────────────────────
 // Project key lives ONLY in Apps Script Script Properties. The Settings "Gemini API Key" field
 // is now OPTIONAL — if set, it's forwarded to the proxy as a per-request override.
@@ -1965,6 +2032,7 @@ async function fetchScrapedDocuments() {
     const data = await mipReadFetch('&action=scraped_documents', 45000);
     if (Array.isArray(data) && data.length) {
       _sdLive = true;
+      mipMarkFresh('scraped_documents');   // AGD-30: a later retry can clear the banner
       SCRAPED_DOCS = data;
       console.log('[MIP] Scraped documents: ' + data.length + ' items loaded');
       try {
@@ -1984,6 +2052,9 @@ async function fetchScrapedDocuments() {
     }
   } catch(e) {
     console.warn('[MIP] Scraped documents fetch not available:', e.message);
+    // AGD-30: the Hearings/Jurisdiction views keep rendering the CDN snapshot
+    // here. A console warning is not a user-visible signal — label it.
+    if (SCRAPED_DOCS.length) mipMarkStale('scraped_documents', 'Agendas & minutes');
   }
 }
 
@@ -6248,6 +6319,7 @@ function tpLoad(force) {
     .then(function(r) { return r.json(); })
     .then(function(rows) {
       _tpLive = true;
+      mipMarkFresh('tracked_detailed');    // AGD-30: a later retry can clear the banner
       tpProjects = Array.isArray(rows) ? rows : [];
       tpLoadedAt = Date.now();
       tpPopulateJurisDropdown(); // P117: refresh juris dropdown options
@@ -6268,6 +6340,9 @@ function tpLoad(force) {
     .catch(function(err) {
       console.error('tpLoad error:', err);
       if (statusEl) statusEl.textContent = 'Failed to load.';
+      // AGD-30: if the snapshot already painted rows, "Failed to load" sits
+      // beside a full table — say plainly that the table is the stale copy.
+      if (tpProjects.length) mipMarkStale('tracked_detailed', 'Tracked Projects');
     });
 }
 
@@ -9374,21 +9449,32 @@ function candLoad(){
   var base=getWebAppUrl(); if(!base){ el.innerHTML='<div style="color:var(--text-dim);">No dashboard connection configured.</div>'; return; }
   el.innerHTML='<div style="color:var(--text-dim);">Loading candidates…</div>';
   var applied=false;
-  function apply(res){
+  // AGD-30: `src` tells the two callers apart. Before this, a failed live half
+  // returned silently whenever the snapshot had already painted.
+  function apply(res, src){
     var rr=res&&res.result;
-    if(!rr||!rr.ok){ if(!applied) el.innerHTML='<div style="color:var(--text-dim);">Could not load candidates: '+_diagEsc((rr&&rr.error)||(res&&res.error)||'unknown')+'</div>'; return; }
+    if(!rr||!rr.ok){
+      var msg=(rr&&rr.error)||(res&&res.error)||'unknown';
+      if(!applied) el.innerHTML='<div style="color:var(--text-dim);">Could not load candidates: '+_diagEsc(msg)+'</div>';
+      else if(src==='live') mipMarkStale('candidates','Candidates');
+      return;
+    }
     _candData=rr.candidates||[];
     if(!applied){ _candSel={}; _candPage=0; }   // reset selection/page only on first paint
     applied=true;
+    if(src==='live') mipMarkFresh('candidates');
     _candUpdateBadge(); _candPopulateJurisDropdown(); candRender();
   }
   // P118: optimistic CDN-snapshot paint (sub-second), then authoritative live
   // revalidate that always overwrites. Snapshot apply is guarded so it can never
   // clobber the live result if live lands first.
-  mipSnapshot('candidates.json').then(function(snap){ if(snap && !applied) apply(snap); });
+  mipSnapshot('candidates.json').then(function(snap){ if(snap && !applied) apply(snap,'snap'); });
   fetch(base+'&action=admin_run&fn=getAgendaCandidatesJSON&status=new').then(function(r){return r.json();}).then(function(res){
-    apply(res);
-  }).catch(function(e){ if(!applied) el.innerHTML='<div style="color:var(--text-dim);">Network error: '+_diagEsc(e.message)+'</div>'; });
+    apply(res,'live');
+  }).catch(function(e){
+    if(!applied) el.innerHTML='<div style="color:var(--text-dim);">Network error: '+_diagEsc(e.message)+'</div>';
+    else mipMarkStale('candidates','Candidates');
+  });
 }
 
 // Still-new candidates (not locally resolved this session).
