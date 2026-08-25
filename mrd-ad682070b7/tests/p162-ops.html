@@ -53,8 +53,36 @@ Reads the operator token from <code>localStorage</code> on this origin — nothi
   <pre id="a34" class="dim">not run yet</pre>
 </div>
 
+<div class="card">
+  <h2>AGD-10 — is the forward ingestion window actually live?</h2>
+  <p class="expect">
+    <code>SCRAPE_WINDOWS.agendaForward: 7</code> has sat in CONFIG since <b>P60</b>, documented as
+    "max days into the future to fetch UPCOMING agendas", with <b>zero readers</b> —
+    <code>getDateRange()</code> capped the window at <code>now()</code>. <code>@429</code> wires it.<br>
+    <b>Expect:</b> <code>forward_window_is_wired: true</code> and <code>forward_days_live: 7</code>.
+  </p>
+  <button onclick="run('reportScrapeDateWindow','a10','')">Report live scrape window</button>
+  <pre id="a10" class="dim">not run yet</pre>
+</div>
+
+<div class="card">
+  <h2>AGD-20 — eGov label filter, <span class="warn">DRY RUN (drops nothing)</span></h2>
+  <p class="expect">
+    Read-only sweep of every eGov <code>docPath</code> + <code>extraPaths</code>, reporting which anchor
+    labels the filter <b>would</b> drop. Nothing is filtered in <code>@429</code> — the filter is not wired
+    into the scrape path yet, deliberately.<br>
+    ⚠ <b>The number that matters is <code>would_drop_dated</code></b>: an undated label is already
+    discarded by the date gate, so dropping it changes nothing.<br>
+    ⛔ <b>Read the <code>would_drop</code> labels before anyone switches this on.</b> At write time a wrong
+    call <i>hides</i> a document silently, where a wrong keep only mislabels one that stays visible.
+  </p>
+  <button onclick="run('probeEgovDocumentFilter','a20','')">Dry run — all eGov sites</button>
+  <button onclick="run('probeEgovDocumentFilter','a20','&muni=Greenwood')">Greenwood only</button>
+  <pre id="a20" class="dim">not run yet</pre>
+</div>
+
 <script>
-var WEBAPP = 'https://script.google.com/macros/s/AKfycbxvtkp5OZVq4sbEELnq5nN7KSXa5DCG8lYEgzL_awPbfunUsBTyr1r6CbOH1pIbgPUk/exec';
+var WEBAPP ='https://script.google.com/macros/s/AKfycbxvtkp5OZVq4sbEELnq5nN7KSXa5DCG8lYEgzL_awPbfunUsBTyr1r6CbOH1pIbgPUk/exec';
 // @428 was committed at 2026-08-24 20:13:43 -0400, and the deploy precedes the commit — so any row
 // stamped after this instant ran on @428 (swap_to_pro at 16384). Conservative: it never calls a
 // pre-fix row post-fix. A row whose outcome carries ':MAX_TOKENS' is ALSO self-dating — that suffix
@@ -124,6 +152,23 @@ function table(rows){
       + '</tr>';
   });
   return h + '</table>';
+}
+
+// Generic runner for the read-only probes (same contract as p161-ops.html).
+function run(fn, id, extra){
+  var el = document.getElementById(id);
+  el.className = '';
+  el.textContent = 'running…';
+  var t0 = Date.now();
+  call(fn, extra).then(function(res){
+    var r = res && res.result ? res.result : res;
+    el.className = 'dim';
+    el.textContent = JSON.stringify(r, null, 2);
+  }).catch(function(e){
+    el.className = '';
+    el.innerHTML = '<span class="bad">' + esc(e.message) + ' (after '
+      + Math.round((Date.now()-t0)/1000) + 's)</span>';
+  });
 }
 
 function runAgd34(){
