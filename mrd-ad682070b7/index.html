@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p165r1 -->
+<!-- MIP build p165r2 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p165r1">
+<link rel="stylesheet" href="styles.css?v=p165r2">
 </head>
 <body>
 
@@ -1126,13 +1126,27 @@ function _mipRenderStaleBanner() {
     el = document.createElement('div');
     el.id = 'mip-stale-banner';
     el.style.cssText = 'background:#2a2410;border:1px solid #f0a020;color:#f0a020;padding:10px 20px;'
-      + 'text-align:center;font-size:13px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;';
-    // â  `.main-content` does NOT exist in this build â the layout is .topbar + .main.
+      + 'text-align:center;font-size:13px;flex-shrink:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;';
+    // ⚠ `.main-content` does NOT exist in this build — the layout is
+    // body{display:flex;flex-direction:column} > .topbar + .main{display:flex ROW}.
     // checkMuniDataBanner() still uses that dead selector and so falls back to
-    // <body>, which puts its banner ABOVE the topbar. Target the real content
-    // column first so this one lands inside the page, under the header.
-    var main = document.querySelector('.main') || document.querySelector('.main-content') || document.body;
-    main.prepend(el);
+    // <body>, which puts its banner ABOVE the topbar.
+    //
+    // ⛔ P165r2 — do NOT go back to `main.prepend(el)`. `.main` is a flex ROW
+    // (styles.css:287 `.main{display:flex}`), so prepending made this banner the
+    // FIRST FLEX ITEM: a full-height ~600px COLUMN that shoved the sidebar and
+    // the content pane to the right, instead of a strip under the header. It has
+    // rendered that way since the day it shipped — it had simply never fired on a
+    // wide viewport until 2026-08-25, when a file:// load (no origin-scoped
+    // `mip_auth_token`, so `admin_run` 403s) made the Candidates live half fail
+    // and painted it for the first time.
+    //
+    // Insert as a SIBLING before `.main` instead: <body> is a flex COLUMN, so the
+    // banner is a full-width row under the topbar and `.main{flex:1}` keeps the
+    // remaining height. `flex-shrink:0` (above) stops the column flex squashing it.
+    var main = document.querySelector('.main');
+    if (main && main.parentNode) main.parentNode.insertBefore(el, main);
+    else (document.querySelector('.main-content') || document.body).prepend(el);
   }
   var names = keys.map(function (k) { return _mipStaleFeeds[k]; }).join(', ');
   _mipSnapPublishedAt().then(function (pub) {
