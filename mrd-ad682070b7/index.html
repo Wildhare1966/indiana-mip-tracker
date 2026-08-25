@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p165r3 -->
+<!-- MIP build p165r4 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p165r3">
+<link rel="stylesheet" href="styles.css?v=p165r4">
 </head>
 <body>
 
@@ -267,6 +267,24 @@
                   <button class="refresh-btn" style="font-size:10px;padding:3px 9px;" onclick="p165RunProbe('p165PreviewTitleFilters',this)">Title filters</button>
                   <button class="refresh-btn" style="font-size:10px;padding:3px 9px;" onclick="p165RunProbe('p165PreviewMonthOnlyDates',this)">Month-only dates</button>
                   <button class="refresh-btn" style="font-size:10px;padding:3px 9px;" onclick="p165RunProbe('p165ListMeetingTypes',this)">Meeting types</button>
+                </div>
+
+                <!-- P165 punch-list TRIAGE. These two are the highest-leverage calls on the
+                     page: together they resolve 36 of the 86 operator-reported rows. Both
+                     functions already existed and were already allowlisted — they were simply
+                     unreachable without hand-building a URL, which is why 21 "N"/"E" rows have
+                     been re-diagnosed across three sessions without anyone reading the actual
+                     parse reason. Leave the jurisdiction box BLANK to pull the whole fleet. -->
+                <div style="font-size:10px;color:var(--text-dim);margin:8px 0 5px;">
+                  <b>Punch-list triage</b> — leave the box <b>blank</b> to run fleet-wide (that is the useful mode).
+                  <b>Agenda parse</b> lists every agenda that is present but produced no items or errored — the &ldquo;N&rdquo; and &ldquo;E&rdquo; chips.
+                  <b>Summary errors</b> is a <b>dry run</b>: it reports which failed summaries can be re-queued and which have no captions at all. It changes nothing.
+                </div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px;">
+                  <button class="refresh-btn" style="font-size:10px;padding:3px 9px;"
+                    onclick="p165RunProbe('auditAgendaExtractionDocs',this,{param:'juris',optional:true,extra:{bucket:'noitems,err',limit:500}})">Agenda parse (N / E)</button>
+                  <button class="refresh-btn" style="font-size:10px;padding:3px 9px;"
+                    onclick="p165RunProbe('requeueNeedsReviewRows',this,{optional:true,extra:{limit:200}})">Summary errors (dry run)</button>
                 </div>
                 <pre id="p165-probe-out" style="font-size:10.5px;line-height:1.45;color:var(--text-dim);background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:8px 10px;margin:0;max-height:320px;overflow:auto;white-space:pre-wrap;word-break:break-word;">Pick a jurisdiction and run a probe.</pre>
               </div>
@@ -9501,12 +9519,23 @@ function candRenderRail(){
 // and a scrape-exclude key that matches no stored label is indistinguishable from
 // one that matched and found nothing (that last one hid a P43 config error for
 // ~120 sessions). Run these before the backend deploy, not after.
-function p165RunProbe(fn, btn) {
+// cfg (optional):
+//   param        — query-param name carrying the jurisdiction. DEFAULT 'muni'.
+//                  ⚠ auditAgendaExtractionDocs takes `juris`, NOT `muni`. Both are
+//                  already in WebApp.js's admin_run fnArgs whitelist, so neither of
+//                  the two triage probes needed a backend deploy.
+//   optional     — when true a blank box means FLEET-WIDE, which is the point for
+//                  the two triage probes: the 21 mode-A and 15 mode-S rows on the
+//                  P165 punch-list span 27 jurisdictions and are meant to be pulled
+//                  in ONE call, not per-muni.
+//   extra        — additional query params (e.g. limit).
+function p165RunProbe(fn, btn, cfg) {
+  cfg = cfg || {};
   var out = document.getElementById('p165-probe-out');
   if (!out) return;
   var el = document.getElementById('p165-muni');
   var muni = String((el && el.value) || '').trim();
-  if (!muni) { out.textContent = 'Enter a jurisdiction first.'; return; }
+  if (!muni && !cfg.optional) { out.textContent = 'Enter a jurisdiction first.'; return; }
 
   var base = getWebAppUrl();
   if (!base) { out.textContent = 'No dashboard connection configured.'; return; }
@@ -9520,9 +9549,19 @@ function p165RunProbe(fn, btn) {
 
   var label = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.textContent = '…running'; }
-  out.textContent = 'Running ' + fn + ' for ' + muni + '…';
+  out.textContent = 'Running ' + fn + (muni ? ' for ' + muni : ' — FLEET-WIDE') + '…\n'
+    + '(a fleet-wide pull reads every row; it can take up to a minute)';
 
-  fetch(base + '&action=admin_run&fn=' + encodeURIComponent(fn) + '&muni=' + encodeURIComponent(muni))
+  var qs = '&action=admin_run&fn=' + encodeURIComponent(fn);
+  if (muni) qs += '&' + (cfg.param || 'muni') + '=' + encodeURIComponent(muni);
+  var extra = cfg.extra || {};
+  for (var kx in extra) {
+    if (Object.prototype.hasOwnProperty.call(extra, kx)) {
+      qs += '&' + encodeURIComponent(kx) + '=' + encodeURIComponent(extra[kx]);
+    }
+  }
+
+  fetch(base + qs)
     .then(function (r) { return r.json(); })
     .then(function (res) {
       // admin_run wraps its return value in `result` (same shape candLoad reads).
