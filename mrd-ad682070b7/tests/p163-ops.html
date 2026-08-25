@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>P163 Ops — AGD-34 / AGD-35 in the wild</title>
+<style>
+  body { font-family: -apple-system, Segoe UI, sans-serif; max-width: 1100px; margin: 20px auto; padding: 0 20px; background: #1a1f2e; color: #d8dde6; }
+  h1 { color: #e8a020; margin-bottom: 4px; }
+  h2 { font-size: 15px; color: #7aacdf; margin: 0 0 6px; }
+  .sub { color: #9ba8bc; margin-top: 0; }
+  .card { border: 1px solid #3d6494; border-radius: 6px; padding: 14px 16px; margin: 14px 0; background: #243447; }
+  button { background: #e8a020; color: #1a1f2e; border: none; padding: 8px 14px; border-radius: 4px; cursor: pointer; font-weight: 600; margin-right: 8px; }
+  button[disabled] { opacity: .4; cursor: not-allowed; }
+  pre { font-family: Menlo, Consolas, monospace; font-size: 11.5px; background: #0f1824; padding: 10px; border-radius: 4px; overflow: auto; max-height: 300px; white-space: pre-wrap; }
+  .ok { color: #6dc49a; } .bad { color: #e05252; } .warn { color: #e8a020; } .dim { color: #9ba8bc; }
+  .expect { font-size: 12px; color: #9ba8bc; margin: 6px 0 10px; }
+  code { color: #7aacdf; }
+  table { border-collapse: collapse; width: 100%; font-size: 12px; margin-top: 8px; }
+  th, td { border-bottom: 1px solid #34455c; padding: 5px 7px; text-align: left; vertical-align: top; }
+  th { color: #7aacdf; font-weight: 600; }
+  td.num { text-align: right; font-family: Menlo, Consolas, monospace; }
+  .verdict { font-size: 15px; font-weight: 700; padding: 10px 12px; border-radius: 4px; background: #0f1824; margin: 10px 0; }
+</style>
+</head>
+<body>
+<h1>◈ P163 Ops</h1>
+<p class="sub">Click-only runner for <b>AGD-34</b> and <b>AGD-35</b>, against backend <code>@432</code>.
+Reads the operator token from <code>localStorage</code> on this origin — nothing is typed or pasted.</p>
+
+<div class="card" id="tokcard">
+  <h2>Operator token</h2>
+  <div id="tok">checking…</div>
+</div>
+
+<div class="card">
+  <h2>AGD-34 — is the ladder actually branching on <code>finishReason</code>?</h2>
+  <p class="expect">
+    ⛔ <b><code>p162-ops.html</code> cannot answer this.</b> That page asks the <code>@428</code> question
+    ("did rung 2 recover?") and its verdict tree <i>ends</i> at "AGD-34 escalates into a real fix" — which is
+    the fix that then shipped as <code>@432</code>. It reads <code>Pipeline_Timing</code>, which has
+    <b>no attempt and no strategy column</b> (<code>ts, meeting_id, jurisdiction, transcript_chars,
+    supadata_ms, gemini_ms, doc_ms, db_ms, project_scan_ms, total_ms, model, summary_quality,
+    row_outcome</code>). The ladder's position lives on <b>Meetings cols P/R/S</b>.<br>
+    <b>The signature.</b> <code>applyRetryStrategy</code> stamps R = strategy and S = the new attempt count.
+    <code>selectRetryStrategy(1, 'MAX_TOKENS')</code> now returns <code>chunked_transcript</code>, so it stamps
+    <b>R = <code>chunked_transcript</code> with S = 2</b>. Under the old ladder attempt 2 was
+    <i>always</i> <code>swap_to_pro</code> and chunking could only ever appear at S = 3 — so
+    <b>chunked@2 is self-dating</b>: no clock needed.<br>
+    <b>The counter-signature.</b> A row carrying a <code>:MAX_TOKENS</code> suffix at S = 2 whose R is still
+    <code>swap_to_pro</code> means the branch did <i>not</i> fire.<br>
+    ⚠ Clock boundary (secondary, conservative): <code>@432</code> was deployed before the close-out commit at
+    <b>2026-08-25 06:33 -04:00</b>, so anything after that certainly ran on the fix — but the deploy was
+    earlier, so some rows just before it are post-fix too.<br>
+    ⚠ <code>markNeedsHumanReview</code> <b>overwrites col R with a reason</b>, so a ladder-exhausted row loses
+    its strategy. Absence of the signature there is not evidence.<br>
+    ⚠ <code>auditCoverageState</code> returns only the <b>newest 5 samples per state</b>. A successful
+    chunked@2 lands in the <code>complete</code> bucket and can be crowded out — which is why this also joins
+    <code>Pipeline_Timing</code> on <code>meeting_id</code> for the <code>chunked(...)</code> run itself.
+  </p>
+  <button onclick="runAgd34()">Run AGD-34 check (coverage state + timings)</button>
+  <div id="a34verdict"></div>
+  <div id="a34tables"></div>
+  <pre id="a34" class="dim">not run yet</pre>
+</div>
+
+<div class="card">
+  <h2>AGD-35 — is any eGov row being written <code>review_flag='flagged'</code>?</h2>
+  <p class="expect">
+    <code>@432</code> writes <code>review_flag='flagged'</code> on eGov docs whose date came from the
+    <b>±300-char context fallback</b> (a neighbouring document's date). <b>Going forward only — there is no
+    backfill</b>, so this needs an eGov scrape to have run since the deploy.<br>
+    <b>Baseline: 1 flagged fleet-wide</b> (measured at <code>@432</code>, 13,016 rows). A second is unmissable.<br>
+    ⚠ <b>The wire drops <code>rejected</code> id-groups</b>, so this count is a <i>lower bound</i>, not a mirror.
+    The baseline of 1 was measured the same way, so the comparison is like-for-like.<br>
+    ⚠ <code>platform</code> is <b>not</b> a wire field — grouping is by <code>jurisdiction</code>, which is
+    sufficient to tell an eGov muni from any other.<br>
+    ⓘ The <code>P117</code> read cache keys on sheet <code>lastRow</code> with a <b>20s</b> TTL, and a newly
+    flagged row is a newly appended row — so the cache cannot hide one for more than ~20s.
+  </p>
+  <button onclick="runAgd35()">Count flagged rows on the live wire</button>
+  <div id="a35verdict"></div>
+  <div id="a35tables"></div>
+  <pre id="a35" class="dim">not run yet</pre>
+</div>
+
+<script>
+var WEBAPP ='https://script.google.com/macros/s/AKfycbxvtkp5OZVq4sbEELnq5nN7KSXa5DCG8lYEgzL_awPbfunUsBTyr1r6CbOH1pIbgPUk/exec';
+
+// @432 was deployed before this commit; conservative lower bound for "certainly post-fix".
+var FIX_432 = new Date('2026-08-25T06:33:03-04:00');
+var AGD35_BASELINE_FLAGGED = 1;
+
+function token(){ try { return (localStorage.getItem('mip_auth_token')||'').trim(); } catch(e){ return ''; } }
+
+(function showTok(){
+  var t = token(), el = document.getElementById('tok');
+  if (t) {
+    el.innerHTML = '<span class="ok">✓ present</span> <span class="dim">(' + t.length
+      + ' chars — value never displayed, never logged)</span>';
+  } else {
+    el.innerHTML = '<span class="bad">✗ not set in this origin/profile.</span> '
+      + 'Set it in the app at <b>Settings → Operator Access</b>, on <b>this same hostname</b>, then reload.';
+    document.getElementById('tokcard').style.borderColor = '#e05252';
+  }
+})();
+
+function call(fn, extra){
+  var t = token();
+  if (!t) return Promise.reject(new Error('No operator token in this browser profile.'));
+  var url = WEBAPP + '?token=' + encodeURIComponent(t) + '&action=admin_run&fn=' + encodeURIComponent(fn) + (extra||'');
+  return fetch(url).then(function(r){ return r.json(); });
+}
+function callAction(action){
+  var t = token();
+  if (!t) return Promise.reject(new Error('No operator token in this browser profile.'));
+  var url = WEBAPP + '?token=' + encodeURIComponent(t) + '&action=' + encodeURIComponent(action);
+  return fetch(url).then(function(r){ return r.json(); });
+}
+
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>]/g, function(c){
+  return c === '&' ? '&amp;' : c === '<' ? '&lt;' : '&gt;'; }); }
+function verdict(id, cls, html){
+  document.getElementById(id).innerHTML =
+    '<div class="verdict ' + cls + '">' + html + '</div>';
+}
+
+/* ---------------- AGD-34 ---------------- */
+
+function isChunkStrategy(s){ return String(s||'').toLowerCase().indexOf('chunked_transcript') === 0; }
+function isProStrategy(s){ return String(s||'').toLowerCase().indexOf('swap_to_pro') === 0; }
+function hasMaxTokens(s){ return /max_tokens/i.test(String(s||'')); }
+
+function sampleTable(rows, note){
+  if (!rows.length) return '<p class="dim">' + (note || 'none.') + '</p>';
+  var h = '<table><tr><th>state</th><th>jurisdiction</th><th>meeting_id</th><th>date</th>'
+        + '<th>attempt (S)</th><th>strategy (R)</th><th>last_retry_at</th><th>chunk run?</th></tr>';
+  rows.forEach(function(r){
+    var sig = (r.retry_attempt_count === 2 && isChunkStrategy(r.retry_strategy));
+    var counter = (r.retry_attempt_count === 2 && isProStrategy(r.retry_strategy) && hasMaxTokens(r.state));
+    var cls = sig ? 'ok' : (counter ? 'bad' : '');
+    h += '<tr>'
+      + '<td class="' + cls + '"><code>' + esc(r.state) + '</code></td>'
+      + '<td>' + esc(r.jurisdiction) + '</td>'
+      + '<td><code>' + esc(r.meeting_id) + '</code></td>'
+      + '<td>' + esc(r.meeting_date) + '</td>'
+      + '<td class="num ' + cls + '">' + esc(r.retry_attempt_count) + '</td>'
+      + '<td class="' + cls + '">' + esc(r.retry_strategy) + '</td>'
+      + '<td>' + esc(r.last_retry_at) + '</td>'
+      + '<td>' + (r._chunkRun
+            ? '<span class="ok">' + esc(r._chunkRun.model) + ' · ' + esc(r._chunkRun.row_outcome) + '</span>'
+            : '<span class="dim">—</span>') + '</td>'
+      + '</tr>';
+  });
+  return h + '</table>';
+}
+
+function runAgd34(){
+  var el = document.getElementById('a34');
+  document.getElementById('a34verdict').innerHTML = '';
+  document.getElementById('a34tables').innerHTML = '';
+  el.className = ''; el.textContent = 'running… (two calls)';
+
+  Promise.all([ call('auditCoverageState',''), call('recentPipelineTimings','&limit=500') ])
+  .then(function(both){
+    var cs = both[0] && both[0].result ? both[0].result : both[0];
+    var pt = both[1] && both[1].result ? both[1].result : both[1];
+    var timings = (pt && pt.rows) || [];
+
+    // Index chunked runs by meeting_id so a SUCCESSFUL chunk is visible even when
+    // the row has since moved to the `complete` bucket.
+    var chunkById = {};
+    timings.forEach(function(t){
+      if (/^chunked/i.test(String(t.model||''))) chunkById[String(t.meeting_id||'')] = t;
+    });
+
+    // Flatten samples_by_state, carrying the state key down onto each sample.
+    var samples = [];
+    var sbs = (cs && cs.samples_by_state) || {};
+    Object.keys(sbs).forEach(function(st){
+      (sbs[st]||[]).forEach(function(s){
+        s.state = st;
+        s._chunkRun = chunkById[String(s.meeting_id||'')] || null;
+        samples.push(s);
+      });
+    });
+
+    var signature = samples.filter(function(s){
+      return s.retry_attempt_count === 2 && isChunkStrategy(s.retry_strategy); });
+    var counter = samples.filter(function(s){
+      return s.retry_attempt_count === 2 && isProStrategy(s.retry_strategy) && hasMaxTokens(s.state); });
+    var maxTokRows = samples.filter(function(s){ return hasMaxTokens(s.state); });
+    var chunkRuns = timings.filter(function(t){ return /^chunked/i.test(String(t.model||'')); });
+    var chunkPost = chunkRuns.filter(function(t){
+      var d = new Date(t.ts); return !isNaN(d.getTime()) && d >= FIX_432; });
+
+    if (signature.length) {
+      verdict('a34verdict','ok',
+        '✓ CONFIRMED IN THE WILD — ' + signature.length + ' row(s) carry '
+        + '<code>chunked_transcript</code> at <b>attempt 2</b>. The old ladder could not produce that '
+        + 'combination at any time, so the <code>finishReason</code> branch is live and firing. AGD-34 closes.');
+    } else if (counter.length) {
+      verdict('a34verdict','bad',
+        '✗ BRANCH NOT FIRING — ' + counter.length + ' row(s) sit at attempt 2 with a '
+        + '<code>:MAX_TOKENS</code> suffix but strategy <code>swap_to_pro</code>. That is the pre-@432 '
+        + 'ordering on a row the branch should have caught. AGD-34 reopens.');
+    } else if (!maxTokRows.length) {
+      verdict('a34verdict','warn',
+        '◐ NOT YET DECIDABLE — no sampled row carries a <code>:MAX_TOKENS</code> suffix at all, so nothing '
+        + 'has entered the truncation branch since <code>@432</code>. '
+        + (chunkPost.length
+            ? '<b>But ' + chunkPost.length + ' chunked run(s) did execute post-fix</b> — see the timings table; '
+              + 'their attempt number is not recoverable from Pipeline_Timing.'
+            : 'No chunked run in the last ' + timings.length + ' timing rows either.')
+        + ' AGD-34 stays open on evidence, not on doubt: re-run after the next truncation.');
+    } else {
+      verdict('a34verdict','warn',
+        '◐ INCONCLUSIVE — ' + maxTokRows.length + ' row(s) carry a <code>:MAX_TOKENS</code> suffix but none '
+        + 'is sitting at attempt 2, so neither the signature nor its counter is present in the sampled set. '
+        + '⚠ Samples are capped at 5 per state and <code>markNeedsHumanReview</code> overwrites col R — '
+        + 'absence here is not absence in the sheet.');
+    }
+
+    var h = '<h2 style="margin-top:14px">Ladder rows in the sample (all states)</h2>'
+      + sampleTable(samples.filter(function(s){
+          return s.retry_attempt_count > 0 || hasMaxTokens(s.state) || s._chunkRun; }),
+          'no row in the sampled set has ever been on the ladder.');
+    h += '<h2 style="margin-top:14px">state_counts (bucketed on the FULL state string — suffixes make their own buckets)</h2>'
+      + '<pre>' + esc(JSON.stringify((cs&&cs.state_counts)||{}, null, 2)) + '</pre>';
+    h += '<h2 style="margin-top:14px">attempt_counts</h2>'
+      + '<pre>' + esc(JSON.stringify((cs&&cs.attempt_counts)||{}, null, 2)) + '</pre>';
+    if (chunkRuns.length) {
+      h += '<h2 style="margin-top:14px">chunked runs in the last ' + timings.length + ' timing rows</h2><table>'
+         + '<tr><th>when</th><th>jurisdiction</th><th>meeting_id</th><th>chars</th><th>model</th><th>row_outcome</th><th>post-@432?</th></tr>';
+      chunkRuns.forEach(function(t){
+        var d = new Date(t.ts); var post = !isNaN(d.getTime()) && d >= FIX_432;
+        h += '<tr><td>' + esc(isNaN(d.getTime()) ? t.ts : d.toLocaleString()) + '</td>'
+          + '<td>' + esc(t.jurisdiction) + '</td><td><code>' + esc(t.meeting_id) + '</code></td>'
+          + '<td class="num">' + esc(t.transcript_chars) + '</td><td>' + esc(t.model) + '</td>'
+          + '<td>' + esc(t.row_outcome) + '</td>'
+          + '<td>' + (post ? '<span class="ok">yes</span>' : '<span class="warn">no / ambiguous</span>') + '</td></tr>';
+      });
+      h += '</table>';
+    }
+    document.getElementById('a34tables').innerHTML = h;
+
+    el.className = 'dim';
+    el.textContent = JSON.stringify({
+      coverage_state_generated_at: cs && cs.generated_at,
+      meetings_rows: cs && cs.totals && cs.totals.rows,
+      oldest_non_terminal: cs && cs.oldest_non_terminal,
+      timing_rows_read: timings.length,
+      chunk_runs: chunkRuns.length,
+      chunk_runs_post_432: chunkPost.length
+    }, null, 2);
+  })
+  .catch(function(e){
+    el.className = '';
+    el.innerHTML = '<span class="bad">' + esc(e.message) + '</span>';
+  });
+}
+
+/* ---------------- AGD-35 ---------------- */
+
+function runAgd35(){
+  var el = document.getElementById('a35');
+  document.getElementById('a35verdict').innerHTML = '';
+  document.getElementById('a35tables').innerHTML = '';
+  el.className = ''; el.textContent = 'running… (13k rows, this is the heavy one)';
+
+  callAction('scraped_documents').then(function(res){
+    var docs = Array.isArray(res) ? res : ((res && (res.documents || res.rows || res.result)) || []);
+    if (!Array.isArray(docs)) {
+      throw new Error('unexpected wire shape: ' + Object.keys(res||{}).join(','));
+    }
+    var flagged = docs.filter(function(d){
+      return String(d.review_flag || '').trim().toLowerCase() === 'flagged'; });
+
+    var byJuris = {}, byType = {};
+    flagged.forEach(function(d){
+      var j = String(d.jurisdiction || '(blank)');
+      var t = String(d.document_type || '(blank)');
+      byJuris[j] = (byJuris[j]||0) + 1;
+      byType[t]  = (byType[t]||0) + 1;
+    });
+
+    var delta = flagged.length - AGD35_BASELINE_FLAGGED;
+    if (delta > 0) {
+      verdict('a35verdict','ok',
+        '✓ CONFIRMED IN THE WILD — <b>' + flagged.length + '</b> flagged rows on the wire vs a baseline of '
+        + AGD35_BASELINE_FLAGGED + ' (<b>+' + delta + '</b>). The context-date fallback is being flagged '
+        + 'at ingestion. AGD-35 closes.');
+    } else if (delta === 0) {
+      verdict('a35verdict','warn',
+        '◐ NOT YET DECIDABLE — still <b>' + flagged.length + '</b> flagged row(s), exactly the baseline. '
+        + 'Either no eGov scrape has ingested a context-dated doc since <code>@432</code>, or the write is '
+        + 'not landing. <b>Distinguish before concluding:</b> check whether eGov ingested anything at all '
+        + 'since the deploy — no ingestion means no verdict, not a failure.');
+    } else {
+      verdict('a35verdict','bad',
+        '✗ UNEXPECTED — <b>' + flagged.length + '</b> flagged, <i>below</i> the baseline of '
+        + AGD35_BASELINE_FLAGGED + '. A flag was cleared or rows moved behind the '
+        + '<code>rejected</code> wire filter. Investigate before drawing any AGD-35 conclusion.');
+    }
+
+    var h = '<h2 style="margin-top:14px">flagged by jurisdiction</h2><pre>'
+          + esc(JSON.stringify(byJuris, null, 2)) + '</pre>'
+          + '<h2 style="margin-top:14px">flagged by document_type</h2><pre>'
+          + esc(JSON.stringify(byType, null, 2)) + '</pre>';
+    if (flagged.length && flagged.length <= 60) {
+      h += '<h2 style="margin-top:14px">the flagged rows</h2><table>'
+         + '<tr><th>jurisdiction</th><th>id</th><th>meeting_type</th><th>document_type</th><th>meeting_date</th></tr>';
+      flagged.forEach(function(d){
+        h += '<tr><td>' + esc(d.jurisdiction) + '</td><td><code>' + esc(d.id) + '</code></td>'
+          + '<td>' + esc(d.meeting_type) + '</td><td>' + esc(d.document_type) + '</td>'
+          + '<td>' + esc(d.meeting_date) + '</td></tr>';
+      });
+      h += '</table>';
+    }
+    document.getElementById('a35tables').innerHTML = h;
+
+    el.className = 'dim';
+    el.textContent = JSON.stringify({
+      wire_rows: docs.length,
+      flagged: flagged.length,
+      baseline: AGD35_BASELINE_FLAGGED,
+      delta: delta,
+      note: 'wire drops rejected id-groups — this is a lower bound, measured the same way as the baseline'
+    }, null, 2);
+  })
+  .catch(function(e){
+    el.className = '';
+    el.innerHTML = '<span class="bad">' + esc(e.message) + '</span>';
+  });
+}
+</script>
+</body>
+</html>
