@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p165r2 -->
+<!-- MIP build p165r3 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p165r2">
+<link rel="stylesheet" href="styles.css?v=p165r3">
 </head>
 <body>
 
@@ -241,6 +241,34 @@
                 <div style="font-size:10px;color:var(--text-dim);margin:2px 0 6px;">Deep check of every meeting video to confirm each has a finished summary, and to surface any that are missing or failed. Because it checks every record, it can take up to a minute.</div>
                 <div id="diag-audit-summary" style="font-size:11px;color:var(--text-dim);margin-bottom:6px;">Click "Run audit" to check.</div>
                 <div id="diag-missing"></div>
+              </div>
+
+              <!-- P165: gap punch-list probes. Three READ-ONLY admin_run previews for
+                   the RC1/RC2/RC7 fixes. They live in the UI rather than being run from
+                   a console because the operator token must not be pasted into a URL bar
+                   or a terminal — both keep a plaintext history, which is exactly what
+                   the Operator Access field above says. getWebAppUrl() attaches the token
+                   here without ever displaying it. -->
+              <div style="border-top:1px solid var(--border);margin:14px 0 10px;"></div>
+              <div>
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                  <span style="font-weight:600;font-size:12px;">Gap Punch-List Probes (P165)</span>
+                  <button class="refresh-btn" style="font-size:10px;padding:3px 9px;" onclick="p165CopyProbe(this)">⧉ Copy result</button>
+                </div>
+                <div style="font-size:10px;color:var(--text-dim);margin:2px 0 6px;">
+                  Read-only previews of the P165 fixes — nothing is written, nothing is deleted.
+                  <b>Title filters</b> shows which videos the new per-town title rules would newly include or newly drop.
+                  <b>Month-only dates</b> shows videos whose title names a month but no day, and the date each one resolves to.
+                  <b>Meeting types</b> lists the body labels actually stored for a town, and flags any &ldquo;remove from scrape&rdquo; rule that currently matches nothing.
+                </div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px;">
+                  <input id="p165-muni" value="Avon" placeholder="Jurisdiction"
+                    style="background:var(--panel);border:1px solid var(--border);color:var(--text);font-size:11px;padding:5px 9px;border-radius:4px;outline:none;width:150px;">
+                  <button class="refresh-btn" style="font-size:10px;padding:3px 9px;" onclick="p165RunProbe('p165PreviewTitleFilters',this)">Title filters</button>
+                  <button class="refresh-btn" style="font-size:10px;padding:3px 9px;" onclick="p165RunProbe('p165PreviewMonthOnlyDates',this)">Month-only dates</button>
+                  <button class="refresh-btn" style="font-size:10px;padding:3px 9px;" onclick="p165RunProbe('p165ListMeetingTypes',this)">Meeting types</button>
+                </div>
+                <pre id="p165-probe-out" style="font-size:10.5px;line-height:1.45;color:var(--text-dim);background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:8px 10px;margin:0;max-height:320px;overflow:auto;white-space:pre-wrap;word-break:break-word;">Pick a jurisdiction and run a probe.</pre>
               </div>
             </div>
           </div>
@@ -9456,6 +9484,70 @@ function candRenderRail(){
       + '</div>';
   });
   rail.innerHTML = html;
+}
+
+// ── P165: gap punch-list probes (read-only) ──────────────────────────────────
+// Three admin_run previews backing the RC1/RC2/RC7 fixes built in P165.
+//
+// Why they are in the UI at all: `admin_run` is token-gated, and the token must
+// not be typed into a URL bar, a terminal, or a devtools console — all three keep
+// a plaintext history, which is precisely what the Operator Access field warns
+// about. getWebAppUrl() attaches the token to the request here, and no code path
+// below ever renders it.
+//
+// Why previewing is mandatory rather than nice-to-have: each of the three fixes
+// fails SILENTLY. An over-broad title exclusion drops real hearings with no alarm;
+// a month-only date that resolves to the wrong day looks exactly like a right one;
+// and a scrape-exclude key that matches no stored label is indistinguishable from
+// one that matched and found nothing (that last one hid a P43 config error for
+// ~120 sessions). Run these before the backend deploy, not after.
+function p165RunProbe(fn, btn) {
+  var out = document.getElementById('p165-probe-out');
+  if (!out) return;
+  var el = document.getElementById('p165-muni');
+  var muni = String((el && el.value) || '').trim();
+  if (!muni) { out.textContent = 'Enter a jurisdiction first.'; return; }
+
+  var base = getWebAppUrl();
+  if (!base) { out.textContent = 'No dashboard connection configured.'; return; }
+  if (!getAuthToken()) {
+    out.textContent = 'Operator token is not set for this browser.\n\n'
+      + 'Settings › Operator Access (above) — these probes call admin_run, which is token-gated.\n\n'
+      + 'Note the token is stored per ORIGIN: one set on http://localhost:8778 is not visible to a\n'
+      + 'page opened from file://, and vice versa.';
+    return;
+  }
+
+  var label = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = '…running'; }
+  out.textContent = 'Running ' + fn + ' for ' + muni + '…';
+
+  fetch(base + '&action=admin_run&fn=' + encodeURIComponent(fn) + '&muni=' + encodeURIComponent(muni))
+    .then(function (r) { return r.json(); })
+    .then(function (res) {
+      // admin_run wraps its return value in `result` (same shape candLoad reads).
+      var body = (res && res.result !== undefined) ? res.result : res;
+      out.textContent = JSON.stringify(body, null, 2);
+    })
+    .catch(function (e) {
+      out.textContent = 'Request failed: ' + e.message
+        + '\n\nIf the response said Unauthorized, the token is missing or wrong for this origin.';
+    })
+    .then(function () { if (btn) { btn.disabled = false; btn.textContent = label; } });
+}
+
+function p165CopyProbe(btn) {
+  var out = document.getElementById('p165-probe-out');
+  if (!out || !btn) return;
+  var was = btn.textContent;
+  var done = function (ok) {
+    btn.textContent = ok ? '✓ Copied' : '✗ Copy failed';
+    setTimeout(function () { btn.textContent = was; }, 1400);
+  };
+  try {
+    navigator.clipboard.writeText(out.textContent || '').then(
+      function () { done(true); }, function () { done(false); });
+  } catch (e) { done(false); }
 }
 
 function candLoad(){
