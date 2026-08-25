@@ -69,11 +69,24 @@ Reads the operator token from <code>localStorage</code> on this origin — nothi
     <code>@432</code> writes <code>review_flag='flagged'</code> on eGov docs whose date came from the
     <b>±300-char context fallback</b> (a neighbouring document's date). <b>Going forward only — there is no
     backfill</b>, so this needs an eGov scrape to have run since the deploy.<br>
-    <b>Baseline: 1 flagged fleet-wide</b> (measured at <code>@432</code>, 13,016 rows). A second is unmissable.<br>
+    <b>Baseline: 0 flagged in any eGov jurisdiction</b> — corrected in <b>P164</b>. The one standing
+    flagged row fleet-wide is <b>Carmel / Common Council / Minutes</b>, a <code>P57</code> minutes flag that
+    predates <code>@432</code> and was <b>never an AGD-35 row</b>. The original &quot;baseline: 1
+    fleet-wide&quot; reading counted it, which both overstated the bar and hid a false negative: had the
+    Carmel flag cleared in the same window a first eGov row flagged, the total would still have read 1 and
+    this page would have reported &quot;not yet decidable&quot; while AGD-35 had actually closed.
+    <b>The verdict now counts eGov-jurisdiction rows only</b>; the fleet total is kept as context.<br>
     ⚠ <b>The wire drops <code>rejected</code> id-groups</b>, so this count is a <i>lower bound</i>, not a mirror.
-    The baseline of 1 was measured the same way, so the comparison is like-for-like.<br>
-    ⚠ <code>platform</code> is <b>not</b> a wire field — grouping is by <code>jurisdiction</code>, which is
-    sufficient to tell an eGov muni from any other.<br>
+    Both baselines were measured the same way, so the comparison is like-for-like.<br>
+    ⚠ <code>platform</code> is <b>not</b> a wire field — an eGov muni is identified by
+    <code>jurisdiction</code> against the 8 <code>EGOV_SITES</code> names (Greenwood, Franklin, Danville,
+    Hendricks County, Muncie, Tipton, McCordsville, Johnson County). ⚠ Necessary but not sufficient:
+    <code>review_flag=&#39;flagged&#39;</code> is also written by the P57 minutes path, so a hit still needs
+    eyeballing before AGD-35 is called closed.<br>
+    ⚠ <b><code>P155</code> rotates the budgeted scrape tier</b> — &quot;the next 3 AM scrape&quot;
+    is not necessarily an eGov one. eGov runs <i>first</i> only when <code>dayOfYear % 5 === 1</code>; when
+    it lands 4th or 5th the 300s budget can cut it entirely, which is indistinguishable here from a genuine
+    null result.<br>
     ⓘ The <code>P117</code> read cache keys on sheet <code>lastRow</code> with a <b>20s</b> TTL, and a newly
     flagged row is a newly appended row — so the cache cannot hide one for more than ~20s.
   </p>
@@ -88,7 +101,26 @@ var WEBAPP ='https://script.google.com/macros/s/AKfycbxvtkp5OZVq4sbEELnq5nN7KSXa
 
 // @432 was deployed before this commit; conservative lower bound for "certainly post-fix".
 var FIX_432 = new Date('2026-08-25T06:33:03-04:00');
-var AGD35_BASELINE_FLAGGED = 1;
+// P164: the baseline of 1 was WRONG. That single flagged row is Carmel / Common Council /
+// Minutes -- a P57 minutes flag that predates @432 and was never an AGD-35 row. The true
+// eGov-flagged baseline is 0. Keying the verdict on a fleet-wide TOTAL also carried a
+// false-negative branch: if the Carmel flag ever cleared and one eGov row flagged in the same
+// window, the total would still read 1, delta would read 0, and the page would report "not yet
+// decidable" while AGD-35 had in fact closed. The verdict now keys on eGov-jurisdiction rows
+// only; the fleet total is retained as context and as a "something cleared" alarm.
+var AGD35_BASELINE_EGOV_FLAGGED  = 0;
+var AGD35_BASELINE_FLEET_FLAGGED = 1;   // context only -- the standing Carmel/Minutes flag
+
+// The 8 EGOV_SITES names, from apps-script/eGov.js (read P164). `platform` is not a wire field,
+// so an eGov muni is identified by jurisdiction. Normalised to lowercase alphanumerics so
+// 'Hendricks County' / 'hendricks-county' / 'hendrickscounty' all match the same site.
+var AGD35_EGOV_JURIS = ['Greenwood','Franklin','Danville','Hendricks County','Muncie',
+                        'Tipton','McCordsville','Johnson County'];
+function _normJuris(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9]/g,''); }
+var AGD35_EGOV_SET = (function(){
+  var m = {}; AGD35_EGOV_JURIS.forEach(function(n){ m[_normJuris(n)] = true; }); return m;
+})();
+function isEgovJuris(j){ return AGD35_EGOV_SET[_normJuris(j)] === true; }
 
 function token(){ try { return (localStorage.getItem('mip_auth_token')||'').trim(); } catch(e){ return ''; } }
 
@@ -283,24 +315,52 @@ function runAgd35(){
       byType[t]  = (byType[t]||0) + 1;
     });
 
-    var delta = flagged.length - AGD35_BASELINE_FLAGGED;
+    // P164: count eGov-jurisdiction rows, not the fleet total. See the baseline comment above.
+    var egovFlagged = flagged.filter(function(d){ return isEgovJuris(d.jurisdiction); });
+    var delta      = egovFlagged.length - AGD35_BASELINE_EGOV_FLAGGED;
+    var fleetDelta = flagged.length     - AGD35_BASELINE_FLEET_FLAGGED;
+
+    var vcls, vhtml;
     if (delta > 0) {
-      verdict('a35verdict','ok',
-        '✓ CONFIRMED IN THE WILD — <b>' + flagged.length + '</b> flagged rows on the wire vs a baseline of '
-        + AGD35_BASELINE_FLAGGED + ' (<b>+' + delta + '</b>). The context-date fallback is being flagged '
-        + 'at ingestion. AGD-35 closes.');
+      vcls = 'ok';
+      vhtml = '✓ CONFIRMED IN THE WILD — <b>' + egovFlagged.length + '</b> flagged row(s) in an '
+        + '<b>eGov</b> jurisdiction ('
+        + egovFlagged.map(function(d){ return esc(d.jurisdiction); }).join(', ')
+        + ') vs a baseline of ' + AGD35_BASELINE_EGOV_FLAGGED + '. The context-date fallback is being '
+        + 'flagged at ingestion. <b>AGD-35 closes.</b><br>'
+        + '⚠ <b>Eyeball the rows below first.</b> <code>review_flag=&#39;flagged&#39;</code> is also '
+        + 'written by the P57 minutes-review path, so a minutes flag that happens to fall in an eGov muni '
+        + 'would land in this same count. An AGD-35 row is an eGov row whose <code>meeting_date</code> was '
+        + 'borrowed from a neighbouring document — confirm against the source listing before closing.';
     } else if (delta === 0) {
-      verdict('a35verdict','warn',
-        '◐ NOT YET DECIDABLE — still <b>' + flagged.length + '</b> flagged row(s), exactly the baseline. '
+      vcls = 'warn';
+      vhtml = '◐ NOT YET DECIDABLE — <b>0</b> flagged rows in any eGov jurisdiction, exactly the '
+        + 'baseline. (Fleet-wide: <b>' + flagged.length + '</b> flagged, none of them eGov.) '
         + 'Either no eGov scrape has ingested a context-dated doc since <code>@432</code>, or the write is '
         + 'not landing. <b>Distinguish before concluding:</b> check whether eGov ingested anything at all '
-        + 'since the deploy — no ingestion means no verdict, not a failure.');
+        + 'since the deploy — no ingestion means no verdict, not a failure.<br>'
+        + '⚠ <b>P155 rotates the budgeted tier</b>, so &quot;the next 3 AM scrape&quot; is not '
+        + 'necessarily an eGov scrape. eGov&#39;s queue position is '
+        + '<code>(1 − dayOfYear % 5) mod 5</code> — it runs <i>first</i> only when '
+        + '<code>dayOfYear % 5 === 1</code>. On a day it lands 4th or 5th it can be cut by the 300s '
+        + 'runtime budget and never run at all, which reads here exactly like a genuine null.';
     } else {
-      verdict('a35verdict','bad',
-        '✗ UNEXPECTED — <b>' + flagged.length + '</b> flagged, <i>below</i> the baseline of '
-        + AGD35_BASELINE_FLAGGED + '. A flag was cleared or rows moved behind the '
-        + '<code>rejected</code> wire filter. Investigate before drawing any AGD-35 conclusion.');
+      vcls = 'bad';
+      vhtml = '✗ UNEXPECTED — <b>' + egovFlagged.length + '</b> eGov-flagged, <i>below</i> a '
+        + 'baseline of ' + AGD35_BASELINE_EGOV_FLAGGED + '. A count cannot go below zero — the page '
+        + 'itself is wrong. Do not draw any AGD-35 conclusion from this run.';
     }
+
+    // Fleet-wide movement is not the AGD-35 verdict, but a cleared flag is worth surfacing.
+    // verdict() REPLACES innerHTML, so this is appended to the same call, not a second one.
+    if (fleetDelta < 0) {
+      vhtml += '<br>⚠ Fleet-wide flagged count is <b>' + flagged.length + '</b>, below the '
+        + '<code>@432</code> context reading of ' + AGD35_BASELINE_FLEET_FLAGGED + '. A flag was cleared, '
+        + 'or rows moved behind the <code>rejected</code> wire filter. This does <i>not</i> change the '
+        + 'verdict above (which counts eGov rows only) — but the Carmel/Minutes row is what usually '
+        + 'accounts for it, and it is worth knowing that it moved.';
+    }
+    verdict('a35verdict', vcls, vhtml);
 
     var h = '<h2 style="margin-top:14px">flagged by jurisdiction</h2><pre>'
           + esc(JSON.stringify(byJuris, null, 2)) + '</pre>'
@@ -321,9 +381,10 @@ function runAgd35(){
     el.className = 'dim';
     el.textContent = JSON.stringify({
       wire_rows: docs.length,
-      flagged: flagged.length,
-      baseline: AGD35_BASELINE_FLAGGED,
-      delta: delta,
+      flagged_fleet: flagged.length,
+      flagged_egov: egovFlagged.length,
+      egov_baseline: AGD35_BASELINE_EGOV_FLAGGED,
+      egov_delta: delta,
       note: 'wire drops rejected id-groups — this is a lower bound, measured the same way as the baseline'
     }, null, 2);
   })
