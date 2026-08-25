@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p165r5 -->
+<!-- MIP build p165r6 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p165r5">
+<link rel="stylesheet" href="styles.css?v=p165r6">
 </head>
 <body>
 
@@ -189,6 +189,69 @@
       <div class="settings-wrap">
 
         <div class="settings-col">
+            <!-- P165: gap punch-list probes. Promoted to its OWN top-of-column card
+                 2026-08-25. They were originally appended to the bottom of the
+                 Diagnostics card — which expands to a 53-row Summary Coverage table,
+                 so the buttons ended up below hundreds of rows and were effectively
+                 unfindable. A diagnostic you cannot locate is not a diagnostic. -->
+            <div class="settings-card">
+              <div class="settings-card-title">Gap Punch-List Probes (P165)</div>
+            <!-- P165: gap punch-list probes. Three READ-ONLY admin_run previews for
+                 the RC1/RC2/RC7 fixes. They live in the UI rather than being run from
+                 a console because the operator token must not be pasted into a URL bar
+                 or a terminal — both keep a plaintext history, which is exactly what
+                 the Operator Access field above says. getWebAppUrl() attaches the token
+                 here without ever displaying it. -->
+            <div>
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                <span style="font-size:10px;color:var(--text-dim);">read-only &middot; nothing is written</span>
+                <button class="refresh-btn" style="font-size:10px;padding:3px 9px;" onclick="p165CopyProbe(this)">⧉ Copy result</button>
+              </div>
+              <div style="font-size:10px;color:var(--text-dim);margin:2px 0 6px;">
+                Read-only previews of the P165 fixes — nothing is written, nothing is deleted.
+                <b>Title filters</b> shows which videos the new per-town title rules would newly include or newly drop.
+                <b>Month-only dates</b> shows videos whose title names a month but no day, and the date each one resolves to.
+                <b>Meeting types</b> lists the body labels actually stored for a town, and flags any &ldquo;remove from scrape&rdquo; rule that currently matches nothing.
+              </div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px;">
+                <input id="p165-muni" value="Avon" placeholder="Jurisdiction"
+                  style="background:var(--panel);border:1px solid var(--border);color:var(--text);font-size:11px;padding:5px 9px;border-radius:4px;outline:none;width:150px;">
+                <button class="refresh-btn" style="font-size:10px;padding:3px 9px;" onclick="p165RunProbe('p165PreviewTitleFilters',this)">Title filters</button>
+                <button class="refresh-btn" style="font-size:10px;padding:3px 9px;" onclick="p165RunProbe('p165PreviewMonthOnlyDates',this)">Month-only dates</button>
+                <button class="refresh-btn" style="font-size:10px;padding:3px 9px;" onclick="p165RunProbe('p165ListMeetingTypes',this)">Meeting types</button>
+              </div>
+
+              <!-- P165 punch-list TRIAGE. These two are the highest-leverage calls on the
+                   page: together they resolve 36 of the 86 operator-reported rows. Both
+                   functions already existed and were already allowlisted — they were simply
+                   unreachable without hand-building a URL, which is why 21 "N"/"E" rows have
+                   been re-diagnosed across three sessions without anyone reading the actual
+                   parse reason. Leave the jurisdiction box BLANK to pull the whole fleet. -->
+              <div style="font-size:10px;color:var(--text-dim);margin:8px 0 5px;">
+                <b>Punch-list triage</b> — leave the box <b>blank</b> to run fleet-wide (that is the useful mode).
+                <b>Agenda parse</b> lists every agenda that is present but produced no items or errored — the &ldquo;N&rdquo; and &ldquo;E&rdquo; chips.
+                <b>Summary errors</b> is a <b>dry run</b>: it reports which failed summaries can be re-queued and which have no captions at all. It changes nothing.
+              </div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px;">
+                <button class="refresh-btn" style="font-size:10px;padding:3px 9px;"
+                  onclick="p165RunProbe('auditAgendaExtractionDocs',this,{param:'juris',optional:true,extra:{bucket:'noitems,err',limit:500}})">Agenda parse (N / E)</button>
+                <button class="refresh-btn" style="font-size:10px;padding:3px 9px;"
+                  onclick="p165RunProbe('requeueNeedsReviewRows',this,{optional:true,extra:{limit:200}})">Summary errors (dry run)</button>
+                <!-- P165: video-ingest census. `include_found=true` returns EVERY date-valid
+                     upload on the channel BEFORE the keyword filter, with the date the scraper
+                     parsed from each title (P99 debug mode). That is the only view that
+                     separates "the video was never ingested" from "it was ingested under a
+                     date we derived wrongly" — the question behind the mode-C items and the
+                     future-dated Franklin rows. `apply` is deliberately NOT passed, so the
+                     backend's `!!opts.apply` leaves it a dry run by construction. Needs a
+                     jurisdiction: fleet-wide with include_found is an enormous payload. -->
+                <button class="refresh-btn" style="font-size:10px;padding:3px 9px;"
+                  onclick="p165RunProbe('deepScrapeYouTubeUploads',this,{extra:{start_date:'2025-01-01',include_found:'true'}})">Video ingest (dry run)</button>
+              </div>
+              <pre id="p165-probe-out" style="font-size:10.5px;line-height:1.45;color:var(--text-dim);background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:8px 10px;margin:0;max-height:320px;overflow:auto;white-space:pre-wrap;word-break:break-word;">Pick a jurisdiction and run a probe.</pre>
+            </div>
+            </div>
+
           <!-- P21-L5: DIAGNOSTICS / SMOKE TESTS (P96: collapsible, default collapsed) -->
           <div class="settings-card">
             <div class="settings-card-title" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;" onclick="toggleSettingsSection('diagnostics-body')">
@@ -243,61 +306,6 @@
                 <div id="diag-missing"></div>
               </div>
 
-              <!-- P165: gap punch-list probes. Three READ-ONLY admin_run previews for
-                   the RC1/RC2/RC7 fixes. They live in the UI rather than being run from
-                   a console because the operator token must not be pasted into a URL bar
-                   or a terminal — both keep a plaintext history, which is exactly what
-                   the Operator Access field above says. getWebAppUrl() attaches the token
-                   here without ever displaying it. -->
-              <div style="border-top:1px solid var(--border);margin:14px 0 10px;"></div>
-              <div>
-                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-                  <span style="font-weight:600;font-size:12px;">Gap Punch-List Probes (P165)</span>
-                  <button class="refresh-btn" style="font-size:10px;padding:3px 9px;" onclick="p165CopyProbe(this)">⧉ Copy result</button>
-                </div>
-                <div style="font-size:10px;color:var(--text-dim);margin:2px 0 6px;">
-                  Read-only previews of the P165 fixes — nothing is written, nothing is deleted.
-                  <b>Title filters</b> shows which videos the new per-town title rules would newly include or newly drop.
-                  <b>Month-only dates</b> shows videos whose title names a month but no day, and the date each one resolves to.
-                  <b>Meeting types</b> lists the body labels actually stored for a town, and flags any &ldquo;remove from scrape&rdquo; rule that currently matches nothing.
-                </div>
-                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px;">
-                  <input id="p165-muni" value="Avon" placeholder="Jurisdiction"
-                    style="background:var(--panel);border:1px solid var(--border);color:var(--text);font-size:11px;padding:5px 9px;border-radius:4px;outline:none;width:150px;">
-                  <button class="refresh-btn" style="font-size:10px;padding:3px 9px;" onclick="p165RunProbe('p165PreviewTitleFilters',this)">Title filters</button>
-                  <button class="refresh-btn" style="font-size:10px;padding:3px 9px;" onclick="p165RunProbe('p165PreviewMonthOnlyDates',this)">Month-only dates</button>
-                  <button class="refresh-btn" style="font-size:10px;padding:3px 9px;" onclick="p165RunProbe('p165ListMeetingTypes',this)">Meeting types</button>
-                </div>
-
-                <!-- P165 punch-list TRIAGE. These two are the highest-leverage calls on the
-                     page: together they resolve 36 of the 86 operator-reported rows. Both
-                     functions already existed and were already allowlisted — they were simply
-                     unreachable without hand-building a URL, which is why 21 "N"/"E" rows have
-                     been re-diagnosed across three sessions without anyone reading the actual
-                     parse reason. Leave the jurisdiction box BLANK to pull the whole fleet. -->
-                <div style="font-size:10px;color:var(--text-dim);margin:8px 0 5px;">
-                  <b>Punch-list triage</b> — leave the box <b>blank</b> to run fleet-wide (that is the useful mode).
-                  <b>Agenda parse</b> lists every agenda that is present but produced no items or errored — the &ldquo;N&rdquo; and &ldquo;E&rdquo; chips.
-                  <b>Summary errors</b> is a <b>dry run</b>: it reports which failed summaries can be re-queued and which have no captions at all. It changes nothing.
-                </div>
-                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px;">
-                  <button class="refresh-btn" style="font-size:10px;padding:3px 9px;"
-                    onclick="p165RunProbe('auditAgendaExtractionDocs',this,{param:'juris',optional:true,extra:{bucket:'noitems,err',limit:500}})">Agenda parse (N / E)</button>
-                  <button class="refresh-btn" style="font-size:10px;padding:3px 9px;"
-                    onclick="p165RunProbe('requeueNeedsReviewRows',this,{optional:true,extra:{limit:200}})">Summary errors (dry run)</button>
-                  <!-- P165: video-ingest census. `include_found=true` returns EVERY date-valid
-                       upload on the channel BEFORE the keyword filter, with the date the scraper
-                       parsed from each title (P99 debug mode). That is the only view that
-                       separates "the video was never ingested" from "it was ingested under a
-                       date we derived wrongly" — the question behind the mode-C items and the
-                       future-dated Franklin rows. `apply` is deliberately NOT passed, so the
-                       backend's `!!opts.apply` leaves it a dry run by construction. Needs a
-                       jurisdiction: fleet-wide with include_found is an enormous payload. -->
-                  <button class="refresh-btn" style="font-size:10px;padding:3px 9px;"
-                    onclick="p165RunProbe('deepScrapeYouTubeUploads',this,{extra:{start_date:'2025-01-01',include_found:'true'}})">Video ingest (dry run)</button>
-                </div>
-                <pre id="p165-probe-out" style="font-size:10.5px;line-height:1.45;color:var(--text-dim);background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:8px 10px;margin:0;max-height:320px;overflow:auto;white-space:pre-wrap;word-break:break-word;">Pick a jurisdiction and run a probe.</pre>
-              </div>
             </div>
           </div>
 
