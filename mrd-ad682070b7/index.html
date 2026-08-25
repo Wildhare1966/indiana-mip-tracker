@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p165r4 -->
+<!-- MIP build p165r5 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p165r4">
+<link rel="stylesheet" href="styles.css?v=p165r5">
 </head>
 <body>
 
@@ -285,6 +285,16 @@
                     onclick="p165RunProbe('auditAgendaExtractionDocs',this,{param:'juris',optional:true,extra:{bucket:'noitems,err',limit:500}})">Agenda parse (N / E)</button>
                   <button class="refresh-btn" style="font-size:10px;padding:3px 9px;"
                     onclick="p165RunProbe('requeueNeedsReviewRows',this,{optional:true,extra:{limit:200}})">Summary errors (dry run)</button>
+                  <!-- P165: video-ingest census. `include_found=true` returns EVERY date-valid
+                       upload on the channel BEFORE the keyword filter, with the date the scraper
+                       parsed from each title (P99 debug mode). That is the only view that
+                       separates "the video was never ingested" from "it was ingested under a
+                       date we derived wrongly" — the question behind the mode-C items and the
+                       future-dated Franklin rows. `apply` is deliberately NOT passed, so the
+                       backend's `!!opts.apply` leaves it a dry run by construction. Needs a
+                       jurisdiction: fleet-wide with include_found is an enormous payload. -->
+                  <button class="refresh-btn" style="font-size:10px;padding:3px 9px;"
+                    onclick="p165RunProbe('deepScrapeYouTubeUploads',this,{extra:{start_date:'2025-01-01',include_found:'true'}})">Video ingest (dry run)</button>
                 </div>
                 <pre id="p165-probe-out" style="font-size:10.5px;line-height:1.45;color:var(--text-dim);background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:8px 10px;margin:0;max-height:320px;overflow:auto;white-space:pre-wrap;word-break:break-word;">Pick a jurisdiction and run a probe.</pre>
               </div>
