@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p151r2 -->
+<!-- MIP build p165r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p147r1">
+<link rel="stylesheet" href="styles.css?v=p165r1">
 </head>
 <body>
 
@@ -10150,8 +10150,8 @@ registerViewInit('candidates', candLoad);
 // Backend: getAgendaItemsFeedJSON / addAgendaItemToProject (+ create_tracked_project).
 // ═══════════════════════════════════════════════════════════════════════════
 var _aiState = {
-  ag: { data:[], loaded:false, juris:'', conf:'High', dateDays:7, dateFrom:'', dateTo:'', search:'', page:0, pageSize:50, descExp:false, sel:{} },
-  yt: { data:[], loaded:false, juris:'', conf:'High', dateDays:7, dateFrom:'', dateTo:'', search:'', page:0, pageSize:50, descExp:false, sel:{} }
+  ag: { data:[], loaded:false, juris:'', conf:'High', dateDays:7, dateFrom:'', dateTo:'', search:'', page:0, pageSize:50, descExp:false, sel:{}, exp:{} },
+  yt: { data:[], loaded:false, juris:'', conf:'High', dateDays:7, dateFrom:'', dateTo:'', search:'', page:0, pageSize:50, descExp:false, sel:{}, exp:{} }
 };
 // yyyy-mm-dd cutoff = today − N days (lexical compare works on ISO dates).
 function _aiCutoff(days){
@@ -10174,7 +10174,7 @@ function aiLoad(stream, force){
   fetch(base+'&action=admin_run&fn=getAgendaItemsFeedJSON&stream='+encodeURIComponent(stream)).then(function(r){return r.json();}).then(function(res){
     var rr=res&&res.result;
     if(!rr||!rr.ok){ el.innerHTML='<div style="color:var(--text-dim);">Could not load '+cfg.noun+': '+_diagEsc((rr&&rr.error)||(res&&res.error)||'unknown')+'</div>'; return; }
-    s.data=rr.items||[]; s.loaded=true; s.page=0; s.sel={};
+    s.data=rr.items||[]; s.loaded=true; s.page=0; s.sel={}; s.exp={};
     aiPopulateJuris(stream); aiRender(stream);
   }).catch(function(e){ el.innerHTML='<div style="color:var(--text-dim);">Network error: '+_diagEsc(e.message)+'</div>'; });
 }
@@ -10229,8 +10229,25 @@ function aiSetPageSize(stream,v){ var n=parseInt(v,10); _aiState[stream].pageSiz
 function aiGoPage(stream,p){ _aiState[stream].page=p; aiRender(stream); }
 function aiToggleAllDesc(stream){
   var s=_aiState[stream]; s.descExp=!s.descExp;
+  // Expand-all wins: drop the per-row description overrides so the two controls
+  // cannot disagree after the next render.
+  Object.keys(s.exp).forEach(function(k){ if(k.slice(-5)==='|desc') delete s.exp[k]; });
   document.querySelectorAll('#'+_aiCfg(stream).list+' .cand-desc').forEach(function(x){ x.classList.toggle('expanded', s.descExp); });
   var b=document.getElementById(_aiCfg(stream).expand); if(b) b.textContent=s.descExp?'Collapse all':'Expand all';
+}
+// P165 — per-row expand/collapse is STATE, not a bare DOM class. Before this the
+// class lived only on the element, so any aiRender() (ticking a checkbox used to
+// force one) silently collapsed every row the operator had opened — the table
+// visibly resized on selection and again after processing.
+function aiToggleExp(stream, id, kind, el){
+  var s=_aiState[stream], k=id+'|'+kind;
+  if(s.exp[k]) delete s.exp[k]; else s.exp[k]=true;
+  if(el) el.classList.toggle('expanded', !!s.exp[k]);
+}
+function _aiIsExp(stream, id, kind){
+  var s=_aiState[stream];
+  if(kind==='desc' && s.descExp) return true;
+  return !!s.exp[id+'|'+kind];
 }
 
 // Candidate confidence pill (high/low). Match confidence pill (High/Medium/None).
@@ -10285,12 +10302,7 @@ function aiRender(stream){
   // Bulk Accept — every row is selectable. Accept links each selected row that has
   // an unlinked Matched Project, then dismisses ALL selected rows (matched or not)
   // on the backend so they leave these tabs for good (reversible via &undo=true).
-  var nSel=filtered.filter(function(it){ return s.sel[it.item_id]; }).length;
-  var bulkBar='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px;font-size:11px;color:var(--text-dim);">'+
-    '<span><b style="color:inherit;">'+nSel+'</b> selected</span>'+
-    '<button class="refresh-btn" id="ai-'+stream+'-bulk-accept" style="font-size:10px;padding:3px 10px;background:#1c7c3a;color:#fff;border-color:#1c7c3a;'+(nSel?'':'opacity:.5;pointer-events:none;')+'" onclick="aiBulkAccept(\''+stream+'\')" title="Link each selected row that has an unlinked Matched Project, then dismiss all selected rows so they leave these tabs (reversible)">✓ Accept selected</button>'+
-    (nSel?'<button class="refresh-btn" style="font-size:10px;padding:3px 10px;" onclick="aiClearSel(\''+stream+'\')" title="Clear selection">Clear</button>':'')+
-    '<span id="ai-'+stream+'-bulk-status"></span></div>';
+  var bulkBar='<div id="ai-'+stream+'-bulkbar" class="ai-bulkbar">'+_aiBulkBarHtml(stream)+'</div>';
 
   // P148: per-stream layout — Ord# trimmed (ag −30%, yt −70% of its former
   // ~100px), the freed width moved onto Project; yt adds Agenda Item + Action.
@@ -10299,7 +10311,7 @@ function aiRender(stream){
   var thS='padding:6px 8px;text-align:left;vertical-align:top;';
   var allPageSel=pageRows.length>0 && pageRows.every(function(it){ return s.sel[it.item_id]; });
   var head='<tr style="color:var(--text-dim);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">'+
-    '<th style="'+thS+'width:24px;"><input type="checkbox" onchange="aiSelectAllPage(\''+stream+'\',this)"'+(allPageSel?' checked':'')+(pageRows.length?'':' disabled')+' title="Select all rows on this page" style="cursor:pointer;"></th>'+
+    '<th style="'+thS+'width:24px;"><input type="checkbox" data-ai-all="1" onchange="aiSelectAllPage(\''+stream+'\',this)"'+(allPageSel?' checked':'')+(pageRows.length?'':' disabled')+' title="Select all rows on this page" style="cursor:pointer;"></th>'+
     '<th style="'+thS+'" title="Candidate confidence: high if the item has an ordinance/case # or a named petitioner">Cand.</th>'+
     '<th style="'+thS+'" title="Tracked-Project match confidence: High (identifier hit) / Medium (summary only) / None">Match</th>'+
     '<th style="'+thS+'width:260px;">Criteria</th>'+
@@ -10309,12 +10321,12 @@ function aiRender(stream){
     '<th style="'+thS+'width:'+ordW+'px;">Ord #</th>'+
     '<th style="'+thS+'">Type</th>'+
     '<th style="'+thS+'width:320px;">Description</th>'+
-    '<th style="'+thS+'">Petitioner</th>'+
+    '<th style="'+thS+'width:130px;">Petitioner</th>'+
     '<th style="'+thS+'">Date</th>'+
     '<th style="'+thS+'">Source</th>'+
     (isYt?'<th style="'+thS+'" title="The parsed agenda-document item for the same meeting (matched by ordinance # / project name — agendas always parse before the video summary)">Agenda Item</th>':'')+
     (isYt?'<th style="'+thS+'" title="Action taken / outcome parsed from the hearing">Action</th>':'')+
-    '<th style="'+thS+'">Manage</th></tr>';
+    '<th style="'+thS+'width:192px;">Manage</th></tr>';
 
   var tdS='padding:6px 8px;text-align:left;vertical-align:top;';
   var body=pageRows.map(function(it){
@@ -10322,7 +10334,7 @@ function aiRender(stream){
     var resolved=!!it._aiResolved;
     var descText=String(it.description||'').trim();
     var descCell=descText
-      ? '<span class="cand-desc'+(s.descExp?' expanded':'')+'" title="Click to expand / collapse" onclick="this.classList.toggle(\'expanded\')">'+_diagEsc(descText)+'</span>'
+      ? '<span class="cand-desc'+(_aiIsExp(stream,it.item_id,'desc')?' expanded':'')+'" title="Click to expand / collapse" onclick="aiToggleExp(\''+stream+'\',\''+id+'\',\'desc\',this)">'+_diagEsc(descText)+'</span>'
       : '<span style="color:var(--text-dim);">—</span>';
     var srcUrl=String(it.source_url||'').trim();
     var srcLabel=isYt?(/youtu\.?be/i.test(srcUrl)?'YouTube':'Minutes'):'Agenda';
@@ -10345,13 +10357,12 @@ function aiRender(stream){
         ? '<span style="font-size:10px;">'+_diagEsc(outcomeTxt)+'</span>'
         : '<span style="color:var(--text-dim);">—</span>';
     }
-    var actCell = resolved
-      ? '<span style="font-size:10px;color:#3ba55d;">✓ '+_diagEsc(it._aiResolved)+'</span>'
-      : '<div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-start;max-width:170px;">'+
-          '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;background:#1c7c3a;color:#fff;border-color:#1c7c3a;" title="Create a NEW Tracked Project from this item" onclick="aiTrack(\''+stream+'\',\''+id+'\')">＋ Track</button>'+
-          '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;" title="Attach this item to an EXISTING Tracked Project" onclick="aiOpenAddTo(\''+stream+'\',\''+id+'\',this)">Add to… ▾</button>'+
-          '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;" title="Dismiss this item — hides it from these tabs (reversible in the backend via dismissAgendaItem&undo=true)" onclick="aiDismiss(\''+stream+'\',\''+id+'\',this)">✕ Dismiss</button>'+
-        '</div>';
+    var actCell = '<div class="ai-manage">'+(resolved
+      ? '<span class="ai-mdone">✓ '+_diagEsc(it._aiResolved)+'</span>'
+      : '<button class="refresh-btn ai-mbtn ai-mbtn-go" title="Create a NEW Tracked Project from this item" onclick="aiTrack(\''+stream+'\',\''+id+'\')">＋ Track</button>'+
+        '<button class="refresh-btn ai-mbtn" title="Attach this item to an EXISTING Tracked Project" onclick="aiOpenAddTo(\''+stream+'\',\''+id+'\',this)">Add to… ▾</button>'+
+        '<button class="refresh-btn ai-mbtn" title="Dismiss this item — hides it from these tabs (reversible in the backend via dismissAgendaItem&undo=true)" onclick="aiDismiss(\''+stream+'\',\''+id+'\',this)">✕ Dismiss</button>'
+    )+'</div>';
     // Every row is selectable for bulk Accept (Accept links unlinked matches, then
     // dismisses all selected rows — matched or not — so they leave these tabs).
     var selCell='<input type="checkbox" data-ai-sel="'+id+'" onchange="aiToggleSel(\''+stream+'\',\''+id+'\',this)"'+(s.sel[it.item_id]?' checked':'')+' style="cursor:pointer;">';
@@ -10362,11 +10373,11 @@ function aiRender(stream){
       '<td style="'+tdS+'">'+critCell+'</td>'+
       '<td style="'+tdS+'white-space:nowrap;">'+_diagEsc(it.jurisdiction||'—')+'</td>'+
       '<td style="'+tdS+'">'+_aiMatchedCell(it)+'</td>'+
-      '<td style="'+tdS+'width:'+projW+'px;"><span class="cand-proj" title="Click to expand / collapse" onclick="this.classList.toggle(\'expanded\')">'+_diagEsc(it.project_name||'—')+'</span></td>'+
+      '<td style="'+tdS+'width:'+projW+'px;"><span class="cand-proj'+(_aiIsExp(stream,it.item_id,'proj')?' expanded':'')+'" title="Click to expand / collapse" onclick="aiToggleExp(\''+stream+'\',\''+id+'\',\'proj\',this)">'+_diagEsc(it.project_name||'—')+'</span></td>'+
       '<td style="'+tdS+'width:'+ordW+'px;max-width:'+ordW+'px;font-size:10px;word-break:break-word;">'+_diagEsc(it.ordinance_number||'—')+'</td>'+
       '<td style="'+tdS+'white-space:nowrap;">'+_diagEsc(it.request_type||'—')+'</td>'+
-      '<td style="'+tdS+'width:320px;max-width:360px;">'+descCell+'</td>'+
-      '<td style="'+tdS+'">'+(String(it.petitioner||'').trim()?'<span class="cand-petitioner" title="Click to expand / collapse" onclick="this.classList.toggle(\'expanded\')">'+_diagEsc(it.petitioner)+'</span>':'<span style="color:var(--text-dim);">—</span>')+'</td>'+
+      '<td style="'+tdS+'width:320px;max-width:320px;">'+descCell+'</td>'+
+      '<td style="'+tdS+'width:130px;max-width:130px;">'+(String(it.petitioner||'').trim()?'<span class="cand-petitioner'+(_aiIsExp(stream,it.item_id,'pet')?' expanded':'')+'" title="Click to expand / collapse" onclick="aiToggleExp(\''+stream+'\',\''+id+'\',\'pet\',this)">'+_diagEsc(it.petitioner)+'</span>':'<span style="color:var(--text-dim);">—</span>')+'</td>'+
       '<td style="'+tdS+'white-space:nowrap;font-size:10px;">'+_diagEsc(it.meeting_date||'—')+'</td>'+
       '<td style="'+tdS+'white-space:nowrap;">'+srcCell+'</td>'+
       (isYt?('<td style="'+tdS+'">'+agCell+'</td><td style="'+tdS+'">'+outCell+'</td>'):'')+
@@ -10458,18 +10469,17 @@ function aiOpenAddTo(stream, itemId, btn){
     return pj===jn;
   }).sort(function(a,b){ return String(a.projectName||'').localeCompare(String(b.projectName||'')); });
   if(!opts.length){
-    td.innerHTML='<span style="font-size:10px;color:var(--text-dim);">No tracked projects in '+_diagEsc(it.jurisdiction||'this jurisdiction')+'. <a href="#" onclick="aiRender(\''+stream+'\');return false;" style="color:#3be3ff;">cancel</a></span>';
+    td.innerHTML='<div class="ai-manage"><span class="ai-mnote">No tracked projects in '+_diagEsc(it.jurisdiction||'this jurisdiction')+'. <a href="#" onclick="aiRender(\''+stream+'\');return false;" style="color:#3be3ff;">cancel</a></span></div>';
     return;
   }
   var optionHtml=opts.map(function(p){
     return '<option value="'+_diagEsc(p.projectId)+'">'+_diagEsc(p.projectName||p.projectId)+(p.ordinanceId?(' ('+_diagEsc(p.ordinanceId)+')'):'')+'</option>';
   }).join('');
-  td.innerHTML='<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">'
-    +'<select id="aiae-sel-'+_diagEsc(itemId)+'" style="font-size:10px;max-width:160px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:5px;padding:2px 4px;cursor:pointer;">'+optionHtml+'</select>'
-    +'<div style="display:flex;gap:4px;">'
-    +  '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;background:#1c7c3a;color:#fff;border-color:#1c7c3a;" onclick="aiAddTo(\''+stream+'\',\''+itemId+'\',this)">Add</button>'
-    +  '<button class="refresh-btn" style="font-size:10px;padding:3px 9px;" onclick="aiRender(\''+stream+'\')">Cancel</button>'
-    +'</div></div>';
+  td.innerHTML='<div class="ai-manage">'
+    +'<select id="aiae-sel-'+_diagEsc(itemId)+'" class="ai-msel">'+optionHtml+'</select>'
+    +'<button class="refresh-btn ai-mbtn ai-mbtn-go" onclick="aiAddTo(\''+stream+'\',\''+itemId+'\',this)">Add</button>'
+    +'<button class="refresh-btn ai-mbtn" onclick="aiRender(\''+stream+'\')">Cancel</button>'
+    +'</div>';
 }
 function aiAddTo(stream, itemId, btn){
   var sel=document.getElementById('aiae-sel-'+itemId);
@@ -10509,20 +10519,52 @@ function aiDismiss(stream, itemId, btn){
 // dismissed on the backend (dismissAgendaItem stamps the item so the feed skips
 // it), so it stays gone across Refreshes. Reversible via &undo=true.
 function _aiAcceptable(it){ return !!it.matched_project_id && !it.auto_linked && !it._aiResolved; }
+// Bulk bar markup lives here so a selection change can repaint the bar ALONE.
+// Every button is always rendered (dimmed + inert when nothing is selected) --
+// adding/removing one used to reflow the bar and shove the table down.
+function _aiBulkBarHtml(stream){
+  var s=_aiState[stream];
+  var nSel=_aiFiltered(stream).filter(function(it){ return s.sel[it.item_id]; }).length;
+  var off=nSel?'':'opacity:.45;pointer-events:none;';
+  return '<span><b style="color:inherit;">'+nSel+'</b> selected</span>'+
+    '<button class="refresh-btn ai-bulkbtn" id="ai-'+stream+'-bulk-accept" style="background:#1c7c3a;color:#fff;border-color:#1c7c3a;'+off+'" onclick="aiBulkAccept(\''+stream+'\')" title="Link each selected row that has an unlinked Matched Project, then dismiss all selected rows so they leave these tabs (reversible)">✓ Accept selected</button>'+
+    '<button class="refresh-btn ai-bulkbtn" id="ai-'+stream+'-bulk-dismiss" style="'+off+'" onclick="aiBulkDismiss(\''+stream+'\')" title="Dismiss every selected row WITHOUT linking it to a Tracked Project -- they leave these tabs (reversible in the backend via dismissAgendaItem&undo=true)">✕ Dismiss selected</button>'+
+    '<button class="refresh-btn ai-bulkbtn" id="ai-'+stream+'-bulk-clear" style="'+off+'" onclick="aiClearSel(\''+stream+'\')" title="Clear selection">Clear</button>'+
+    '<span id="ai-'+stream+'-bulk-status"></span>';
+}
+function _aiSyncBulkBar(stream){
+  var bar=document.getElementById('ai-'+stream+'-bulkbar');
+  if(bar) bar.innerHTML=_aiBulkBarHtml(stream);
+}
+// Keep the header select-all box honest without a re-render.
+function _aiSyncAllBox(stream){
+  var s=_aiState[stream], list=_aiCfg(stream).list;
+  var hdr=document.querySelector('#'+list+' input[data-ai-all]'); if(!hdr) return;
+  var boxes=document.querySelectorAll('#'+list+' input[data-ai-sel]');
+  var all=boxes.length>0;
+  boxes.forEach(function(b){ if(!s.sel[b.getAttribute('data-ai-sel')]) all=false; });
+  hdr.checked=all;
+}
 function aiToggleSel(stream, id, cb){
   var s=_aiState[stream];
   if(cb&&cb.checked){ s.sel[id]=true; } else { delete s.sel[id]; }
-  aiRender(stream);
+  _aiSyncAllBox(stream); _aiSyncBulkBar(stream);
 }
 function aiSelectAllPage(stream, cb){
   var s=_aiState[stream], on=!!(cb&&cb.checked);
   document.querySelectorAll('#'+_aiCfg(stream).list+' input[data-ai-sel]').forEach(function(box){
     var id=box.getAttribute('data-ai-sel');
     if(on){ s.sel[id]=true; } else { delete s.sel[id]; }
+    box.checked=on;
   });
-  aiRender(stream);
+  _aiSyncBulkBar(stream);
 }
-function aiClearSel(stream){ _aiState[stream].sel={}; aiRender(stream); }
+function aiClearSel(stream){
+  var s=_aiState[stream]; s.sel={};
+  document.querySelectorAll('#'+_aiCfg(stream).list+' input[data-ai-sel]').forEach(function(b){ b.checked=false; });
+  var hdr=document.querySelector('#'+_aiCfg(stream).list+' input[data-ai-all]'); if(hdr) hdr.checked=false;
+  _aiSyncBulkBar(stream);
+}
 // Sequential (one backend call at a time — each accept folds aliases + re-scans
 // the project, so parallel calls would hammer the Sheet).
 function aiBulkAccept(stream){
@@ -10576,8 +10618,44 @@ function aiBulkAccept(stream){
   }
   step(0);
 }
+// Bulk Dismiss -- the no-link counterpart to Accept. Sequential for the same
+// reason (one Sheet write at a time); a failed dismiss KEEPS its row for retry.
+function aiBulkDismiss(stream){
+  var s=_aiState[stream];
+  var rows=_aiFiltered(stream).filter(function(it){ return s.sel[it.item_id]; });
+  if(!rows.length) return;
+  if(!window.confirm('Dismiss '+rows.length+' selected item'+(rows.length===1?'':'s')+'? They leave these tabs WITHOUT being linked to any Tracked Project (reversible in the backend via dismissAgendaItem&undo=true).')) return;
+  var base=getWebAppUrl(); if(!base) return;
+  ['accept','dismiss','clear'].forEach(function(k){
+    var b=document.getElementById('ai-'+stream+'-bulk-'+k);
+    if(b){ b.style.pointerEvents='none'; b.style.opacity='.45'; }
+  });
+  var statusEl=document.getElementById('ai-'+stream+'-bulk-status');
+  var cleared=0, failed=0, total=rows.length;
+  function step(i){
+    if(i>=rows.length){
+      aiPopulateJuris(stream); aiRender(stream);
+      var st=document.getElementById('ai-'+stream+'-bulk-status');
+      if(st) st.textContent='Dismissed '+cleared+' / '+total+(failed?(' · '+failed+' failed (kept)'):'')+'.';
+      return;
+    }
+    var it=rows[i];
+    if(statusEl) statusEl.textContent='Dismissing '+(i+1)+' / '+total+'…';
+    fetch(base+'&action=admin_run&fn=dismissAgendaItem&item_id='+encodeURIComponent(it.item_id))
+      .then(function(r){return r.json();}).then(function(res){
+        var rr=res&&res.result;
+        if(rr&&rr.ok){
+          cleared++;
+          for(var j=0;j<s.data.length;j++){ if(String(s.data[j].item_id)===String(it.item_id)){ s.data.splice(j,1); break; } }
+          delete s.sel[it.item_id];
+        } else { failed++; }
+      }).catch(function(){ failed++; }).then(function(){ step(i+1); });
+  }
+  step(0);
+}
 window.aiToggleSel=aiToggleSel; window.aiSelectAllPage=aiSelectAllPage;
 window.aiClearSel=aiClearSel; window.aiBulkAccept=aiBulkAccept;
+window.aiBulkDismiss=aiBulkDismiss; window.aiToggleExp=aiToggleExp;
 window.aiDismiss=aiDismiss;
 window.aiLoad=aiLoad; window.aiRender=aiRender; window.aiSetJuris=aiSetJuris; window.aiSetConf=aiSetConf;
 window.aiSetSearch=aiSetSearch; window.aiSetPageSize=aiSetPageSize; window.aiGoPage=aiGoPage; window.aiToggleAllDesc=aiToggleAllDesc;
@@ -12206,6 +12284,42 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
   .cand-petitioner{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer;line-height:1.3;width:112px;max-width:112px;font-size:10px;color:var(--text-dim);border-bottom:1px dotted rgba(255,255,255,.22);}
   .cand-petitioner.expanded{display:block;-webkit-line-clamp:unset;overflow:visible;white-space:normal;width:140px;max-width:140px;}
   .cand-petitioner:hover{color:var(--accent,#e8a020);}
+
+  /* ── P165: Agenda Items / Youtube Items table geometry ────────────────────
+     (1) OVERLAP. styles.css sets a global `* { box-sizing: border-box }`, so the
+     Description <td> at width:320px has a 304px CONTENT box -- while the shared
+     .cand-desc is hardcoded width:400px. The span overflowed its cell by ~96px
+     and painted over the Petitioner column. The Candidates table already had an
+     override (#sugg-list); these two tabs never got one. Pinned to 300px so it
+     fits inside the cell in both collapsed and expanded states.
+     (2) The petitioner span used to WIDEN on expand (112px -> 140px), shifting
+     every column to its right. Both states are now 112px. */
+  #ai-ag-list .cand-desc, #ai-yt-list .cand-desc,
+  #ai-ag-list .cand-desc.expanded, #ai-yt-list .cand-desc.expanded{width:300px;max-width:300px;}
+  #ai-ag-list .cand-petitioner, #ai-yt-list .cand-petitioner,
+  #ai-ag-list .cand-petitioner.expanded, #ai-yt-list .cand-petitioner.expanded{width:112px;max-width:112px;}
+
+  /* P165: the Manage cell must occupy the SAME box in all three of its states --
+     the three buttons, the open "Add to..." picker, and the resolved "✓ ..."
+     stamp. Before this the picker was a taller right-aligned column and the
+     resolved stamp a single short line, so the row grew when a control was used
+     and shrank again once the call returned. Fixed width + fixed min-height, and
+     fixed-width buttons so a label swap ("Dismissing...") cannot reflow the wrap. */
+  .ai-manage{width:176px;min-height:52px;display:flex;flex-wrap:wrap;gap:4px;
+             align-content:flex-start;align-items:flex-start;justify-content:flex-start;}
+  .ai-mbtn{width:82px;padding:3px 4px;font-size:10px;text-align:center;white-space:nowrap;overflow:hidden;}
+  .ai-mbtn-go{background:#1c7c3a;color:#fff;border-color:#1c7c3a;}
+  .ai-msel{width:176px;max-width:176px;font-size:10px;padding:2px 4px;cursor:pointer;
+           background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:5px;}
+  .ai-mdone{font-size:10px;color:#3ba55d;line-height:1.3;}
+  .ai-mnote{font-size:10px;color:var(--text-dim);line-height:1.3;}
+
+  /* P165: bulk bar height is constant -- all three buttons are always present
+     (dimmed + inert when the selection is empty) rather than appearing on first
+     select, which used to reflow the bar and shove the table down. */
+  .ai-bulkbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px;
+              min-height:24px;font-size:11px;color:var(--text-dim);}
+  .ai-bulkbtn{font-size:10px;padding:3px 10px;white-space:nowrap;}
   /* P128: a candidate the backend matched to an existing Tracked Project — the
      project text turns the county-name light-blue (--tp-bright) and a small
      "↳ matches:" line names the target. Approve officially associates it. */
