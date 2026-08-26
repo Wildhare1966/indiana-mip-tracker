@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p167r2 -->
+<!-- MIP build p167r3 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p167r2">
+<link rel="stylesheet" href="styles.css?v=p167r3">
 </head>
 <body>
 
@@ -244,6 +244,27 @@
                      the page says so. Blank jurisdiction box = the whole fleet. -->
                 <button class="refresh-btn" style="font-size:10px;padding:3px 9px;"
                   onclick="p165RunProbe('p167PreviewSuppressed',this,{optional:true})">Removed rows</button>
+
+              <!-- P167 R1/R3: tracked-project mis-match cleanup. Three buttons on
+                   purpose - preview, apply, undo - because this DELETES matches the
+                   operator can see. Apply confirms first; every dismissal is
+                   reversible via the third button. Jurisdiction box is ignored: the
+                   plan is fixed in the backend and covers Tipton Ridge, Lakes at
+                   Freemont and Spring Creek. -->
+              <div style="font-size:10px;color:var(--text-dim);margin:8px 0 5px;">
+                <b>Bad project matches</b> &mdash; the six projects matching the wrong agenda items.
+                <b>Preview</b> shows exactly which matches would be removed and why, and writes nothing.
+                <b>Remove them</b> applies it. <b>Undo</b> puts every one of them back.
+                The jurisdiction box above is ignored here.
+              </div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px;">
+                <button class="refresh-btn" style="font-size:10px;padding:3px 9px;"
+                  onclick="p167RunCleanup('preview',this)">Bad project matches (preview)</button>
+                <button class="refresh-btn" style="font-size:10px;padding:3px 9px;border-color:#ef4444;color:#ef4444;"
+                  onclick="p167RunCleanup('apply',this)">Remove them</button>
+                <button class="refresh-btn" style="font-size:10px;padding:3px 9px;"
+                  onclick="p167RunCleanup('undo',this)">Undo removal</button>
+              </div>
                 <!-- P165: video-ingest census. `include_found=true` returns EVERY date-valid
                      upload on the channel BEFORE the keyword filter, with the date the scraper
                      parsed from each title (P99 debug mode). That is the only view that
@@ -9666,6 +9687,23 @@ function candRenderRail(){
 //                  P165 punch-list span 27 jurisdictions and are meant to be pulled
 //                  in ONE call, not per-muni.
 //   extra        — additional query params (e.g. limit).
+// P167 R1/R3 - the mis-match cleanup runner. Wraps p165RunProbe so the three
+// modes share its token handling and output pane, and so the destructive mode
+// cannot be reached without a confirm. `preview` is the default and is the only
+// one that should ever be run twice.
+function p167RunCleanup(mode, btn) {
+  var extra = {};
+  if (mode === 'apply') {
+    if (!confirm('Remove the bad project matches? This dismisses the agenda items that only a junk term explained, and strips those terms from the alias lists. Every change is reversible with the "Undo removal" button.')) return;
+    extra = { apply: 'true' };
+  } else if (mode === 'undo') {
+    if (!confirm('Put every removed match back? This restores the dismissed matches AND the original alias lists.')) return;
+    extra = { undo: 'true', apply: 'true' };
+  }
+  p165RunProbe('p167PurgeRefsByTerm', btn, { optional: true, extra: extra });
+}
+window.p167RunCleanup = p167RunCleanup;
+
 function p165RunProbe(fn, btn, cfg) {
   cfg = cfg || {};
   var out = document.getElementById('p165-probe-out');
