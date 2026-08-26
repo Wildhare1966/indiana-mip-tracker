@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p165r6 -->
+<!-- MIP build p165r7 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p165r6">
+<link rel="stylesheet" href="styles.css?v=p165r7">
 </head>
 <body>
 
@@ -9584,6 +9584,19 @@ function p165RunProbe(fn, btn, cfg) {
     .then(function (res) {
       // admin_run wraps its return value in `result` (same shape candLoad reads).
       var body = (res && res.result !== undefined) ? res.result : res;
+      // P165: `deepScrapeYouTubeUploads` returns an EMPTY result on a jurisdiction
+      // name miss rather than an error — so a typo is indistinguishable from a dead
+      // channel. It bit us once ("noblesille" → channels_walked 0, all zeros, read
+      // as a finding). Say it plainly instead. The three P165 previews already
+      // return `available_jurisdictions`; this one cannot, so we flag it here.
+      if (body && body.by_channel && Object.keys(body.by_channel).length === 0
+          && body.totals && body.totals.channels_walked === 0) {
+        out.textContent = '⚠ NO CHANNEL MATCHED "' + muni + '" — this is a name miss, NOT an empty channel.\n\n'
+          + 'Check the spelling, or run "Meeting types" / "Title filters" with the same name:\n'
+          + 'those return `available_jurisdictions` listing the real values.\n\n'
+          + JSON.stringify(body, null, 2);
+        return;
+      }
       out.textContent = JSON.stringify(body, null, 2);
     })
     .catch(function (e) {
