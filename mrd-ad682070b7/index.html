@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p167r4 -->
+<!-- MIP build p168r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p167r4">
+<link rel="stylesheet" href="styles.css?v=p168r1">
 </head>
 <body>
 
@@ -4036,8 +4036,27 @@ function ytToggleSummary(summaryDocUrl, elId) {
   }
 }
 
+// P168: this reported as "the button does nothing". It was doing something —
+// the page was destroying the evidence. Three defects, all here, none in the
+// backend:
+//   1. `data.error` was read off the response and DISCARDED. resummarizeHearing
+//      distinguishes 'Hearing row not found' / 'Gemini returned no data' /
+//      'Meetings tab not found' / a thrown message, and the operator saw none
+//      of them — just a generic '✗ Failed'.
+//   2. The terminal state was erased after 5s, so unless you were watching the
+//      button at the right moment there was nothing left to read.
+//   3. It reverted to '↻ Resubmit' — a DIFFERENT label from the '↻ Generate
+//      Summary' it started as. A button that renames itself after use reads as
+//      a different control, which is what "it doesn't work" looked like.
+// The failure text now stays on screen until the row re-renders.
 async function ytResubmit(youtubeUrl, jurisdiction, meetingDate, btnId, summaryElId) {
   const btn = document.getElementById(btnId);
+  const origLabel = btn ? btn.textContent : '↻ Generate Summary';
+  const el = document.getElementById(summaryElId);
+  const showErr = (msg) => {
+    if (!el) return;
+    el.innerHTML = `<span style="color:#e08888;font-size:11px" title="${escAttr(msg)}">✗ ${esc(msg)}</span>`;
+  };
   if (btn) { btn.disabled = true; btn.textContent = '↻ Processing…'; }
   try {
     const url = getWebAppUrl() + '&action=resummarize_hearing'
@@ -4047,19 +4066,29 @@ async function ytResubmit(youtubeUrl, jurisdiction, meetingDate, btnId, summaryE
     const resp = await fetch(url);
     const data = await resp.json();
     if (data.success && data.summary_doc) {
-      // Update the summary span with a new link to the generated doc
-      const el = document.getElementById(summaryElId);
       if (el) {
         el.innerHTML = `<a href="${escUrl(data.summary_doc)}" target="_blank" class="hearing-link doc" data-doc-link="summary">✦ Summary</a>`;
       }
       if (btn) { btn.textContent = '✓ Done'; btn.style.borderColor = 'rgba(26,122,74,0.45)'; btn.style.color = '#6dc49a'; }
-    } else {
-      if (btn) { btn.textContent = '✗ Failed'; btn.style.color = '#e08888'; }
+      setTimeout(() => { if (btn) { btn.disabled = false; btn.textContent = origLabel; btn.style.borderColor = ''; btn.style.color = ''; } }, 5000);
+      return;
     }
+    // Rate limiting and the auth guard answer with `error`, not `success`, so
+    // report whichever the backend actually sent rather than assuming a shape.
+    const msg = data.error || data.message ||
+                (data.code === 403 ? 'Unauthorized — operator token missing or stale' : 'no reason given');
+    console.warn('[mrd] resummarize failed', { youtubeUrl, jurisdiction, meetingDate, response: data });
+    showErr(msg);
+    if (btn) { btn.textContent = '✗ Failed'; btn.style.color = '#e08888'; btn.title = msg; }
   } catch(e) {
-    if (btn) { btn.textContent = '✗ Error'; btn.style.color = '#e08888'; }
+    const msg = (e && e.message) ? e.message : String(e);
+    console.warn('[mrd] resummarize threw', msg);
+    showErr('request failed: ' + msg);
+    if (btn) { btn.textContent = '✗ Error'; btn.style.color = '#e08888'; btn.title = msg; }
   }
-  setTimeout(() => { if (btn) { btn.disabled = false; btn.textContent = '↻ Resubmit'; btn.style.borderColor = ''; btn.style.color = ''; } }, 5000);
+  // Failure path only: re-enable so it can be retried, but keep the label and
+  // the inline reason. Nothing is erased on a failure any more.
+  setTimeout(() => { if (btn) btn.disabled = false; }, 3000);
 }
 
 // ═══════════════════════════════════════════════════════
