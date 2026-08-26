@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p167r1 -->
+<!-- MIP build p167r2 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p167r1">
+<link rel="stylesheet" href="styles.css?v=p167r2">
 </head>
 <body>
 
@@ -231,12 +231,19 @@
                 <b>Punch-list triage</b> — leave the box <b>blank</b> to run fleet-wide (that is the useful mode).
                 <b>Agenda parse</b> lists every agenda that is present but produced no items or errored — the &ldquo;N&rdquo; and &ldquo;E&rdquo; chips.
                 <b>Summary errors</b> is a <b>dry run</b>: it reports which failed summaries can be re-queued and which have no captions at all. It changes nothing.
+                <b>Removed rows</b> lists every row you deleted with the &times; button that the app is now honouring &mdash; if a row you removed is missing from this list, it will come back on the next load.
               </div>
               <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px;">
                 <button class="refresh-btn" style="font-size:10px;padding:3px 9px;"
                   onclick="p165RunProbe('auditAgendaExtractionDocs',this,{param:'juris',optional:true,extra:{bucket:'noitems,err',limit:500}})">Agenda parse (N / E)</button>
                 <button class="refresh-btn" style="font-size:10px;padding:3px 9px;"
                   onclick="p165RunProbe('requeueNeedsReviewRows',this,{optional:true,extra:{limit:200}})">Summary errors (dry run)</button>
+                <!-- P167 JV-1: the ONLY way to see whether a deletion took. The X writes a
+                     reversible Manual_Entries row and the app filters against that list; a
+                     row missing from it regenerates on the next render and nothing else on
+                     the page says so. Blank jurisdiction box = the whole fleet. -->
+                <button class="refresh-btn" style="font-size:10px;padding:3px 9px;"
+                  onclick="p165RunProbe('p167PreviewSuppressed',this,{optional:true})">Removed rows</button>
                 <!-- P165: video-ingest census. `include_found=true` returns EVERY date-valid
                      upload on the channel BEFORE the keyword filter, with the date the scraper
                      parsed from each title (P99 debug mode). That is the only view that
