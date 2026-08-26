@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p167r3 -->
+<!-- MIP build p167r4 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p167r3">
+<link rel="stylesheet" href="styles.css?v=p167r4">
 </head>
 <body>
 
@@ -264,6 +264,26 @@
                   onclick="p167RunCleanup('apply',this)">Remove them</button>
                 <button class="refresh-btn" style="font-size:10px;padding:3px 9px;"
                   onclick="p167RunCleanup('undo',this)">Undo removal</button>
+              </div>
+
+              <!-- P167: full unmatch. Removes rows rather than dismissing them -
+                   a dismissed row keeps its (project, meeting) slot forever and
+                   would block the very rematch this is for. Backed up first. -->
+              <div style="font-size:10px;color:var(--text-dim);margin:8px 0 5px;">
+                <b>Unmatch 6 projects</b> &mdash; clears <b>every</b> agenda-item match off Spring Creek,
+                Lakes at Freemont, Timberland Springs, Tipton Ridge, Flora and Vernon Woods so you can
+                rematch them by hand. Every row is copied to a backup tab first and
+                <b>Undo unmatch</b> puts them all back.
+                &#9888; If a project still carries a bad alias, your first rematch click will pull the
+                same wrong items straight back &mdash; the preview names any project in that state.
+              </div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px;">
+                <button class="refresh-btn" style="font-size:10px;padding:3px 9px;"
+                  onclick="p167RunUnmatch('preview',this)">Unmatch 6 projects (preview)</button>
+                <button class="refresh-btn" style="font-size:10px;padding:3px 9px;border-color:#ef4444;color:#ef4444;"
+                  onclick="p167RunUnmatch('apply',this)">Unmatch them</button>
+                <button class="refresh-btn" style="font-size:10px;padding:3px 9px;"
+                  onclick="p167RunUnmatch('undo',this)">Undo unmatch</button>
               </div>
                 <!-- P165: video-ingest census. `include_found=true` returns EVERY date-valid
                      upload on the channel BEFORE the keyword filter, with the date the scraper
@@ -9703,6 +9723,23 @@ function p167RunCleanup(mode, btn) {
   p165RunProbe('p167PurgeRefsByTerm', btn, { optional: true, extra: extra });
 }
 window.p167RunCleanup = p167RunCleanup;
+
+// P167 - full unmatch of the six named projects. Same three-mode shape as
+// p167RunCleanup; separate because it is a much bigger hammer (it clears EVERY
+// match, right or wrong, including previously-dismissed ones, because those
+// still occupy the dedup slot that a rematch needs).
+function p167RunUnmatch(mode, btn) {
+  var extra = {};
+  if (mode === 'apply') {
+    if (!confirm('Clear EVERY agenda-item match off all six projects? This removes right and wrong matches alike so you can rematch by hand. Every row is backed up first and "Undo unmatch" restores them.')) return;
+    extra = { apply: 'true' };
+  } else if (mode === 'undo') {
+    if (!confirm('Restore every match that was cleared? This puts all backed-up rows back on the six projects.')) return;
+    extra = { undo: 'true', apply: 'true' };
+  }
+  p165RunProbe('p167UnmatchProjects', btn, { optional: true, extra: extra });
+}
+window.p167RunUnmatch = p167RunUnmatch;
 
 function p165RunProbe(fn, btn, cfg) {
   cfg = cfg || {};
