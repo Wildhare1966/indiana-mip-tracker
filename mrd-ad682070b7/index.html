@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p165r7 -->
+<!-- MIP build p167r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1963,6 +1963,7 @@ function loadMuniDataFromCache() {
     if (data.hearings && Object.keys(data.hearings).length) PUBLIC_HEARINGS = data.hearings;
     if (data.county_groups && data.county_groups.length) COUNTY_GROUPS = data.county_groups;
     if (data.cadence && typeof data.cadence === 'object') MUNI_CADENCE = data.cadence;
+    if (data.suppressed && typeof data.suppressed === 'object') SUPPRESSED_ROWS = data.suppressed;
     return MUNICIPALITIES.length > 0;
   } catch(e) { return false; }
 }
@@ -2012,12 +2013,22 @@ async function refreshMuniDataIfStale() {
     if (data && data.cadence && typeof data.cadence === 'object') {
       MUNI_CADENCE = data.cadence; changed = true;
     }
+    // P167 JV-1: on a REAL bootstrap, an absent key means {} - not "leave the old
+    // list in place". A rollback removes entries, and a stale in-memory copy would
+    // keep hiding a row the operator just restored. Gated on the payload actually
+    // being a bootstrap: ?action=bootstrap returns {error:'Unauthorized',code:403}
+    // to a browser with no operator token, and that must not clear the list.
+    if (data && !data.error && (Array.isArray(data.municipalities) || data.hearings)) {
+      SUPPRESSED_ROWS = (data.suppressed && typeof data.suppressed === 'object' && !Array.isArray(data.suppressed))
+        ? data.suppressed : {};
+    }
 
     localStorage.setItem(MUNI_CACHE_KEY, JSON.stringify({
       municipalities: MUNICIPALITIES,
       hearings: PUBLIC_HEARINGS,
       county_groups: COUNTY_GROUPS,
-      cadence: MUNI_CADENCE
+      cadence: MUNI_CADENCE,
+      suppressed: SUPPRESSED_ROWS
     }));
     localStorage.setItem(MUNI_CACHE_TS_KEY, new Date().toISOString());
     if (data && data.version) {
@@ -2033,6 +2044,7 @@ async function refreshMuniDataIfStale() {
         if (data.hearings && Object.keys(data.hearings).length) PUBLIC_HEARINGS = data.hearings;
         if (data.county_groups && data.county_groups.length) COUNTY_GROUPS = data.county_groups;
         if (data.cadence && typeof data.cadence === 'object') MUNI_CADENCE = data.cadence;
+        if (data.suppressed && typeof data.suppressed === 'object') SUPPRESSED_ROWS = data.suppressed;
       } catch(ex) {}
     }
     return false;
@@ -2049,6 +2061,12 @@ async function loadMuniData() {
 let SCRAPED_DOCS = []; // populated from ?action=scraped_documents if available
 let MEETING_DATES = {}; // populated from ?action=meeting_dates if available
 let MUNI_CADENCE = {}; // populated from ?action=bootstrap; {muniId: {Council|Plan Commission: {rules, exceptions_*}}}
+// P167 JV-1: {muniId: ["YYYY-MM-DD|Meeting Type", ...]} - the operator's active
+// deletions, from ?action=bootstrap. The server already splices deleted rows out
+// of the hearings wire; this list exists for the rows the BROWSER invents
+// (projectFutureCadenceDates), which no server payload ever carried and which
+// therefore regenerated on every render. See P167_SuppressedProjections.js.
+let SUPPRESSED_ROWS = {};
 
 // P57 W2: SWR. Synchronous read of localStorage so SCRAPED_DOCS is populated
 // before the first renderHearingsContent fires. Returns true if cache hydrated.
@@ -2142,10 +2160,21 @@ async function fetchMeetingDates() {
   try {
     const resp = await fetch(url + '&action=meeting_dates', { signal: AbortSignal.timeout(45000) });
     const data = await resp.json();
-    if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+    // P167: shape-check before assigning. The old gate was "an object with at
+    // least one key", which {error:'Unauthorized',code:403} satisfies - so a
+    // browser without an operator token stored the ERROR as MEETING_DATES and
+    // every jurisdiction silently lost its projected-date skeleton
+    // (MEETING_DATES[muniId] -> undefined -> []). Found 2026-08-26 while probing
+    // JV-2's population, which is why that census read zero. A real payload maps
+    // jurisdiction_id -> array.
+    const _mdOk = data && typeof data === 'object' && !Array.isArray(data) && !data.error
+      && Object.keys(data).some(k => Array.isArray(data[k]));
+    if (_mdOk) {
       MEETING_DATES = data;
       console.log('[MRD] Meeting dates: ' + Object.keys(data).length + ' jurisdictions loaded');
       rerenderHearingsIfActive();
+    } else if (data && data.error) {
+      console.warn('[MRD] Meeting dates rejected: ' + data.error + ' (' + (data.code || '') + ') - keeping previous');
     }
   } catch(e) {
     console.warn('[MRD] Meeting dates fetch not available:', e.message);
@@ -2275,6 +2304,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (snap.hearings && typeof snap.hearings === 'object' && !Array.isArray(snap.hearings)) PUBLIC_HEARINGS = snap.hearings;
       if (Array.isArray(snap.county_groups) && snap.county_groups.length) COUNTY_GROUPS = snap.county_groups;
       if (snap.cadence && typeof snap.cadence === 'object') MUNI_CADENCE = snap.cadence;
+      if (snap.suppressed && typeof snap.suppressed === 'object') SUPPRESSED_ROWS = snap.suppressed;
       if (MUNICIPALITIES.length) renderCore();
     });
     await refreshMuniDataIfStale();
@@ -4267,6 +4297,63 @@ function setPhLayout(mode, muniId) {
 }
 window.setPhLayout = setPhLayout;
 
+// P167 JV-1 / JV-2 - operator row suppression in the Jurisdiction view.
+//
+// JV-1. The row's X writes a reversible Manual_Entries delete, and the server
+// splices the matching row out of the hearings wire. That is enough for a row
+// that CAME from the wire. It cannot reach a row this file invents below
+// (projectFutureCadenceDates runs client-side, after the payload lands), so the
+// backend accepted those deletes and had nothing to act on. Measured 2026-08-25:
+// of ~50 deletions in one evening only 5 carried a meeting_id; the other ~45 were
+// this shape and every one of them came back on the next render. SUPPRESSED_ROWS
+// carries the delete list itself so the projector can skip what was removed.
+//
+// !! Match on the body FAMILY, never the raw string. The X sends the DISPLAYED
+// label ("Common Council"); the cadence config keys on the generic body
+// ("Council"); and which of the two a row shows depends on whether a real row of
+// that body happened to be present at render time (P43 W3). classifyBodyType
+// collapses both to the same value. The backend mirrors this in p167TypesMatch_.
+function _jvIsSuppressed(muniId, date, label, bodyType) {
+  const keys = SUPPRESSED_ROWS && SUPPRESSED_ROWS[muniId];
+  if (!keys || !keys.length || !date) return false;
+  const famRow = classifyBodyType(label || bodyType || '');
+  for (let i = 0; i < keys.length; i++) {
+    const parts = String(keys[i]).split('|');
+    if (parts[0] !== date) continue;
+    const supType = (parts[1] || '').trim();
+    // A delete recorded without a type (pre-P68 rows) suppresses the date itself.
+    if (!supType) return true;
+    if (label && supType.toLowerCase() === String(label).toLowerCase()) return true;
+    if (bodyType && supType.toLowerCase() === String(bodyType).toLowerCase()) return true;
+    if (classifyBodyType(supType) === famRow) return true;
+  }
+  return false;
+}
+
+// JV-2. Operator rule, 2026-08-25: past date + no agenda + no video + no minutes
+// = noise, hide it. FUTURE + nothing stays visible - that is the cadence
+// projection doing its job, and it is future-only by construction.
+//
+// !! Deliberately NOT exempting rows that carry a meeting_id. A real Meetings row
+// with nothing attached (video pulled, meeting cancelled - JV-3) is the exact
+// shape the operator was deleting by hand, so exempting it would preserve the
+// noise. The rows are counted and reachable through the toggle instead, which is
+// what keeps the "+ Add Minutes" path to a genuinely empty past meeting alive.
+function _jvIsEmptyPast(entry, todayStr) {
+  if (!entry || !entry.date || entry.date >= todayStr) return false;
+  if (entry.youtube_url || entry.summary_doc || entry.minutes_url) return false;
+  if (entry.agendas && entry.agendas.length) return false;
+  return true;
+}
+
+window._jvShowEmptyPast = window._jvShowEmptyPast || {};
+function jvToggleEmptyPast(muniId) {
+  window._jvShowEmptyPast[muniId] = !window._jvShowEmptyPast[muniId];
+  const grid = document.getElementById('members-grid');
+  if (grid) grid.innerHTML = renderHearingsContent(muniId);
+}
+window.jvToggleEmptyPast = jvToggleEmptyPast;
+
 function renderHearingsContent(muniId) {
   let unified = buildUnifiedDateSet(muniId);
   const ref = JURISDICTION_REFS[muniId] || {};
@@ -4316,8 +4403,21 @@ function renderHearingsContent(muniId) {
     });
   }
 
+  // P167 JV-1: drop the rows the operator deleted. One filter covers both
+  // origins - wire rows (already spliced server-side; this catches a label-drift
+  // miss) and the projections merged in just above, which the server never sees.
+  // Reversible: rolling the Manual_Entries row back drops it from the wire list.
+  unified = unified.filter(d => !_jvIsSuppressed(muniId, d.date, d.meeting_type, d.body_type));
+
   // P18: Cap Council+PC future dates at the next 3 combined; past dates always shown in full.
   const today = new Date().toISOString().split('T')[0];
+
+  // P167 JV-2: hide empty past rows unless the operator has asked to see them.
+  const _jvShowEmpty = !!window._jvShowEmptyPast[muniId];
+  let _jvHiddenEmpty = unified.filter(d => _jvIsEmptyPast(d, today)).length;
+  if (!_jvShowEmpty && _jvHiddenEmpty) {
+    unified = unified.filter(d => !_jvIsEmptyPast(d, today));
+  }
   const councilPcFuture = unified
     .filter(d => d.date >= today && (isCouncilType(d.body_type) || isPlanCommissionType(d.body_type)))
     .sort((a, b) => a.date.localeCompare(b.date))
@@ -4406,7 +4506,19 @@ function renderHearingsContent(muniId) {
     }
   }
 
-  if (!unified.length) {
+  // P167 JV-2: never hide silently. The count is the operator's way back to a
+  // past meeting that has no records yet but needs "+ Add Minutes" run on it.
+  if (_jvHiddenEmpty > 0) {
+    const _jvNoun = (_jvHiddenEmpty === 1) ? 'row' : 'rows';
+    html += '<div class="jv-empty-note" style="margin:10px 0 2px;font-size:11px;color:var(--text-dim);">'
+      + _jvHiddenEmpty + ' past ' + _jvNoun + ' with no agenda, video or minutes '
+      + (_jvShowEmpty ? 'shown. ' : 'hidden. ')
+      + '<a href="#" onclick="jvToggleEmptyPast(\'' + escAttr(muniId) + '\');return false;"'
+      + ' style="color:var(--accent);text-decoration:none;">'
+      + (_jvShowEmpty ? 'Hide' : 'Show') + '</a></div>';
+  }
+
+  if (!unified.length && !_jvHiddenEmpty) {
     html += `<div class="hearings-empty">No hearing records or scheduled dates loaded for this jurisdiction.</div>`;
   }
 
