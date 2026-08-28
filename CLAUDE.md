@@ -79,6 +79,6 @@ do not reintroduce one "for convenience."
 
 ## Session workflow
 
-Start with `/resume`, end with `/kickoff`. State lanes per Doctrine Block v1.7 item 11:
+Start with `/warmup`, end with `/kickoff`. State lanes per Doctrine Block v1.7 item 11:
 `HANDOFF.md` = where this stands now · `docs/OPEN-ITEMS.md` = what is outstanding ·
 `STATUS.md` = state snapshot. Public remote on `main` — never push without checking for secrets.
