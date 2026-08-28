@@ -1,6 +1,6 @@
 # Open items — Indiana MIP Tracker
 
-FILE-STAMP: 2026-08-23 | rev 2
+FILE-STAMP: 2026-08-28 | rev 3
 
 **Format contract: `Dexters-Dashboard/docs/OPEN-ITEMS-SPEC.md`.** These rows are rendered on
 the dashboard's **Items** page alongside every other project's, so keep to the spec — a row
@@ -15,6 +15,7 @@ carried forward.
 
 | ID | Owner | Item | Why it matters | Blocked by |
 |---|---|---|---|---|
+| **MIP-4** | TY | Rule on `MIP_Platform.html` — its stale-copy warning has itself gone stale | The file is 470 KB of build `p80r4`, not served, and its header warning is **the only thing stopping someone restoring it**. That warning states the live build is `p151r2` and the file is *~71 builds behind*; the served build was probed at **`p168r1`** on 2026-08-28, so the warning now misdescribes reality. A guard that is wrong about the thing it guards is worse than no guard. Options: correct the header, or delete the file outright since nothing but the two `smoke.html` files reference it. **Left unedited because this is a PUBLIC repo** — your call. | — |
 | **MIP-3** | TY | Do the three AGO clicks — schedule the sync daily, disable the arborhomes sync, delete the dead-end wildhare `LeadsDeals` | Open since the 2026-08-14 audit (decision **D2**), carried into **X-4**, and **never boarded** until the SYS-8 sweep. Until the MRD → wildhare `Projects` sync runs on a timer, the feature layer only moves when someone runs the notebook by hand — and **everything downstream inherits that staleness**: the Entitlement Reporter, and via Zonda the `Entitlement_Map` that decision **D6** promoted to the primary vehicle for external audiences. This is the shared upstream of **EMAP-1**; supplying `AGO_TOKEN` regenerates the map once, but only the schedule keeps it current. | — |
 
 ## Claude Code can execute — say the word
