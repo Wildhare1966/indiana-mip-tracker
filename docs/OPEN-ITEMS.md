@@ -4,8 +4,8 @@ FILE-STAMP: 2026-08-23 | rev 2
 
 **Format contract: `Dexters-Dashboard/docs/OPEN-ITEMS-SPEC.md`.** These rows are rendered on
 the dashboard's **Items** page alongside every other project's, so keep to the spec — a row
-that drifts from it silently stops being indexed. `STATUS.md` records what *changed*; this
-file records what is *outstanding*.
+that drifts from it silently stops being indexed. This file records what is *outstanding*;
+current state lives in `HANDOFF.md` (Doctrine Block v1.7 item 11 lanes).
 
 Backfilled 2026-08-22 (Ty-ruled R5) by reading this repo's own `STATUS.md`/`HANDOFF.md` and
 judging what was still live. Items recorded there but since closed were deliberately not
