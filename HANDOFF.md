@@ -1,6 +1,6 @@
 # HANDOFF — Indiana MIP Tracker (MRD front end)
 
-HANDOFF-STAMP: 2026-08-29 | rev 5
+HANDOFF-STAMP: 2026-08-29 | rev 6
 
 > **Read first:** [`CLAUDE.md`](CLAUDE.md) → this file → [`docs/OPEN-ITEMS.md`](docs/OPEN-ITEMS.md).
 > Backend coordinates: `../indiana-agenda-tracker/ARCHITECTURE.md` §0 is the source of truth.
@@ -17,7 +17,7 @@ the app level**; served build is **`p168r2`**. **The board is empty** — eight 
 
 | Thing | State |
 |---|---|
-| Repo | `main` @ **`72fbfab`** pushed, public remote `Wildhare1966/indiana-mip-tracker`; the `STATUS.md` retirement follows in a second commit |
+| Repo | `main` @ **`f3c2434`**, pushed, clean — public remote `Wildhare1966/indiana-mip-tracker` |
 | Served build | **`p168r2`** — `mrd-ad682070b7/index.html`, 704,284 B (probed 2026-08-29) |
 | Local URL | `http://localhost:8778/mrd-ad682070b7/` via `serve-mrd.bat` (loopback only) |
 | Root contents | `CLAUDE.md` · `HANDOFF.md` · `MIP_Platform.html` · `arcgis/` · `docs/` · `mrd-ad682070b7/` · `serve-mrd.bat` |
@@ -31,8 +31,9 @@ the app level**; served build is **`p168r2`**. **The board is empty** — eight 
 
 ## What shipped this session
 
-**Shipped in two commits, both pushed.** `72fbfab` here (MIP-4/5/6/7/8) and `3614926` in
-`../indiana-agenda-tracker` (custody of the four ops consoles), plus the `STATUS.md` retirement.
+**Three commits, all pushed, both trees clean.** `72fbfab` here (MIP-4/5/6/7/8) · `f3c2434` here
+(MIP-9, the `STATUS.md` retirement) · `3614926` in `../indiana-agenda-tracker` (custody of the four
+ops consoles). Nothing is uncommitted.
 
 1. **`CLAUDE.md` rev 1 → rev 2: the outbound-write audit.** The question that started it — "does this
    repo only receive?" — has a **split answer**, now documented as its own section. At the **git**
@@ -62,25 +63,9 @@ the app level**; served build is **`p168r2`**. **The board is empty** — eight 
    edit in place, no per-session clones* — moved to `CLAUDE.md` rev 5 first. **Two lanes now:**
    `HANDOFF.md` + `docs/OPEN-ITEMS.md`. Do not recreate `STATUS.md`.
 
-## MIP-8 — a broken guard, and a premise that was half false
-
-`.gitignore` claimed *"NEVER commit these: this repo is PUBLIC"* about `*-ops.html` consoles while
-its two patterns (`/p168-ops.html`, `/*-ops.html`) were **root-anchored** and matched nothing in a
-subdirectory. Four consoles sat tracked and public in `mrd-ad682070b7/tests/` (`p160`–`p163`).
-
-**The item's own premise did not survive probing.** It repeated `.gitignore`'s claim that canonical
-copies live in `../indiana-agenda-tracker/ops/`. That directory held **only `p168-ops.html`**; a
-hub-wide `find` for `p16[0-3]-ops.html` returned four hits, **all in this repo**. The public copies
-were the only copies — untracking first would have left them backed up nowhere.
-
-So the order mattered: **preserve → fix → untrack.** The four were copied to the private repo's
-`ops/` (sha256-verified, left uncommitted for Ty), the pattern collapsed to one unanchored
-`*-ops.html`, and the files `git rm --cached`'d but **kept on disk** — they must stay on this origin
-to read `mip_auth_token` from `localStorage`. All four still serve **200**.
-
-⛔ **Untracking does not unpublish.** They stay in this public repo's history, like the old token.
-No rotation needed: no token in them, and their one `/exec` URL is byte-identical to the served
-build's.
+The MIP-8 narrative (why the order had to be preserve → fix → untrack) rotated to
+[`docs/HANDOFF-ARCHIVE.md`](docs/HANDOFF-ARCHIVE.md) to stay under the 150-line cap; the full closed
+row is in [`docs/OPEN-ITEMS.md`](docs/OPEN-ITEMS.md).
 
 ## Gotchas carried forward
 
@@ -107,6 +92,33 @@ build's.
 - ⚠ **`indiana-mip-tracker` vs `indiana-agenda-tracker`** — one word apart, front end vs backend.
 - **`data` and `data-sales` are separate lanes.** No cross-merges; never hand-publish to `data` —
   P118 force-orphan-commits it on a cron and your commit disappears.
+
+## ✦ The reflective lesson
+
+**Every item this session was a guard that had outlived what it guarded — and in two cases the item
+describing the guard was wrong too.**
+
+The session opened on "which repo owns `map.wildhare.app`?" and the answer turned on one project
+carrying three different names (folder `Land_Presentation_Map`, repo `entitlement-reporter`, domain
+`map.wildhare.app`). Everything after it was the same shape:
+
+| The guard | What it still claimed | Reality |
+|---|---|---|
+| `MIP_Platform.html`'s stale-copy header | live build `p151r2`, "~71 builds behind" | `p168r2`, 88 p-numbers |
+| `.gitignore`'s "NEVER commit these" | that it matched `*-ops.html` | root-anchored; matched nothing in a subdir |
+| the Refresh Hearings button | "Re-fetch hearing records from Google Sheets" | called a server that no longer exists |
+| `STATUS.md` | build `p151r2`, "Pages remains enabled" | `p168r2`; Pages off since 2026-08-16 |
+
+**The operational rule that came out of it: a board row is a claim, not a coordinate** (doctrine item
+14, applied to our own boards). Two rows were wrong in ways that would have caused damage if
+executed literally — MIP-6 proposed deleting a function with four live callers, and MIP-8 asserted
+backups existed that did not. Both were caught by probing the row's premise *before* acting on it,
+which cost minutes and saved a silent breakage and a data loss. **Re-probe the item, not just the
+code it points at.**
+
+Corollary worth keeping: **a dead call hides its own blast radius.** The `:8765` fetch's visible
+symptom was a button flashing an error. Its actual effect was that four write paths had never
+refreshed the list since the endpoint died — "✓ Saved" over a stale row, indefinitely.
 
 ## Next session
 

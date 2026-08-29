@@ -5,6 +5,33 @@ Rotated out of the live `HANDOFF.md` under Doctrine Block v1.8 item 11 (one sess
 
 ---
 
+## rev 6 detail — 2026-08-29 — MIP-8 narrative
+
+Rotated out of `HANDOFF.md` rev 6 under the 150-line cap. The session summary and the reflective
+lesson stay in the live file; this is the supporting detail.
+
+## MIP-8 — a broken guard, and a premise that was half false
+
+`.gitignore` claimed *"NEVER commit these: this repo is PUBLIC"* about `*-ops.html` consoles while
+its two patterns (`/p168-ops.html`, `/*-ops.html`) were **root-anchored** and matched nothing in a
+subdirectory. Four consoles sat tracked and public in `mrd-ad682070b7/tests/` (`p160`–`p163`).
+
+**The item's own premise did not survive probing.** It repeated `.gitignore`'s claim that canonical
+copies live in `../indiana-agenda-tracker/ops/`. That directory held **only `p168-ops.html`**; a
+hub-wide `find` for `p16[0-3]-ops.html` returned four hits, **all in this repo**. The public copies
+were the only copies — untracking first would have left them backed up nowhere.
+
+So the order mattered: **preserve → fix → untrack.** The four were copied to the private repo's
+`ops/` (sha256-verified, left uncommitted for Ty), the pattern collapsed to one unanchored
+`*-ops.html`, and the files `git rm --cached`'d but **kept on disk** — they must stay on this origin
+to read `mip_auth_token` from `localStorage`. All four still serve **200**.
+
+⛔ **Untracking does not unpublish.** They stay in this public repo's history, like the old token.
+No rotation needed: no token in them, and their one `/exec` URL is byte-identical to the served
+build's.
+
+---
+
 ## rev 1 — 2026-08-28
 
 Created by the hub-wide configuration audit (phase 6 backfill). The repo had a `STATUS.md` and
