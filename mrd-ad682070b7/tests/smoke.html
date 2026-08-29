@@ -19,7 +19,11 @@
 </head>
 <body>
 <h1>◈ MRD Integration Smoke Tests</h1>
-<p style="color:#9ba8bc;">Minimal integration tests for security-critical paths. Run before shipping changes to MIP_Platform.html.</p>
+<p style="color:#9ba8bc;">Minimal integration tests for security-critical paths. Run before shipping changes to
+<code>mrd-ad682070b7/index.html</code> — the served build. <b>Not</b> MIP_Platform.html, which this line
+used to name: that root file is a stale <code>p80r4</code> reference copy, 88 p-numbers behind, and is
+never served (MIP-4, 2026-08-29). This is now the only copy of this file — the byte-identical root
+<code>tests/smoke.html</code> was deleted under MIP-7 the same day.</p>
 <button onclick="runAll()">Run all tests</button>
 <div id="results"></div>
 <div id="summary" class="summary" style="display:none;"></div>
@@ -38,7 +42,11 @@ const WEBAPP = 'https://script.google.com/macros/s/AKfycbxvtkp5OZVq4sbEELnq5nN7K
 // (Worth adding a real skip path; not done here.)
 const TOKEN = (function(){ try { return (localStorage.getItem('mip_auth_token') || '').trim(); } catch(e) { return ''; } })();
 
-// Import the sanitizers from MIP_Platform by inline copy (keep in sync with the live file)
+// The sanitizers below are an INLINE COPY of the ones in the served build,
+// mrd-ad682070b7/index.html — nothing is imported at runtime, so this file cannot drift
+// automatically. Keep it in sync BY HAND whenever esc()/the sanitizers change there.
+// (Corrected MIP-7, 2026-08-29: this comment used to say "from MIP_Platform", which is the
+// stale p80r4 root copy, not the live file.)
 function esc(s) {
   if (s == null) return '';
   return String(s)

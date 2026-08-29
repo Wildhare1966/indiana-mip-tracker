@@ -1,4 +1,17 @@
-# Local operator consoles served from this dir on :8778 — canonical copies live in
-# indiana-agenda-tracker/ops/. NEVER commit these: this repo is PUBLIC.
-/p168-ops.html
-/*-ops.html
+# ─── Local operator consoles ─────────────────────────────────────────────────
+# NEVER commit these: this repo is PUBLIC. Canonical copies live in the PRIVATE
+# repo at ../indiana-agenda-tracker/ops/.
+#
+# ⚠ MIP-8 (2026-08-29): the previous patterns did not do this. They were
+#   /p168-ops.html
+#   /*-ops.html
+# and a leading slash anchors a pattern to the repo ROOT, while `*` never crosses
+# a `/`. So both matched root only, and four consoles sat TRACKED and PUBLIC in
+# mrd-ad682070b7/tests/ (p160-p163) for weeks. They were assessed at the time and
+# carried no token and no URL the served build did not already publish — a broken
+# guard, not a leak — and they were untracked (kept on disk) once copies existed
+# in the private repo. ⛔ Untracking does not unpublish: they remain in this
+# public repo's history, exactly like the old auth token.
+#
+# The pattern below is unanchored, so it matches at ANY depth. Keep it that way.
+*-ops.html

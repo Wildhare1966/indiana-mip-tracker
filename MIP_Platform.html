@@ -1,14 +1,36 @@
 <!DOCTYPE html>
 <!-- MIP build p80r4 -->
 <!-- ============================================================================
-     STALE COPY - NOT SERVED. The live front end is mrd-ad682070b7/index.html
-     (build p151r2), served at http://localhost:8778/mrd-ad682070b7/ by
-     serve-mrd.bat. This file is ~71 builds behind it and is referenced only by
-     the two smoke.html files.
-     AGD-22: its auth-token literal has been blanked. Do not "restore" it - the
-     token belongs in browser localStorage, entered in Settings -> Operator
-     Access on the live file. Whether this copy survives at all is an open
-     decision for Ty.
+     STALE COPY - NOT SERVED. Build p80r4. The live front end is
+     mrd-ad682070b7/index.html (build p168r2), served at
+     http://localhost:8778/mrd-ad682070b7/ by serve-mrd.bat.
+
+     KEPT DELIBERATELY. Ty ruled on 2026-08-29 (open item MIP-4, docs/OPEN-ITEMS.md):
+     correct this header rather than delete the file. The prior "whether this copy
+     survives at all is an open decision for Ty" is therefore RESOLVED - it survives.
+
+     WHY THIS HEADER WAS CORRECTED: it had itself gone stale. It named the live build
+     as p151r2 and this file as "~71 builds behind"; the served build was p168r1 by
+     2026-08-28 and is p168r2 as of 2026-08-29. A guard that misdescribes the thing it
+     guards is worse than no guard. This file is 88 p-numbers behind the served build.
+
+     WHO REFERENCES THIS FILE: only tests/smoke.html and mrd-ad682070b7/tests/smoke.html,
+     and only in prose - they inline-COPY the sanitizers rather than loading this file,
+     so nothing breaks at runtime if this file changes. Keep those copies in sync by hand.
+
+     THIS FILE NO LONGER RENDERS STANDALONE. Its only asset reference is the root
+     styles.css (line 24, ?v=p87r1), and root styles.css was DELETED on 2026-08-29 under
+     open item MIP-5 as a byte-identical duplicate of mrd-ad682070b7/styles.css. Opening
+     this file now gives an unstyled page. That is expected, not a new fault - it is a
+     reference artifact, not a runnable page.
+
+     AGD-22: its auth-token literal has been blanked. Do not "restore" it - the token
+     belongs in browser localStorage, entered in Settings -> Operator Access on the
+     live file. There is no DEFAULT_AUTH_TOKEN in this repo any more.
+
+     MAINTENANCE: every build-number claim above goes stale on the next deploy. When you
+     bump the marker in mrd-ad682070b7/index.html, re-check this block - that is the
+     whole lesson of MIP-4.
      ============================================================================ -->
 <html lang="en">
 <head>
