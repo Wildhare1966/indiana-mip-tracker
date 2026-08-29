@@ -1,6 +1,6 @@
 # HANDOFF — Indiana MIP Tracker (MRD front end)
 
-HANDOFF-STAMP: 2026-08-29 | rev 4
+HANDOFF-STAMP: 2026-08-29 | rev 5
 
 > **Read first:** [`CLAUDE.md`](CLAUDE.md) → this file → [`docs/OPEN-ITEMS.md`](docs/OPEN-ITEMS.md).
 > Backend coordinates: `../indiana-agenda-tracker/ARCHITECTURE.md` §0 is the source of truth.
@@ -11,28 +11,28 @@ HANDOFF-STAMP: 2026-08-29 | rev 4
 
 The root now holds only load-bearing files, the last dead cross-project call is gone, `MIP-3` is
 closed complete, and `CLAUDE.md` documents that **this repo receives at the git level but writes at
-the app level**; served build is **`p168r2`**. **The board is empty** — seven rows closed in one session, none left open.
+the app level**; served build is **`p168r2`**. **The board is empty** — eight rows closed in one session, none left open, and `STATUS.md` is retired.
 
 ## Live coordinates
 
 | Thing | State |
 |---|---|
-| Repo | `main` @ **`5bd2e59`** + **uncommitted work** (see below), public remote `Wildhare1966/indiana-mip-tracker` |
+| Repo | `main` @ **`72fbfab`** pushed, public remote `Wildhare1966/indiana-mip-tracker`; the `STATUS.md` retirement follows in a second commit |
 | Served build | **`p168r2`** — `mrd-ad682070b7/index.html`, 704,284 B (probed 2026-08-29) |
 | Local URL | `http://localhost:8778/mrd-ad682070b7/` via `serve-mrd.bat` (loopback only) |
-| Root contents | `CLAUDE.md` · `HANDOFF.md` · `STATUS.md` · `MIP_Platform.html` · `arcgis/` · `docs/` · `mrd-ad682070b7/` · `serve-mrd.bat` |
+| Root contents | `CLAUDE.md` · `HANDOFF.md` · `MIP_Platform.html` · `arcgis/` · `docs/` · `mrd-ad682070b7/` · `serve-mrd.bat` |
 | Data lanes | `main` · `data` · `data-sales` — both non-`main` lanes are written **by other projects** |
 | Operator token | `localStorage` key `mip_auth_token`, entered under Settings → Operator Access |
 | Backend | lives in `../indiana-agenda-tracker` — **not** this repo |
-| Board | `docs/OPEN-ITEMS.md` **rev 8** — MIP-3 through MIP-8 all closed; **nothing outstanding** |
+| Board | `docs/OPEN-ITEMS.md` **rev 9** — MIP-3 through MIP-9 all closed; **nothing outstanding** |
 
 ⚠ Re-probe before relying on the build number (doctrine item 14). The marker is on line 2 of
 `mrd-ad682070b7/index.html`; the `styles.css?v=` querystring on line 14 must match it.
 
 ## What shipped this session
 
-**Nothing is committed.** Everything below is in the working tree, on `main`, public remote — review
-before pushing.
+**Shipped in two commits, both pushed.** `72fbfab` here (MIP-4/5/6/7/8) and `3614926` in
+`../indiana-agenda-tracker` (custody of the four ops consoles), plus the `STATUS.md` retirement.
 
 1. **`CLAUDE.md` rev 1 → rev 2: the outbound-write audit.** The question that started it — "does this
    repo only receive?" — has a **split answer**, now documented as its own section. At the **git**
@@ -57,6 +57,10 @@ before pushing.
 6. **MIP-3 closed complete** on Ty's report that all three AGO clicks are done. ⚠ Closed on that
    report, **not on a probe from here** — this session has no AGO access.
 7. **MIP-8 — the `.gitignore` guard fixed, and its own premise corrected.** See below.
+8. **MIP-9 — `STATUS.md` retired** (Ty's ruling, doctrine item 11). Content preserved verbatim in
+   `docs/STATUS-ARCHIVE.md`; its one un-migrated rule — *this working copy is the source of truth,
+   edit in place, no per-session clones* — moved to `CLAUDE.md` rev 5 first. **Two lanes now:**
+   `HANDOFF.md` + `docs/OPEN-ITEMS.md`. Do not recreate `STATUS.md`.
 
 ## MIP-8 — a broken guard, and a premise that was half false
 
@@ -106,14 +110,13 @@ build's.
 
 ## Next session
 
-1. **Review and commit the working tree** — it is all uncommitted, on a public remote. Check for
-   secrets first.
-2. **`STATUS.md` needs Ty's ruling.** It is a changelog, not a snapshot (doctrine item 11), and it is
-   stale in ways that misled this session's start: it claims build `p151r2`, says "Pages remains
-   enabled", and describes `MIP_Platform.html` as "blanked" when it is 470 KB. Item 11 makes it
-   optional and retirable once `HANDOFF.md` carries the coordinates — which it now does. **Retire it,
-   or rewrite it as a snapshot.** Not done unilaterally.
-3. **`../indiana-agenda-tracker/ops/` has four uncommitted files** — `p160`–`p163-ops.html`, copied
-   there by MIP-8 so this public repo could stop tracking them. Commit them in that private repo.
-4. **The board here is empty.** Most work for this platform is driven from
-   `../indiana-agenda-tracker` — start there.
+**Nothing is gating here.** The board is empty, both repos are clean and pushed, and this repo now
+runs on two state lanes. Work for this platform is normally driven from `../indiana-agenda-tracker`
+— start there and treat this repo as the place the FE build lands.
+
+If you do work here, the three things most likely to bite are all in **Gotchas** above:
+`refreshHearings()` is not dead code, the `*-ops.html` consoles are served but untracked, and the
+`.gitignore` pattern must stay unanchored.
+
+⛔ **Do not recreate `STATUS.md`.** It was retired deliberately (MIP-9). A state claim goes in this
+file; history goes in `docs/STATUS-ARCHIVE.md`.

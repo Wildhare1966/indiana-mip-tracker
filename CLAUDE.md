@@ -1,5 +1,8 @@
-FILE-STAMP: 2026-08-29 | rev 4
+FILE-STAMP: 2026-08-29 | rev 5
 
+> **rev 5** — `STATUS.md` **retired** on Ty's ruling (doctrine item 11); its content is preserved in
+> [`docs/STATUS-ARCHIVE.md`](docs/STATUS-ARCHIVE.md) and its one un-migrated rule (edit-in-place)
+> moved here. This repo now runs on two state lanes, not three.
 > **rev 4** — MIP-8 shipped: the `.gitignore` guard actually works now, and the four operator
 > consoles are untracked-but-served, with copies preserved in the private repo.
 > **rev 3** — MIP-7 shipped and MIP-3 closed complete. Root is down to load-bearing files only; the
@@ -72,6 +75,10 @@ to re-verify before moving anything.
 
 **Bump the build marker on every deploy** — line 2 (`<!-- MIP build pNNNrM -->`) **and** the
 `styles.css?v=` querystring on line 14. Both, together.
+
+**This working copy is the source of truth for front-end edits** (established 2026-08-15). Edit in
+place, commit, push — **no per-session temporary clones.** Carried here from `STATUS.md` when that
+file was retired; it was the one live rule that lane still owned.
 
 **The security self-test** is `mrd-ad682070b7/tests/smoke.html`, reachable in-app from Settings via
 **▶ Run security self-test**. Its sanitizers are an **inline copy** of the served build's — nothing
@@ -197,11 +204,12 @@ served from anywhere else.
 
 ## Session workflow
 
-Start with `/warmup`, end with `/kickoff`. State lanes per Doctrine Block v1.8 item 11:
-`HANDOFF.md` = where this stands now · `docs/OPEN-ITEMS.md` = what is outstanding ·
-`STATUS.md` = state snapshot. Public remote on `main` — never push without checking for secrets.
+Start with `/warmup`, end with `/kickoff`. **Two** state lanes per Doctrine Block v1.8 item 11:
+[`HANDOFF.md`](HANDOFF.md) = where this stands now · [`docs/OPEN-ITEMS.md`](docs/OPEN-ITEMS.md) =
+what is outstanding. Public remote on `main` — never push without checking for secrets.
 
-⚠ **`STATUS.md` is stale and is a changelog, not a snapshot** — it claims build `p151r2`, says
-"Pages remains enabled", and calls `MIP_Platform.html` "blanked" when it is 470 KB. All three are
-false. Doctrine item 11 makes it optional and retirable once `HANDOFF.md` carries the coordinates,
-which it does. Flagged for Ty; not rewritten unilaterally.
+⛔ **`STATUS.md` was RETIRED 2026-08-29** on Ty's ruling — item 11 makes it optional once
+`HANDOFF.md` carries the coordinates, and it had degenerated into a stale changelog that misled two
+separate sessions (see **MIP-2**, and the retirement note in
+[`docs/STATUS-ARCHIVE.md`](docs/STATUS-ARCHIVE.md), which holds its content verbatim).
+**Do not recreate it.** A snapshot claim belongs in `HANDOFF.md`; history belongs in an archive.

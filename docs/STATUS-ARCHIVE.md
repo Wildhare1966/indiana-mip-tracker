@@ -1,3 +1,48 @@
+# STATUS archive — Indiana MIP Tracker (MRD front end)
+
+`STATUS.md` was **retired on 2026-08-29** on Ty's ruling. Everything it held is preserved verbatim
+below; nothing was edited on the way in.
+
+## Why it was retired
+
+Doctrine Block v1.8 **item 11** makes `STATUS.md` optional — *"a state snapshot, never a changelog;
+OPTIONAL, and a repo whose `HANDOFF.md` already carries the coordinates may retire it, but only once
+`HANDOFF.md` exists."* Both conditions held: `HANDOFF.md` exists (created 2026-08-28, now rev 5) and
+carries the live coordinates in its own table.
+
+The file had also stopped being a snapshot and become a changelog — rev-delta sections stacked
+newest-first — and it was **stale in three ways that actively misled**:
+
+| Claim in the retired file | Reality on 2026-08-29 |
+|---|---|
+| "Build **p151r2** on `main`" | served build was `p168r2` |
+| "Pages remains enabled until the verification checklist passes" | Pages was disabled on/before 2026-08-16; **MIP-2** closed as MOOT on 2026-08-23 |
+| `MIP_Platform.html` "(blanked…)" | 470,244 bytes, not blank |
+
+This is not a new observation. **MIP-2**'s closing note records that the 2026-08-22 backfill read
+this stale `STATUS.md` instead of the report sitting beside it, and calls that *"the whole thesis of
+SYS-8."* The file misled a session, was corrected, and then misled the start of this one too.
+
+## Where its live content went
+
+Nothing load-bearing was lost. Before retirement, each rule was checked against the file that now
+owns it:
+
+| Rule in the retired file | Now lives in |
+|---|---|
+| Bump the build marker on line 2 **and** the `styles.css?v=` querystring on every deploy | `CLAUDE.md` → *What is actually served* (already migrated at rev 4) |
+| This working copy is the source of truth for FE edits — edit in place, commit, push; no per-session temporary clones | `CLAUDE.md` → *What is actually served* (migrated at rev 5) |
+| Do not commit secrets; the commit-time credential guard | `CLAUDE.md` → *This is a PUBLIC repo* |
+| What this repo is / current state / next actions | `HANDOFF.md` (the item-11 lane for exactly this) |
+
+The one line deliberately **not** carried forward is *"Read tokens embedded in the front end are
+public by design"* — that describes the pre-AGD-22 world. There is no `DEFAULT_AUTH_TOKEN` in this
+repo any more; the operator token is entered into `localStorage` and never committed.
+
+---
+
+# ⬇ Retired content, verbatim (STATUS-STAMP: 2026-08-23 | rev 4)
+
 STATUS-STAMP: 2026-08-23 | rev 4
 
 ## Rev 4 delta — the auth token is gone from this public repo
