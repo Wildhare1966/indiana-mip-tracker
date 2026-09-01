@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p170r1 -->
+<!-- MIP build p171r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p170r1">
+<link rel="stylesheet" href="styles.css?v=p171r1">
 </head>
 <body>
 
@@ -544,7 +544,6 @@
               <option value="competitor_active">Active Project</option>
               <option value="withdrawn">Withdrawn Project</option>
               <option value="archived">Closed Out</option>
-              <option value="arbor_active">Arbor Active</option>
             </select>
             <input id="tp-filter-text" type="search" placeholder="Search project/petitioner/builder…" oninput="tpRenderTable()" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-card,#1a1a1a);color:inherit;border-radius:4px;font-size:12px;width:280px;">
             <select id="tp-sort-key" onchange="tpRenderTable()" title="Sort projects" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-card,#1a1a1a);color:inherit;border-radius:4px;font-size:12px;">
@@ -2765,6 +2764,24 @@ function _normJurisName(s) {
     .replace(/^town of\s+/, '')
     .replace(/,\s*indiana$/, '')
     .trim();
+}
+
+// P171: PublicStatus is the ONE status vocabulary — four values, no "Competitor"
+// wording anywhere (Ty, 2026-09-01: the peers this is shared with do not view
+// these as competitor projects). `arbor_active` is a LEGACY SYNONYM of
+// `competitor_active`: Ty ruled Arbor's own communities are public — they are
+// advertised with homes for sale — so they display and publish as "Active
+// Project" like everyone else's. Canonicalising here means the dropdown offers
+// four options, not five, and the filter matches both codes. Existing
+// arbor_active rows drift to competitor_active the next time one is saved; no
+// migration is required for them to read correctly.
+//   active            -> Proposed Project
+//   competitor_active -> Active Project   <- arbor_active canonicalises to this
+//   withdrawn         -> Withdrawn Project
+//   archived          -> Closed Out
+function _tpPublicCode(status) {
+  var st = String(status || 'active').toLowerCase();
+  return st === 'arbor_active' ? 'competitor_active' : st;
 }
 
 // P170: single source of truth for "is this project in a terminal PublicStatus".
@@ -6657,7 +6674,8 @@ function tpRenderTable() {
   //  competitor_active   → "Active Project"     (status==='competitor_active')
   //  withdrawn           → "Withdrawn Project"  (status==='withdrawn')
   //  archived            → "Closed Out"         (status==='archived')
-  //  arbor_active        → "Arbor Active"       (status==='arbor_active')
+  // P171: legacy 'arbor_active' canonicalises to competitor_active, so the
+  // "Active Project" option matches those rows too — four options, five codes.
   // 'deleted' (soft-delete) is never shown; recoverable via direct sheet edit.
   var WEEK_MS = 7 * 24 * 3600 * 1000;
   var rows = tpProjects.filter(function(p) {
@@ -6671,8 +6689,8 @@ function tpRenderTable() {
       var d = p.latestRefDate || p.latestMeetingDate || '';
       var t = d ? new Date(d).getTime() : 0;
       if (!(t && (Date.now() - t) <= WEEK_MS)) return false;
-    } else if (st !== stateFilter) {
-      return false;
+    } else if (_tpPublicCode(st) !== _tpPublicCode(stateFilter)) {
+      return false;   // P171: canonicalised, so "Active Project" catches arbor_active too
     }
     if (jurisFilter && (p.jurisdiction||'') !== jurisFilter) return false;
     if (textFilter) {
@@ -6880,30 +6898,23 @@ function tpRenderTable() {
         : '<span style="color:var(--muted,#888);">—</span>';
     }
 
-    var status = (p.status || 'active').toLowerCase();
-    // P170: PublicStatus replaces the old Status vocabulary as the primary
-    // filter/display field. The STORED codes are unchanged — this is a display
-    // layer, so ArcGIS sync, the agenda-items feed gate and every other consumer
-    // that keys on the code keep working untouched (Ty's ruling 2026-08-31).
-    //   Proposed Project  = 'active'             (LIVE — the default for a newly
-    //                                             auto-detected project)
-    //   Active Project    = 'competitor_active'  (LIVE — entitled/under construction)
-    //   Withdrawn Project = 'withdrawn'          (terminal)
-    //   Closed Out        = 'archived'           (terminal)
-    //   Arbor Active      = 'arbor_active'       (LIVE — Arbor's own; kept distinct
-    //                                             from Active Project on purpose)
-    // ⚠ 'competitor_active' flipped from TERMINAL to LIVE in this pass. It was
-    // never writable before (missing from the sheet validation allowlist —
-    // 0 rows of 173 measured), so no existing row changes visibility.
+    // P171: PublicStatus is the system's ONE status vocabulary — four values.
+    // Canonicalised, so a legacy arbor_active row shows as "Active Project"
+    // (see _tpPublicCode). The STORED codes are otherwise unchanged: this stays
+    // a display layer, so the ArcGIS sync, the agenda-items feed gate and every
+    // other code-keyed consumer keep working untouched.
+    //   Proposed Project  = 'active'             LIVE — default for a new auto-detect
+    //   Active Project    = 'competitor_active'  LIVE — also renders arbor_active
+    //   Withdrawn Project = 'withdrawn'          terminal
+    //   Closed Out        = 'archived'           terminal
     // 'deleted' is a soft delete and stays hidden everywhere.
+    var status = _tpPublicCode(p.status);
     var statusSelect =
       '<select class="tp-status-select" data-status-select="' + pidAttr + '" onchange="tpStatusChange(this)">' +
         '<option value="active"'            + (status === 'active' ? ' selected' : '')            + '>Proposed Project</option>' +
         '<option value="competitor_active"' + (status === 'competitor_active' ? ' selected' : '') + '>Active Project</option>' +
         '<option value="withdrawn"'         + (status === 'withdrawn' ? ' selected' : '')         + '>Withdrawn Project</option>' +
         '<option value="archived"'          + (status === 'archived' ? ' selected' : '')          + '>Closed Out</option>' +
-        // P142 item 4: Arbor Active — Arbor's own active project (visible + synced to ArcGIS).
-        '<option value="arbor_active"'      + (status === 'arbor_active' ? ' selected' : '')      + '>Arbor Active</option>' +
       '</select>';
 
     // P35: Tagged Docs cell.
