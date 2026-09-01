@@ -29,7 +29,7 @@
     <button class="topbar-btn" onclick="switchView('candidates')" id="nav-candidates">Candidates <span id="nav-cand-badge" style="display:none;background:#1c7c3a;color:#fff;font-size:9px;font-weight:700;padding:0 6px;border-radius:9px;margin-left:2px;vertical-align:middle;"></span></button>
     <button class="topbar-btn" onclick="switchView('suggested')" id="nav-suggested">Suggested Matches <span id="nav-sugg-badge" style="display:none;background:#0b6ea8;color:#fff;font-size:9px;font-weight:700;padding:0 6px;border-radius:9px;margin-left:2px;vertical-align:middle;"></span></button>
     <button class="topbar-btn" onclick="switchView('parsestatus')" id="nav-parsestatus">Parse Status</button>
-    <button class="topbar-btn" onclick="switchView('tracked')" id="nav-tracked">Competitor Tracked Projects</button>
+    <button class="topbar-btn" onclick="switchView('tracked')" id="nav-tracked">Tracked Projects</button>
     <button class="topbar-btn" onclick="switchView('schedule')" id="nav-schedule">Schedule & Requirements</button>
     <button class="topbar-btn" onclick="switchView('market')" id="nav-market">Zonda</button>
     <button class="topbar-btn" onclick="switchView('salesdisclosures')" id="nav-salesdisclosures">Sales Disclosures</button>
@@ -532,18 +532,19 @@
       <div style="padding:24px 32px;width:100%;">
         <div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;">
           <div>
-            <div class="overview-title">Competitor Tracked Projects</div>
+            <div class="overview-title">Tracked Projects</div>
             <div class="overview-sub">Cross-jurisdiction roll-up of every project flagged for ordinance / project-name matching. Updates after every scrape.</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
             <select id="tp-filter-juris" onchange="tpRenderTable()" title="Filter by jurisdiction" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-card,#1a1a1a);color:inherit;border-radius:4px;font-size:12px;cursor:pointer;width:180px;"><option value="">All jurisdictions</option></select>
-            <select id="tp-state-filter" onchange="tpRenderTable()" title="Filter by status / recency" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-card,#1a1a1a);color:inherit;border-radius:4px;font-size:12px;cursor:pointer;">
+            <select id="tp-state-filter" onchange="tpRenderTable()" title="Filter by PublicStatus / recency" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-card,#1a1a1a);color:inherit;border-radius:4px;font-size:12px;cursor:pointer;">
               <option value="all">All</option>
               <option value="past_week">Past Week</option>
-              <option value="active" selected>Competitor Proposed</option>
-              <option value="competitor_active">Competitor Active</option>
+              <option value="active" selected>Proposed Project</option>
+              <option value="competitor_active">Active Project</option>
+              <option value="withdrawn">Withdrawn Project</option>
+              <option value="archived">Closed Out</option>
               <option value="arbor_active">Arbor Active</option>
-              <option value="archived">Archive</option>
             </select>
             <input id="tp-filter-text" type="search" placeholder="Search project/petitioner/builder…" oninput="tpRenderTable()" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-card,#1a1a1a);color:inherit;border-radius:4px;font-size:12px;width:280px;">
             <select id="tp-sort-key" onchange="tpRenderTable()" title="Sort projects" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-card,#1a1a1a);color:inherit;border-radius:4px;font-size:12px;">
@@ -552,7 +553,7 @@
               <option value="jurisdiction">Sort: Jurisdiction</option>
               <option value="builder">Sort: Builder</option>
               <option value="meeting_date">Sort: Meeting Date (newest)</option>
-              <option value="status">Sort: Status</option>
+              <option value="status">Sort: PublicStatus</option>
             </select>
             <button class="refresh-btn" onclick="tpLoad(true)" title="Re-fetch from backend">↺ Refresh</button>
             <button class="export-btn" onclick="tpToggleAddForm()">+ Track Project</button>
@@ -590,7 +591,7 @@
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;" title="AI summary of the latest hearing. 'Detailed Summary' = item-scoped detail for this project; 'Summary' = full-hearing doc.">Summary</th>
                 <th style="padding:8px 6px;border-bottom:1px solid var(--border,#333);" title="All agenda documents this project was referenced on (newest first)">Agendas</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Tagged Docs</th>
-                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Status</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">PublicStatus</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Map</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;" title="ArcGIS record key — manually entered unique ID matching the corresponding ArcGIS record (for future MRD→ArcGIS upload/sync)">MapID</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);"></th>
@@ -2766,6 +2767,22 @@ function _normJurisName(s) {
     .trim();
 }
 
+// P170: single source of truth for "is this project in a terminal PublicStatus".
+// Was five hand-copied `st==='closed'||st==='archived'||...` expressions across
+// the muni rail, the candidate rail, dup-detection and the two add-to-existing
+// pickers. They all listed 'competitor_active' as terminal — correct under the
+// old "Competitor Active" label, WRONG under PublicStatus, where that code is
+// "Active Project" and is the most live state there is. Centralised so the next
+// vocabulary change is one edit, not five.
+//   TERMINAL: withdrawn, archived (Closed Out), legacy closed/resolved/paused
+//   LIVE:     active (Proposed), competitor_active (Active), arbor_active
+//   deleted:  soft delete — terminal AND never rendered anywhere.
+function _tpIsTerminal(status) {
+  var st = String(status || 'active').toLowerCase();
+  return st === 'withdrawn' || st === 'archived' || st === 'deleted' ||
+         st === 'closed'    || st === 'resolved' || st === 'paused';
+}
+
 // P115r2: display-friendly muni name — strips the "City of " / "Town of " prefix
 // (and ", Indiana" suffix) but PRESERVES case, so "City of Greenwood" and the
 // bare "Greenwood" both render as "Greenwood" and sort alphabetically by the
@@ -2808,7 +2825,7 @@ function renderTpRail(m) {
     // once the juris normalization fix above let them through the equality
     // gate. The display contract is: archived / closed / deleted are hidden
     // wherever the user can see project lists.
-    if (st === 'closed' || st === 'archived' || st === 'deleted' || st === 'competitor_active') return false;
+    if (_tpIsTerminal(st)) return false;
     return _normJurisName(p.jurisdiction) === muniName;
   });
 
@@ -3144,7 +3161,7 @@ function tprSubmitProject() {
   var rows = (typeof tpProjects !== 'undefined' && Array.isArray(tpProjects)) ? tpProjects : [];
   var dup = rows.find(function(p) {
     var st = (p.status || 'active').toLowerCase();
-    if (st === 'archived' || st === 'closed' || st === 'deleted' || st === 'competitor_active') return false;
+    if (_tpIsTerminal(st)) return false;
     if (ord && p.ordinanceId && p.ordinanceId.toLowerCase() === ord.toLowerCase()) return true;
     if ((p.projectName || '').toLowerCase() === name.toLowerCase()) return true;
     return false;
@@ -6631,11 +6648,16 @@ function tpRenderTable() {
   var stateFilter = (document.getElementById('tp-state-filter')||{}).value || 'active'; // P117
   textFilter  = textFilter.trim().toLowerCase();
 
-  // P117: the status/recency dropdown now drives which rows are visible.
+  // P117 / P170: the PublicStatus + recency dropdown drives which rows are visible.
+  // Ty's ruling 2026-08-31: no status is hidden from this table any more — the
+  // filter alone decides. Selecting a PublicStatus is an exact match on the
+  // stored code:
   //  past_week           → any non-deleted project last on an agenda in the last 7 days
-  //  active              → "Competitor Proposed"  (status==='active')
-  //  competitor_active   → "Competitor Active"    (status==='competitor_active')
-  //  archived            → "Archive"              (status==='archived')
+  //  active              → "Proposed Project"   (status==='active')          [default]
+  //  competitor_active   → "Active Project"     (status==='competitor_active')
+  //  withdrawn           → "Withdrawn Project"  (status==='withdrawn')
+  //  archived            → "Closed Out"         (status==='archived')
+  //  arbor_active        → "Arbor Active"       (status==='arbor_active')
   // 'deleted' (soft-delete) is never shown; recoverable via direct sheet edit.
   var WEEK_MS = 7 * 24 * 3600 * 1000;
   var rows = tpProjects.filter(function(p) {
@@ -6859,21 +6881,29 @@ function tpRenderTable() {
     }
 
     var status = (p.status || 'active').toLowerCase();
-    // P96: deal-pipeline labels. Stored values keep the existing lifecycle so
-    // archive/visibility/ArcGIS-sync semantics are unchanged:
-    //   Competitor Proposed = 'active'  (visible in the active list, synced to ArcGIS)
-    //   Competitor Active    = 'competitor_active'  (terminal; hidden + not synced)
-    //   Archive              = 'archived'  (terminal; hidden + not synced)
-    // Competitor Active and Archive are behaviorally identical (same hide/no-sync
-    // workflow) — the two labels exist only to record which terminal state the
-    // operator chose. "closed"/"deleted" legacy rows are filtered out above.
+    // P170: PublicStatus replaces the old Status vocabulary as the primary
+    // filter/display field. The STORED codes are unchanged — this is a display
+    // layer, so ArcGIS sync, the agenda-items feed gate and every other consumer
+    // that keys on the code keep working untouched (Ty's ruling 2026-08-31).
+    //   Proposed Project  = 'active'             (LIVE — the default for a newly
+    //                                             auto-detected project)
+    //   Active Project    = 'competitor_active'  (LIVE — entitled/under construction)
+    //   Withdrawn Project = 'withdrawn'          (terminal)
+    //   Closed Out        = 'archived'           (terminal)
+    //   Arbor Active      = 'arbor_active'       (LIVE — Arbor's own; kept distinct
+    //                                             from Active Project on purpose)
+    // ⚠ 'competitor_active' flipped from TERMINAL to LIVE in this pass. It was
+    // never writable before (missing from the sheet validation allowlist —
+    // 0 rows of 173 measured), so no existing row changes visibility.
+    // 'deleted' is a soft delete and stays hidden everywhere.
     var statusSelect =
       '<select class="tp-status-select" data-status-select="' + pidAttr + '" onchange="tpStatusChange(this)">' +
-        '<option value="active"'            + (status === 'active' ? ' selected' : '')            + '>Competitor Proposed</option>' +
-        '<option value="competitor_active"' + (status === 'competitor_active' ? ' selected' : '') + '>Competitor Active</option>' +
+        '<option value="active"'            + (status === 'active' ? ' selected' : '')            + '>Proposed Project</option>' +
+        '<option value="competitor_active"' + (status === 'competitor_active' ? ' selected' : '') + '>Active Project</option>' +
+        '<option value="withdrawn"'         + (status === 'withdrawn' ? ' selected' : '')         + '>Withdrawn Project</option>' +
+        '<option value="archived"'          + (status === 'archived' ? ' selected' : '')          + '>Closed Out</option>' +
         // P142 item 4: Arbor Active — Arbor's own active project (visible + synced to ArcGIS).
         '<option value="arbor_active"'      + (status === 'arbor_active' ? ' selected' : '')      + '>Arbor Active</option>' +
-        '<option value="archived"'          + (status === 'archived' ? ' selected' : '')          + '>Archive</option>' +
       '</select>';
 
     // P35: Tagged Docs cell.
@@ -9661,7 +9691,7 @@ function candRenderRail(){
   var groups = {}; // normKey -> { label, projects: [] }
   tpProjects.forEach(function(p){
     var st = (p.status || 'active').toLowerCase();
-    if(st === 'closed' || st === 'archived' || st === 'deleted' || st === 'competitor_active') return;
+    if(_tpIsTerminal(st)) return;
     var raw = p.jurisdiction || '—';
     var key = _normJurisName(raw) || '—';
     if(!groups[key]) groups[key] = { label: _muniDisplayName(raw) || raw, projects: [] };
@@ -10398,7 +10428,7 @@ function suggOpenAddToExisting(rid, btn){
   var jn=(typeof _normJurisName==='function') ? _normJurisName(s.jurisdiction) : (s.jurisdiction||'');
   var opts=tpProjects.filter(function(p){
     var st=(p.status||'active').toLowerCase();
-    if(st==='closed'||st==='archived'||st==='deleted'||st==='competitor_active') return false;
+    if(_tpIsTerminal(st)) return false;
     var pj=(typeof _normJurisName==='function') ? _normJurisName(p.jurisdiction) : (p.jurisdiction||'');
     return pj===jn;
   }).sort(function(a,b){ return String(a.projectName||'').localeCompare(String(b.projectName||'')); });
@@ -10453,7 +10483,7 @@ function candOpenAddToExisting(cid, btn){
   var jn=(typeof _normJurisName==='function') ? _normJurisName(c.jurisdiction) : (c.jurisdiction||'');
   var opts=tpProjects.filter(function(p){
     var st=(p.status||'active').toLowerCase();
-    if(st==='closed'||st==='archived'||st==='deleted'||st==='competitor_active') return false;
+    if(_tpIsTerminal(st)) return false;
     var pj=(typeof _normJurisName==='function') ? _normJurisName(p.jurisdiction) : (p.jurisdiction||'');
     return pj===jn;
   }).sort(function(a,b){ return String(a.projectName||'').localeCompare(String(b.projectName||'')); });
