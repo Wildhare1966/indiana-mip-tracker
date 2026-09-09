@@ -3498,3 +3498,26 @@ body.agenda-panel-locked { overflow: hidden; }
 }
 [data-theme="light"] .dl-sibling { color: #666; }
 [data-theme="light"] .dl-sibling:hover { color: #1b4965; border-color: rgba(30,58,95,0.32); background: rgba(30,58,95,0.06); }
+
+/* ── p174r1 / AGD-70: summary-flag chips + popover (per-jurisdiction page) ── */
+.sum-flag-slot { display:inline; }
+.sum-flag-chip { display:inline-block; font-size:10px; font-weight:600; letter-spacing:0.02em; padding:1px 7px; margin-left:6px; border-radius:10px; border:1px solid rgba(224,167,90,0.45); background:rgba(224,167,90,0.12); color:#e0a75a; cursor:pointer; vertical-align:middle; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; }
+.sum-flag-chip:hover { filter:brightness(1.15); }
+.sum-flag-chip.sum-flag-relevant { border-color:rgba(224,120,90,0.6); background:rgba(224,120,90,0.16); color:#e88a6a; }
+.sum-flag-chip.sum-flag-ready { border-color:rgba(26,122,74,0.45); background:rgba(26,122,74,0.15); color:#6dc49a; }
+.sum-flag-chip.sum-flag-self_healing { border-color:rgba(120,160,220,0.35); background:rgba(120,160,220,0.10); color:#9fbbe6; font-weight:500; }
+.sum-flag-chip.sum-flag-dispositioned { border-color:rgba(255,255,255,0.15); background:rgba(255,255,255,0.05); color:var(--text-dim); font-weight:500; }
+.sum-flag-popover { display:block; margin-top:6px; padding:8px 10px; background:var(--panel); border:1px solid var(--border); border-radius:6px; max-width:520px; font-size:11px; }
+.sum-flag-pop-body table { border-collapse:collapse; margin-bottom:6px; }
+.sum-flag-pop-body th { text-align:left; color:var(--text-dim); font-weight:600; padding:2px 10px 2px 0; vertical-align:top; white-space:nowrap; }
+.sum-flag-pop-body td { padding:2px 0; vertical-align:top; }
+.sum-flag-pop-body code { font-size:10px; }
+.sum-flag-pop-actions { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+.sum-flag-pop-note { color:#e08888; font-size:11px; }
+.sum-flag-pop-status { font-size:11px; color:var(--text-dim); }
+[data-theme="light"] .sum-flag-chip { border-color:rgba(143,87,16,0.45); background:rgba(143,87,16,0.08); color:#8f5710; }
+[data-theme="light"] .sum-flag-chip.sum-flag-relevant { border-color:rgba(180,60,30,0.5); background:rgba(180,60,30,0.08); color:#b43c1e; }
+[data-theme="light"] .sum-flag-chip.sum-flag-ready { border-color:rgba(26,122,74,0.4); background:rgba(26,122,74,0.08); color:#1a7a4a; }
+[data-theme="light"] .sum-flag-chip.sum-flag-self_healing { border-color:rgba(60,90,150,0.35); background:rgba(60,90,150,0.06); color:#3c5a96; }
+[data-theme="light"] .sum-flag-chip.sum-flag-dispositioned { border-color:rgba(0,0,0,0.15); background:rgba(0,0,0,0.03); color:#64748b; }
+[data-theme="light"] .sum-flag-popover { background:#fff; border-color:rgba(0,0,0,0.12); }
