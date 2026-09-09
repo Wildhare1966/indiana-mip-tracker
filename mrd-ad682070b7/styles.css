@@ -156,6 +156,7 @@
   [data-theme="light"] .hearing-link.doc.summary-partial-nosrc,
   [data-theme="light"] .ph-meeting-link.yt.summary-partial-nosrc { background: rgba(100,116,139,0.12); color: #475569; border-color: rgba(100,116,139,0.32); }
   [data-theme="light"] .summary-pending-placeholder { color: #64748b; font-style: italic; font-size: 10px; }
+  [data-theme="light"] .summary-needs-review { color: #8f5710; border-bottom-color: rgba(143,87,16,0.5); }
   /* P58.8 r5: Agenda+Minutes light defaults → blue. Green is approved-state overlay. */
   [data-theme="light"] .hearing-link.ag,
   [data-theme="light"] .hearing-link.min { background: rgba(30,58,95,0.10); color: #1b4965; border-color: rgba(30,58,95,0.32); }
@@ -1447,6 +1448,11 @@
   .hearing-link.doc.summary-partial-nosrc,
   .ph-meeting-link.yt.summary-partial-nosrc { background: rgba(140,140,140,0.18); color: #b0b0b0; border-color: rgba(140,140,140,0.35); }
   .summary-pending-placeholder { color: var(--text-dim); font-style: italic; font-size: 10px; }
+  /* AGD-72: needs_human_review is NOT the recovery loop working — the retry ladder is
+     exhausted and nothing happens until an operator acts. It shared a label AND a colour
+     with three states that genuinely self-resolve, so it read as "wait" and got waited on. */
+  .summary-needs-review { color: #e0a75a; font-style: normal; font-size: 10px; font-weight: 600;
+                          border-bottom: 1px dotted rgba(224,167,90,0.55); cursor: help; }
   /* P58.8 r5: Approved-state green for the Agenda + Minutes anchor buttons
      themselves — replaces the r4 `.ag-reviewed-badge` span. The button
      becoming green is the persistent indicator the visitor's Yes click was
