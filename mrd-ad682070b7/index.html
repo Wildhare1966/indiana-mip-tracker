@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p176r1 -->
+<!-- MIP build p177r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p176r1">
+<link rel="stylesheet" href="styles.css?v=p177r1">
 </head>
 <body>
 
@@ -6733,8 +6733,10 @@ var tpLoadedAt = 0;
 // domain (List, 19 values) exactly, sorted A-Z, so values written here match an
 // allowed AGO domain value 1:1 (see arcgis-tracked-projects-sync). Backed by
 // Tracked_Projects.builder column, patched via update_tracked_project.
+// Dunnhaven Homes is a division of Arbor — classify under Arbor, not its own
+// option (Ty-ruled 2026-09-10; added in p176r1, removed in p177r1).
 var TP_BUILDERS = [
-  'Arbor','Beazer','Custom','David Weekly','Davis','DR Horton','Drees','Dunnhaven Homes',
+  'Arbor','Beazer','Custom','David Weekly','Davis','DR Horton','Drees',
   'Epcon','Estridge','Fischer Homes','Forestar','Hallmark','Lennar','MI Homes',
   'Old Town','Olthof','Onyx_East','Pulte','Ryan','Taylor Morris'
 ];
