@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p174r1 -->
+<!-- MIP build p175r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p174r1">
+<link rel="stylesheet" href="styles.css?v=p175r1">
 </head>
 <body>
 
@@ -6753,6 +6753,108 @@ function _tpIsFutureDateStr(s) {
   return d.getTime() > today.getTime();
 }
 
+// p175r1 / AGD-79: the Meeting Date column shows the NEWEST agenda the project
+// is on — the same field the Map publishes as Hearing_Date — instead of the
+// latest SUMMARIZED hearing. The summarized hearing still drives Description /
+// Results / Meeting Notes (P136's ruling: those three come from one hearing so
+// they never disagree), and the column says so beneath the date. Returns:
+//   headline = manual override || latest summarized hearing (P71 latestRefDate)
+//              — drives Results / Notes and their future gating, unchanged
+//   pending  = the newer un-summarized agenda date (P71 pendingSummaryDate) when
+//              it is later than the headline and no summary_doc exists for it
+//              (the P137 suppression is preserved: a summarized-but-unlinked
+//              hearing is a matcher gap, not a pending hearing) — else ''
+//   display  = manual override || pending || headline — what the column shows
+//              and what the Meeting Date sort / past-week filter key on
+// A manual date override wins everywhere, exactly as before.
+function _tpEffectiveDates(p) {
+  var manMd = (p && p.manualMeetingDate || '').toString().trim();
+  var headline = manMd || (p && p.latestRefDate || '');
+  var pendSum = (p && p.pendingSummaryDate || '').toString().trim();
+  var pending = '';
+  if (pendSum && !manMd && pendSum !== headline && !_tpSummaryDocForDate(p, pendSum)) {
+    var pt = Date.parse(pendSum), ht = Date.parse(headline || '');
+    if (isNaN(ht) || (!isNaN(pt) && pt > ht)) pending = pendSum;
+  }
+  return { headline: headline, pending: pending, display: pending || headline };
+}
+
+// p175r1: the PUBLIC_HEARINGS row (if any) for this project's jurisdiction on a
+// date — used to name the pending agenda's meeting body (e.g. the 9/9 agenda
+// was Plan Commission while the last summarized hearing was City Council).
+// Same juris-key resolution as _tpSummaryDocForDate. Null when no row exists
+// (a minutes-only jurisdiction before its minutes post).
+function _tpHearingForDate(p, dateStr) {
+  if (!p || !dateStr) return null;
+  if (typeof PUBLIC_HEARINGS !== 'object' || !PUBLIC_HEARINGS) return null;
+  var targetDate = _tpNormDateYmd(dateStr);
+  if (!targetDate) return null;
+  var jurisRaw = (p.jurisdiction || '').toString().toLowerCase().trim();
+  var keysToTry = [];
+  if (jurisRaw) keysToTry.push(jurisRaw);
+  if (typeof MUNICIPALITIES !== 'undefined' && Array.isArray(MUNICIPALITIES)) {
+    var hit = MUNICIPALITIES.find(function(m) {
+      return (m.id || '').toLowerCase() === jurisRaw
+          || (m.name || '').toLowerCase() === jurisRaw
+          || (jurisRaw && (m.name || '').toLowerCase().indexOf(jurisRaw) !== -1);
+    });
+    if (hit && hit.id) keysToTry.push(hit.id.toLowerCase());
+  }
+  for (var i = 0; i < keysToTry.length; i++) {
+    var arr = PUBLIC_HEARINGS[keysToTry[i]];
+    if (!Array.isArray(arr)) continue;
+    for (var j = 0; j < arr.length; j++) {
+      var h = arr[j];
+      if (h && _tpNormDateYmd(h.date || h.meeting_date || '') === targetDate) return h;
+    }
+  }
+  return null;
+}
+
+// p175r1: the meeting BODY of the pending agenda, resolved from the agenda
+// document itself. The project's agendaRefs carry the agenda url for the pending
+// date; SCRAPED_DOCS carries that same url as view_url / pdf_url together with
+// the document's meeting_type (and any operator meeting_type_override). An exact
+// url join first; a jurisdiction + date + Agenda join second; '' when neither
+// resolves (the caller then tries the PUBLIC_HEARINGS row, then the summarized
+// hearing's type). The agenda document is the FIRST source because it is an
+// exact join (the same url the ref was minted from) and because the page's
+// hearings copy can lag the scrape: measured 2026-09-10, the served page held
+// 86 Westfield hearings while the CDN snapshot held 87 — the 9/9 APC video,
+// scraped that morning, was the missing row. (The wire itself emits the row
+// with summary_doc blanked — MuniData.js getHearingsJSON — so the lag is the
+// localStorage / snapshot copy, not a wire filter.)
+function _tpAgendaBodyForDate(p, dateStr) {
+  if (!p || !dateStr) return '';
+  if (typeof SCRAPED_DOCS === 'undefined' || !Array.isArray(SCRAPED_DOCS) || !SCRAPED_DOCS.length) return '';
+  var targetDate = _tpNormDateYmd(dateStr);
+  if (!targetDate) return '';
+  var body = function(d) { return ((d.meeting_type_override || d.meeting_type || '') + '').trim(); };
+  var urls = {};
+  (Array.isArray(p.agendaRefs) ? p.agendaRefs : []).forEach(function(a) {
+    if (a && a.url && _tpNormDateYmd(a.date || '') === targetDate) urls[String(a.url)] = true;
+  });
+  var i, d;
+  if (Object.keys(urls).length) {
+    for (i = 0; i < SCRAPED_DOCS.length; i++) {
+      d = SCRAPED_DOCS[i];
+      if (d && (urls[d.view_url] || urls[d.pdf_url]) && body(d)) return body(d);
+    }
+  }
+  var jurisRaw = (p.jurisdiction || '').toString().toLowerCase().trim();
+  if (!jurisRaw) return '';
+  for (i = 0; i < SCRAPED_DOCS.length; i++) {
+    d = SCRAPED_DOCS[i];
+    if (!d || _tpNormDateYmd(d.meeting_date || '') !== targetDate) continue;
+    if (String(d.document_type || '').toLowerCase() !== 'agenda') continue;
+    var dj = (d.jurisdiction || '').toString().toLowerCase();
+    if (dj === jurisRaw || dj.indexOf(jurisRaw) !== -1 || jurisRaw.indexOf(dj) !== -1) {
+      if (body(d)) return body(d);
+    }
+  }
+  return '';
+}
+
 // P71 R3: persist Builder dropdown change via update_tracked_project. Optimistic
 // local update + rollback on error (mirrors tpStatusChange).
 function tpBuilderChange(selectEl) {
@@ -6896,7 +6998,9 @@ function tpRenderTable() {
     if (stateFilter === 'all') {
       // no status/recency gate
     } else if (stateFilter === 'past_week') {
-      var d = p.latestRefDate || p.latestMeetingDate || '';
+      // p175r1: key on the newest agenda (display date), so a project heard
+      // this week is "past week" even before its hearing is summarized.
+      var d = _tpEffectiveDates(p).display || p.latestMeetingDate || '';
       var t = d ? new Date(d).getTime() : 0;
       if (!(t && (Date.now() - t) <= WEEK_MS)) return false;
     } else if (_tpPublicCode(st) !== _tpPublicCode(stateFilter)) {
@@ -6924,8 +7028,11 @@ function tpRenderTable() {
       rows.sort(function(a, b) {
         // P124r2: sort by the EFFECTIVE meeting date (manual override wins).
         // Empty dates sort last; otherwise newest/upcoming first.
-        var ad = (a.manualMeetingDate||'').toString().trim() || a.latestRefDate || a.latestMeetingDate || '';
-        var bd = (b.manualMeetingDate||'').toString().trim() || b.latestRefDate || b.latestMeetingDate || '';
+        // p175r1: the effective date is the DISPLAYED one — newest agenda — so a
+        // project heard last night rises to the top instead of sorting on the
+        // June hearing that happens to be its latest summary.
+        var ad = _tpEffectiveDates(a).display || a.latestMeetingDate || '';
+        var bd = _tpEffectiveDates(b).display || b.latestMeetingDate || '';
         var at = ad ? new Date(ad).getTime() : -Infinity;
         var bt = bd ? new Date(bd).getTime() : -Infinity;
         if (bt !== at) return bt - at;
@@ -6967,9 +7074,22 @@ function tpRenderTable() {
     // gates the orange date text + the blank Meeting Notes cell below.
     var manMt = (p.manualMeetingType || '').toString().trim();
     var manMd = (p.manualMeetingDate || '').toString().trim();
-    var effMeetingType = manMt || (p.latestMeetingType || '');
-    var effMeetingDate = manMd || (p.latestRefDate || '');
+    // p175r1 / AGD-79: two dates per row. effMeetingDate is the summarized
+    // hearing (manual override wins) and still gates Results / Notes exactly as
+    // before; dispMeetingDate is the newest agenda and is what the column shows.
+    // The Meeting Type follows the displayed date: the pending agenda's body
+    // from its agenda document (SCRAPED_DOCS), else its PUBLIC_HEARINGS row,
+    // else the summarized hearing's type stands.
+    var _eff = _tpEffectiveDates(p);
+    var effMeetingDate = _eff.headline;
+    var dispMeetingDate = _eff.display;
+    var _pendHearing = _eff.pending ? _tpHearingForDate(p, _eff.pending) : null;
+    var effMeetingType = manMt
+      || (_eff.pending ? _tpAgendaBodyForDate(p, _eff.pending) : '')
+      || (_pendHearing && (_pendHearing.meeting_type || '').toString().trim())
+      || (p.latestMeetingType || '');
     var tpIsFuture = _tpIsFutureDateStr(effMeetingDate);
+    var tpDispFuture = _tpIsFutureDateStr(dispMeetingDate);
     // P58.7 R13a: resolve the YT cell to the AI-generated SUMMARY DOC URL
     // when one is available for this project's latest meeting. Falls back
     // to the YouTube video URL (legacy behavior) when no summary exists.
@@ -7047,8 +7167,8 @@ function tpRenderTable() {
       : '<span style="color:var(--muted,#888);">—</span>';
     // P124: a future meeting date renders in orange (the meeting hasn't happened
     // yet). .tp-meeting-date-future supplies the color.
-    var meetingDateCell = effMeetingDate
-      ? '<div class="tp-meeting-date' + (tpIsFuture ? ' tp-meeting-date-future' : '') + '">' + esc(effMeetingDate) + '</div>'
+    var meetingDateCell = dispMeetingDate
+      ? '<div class="tp-meeting-date' + (tpDispFuture ? ' tp-meeting-date-future' : '') + '">' + esc(dispMeetingDate) + '</div>'
       : '<span style="color:var(--muted,#888);">—</span>';
     // P136 (Problem B): a newer un-summarized agenda exists beyond the headline
     // (summarized) hearing — flag it so the operator knows a fresher hearing is
@@ -7059,9 +7179,18 @@ function tpRenderTable() {
     // (it just didn't self-match this project as a High ref — a juris/name matching
     // gap in P71's index), so nothing is pending; flagging it is a false positive
     // (Creekside/Summit/Bending Branch/Montclair/Crouse Acres, etc.).
-    var pendSum = (p.pendingSummaryDate || '').toString().trim();
-    if (pendSum && !manMd && pendSum !== effMeetingDate && !_tpSummaryDocForDate(p, pendSum)) {
-      meetingDateCell += '<div class="tp-pending-summary" title="A newer agenda dated ' + escAttr(pendSum) + ' is awaiting its summary. The Meeting Date / Description / Results shown are from the latest summarized hearing.">⏳ pending ' + esc(pendSum) + '</div>';
+    // p175r1 / AGD-79: the pending agenda IS now the displayed date (see
+    // _tpEffectiveDates), so the line beneath it says what the rest of the row
+    // is anchored on: the summarized hearing whose Description / Results are
+    // shown. A future display date reads "upcoming"; a past one "summary pending".
+    if (_eff.pending) {
+      var _pendWhat = tpDispFuture ? 'upcoming' : 'summary pending';
+      var _pendFrom = effMeetingDate ? 'results from ' + esc(effMeetingDate) : 'no results yet';
+      meetingDateCell += '<div class="tp-pending-summary" title="' + escAttr(
+          'The project is on the ' + _eff.pending + ' agenda, which has not been summarized yet' +
+          (tpDispFuture ? ' (the meeting has not happened).' : ' (video captions or minutes not posted yet).') +
+          (effMeetingDate ? ' Description / Results shown are from the latest summarized hearing, ' + effMeetingDate + '.' : ' No summarized hearing yet.')) +
+        '">⏳ ' + _pendWhat + ' · ' + _pendFrom + '</div>';
     }
 
     // P124: Description — the "Request Summary" bullet from the matching agenda
