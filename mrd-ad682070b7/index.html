@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p185r1 -->
+<!-- MIP build p185r2 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p185r1">
+<link rel="stylesheet" href="styles.css?v=p185r2">
 </head>
 <body>
 
@@ -10268,7 +10268,7 @@ function _candLive(){ return _candData.filter(function(c){ return c.status==='ne
 function _candFiltered(){
   var term=_candSearch;
   var out=_candLive().filter(function(c){
-    if(_candJuris && c.jurisdiction!==_candJuris) return false;
+    if(_candJuris && (_normJurisName(c.jurisdiction||'—')||'—')!==_candJuris) return false;   // p185r2: normalized key
     if(_candFilterHigh && c.confidence!=='high') return false;
     if(term){
       var hay=((c.project_name||'')+' '+(c.petitioner||'')+' '+(c.ordinance_id||'')).toLowerCase();
@@ -10293,14 +10293,12 @@ function _candFiltered(){
 // Rebuild the jurisdiction dropdown with per-muni counts (preserves current selection).
 function _candPopulateJurisDropdown(){
   var sel=document.getElementById('cand-filter-juris'); if(!sel) return;
-  var live=_candLive(), counts={};
-  live.forEach(function(c){ var j=c.jurisdiction||'—'; counts[j]=(counts[j]||0)+1; });
+  var live=_candLive();
+  // p185r2: grouped by normalized jurisdiction (see _jurisOptionsHtml).
+  var o=_jurisOptionsHtml(live, _candJuris);
   // If the active jurisdiction has been fully cleared, drop back to "All".
-  if(_candJuris && !counts[_candJuris]) _candJuris='';
-  var names=Object.keys(counts).sort();
-  var html='<option value="">All jurisdictions ('+live.length+')</option>';
-  names.forEach(function(j){ html+='<option value="'+_diagEsc(j)+'"'+(j===_candJuris?' selected':'')+'>'+_diagEsc(j)+' ('+counts[j]+')</option>'; });
-  sel.innerHTML=html;
+  if(_candJuris && !o.has(_candJuris)){ _candJuris=''; o=_jurisOptionsHtml(live, ''); }
+  sel.innerHTML=o.html;
 }
 
 // P135: render a pipe-joined source-URL set as numbered links. The link whose
@@ -10963,23 +10961,43 @@ function aiLoad(stream, force){
   }).catch(function(e){ el.innerHTML='<div style="color:var(--text-dim);">Network error: '+_diagEsc(e.message)+'</div>'; });
 }
 
+// p185r2: one dropdown entry per jurisdiction, as Tracked Projects already does
+// (P115r2 / P177). The feed carries whatever spelling each writer stored —
+// scraped agendas "Noblesville", video channels "City of Noblesville, Indiana",
+// an old promote path "noblesville" — so the raw-string grouping listed one town
+// three times and a filter on any one of them hid the rest. Key = _normJurisName
+// (lower-cased, prefix/suffix stripped); label = _muniDisplayName of the most
+// common raw spelling. Shared by Agenda Items, YouTube Items and Candidates.
+function _jurisOptionsHtml(rows, current){
+  var groups={};
+  rows.forEach(function(r){
+    var raw=r.jurisdiction||'—', key=_normJurisName(raw)||'—';
+    var g=groups[key]||(groups[key]={n:0, spell:{}});
+    g.n++; g.spell[raw]=(g.spell[raw]||0)+1;
+  });
+  Object.keys(groups).forEach(function(k){
+    var sp=groups[k].spell, best=Object.keys(sp).sort(function(a,b){ return sp[b]-sp[a]; })[0];
+    groups[k].label=_muniDisplayName(best)||best;
+  });
+  var keys=Object.keys(groups).sort(function(a,b){ return groups[a].label.localeCompare(groups[b].label); });
+  var html='<option value="">All jurisdictions ('+rows.length+')</option>';
+  keys.forEach(function(k){ html+='<option value="'+_diagEsc(k)+'"'+(k===current?' selected':'')+'>'+_diagEsc(groups[k].label)+' ('+groups[k].n+')</option>'; });
+  return { html: html, has: function(k){ return !!groups[k]; } };
+}
+
 function aiPopulateJuris(stream){
   var s=_aiState[stream], cfg=_aiCfg(stream);
   var sel=document.getElementById(cfg.juris); if(!sel) return;
-  var counts={};
-  s.data.forEach(function(it){ var j=it.jurisdiction||'—'; counts[j]=(counts[j]||0)+1; });
-  if(s.juris && !counts[s.juris]) s.juris='';
-  var names=Object.keys(counts).sort();
-  var html='<option value="">All jurisdictions ('+s.data.length+')</option>';
-  names.forEach(function(j){ html+='<option value="'+_diagEsc(j)+'"'+(j===s.juris?' selected':'')+'>'+_diagEsc(j)+' ('+counts[j]+')</option>'; });
-  sel.innerHTML=html;
+  var o=_jurisOptionsHtml(s.data, s.juris);
+  if(s.juris && !o.has(s.juris)){ s.juris=''; o=_jurisOptionsHtml(s.data, ''); }
+  sel.innerHTML=o.html;
 }
 
 function _aiFiltered(stream){
   var s=_aiState[stream], term=s.search;
   var cutoff=_aiCutoff(s.dateDays);
   return s.data.filter(function(it){
-    if(s.juris && it.jurisdiction!==s.juris) return false;
+    if(s.juris && (_normJurisName(it.jurisdiction||'—')||'—')!==s.juris) return false;   // p185r2: normalized key
     if(s.conf){ var mc=(it.match_confidence||'None'); if(mc!==s.conf) return false; }
     if(s.dateDays==='custom'){
       var mdc=String(it.meeting_date||'');
