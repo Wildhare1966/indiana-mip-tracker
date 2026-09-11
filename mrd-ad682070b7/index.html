@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p178r1 -->
+<!-- MIP build p185r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p178r1">
+<link rel="stylesheet" href="styles.css?v=p185r1">
 </head>
 <body>
 
@@ -4331,7 +4331,12 @@ async function ytResubmit(youtubeUrl, jurisdiction, meetingDate, btnId, summaryE
 // ═══════════════════════════════════════════════════════
 // AGENDA APPROVAL — approve or reject scraped agendas
 // ═══════════════════════════════════════════════════════
-window._agendaApprovalStatus = {}; // scrapedDocId -> 'approved'|'rejected'
+// p185r1 / AGD-97: keyed id|meeting_type. The scraped-doc id is code-date-type
+// with no body, so two bodies' agendas on one day share it — a bare-id key made
+// one body's Yes/No paint (and, server-side, write) the other body's row too.
+// The backend now scopes the write by &body= (the row's stored meeting_type).
+window._agendaApprovalStatus = {}; // 'id|meeting_type' -> 'approved'|'rejected'|'cancelled'
+function _agKey(docId, meetingType) { return String(docId || '') + '|' + String(meetingType || ''); }
 
 async function agApprove(docId, meetingType, jurisdiction, btnYesId, btnNoId, rowId) {
   const btnY = document.getElementById(btnYesId);
@@ -4342,9 +4347,10 @@ async function agApprove(docId, meetingType, jurisdiction, btnYesId, btnNoId, ro
     const url = getWebAppUrl() + '&action=approve_agenda'
       + '&id=' + encodeURIComponent(docId)
       + '&meeting_type=' + encodeURIComponent(meetingType)
+      + '&body=' + encodeURIComponent(meetingType)
       + '&jurisdiction=' + encodeURIComponent(jurisdiction);
     await fetch(url);
-    window._agendaApprovalStatus[docId] = 'approved';
+    window._agendaApprovalStatus[_agKey(docId, meetingType)] = 'approved';
     const row = document.getElementById(rowId);
     if (row) row.classList.add('ag-approved');
     if (btnY) { btnY.textContent = '✓ Yes'; btnY.disabled = true; }
@@ -4364,9 +4370,10 @@ async function agReject(docId, meetingType, jurisdiction, btnYesId, btnNoId, row
     const url = getWebAppUrl() + '&action=reject_agenda'
       + '&id=' + encodeURIComponent(docId)
       + '&meeting_type=' + encodeURIComponent(meetingType)
+      + '&body=' + encodeURIComponent(meetingType)
       + '&jurisdiction=' + encodeURIComponent(jurisdiction);
     await fetch(url);
-    window._agendaApprovalStatus[docId] = 'rejected';
+    window._agendaApprovalStatus[_agKey(docId, meetingType)] = 'rejected';
     const row = document.getElementById(rowId);
     if (row) {
       row.classList.add('ag-rejected');
@@ -4413,11 +4420,12 @@ async function agCancel(docId, meetingType, jurisdiction, rowId) {
     row.classList.add('ag-cancelled');
     row.innerHTML = '<span class="ag-cancelled-badge" title="Marked cancelled">⊘ Cancelled</span>';
   }
-  window._agendaApprovalStatus[docId] = 'cancelled';
+  window._agendaApprovalStatus[_agKey(docId, meetingType)] = 'cancelled';
   try {
     const url = getWebAppUrl() + '&action=cancel_agenda'
       + '&id=' + encodeURIComponent(docId)
       + '&meeting_type=' + encodeURIComponent(meetingType)
+      + '&body=' + encodeURIComponent(meetingType)
       + '&jurisdiction=' + encodeURIComponent(jurisdiction);
     await fetch(url);
   } catch (e) {
@@ -4428,9 +4436,12 @@ async function agCancel(docId, meetingType, jurisdiction, rowId) {
 // P58.8 r5 — Minutes Yes/No now mirrors Agenda Yes/No. Minutes rows live in
 // Scraped_Documents, so we reuse the existing `approve_agenda` / `reject_agenda`
 // endpoints; they operate on any row by id regardless of document_type.
-window._minApprovalLocal = window._minApprovalLocal || {}; // mnSdId -> 'approved'|'rejected'
+// p185r1 / AGD-97: `body` = the minutes row's stored meeting_type, sent as &body=
+// so the backend writes only that body's rows (meeting_type stays 'Minutes' —
+// it only feeds Scraper_Preferences). Local state keyed id|body.
+window._minApprovalLocal = window._minApprovalLocal || {}; // 'mnSdId|body' -> 'approved'|'rejected'
 
-async function mnApprove(docId, jurisdiction, btnYesId, btnNoId, rowId) {
+async function mnApprove(docId, jurisdiction, btnYesId, btnNoId, rowId, body) {
   const btnY = document.getElementById(btnYesId);
   const btnN = document.getElementById(btnNoId);
   if (btnY) { btnY.disabled = true; btnY.textContent = '…'; }
@@ -4439,9 +4450,10 @@ async function mnApprove(docId, jurisdiction, btnYesId, btnNoId, rowId) {
     const url = getWebAppUrl() + '&action=approve_agenda'
       + '&id=' + encodeURIComponent(docId)
       + '&meeting_type=Minutes'
+      + '&body=' + encodeURIComponent(body || '')
       + '&jurisdiction=' + encodeURIComponent(jurisdiction);
     await fetch(url);
-    window._minApprovalLocal[docId] = 'approved';
+    window._minApprovalLocal[_agKey(docId, body)] = 'approved';
     const row = document.getElementById(rowId);
     if (row) row.classList.add('mn-approved');
     if (btnY) btnY.style.display = 'none';
@@ -4452,7 +4464,7 @@ async function mnApprove(docId, jurisdiction, btnYesId, btnNoId, rowId) {
   }
 }
 
-async function mnReject(docId, jurisdiction, btnYesId, btnNoId, rowId) {
+async function mnReject(docId, jurisdiction, btnYesId, btnNoId, rowId, body) {
   const btnY = document.getElementById(btnYesId);
   const btnN = document.getElementById(btnNoId);
   if (btnN) { btnN.disabled = true; btnN.textContent = '…'; }
@@ -4461,9 +4473,10 @@ async function mnReject(docId, jurisdiction, btnYesId, btnNoId, rowId) {
     const url = getWebAppUrl() + '&action=reject_agenda'
       + '&id=' + encodeURIComponent(docId)
       + '&meeting_type=Minutes'
+      + '&body=' + encodeURIComponent(body || '')
       + '&jurisdiction=' + encodeURIComponent(jurisdiction);
     await fetch(url);
-    window._minApprovalLocal[docId] = 'rejected';
+    window._minApprovalLocal[_agKey(docId, body)] = 'rejected';
     const row = document.getElementById(rowId);
     if (row) { row.classList.add('mn-rejected'); setTimeout(() => { if (row) row.style.display = 'none'; }, 1500); }
   } catch(e) {
@@ -5054,7 +5067,7 @@ function buildUnifiedDateSet(muniId) {
       const k = key(date, bt);
       const url = sd.view_url || sd.pdf_url || '';
       if (!url) return;
-      const cand = { url, sd_id: sd.id || '', review_flag: sd.review_flag || '', approval_status: sd.approval_status || '' };
+      const cand = { url, sd_id: sd.id || '', sd_type: sd.meeting_type || '', review_flag: sd.review_flag || '', approval_status: sd.approval_status || '' };
       let bucket = dateMap[k];
       if (!bucket) {
         bucket = findFuzzyAgendaMatch(dateMap, date, bt, 1, null, bt === 'Meeting');
@@ -5110,6 +5123,7 @@ function buildUnifiedDateSet(muniId) {
         // Stash sd_id + review_flag so the Yes/No buttons can fire `flag_minutes_review`
         // for the right document.
         e.minutes_sd_id = winners[0].sd_id || '';
+        e.minutes_sd_type = winners[0].sd_type || '';   // p185r1 / AGD-97: the row's own body, for &body=
         e.minutes_review_flag = winners[0].review_flag || '';
         e.minutes_approval_status = winners[0].approval_status || '';
       } else {
@@ -5368,7 +5382,7 @@ function renderBodySection(bodyLabel, dates, muniId) {
         // P58.8 r4: session memory wins over server (covers in-flight clicks
         // before the next SCRAPED_DOCS fetch); falls back to the server-emitted
         // approval_status so prior-session Yes/No selections persist on reload.
-        const status = window._agendaApprovalStatus[sd.id] || sd.approval_status || '';
+        const status = window._agendaApprovalStatus[_agKey(sd.id, sd.meeting_type || '')] || sd.approval_status || '';
         const cls = status === 'approved' ? ' ag-approved' : status === 'rejected' ? ' ag-rejected' : status === 'cancelled' ? ' ag-cancelled' : '';
         const curType = sd.meeting_type_override || sd.meeting_type || '';
         // P75: stash meeting metadata on the wrapper so agReject can wire
@@ -5416,12 +5430,13 @@ function renderBodySection(bodyLabel, dates, muniId) {
     let mnCell;
     if (entry.minutes_url) {
       const mnSdId = entry.minutes_sd_id || '';
+      const mnSdType = entry.minutes_sd_type || '';
       // P58.8 r5: Minutes Yes/No now mirrors Agenda Yes/No exactly — Yes turns
       // the Minutes button green via `.mn-cell.mn-approved`, No removes the row
       // (backend filters approval_status='rejected' from the wire). The old
       // review_flag column on Scraped_Documents stays writable but is no longer
       // surfaced here; the mnFlag* handlers below are kept as dead code.
-      const mnStatus = (window._minApprovalLocal && window._minApprovalLocal[mnSdId]) || entry.minutes_approval_status || '';
+      const mnStatus = (window._minApprovalLocal && window._minApprovalLocal[_agKey(mnSdId, mnSdType)]) || entry.minutes_approval_status || '';
       const mnRowId = 'mn_' + muniId + '_' + rowIdx;
       const mnBtnYId = 'mny_' + muniId + '_' + rowIdx;
       const mnBtnNId = 'mnn_' + muniId + '_' + rowIdx;
@@ -5432,8 +5447,8 @@ function renderBodySection(bodyLabel, dates, muniId) {
       // sourced minutes (no sd_id) keep the operator ✕ remove path inline instead.
       if (mnSdId) {
         if (!mnStatus) {
-          mnCell += ` <button class="ag-correct-btn yes" id="${esc(mnBtnYId)}" onclick="mnApprove('${escAttr(mnSdId)}','${escAttr(muniId)}','${escAttr(mnBtnYId)}','${escAttr(mnBtnNId)}','${escAttr(mnRowId)}')">✓ Yes</button>`;
-          mnCell += ` <button class="ag-correct-btn no" id="${esc(mnBtnNId)}" onclick="mnReject('${escAttr(mnSdId)}','${escAttr(muniId)}','${escAttr(mnBtnYId)}','${escAttr(mnBtnNId)}','${escAttr(mnRowId)}')">✗ No</button>`;
+          mnCell += ` <button class="ag-correct-btn yes" id="${esc(mnBtnYId)}" onclick="mnApprove('${escAttr(mnSdId)}','${escAttr(muniId)}','${escAttr(mnBtnYId)}','${escAttr(mnBtnNId)}','${escAttr(mnRowId)}','${escAttr(mnSdType)}')">✓ Yes</button>`;
+          mnCell += ` <button class="ag-correct-btn no" id="${esc(mnBtnNId)}" onclick="mnReject('${escAttr(mnSdId)}','${escAttr(muniId)}','${escAttr(mnBtnYId)}','${escAttr(mnBtnNId)}','${escAttr(mnRowId)}','${escAttr(mnSdType)}')">✗ No</button>`;
         }
       } else if (entry.meeting_id) {
         // Meetings-tab-sourced URL — no scraped row to flag. Keep operator-only
@@ -11535,14 +11550,17 @@ function psRenderRows(rows){
     var src = (d.source_url || d.pdf_url)
       ? '<button class="ps-open-btn" data-url="'+escAttr(d.source_url||'')+'" data-pdf="'+escAttr(d.pdf_url||'')+'" data-title="'+escAttr((d.jurisdiction||'')+' · '+(d.date||'')+' · '+(d.body||''))+'" onclick="psOpenDocFromBtn(this)" style="font-size:9px;font-weight:600;padding:2px 9px;border:0;border-radius:5px;cursor:pointer;background:var(--accent,#4a9eff);color:#fff;">Open</button>'
       : '<span style="color:var(--text-dim);">—</span>';
-    var actions = _psActionBtn(d.doc_id, 'ignored', 'Ignore', '#555')
-      + _psActionBtn(d.doc_id, 'empty_ok', 'Empty-OK', '#1c7c3a')
-      + _psActionBtn(d.doc_id, 'needs_fix', 'Needs-fix', '#9a2a2a')
-      + _psActionBtn(d.doc_id, 'requeued', 'Re-queue', '#7a4ea2')
+    // p185r1 / AGD-97: triage refs are "doc_id|body" — the queue is keyed per body,
+    // so an Ignore hides only this body's agenda, not every body sharing the id.
+    var psRef = d.doc_id + '|' + (d.body || '');
+    var actions = _psActionBtn(psRef, 'ignored', 'Ignore', '#555')
+      + _psActionBtn(psRef, 'empty_ok', 'Empty-OK', '#1c7c3a')
+      + _psActionBtn(psRef, 'needs_fix', 'Needs-fix', '#9a2a2a')
+      + _psActionBtn(psRef, 'requeued', 'Re-queue', '#7a4ea2')
       + '<button onclick="psCancelFromBtn(this)" data-doc="'+escAttr(d.doc_id)+'" data-body="'+escAttr(d.body||'')+'" data-juris="'+escAttr(d.jurisdiction||'')+'" title="Mark this meeting Cancelled — same as the Jurisdictions-page Cancel" style="font-size:9px;font-weight:600;padding:2px 7px;margin:1px;border:0;border-radius:5px;cursor:pointer;background:#b06a1f;color:#fff;white-space:nowrap;">Can</button>';
     var noteHtml = d.note ? '<div style="font-size:9px;color:var(--text-dim);margin-top:2px;">'+_diagEsc(d.note)+'</div>' : '';
     return '<tr data-ps-doc="'+escAttr(d.doc_id)+'" style="border-bottom:1px solid var(--border);">'
-      + '<td style="padding:6px;text-align:center;"><input type="checkbox" class="ps-rowcb" data-doc="'+escAttr(d.doc_id)+'" onchange="psSelChanged()"></td>'
+      + '<td style="padding:6px;text-align:center;"><input type="checkbox" class="ps-rowcb" data-doc="'+escAttr(psRef)+'" onchange="psSelChanged()"></td>'
       + '<td style="padding:6px;white-space:nowrap;">'+src+'</td>'
       + '<td style="padding:6px;white-space:nowrap;">'+actions+'</td>'
       + '<td style="padding:6px;">'+_diagEsc(d.jurisdiction||'—')+'</td>'
@@ -11638,8 +11656,8 @@ function psCancel(docId, body, juris, btn){
   var base = getWebAppUrl(); if(!base) return;
   var tr = btn && btn.closest ? btn.closest('tr') : null;
   if(tr){ Array.prototype.forEach.call(tr.querySelectorAll('button'), function(b){ b.disabled = true; }); tr.style.opacity = '0.5'; }
-  fetch(base + '&action=cancel_agenda&id=' + encodeURIComponent(docId) + '&meeting_type=' + encodeURIComponent(body||'') + '&jurisdiction=' + encodeURIComponent(juris||''))
-    .then(function(){ return fetch(base + '&action=admin_run&fn=setAgendaParseReview&doc_id=' + encodeURIComponent(docId) + '&status=cancelled'); })
+  fetch(base + '&action=cancel_agenda&id=' + encodeURIComponent(docId) + '&meeting_type=' + encodeURIComponent(body||'') + '&body=' + encodeURIComponent(body||'') + '&jurisdiction=' + encodeURIComponent(juris||''))
+    .then(function(){ return fetch(base + '&action=admin_run&fn=setAgendaParseReview&doc_id=' + encodeURIComponent(docId + '|' + (body||'')) + '&status=cancelled'); })
     .then(function(r){ return r.json(); })
     .then(function(res){
       var rr = res && res.result;
