@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p185r2 -->
+<!-- MIP build p186r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p185r2">
+<link rel="stylesheet" href="styles.css?v=p186r1">
 </head>
 <body>
 
@@ -4261,6 +4261,63 @@ window.showSummaryFlagPopover = showSummaryFlagPopover;
   } catch (e) { /* very old browser: chips simply do not render */ }
 })();
 
+// p186r1 (Ty, 2026-09-11): "Summary from minutes" — for a past meeting whose video is
+// missing or blocked (no captions) but whose minutes are scraped. One press summarizes
+// the meeting from the minutes AND drafts each referenced Tracked Project's Detailed
+// Summary from them (backend summarizeFromMinutes, P186). The minutes id carries no
+// body, so the minutes row's own body rides along as &body=.
+function mnFromMinutesBtnHtml(entry) {
+  const body = entry.minutes_sd_type || entry.meeting_type || '';
+  // Tracked bodies only (Council, Plan Commission) — the backend's P110 scope; a
+  // Historic Preservation button would only return "untracked body".
+  if (!/council|plan commission|\bapc\b/i.test(body)) return '';
+  return `<button class="yt-resubmit-btn mn-sum-btn" title="Summarize this meeting from its minutes, and draft each Tracked Project's Detailed Summary from them"`
+    + ` onclick="mnSummaryFromMinutes(this,'${escAttr(entry.minutes_sd_id || '')}','${escAttr(entry.minutes_sd_type || entry.meeting_type || '')}')">📄 Summary from minutes</button>`;
+}
+async function mnSummaryFromMinutes(btn, sdId, body) {
+  if (!sdId) return;
+  if (!confirm('Summarize this meeting from its minutes?\n\nOne Gemini call for the meeting summary, plus one per Tracked Project on this meeting for its Detailed Summary. It can take a few minutes.')) return;
+  const orig = btn.textContent;
+  const show = (html) => {
+    let s = btn.nextElementSibling;
+    if (!s || !s.classList.contains('mn-sum-status')) {
+      s = document.createElement('div'); s.className = 'mn-sum-status'; s.style.fontSize = '11px'; btn.after(s);
+    }
+    s.innerHTML = html;
+  };
+  btn.disabled = true; btn.textContent = '📄 Summarizing from minutes…';
+  show('<span style="color:var(--text-dim)">Working — can take up to ~5 minutes. Leave this page open.</span>');
+  try {
+    const url = getWebAppUrl() + '&action=admin_run&fn=summarizeFromMinutes'
+      + '&sd_id=' + encodeURIComponent(sdId) + '&body=' + encodeURIComponent(body) + '&apply=true';
+    const res = await (await fetch(url)).json();
+    const r = (res && res.result !== undefined) ? res.result : res;
+    if (!r || r.ok === false || r.error) {
+      throw new Error((r && (r.message || r.error)) || (res && res.code === 403 ? 'Unauthorized — operator token missing or stale' : 'no reason given'));
+    }
+    let html = (r.summary && r.summary.doc_url)
+      ? `<a href="${escUrl(r.summary.doc_url)}" target="_blank" class="hearing-link doc">✦ Summary (minutes)</a>` : '';
+    const docs = (r.detailed || []).filter(d => d.doc_url);
+    if (docs.length) {
+      html += ` · Detailed: ` + docs.map(d => `<a href="${escUrl(d.doc_url)}" target="_blank">${esc(d.project)}</a>`
+        + (d.discussed ? '' : ' <span style="color:var(--text-dim)">(not in minutes)</span>')).join(', ');
+    } else {
+      html += ' · <span style="color:var(--text-dim)">no Tracked Project on this meeting</span>';
+    }
+    const left = r.remaining || [];
+    if (left.length) html += ` · <span style="color:#e0b060">${left.length} Detailed Summar${left.length === 1 ? 'y' : 'ies'} not drafted yet (time limit) — press again to finish</span>`;
+    const errs = r.errors || [];
+    if (errs.length) html += ` · <span style="color:#e08888" title="${escAttr(errs.map(e => (e.project || e.meeting_id || e.step) + ': ' + e.error).join('\n'))}">${errs.length} error${errs.length === 1 ? '' : 's'}</span>`;
+    show(html);
+    if (left.length) { btn.disabled = false; btn.textContent = '📄 Finish Detailed Summaries'; }
+    else { btn.textContent = '✓ Summarized from minutes'; }
+  } catch (e) {
+    btn.disabled = false; btn.textContent = orig;
+    show(`<span style="color:#e08888">✗ ${esc((e && e.message) || e)}</span>`);
+  }
+}
+window.mnSummaryFromMinutes = mnSummaryFromMinutes;
+
 async function ytResubmit(youtubeUrl, jurisdiction, meetingDate, btnId, summaryElId) {
   const btn = document.getElementById(btnId);
   const origLabel = btn ? btn.textContent : '↻ Generate Summary';
@@ -5354,6 +5411,10 @@ function renderBodySection(bodyLabel, dates, muniId) {
         // P77: Generate requires a YT source URL, so it only fires when youtube_url exists.
         ytCell += `<button class="yt-resubmit-btn" id="${esc(btnId)}" onclick="ytResubmit('${escAttr(entry.youtube_url)}','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(btnId)}','${escAttr(summaryId)}')">↻ Generate Summary</button>`;
       }
+      // p186r1: the video has no summary — blocked, queued, or stuck "pending review"
+      // (Carmel Aug 3: a requeued caption-less video never resolves) — but the minutes
+      // are here.
+      if (!entry.summary_doc && entry.minutes_sd_id && isPast) ytCell += mnFromMinutesBtnHtml(entry);
       // P57 W5b: ✕ remove-YouTube-URL button removed per user request. The
       // Flag-summary button covers visitor-reportable issues; URL removal is
       // an operator action that lives in the Meetings sheet directly.
@@ -5366,6 +5427,8 @@ function renderBodySection(bodyLabel, dates, muniId) {
     } else if (isPast) {
       const addYtId = 'addyt_' + muniId + '_' + rowIdx;
       ytCell = `<button class="add-url-btn" id="${esc(addYtId)}" onclick="showAddUrlPopover(this,'youtube','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(entry.meeting_type || entry.body_type || '')}')">+ Add YouTube</button>`;
+      // p186r1: no video at all, but the minutes are here (Zionsville Aug 3).
+      if (entry.minutes_sd_id) ytCell += mnFromMinutesBtnHtml(entry);
     } else {
       ytCell = `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
     }
