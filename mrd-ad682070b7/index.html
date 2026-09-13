@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p186r2 -->
+<!-- MIP build p188r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p186r2">
+<link rel="stylesheet" href="styles.css?v=p188r1">
 </head>
 <body>
 
@@ -4089,16 +4089,70 @@ function ytToggleSummary(summaryDocUrl, elId) {
 // happen without an operator. Both rendered identically, and the tooltip claimed
 // "Recovery loop is retrying this summary" — false for the one state that needed
 // action. Found on Hancock County, on rows the operator had never touched.
-function covPendingHtml(covState) {
+// p188r1 (Ty, 2026-09-13, Bargersville TC 6/30: "says Needs your review — but no
+// action"). The tooltip pointed at the console's needs-review requeue, which clears
+// only the NEEDS_REVIEW_NO_DOC sentinel. That row HAS a summary (the Administrative
+// meeting's Doc, coverage 0%), so no tool anywhere acted on it, and the Summary link
+// itself was hidden. The Review Queue's decisions now sit on the row, beside the
+// summary they judge.
+// ⛔ Deliberately no "Force redraft": resolve_review stamps col P only, and with a
+// Doc in col H processNewHearings never selects the row (P180 header) — the button
+// would strand it as "pending" forever.
+function covPendingHtml(covState, entry) {
   var cs = String(covState || '').toLowerCase();
   if (cs === 'needs_human_review') {
-    return '<span class="summary-needs-review" title="The retry ladder is exhausted — this will NOT '
-         + 'resolve on its own. Requeue it from the ops console (needs-review bulk requeue, dry run '
-         + 'first). coverage_state=needs_human_review">Needs your review</span>';
+    var h = '<span class="summary-needs-review" title="The retry ladder is exhausted — this will NOT '
+         + 'resolve on its own. Read the summary, then Accept it as it stands or mark the recording '
+         + 'incomplete. coverage_state=needs_human_review">Needs your review</span>';
+    if (entry && entry.summary_doc) {
+      h += ' <a href="' + escUrl(entry.summary_doc) + '" target="_blank" class="hearing-link doc" data-doc-link="summary"'
+         + ' data-scraped-id="' + escAttr(entry.meeting_id || '') + '" title="The summary the retry ladder could not complete">✦ Summary (unreviewed)</a>';
+    }
+    if (entry && entry.meeting_id) {
+      var mid = escAttr(entry.meeting_id);
+      h += '<button class="ag-correct-btn yes" title="Keep this summary as it stands — marks it accepted (partial) and clears the review flag"'
+         + ' onclick="covResolve(this,\'' + mid + '\',\'accept_as_partial\')">✓ Accept as is</button>'
+         + '<button class="yt-resubmit-btn" title="The recording itself is incomplete — no retry can recover more. Clears the review flag."'
+         + ' onclick="covResolve(this,\'' + mid + '\',\'no_better_source\')">No better source</button>';
+    }
+    return h;
   }
   return '<span class="summary-pending-placeholder" title="The recovery loop is retrying this '
        + 'summary — no action needed. coverage_state=' + esc(cs) + '">Summary pending review</span>';
 }
+
+// p188r1: one Review Queue decision pressed from the row itself. resolve_review is
+// token-gated; getWebAppUrl() carries the operator's token. On success the row
+// re-renders; a refusal STAYS on screen (P168: never erase the evidence).
+async function covResolve(btn, meetingId, decision) {
+  if (!btn || !meetingId || !decision) return;
+  const base = getWebAppUrl();
+  if (!base) return;
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = '…';
+  const say = (txt, ok) => {
+    let s = btn.parentElement && btn.parentElement.querySelector('.cov-resolve-status');
+    if (!s) { s = document.createElement('span'); s.className = 'cov-resolve-status'; s.style.fontSize = '10px'; s.style.marginLeft = '4px'; btn.after(s); }
+    s.style.color = ok ? '#6dc49a' : '#e08888';
+    s.textContent = txt;
+  };
+  try {
+    const r = await fetch(base + '&action=resolve_review&meeting_id=' + encodeURIComponent(meetingId)
+      + '&decision=' + encodeURIComponent(decision) + '&client_id=' + encodeURIComponent(getOrCreateClientId()));
+    const d = await r.json();
+    if (d && d.ok) {
+      say('✓ ' + (decision === 'accept_as_partial' ? 'Accepted as is' : 'Marked: no better source') + ' — updating…', true);
+      setTimeout(() => refreshHearings(), 1200);
+    } else {
+      btn.disabled = false; btn.textContent = orig;
+      say('✗ ' + ((d && (d.error || (d.code === 403 ? 'Unauthorized — enter the operator token in Settings' : ''))) || 'failed'), false);
+    }
+  } catch (e) {
+    btn.disabled = false; btn.textContent = orig;
+    say('✗ ' + e.message, false);
+  }
+}
+window.covResolve = covResolve;
 
 // ── p174r1 / AGD-70: summary-flag chips on the per-jurisdiction page ──────────
 // The daily protocol (P181, backend @479) names every meeting whose summary is
@@ -5371,7 +5425,7 @@ function renderBodySection(bodyLabel, dates, muniId) {
       if (isCovPartialAccept) { covLabelSuffix = ' (partial)';              covClsSuffix = ' summary-partial-accept'; }
       else if (isCovPartialNoSrc) { covLabelSuffix = ' (recording incomplete)'; covClsSuffix = ' summary-partial-nosrc';  }
       if (isCovPending) {
-        ytCell += covPendingHtml(covState);
+        ytCell += covPendingHtml(covState, entry);
       } else if (entry.summary_doc) {
         // P58.8 r4: default Summary button color is yellow; when the meeting's
         // summary has been flagged for review, the button shifts to orange
@@ -5653,8 +5707,16 @@ async function submitManualUrlAdd(urlType, muniId, date, meetingType) {
     if (data.ok) {
       // Hold the "saved" confirmation long enough to be seen, and tell the operator
       // the row will update on the refresh that follows.
-      if (pop) pop.innerHTML = `<span style="color:#6dc49a;font-size:11px;">✓ Saved${data.entry_id ? ' · entry ' + esc(data.entry_id.slice(0,8)) : ''} — updating list…</span>`;
-      setTimeout(() => { if (pop) pop.remove(); refreshHearings(); }, 2500);
+      // p188r1 (Ty, 2026-09-13: "tried to add but it would not save" ×5): every one
+      // of those adds WAS saved — the document or video was already on file under
+      // another date or body, and the add was discarded without a word. The backend
+      // now moves it onto this row and says where it was; say so here too.
+      const rf = data.refiled_from;
+      const msg = rf
+        ? `✓ Already on file${rf.meeting_date ? ' under ' + esc(rf.meeting_date) : ''}${rf.meeting_type ? ' · ' + esc(rf.meeting_type) : ''} — moved to this row. Updating list…`
+        : `✓ Saved${data.entry_id ? ' · entry ' + esc(data.entry_id.slice(0,8)) : ''} — updating list…`;
+      if (pop) pop.innerHTML = `<span style="color:#6dc49a;font-size:11px;">${msg}</span>`;
+      setTimeout(() => { if (pop) pop.remove(); refreshHearings(); }, rf ? 5000 : 2500);
     } else {
       if (pop) pop.innerHTML = `<span style="color:#e08888;font-size:11px;">Error: ${esc(data.error || 'Unknown')}</span>`;
     }
@@ -8836,7 +8898,7 @@ function phRenderWeeklyHearings() {
                      : '';
         var sumLink;
         if (phIsCovPending) {
-          sumLink = covPendingHtml(phCovState);
+          sumLink = covPendingHtml(phCovState, e);
         } else if (e.summary_doc) {
           sumLink = '<a href="' + escUrl(e.summary_doc) + '" target="_blank" class="ph-meeting-link yt' + phCovCls + '" title="YouTube summary" data-doc-link="summary" data-scraped-id="' + escAttr(e.meeting_id || '') + '">Summary' + phCovLabel + '</a>';
         } else {
