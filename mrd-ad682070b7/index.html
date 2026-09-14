@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p190r2 -->
+<!-- MIP build p191r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p190r2">
+<link rel="stylesheet" href="styles.css?v=p191r1">
 </head>
 <body>
 
@@ -4113,6 +4113,21 @@ function ytToggleSummary(summaryDocUrl, elId) {
 // would strand it as "pending" forever.
 function covPendingHtml(covState, entry) {
   var cs = String(covState || '').toLowerCase();
+  // p191r1 / AGD-72: two more states that looked like "the machine is on it" and are not.
+  // force_redraft — the cron's isCoverageRetry never selects it (7 live rows on 2026-09-14, 6 behind
+  // a Blocked chip), so "Summary pending review — no action needed" sat beside a Blocked flag.
+  if (cs === 'force_redraft') {
+    return '<span class="summary-needs-review" title="Marked for redraft, but the summarizer never selects '
+         + 'force_redraft — it will NOT resolve on its own. The flag chip beside this row says what to do. '
+         + 'coverage_state=force_redraft">Redraft not queued</span>';
+  }
+  // needs_human_review with NO summary Doc — the ladder ended without a summary, so there is nothing
+  // to read or accept (8 live rows); Accept / No better source would stamp an empty meeting.
+  if (cs === 'needs_human_review' && !(entry && entry.summary_doc)) {
+    return '<span class="summary-needs-review" title="The retry ladder ended without a summary, so there is '
+         + 'nothing to accept. The flag chip beside this row says what to do (requeue, or wait on a caption '
+         + 'recheck). coverage_state=needs_human_review">No summary to review</span>';
+  }
   if (cs === 'needs_human_review') {
     var h = '<span class="summary-needs-review" title="The retry ladder is exhausted — this will NOT '
          + 'resolve on its own. Read the summary, then Accept it as it stands or mark the recording '
@@ -4701,7 +4716,7 @@ function showChangeTypePopover(anchorEl, docId, muniId, currentType, agId) {
   var saveBtn = document.createElement('button');
   saveBtn.className = 'add-url-btn';
   saveBtn.textContent = 'Save';
-  saveBtn.onclick = function() { submitChangeType(docId, muniId, agId); };
+  saveBtn.onclick = function() { submitChangeType(docId, muniId, agId, currentType); };
   var cancelBtn = document.createElement('button');
   cancelBtn.className = 'add-url-btn';
   cancelBtn.style.borderColor = 'rgba(255,255,255,0.1)';
@@ -4712,7 +4727,7 @@ function showChangeTypePopover(anchorEl, docId, muniId, currentType, agId) {
   anchorEl.parentElement.appendChild(pop);
 }
 
-async function submitChangeType(docId, muniId, agId) {
+async function submitChangeType(docId, muniId, agId, currentType) {
   const sel = document.getElementById('ct-select-' + docId);
   if (!sel) return;
   const newType = sel.value;
@@ -4720,16 +4735,22 @@ async function submitChangeType(docId, muniId, agId) {
   const saveBtn = pop ? pop.querySelector('button') : null;
   if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '…'; }
   try {
+    // p191r1 / AGD-106: send the clicked row's body — an id is shared by every body that met that
+    // day, and the backend (@513) scopes the override to id + body.
     const url = getWebAppUrl() + '&action=override_meeting_type'
       + '&id=' + encodeURIComponent(docId)
       + '&jurisdiction=' + encodeURIComponent(muniId)
-      + '&new_type=' + encodeURIComponent(newType);
+      + '&new_type=' + encodeURIComponent(newType)
+      + (currentType ? '&body=' + encodeURIComponent(currentType) : '');
     const resp = await fetch(url);
     const data = await resp.json();
     if (data && (data.updated || data.ok)) {
       // Mirror the override locally so re-renders reflect it without full reload
       const list = SCRAPED_DOCS ? (SCRAPED_DOCS[muniId] || []) : [];
-      const doc = list.find(d => d.id === docId);
+      const cur = String(currentType || '').trim().toLowerCase();
+      const doc = list.find(d => d.id === docId && (!cur ||
+                    String(d.meeting_type_override || d.meeting_type || '').trim().toLowerCase() === cur))
+               || list.find(d => d.id === docId);
       if (doc) doc.meeting_type_override = newType;
       if (pop) pop.remove();
       // Re-render hearings panel to show new type
@@ -6989,122 +7010,6 @@ var TP_BUILDERS = [
   'Old Town','Olthof','Onyx_East','Pulte','Ryan','Taylor Morris'
 ];
 
-// P124: true when a Meeting Date display string (e.g. "6/20/2026") is strictly
-// after today (date-only compare). Drives the orange future-date styling and the
-// blank Meeting Notes cell for meetings that haven't happened yet (no summary).
-// Unparseable input → false (treated as not-future, renders normally).
-function _tpIsFutureDateStr(s) {
-  if (!s) return false;
-  var d = new Date(s);
-  if (isNaN(d.getTime())) return false;
-  var today = new Date();
-  today.setHours(0, 0, 0, 0);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime() > today.getTime();
-}
-
-// p175r1 / AGD-79: the Meeting Date column shows the NEWEST agenda the project
-// is on — the same field the Map publishes as Hearing_Date — instead of the
-// latest SUMMARIZED hearing. The summarized hearing still drives Description /
-// Results / Meeting Notes (P136's ruling: those three come from one hearing so
-// they never disagree), and the column says so beneath the date. Returns:
-//   headline = manual override || latest summarized hearing (P71 latestRefDate)
-//              — drives Results / Notes and their future gating, unchanged
-//   pending  = the newer un-summarized agenda date (P71 pendingSummaryDate) when
-//              it is later than the headline and no summary_doc exists for it
-//              (the P137 suppression is preserved: a summarized-but-unlinked
-//              hearing is a matcher gap, not a pending hearing) — else ''
-//   display  = manual override || pending || headline — what the column shows
-//              and what the Meeting Date sort / past-week filter key on
-// A manual date override wins everywhere, exactly as before.
-function _tpEffectiveDates(p) {
-  var manMd = (p && p.manualMeetingDate || '').toString().trim();
-  var headline = manMd || (p && p.latestRefDate || '');
-  var pendSum = (p && p.pendingSummaryDate || '').toString().trim();
-  var pending = '';
-  if (pendSum && !manMd && pendSum !== headline && !_tpSummaryDocForDate(p, pendSum)) {
-    var pt = Date.parse(pendSum), ht = Date.parse(headline || '');
-    if (isNaN(ht) || (!isNaN(pt) && pt > ht)) pending = pendSum;
-  }
-  return { headline: headline, pending: pending, display: pending || headline };
-}
-
-// p175r1: the PUBLIC_HEARINGS row (if any) for this project's jurisdiction on a
-// date — used to name the pending agenda's meeting body (e.g. the 9/9 agenda
-// was Plan Commission while the last summarized hearing was City Council).
-// Same juris-key resolution as _tpSummaryDocForDate. Null when no row exists
-// (a minutes-only jurisdiction before its minutes post).
-function _tpHearingForDate(p, dateStr) {
-  if (!p || !dateStr) return null;
-  if (typeof PUBLIC_HEARINGS !== 'object' || !PUBLIC_HEARINGS) return null;
-  var targetDate = _tpNormDateYmd(dateStr);
-  if (!targetDate) return null;
-  var jurisRaw = (p.jurisdiction || '').toString().toLowerCase().trim();
-  var keysToTry = [];
-  if (jurisRaw) keysToTry.push(jurisRaw);
-  if (typeof MUNICIPALITIES !== 'undefined' && Array.isArray(MUNICIPALITIES)) {
-    var hit = MUNICIPALITIES.find(function(m) {
-      return (m.id || '').toLowerCase() === jurisRaw
-          || (m.name || '').toLowerCase() === jurisRaw
-          || (jurisRaw && (m.name || '').toLowerCase().indexOf(jurisRaw) !== -1);
-    });
-    if (hit && hit.id) keysToTry.push(hit.id.toLowerCase());
-  }
-  for (var i = 0; i < keysToTry.length; i++) {
-    var arr = PUBLIC_HEARINGS[keysToTry[i]];
-    if (!Array.isArray(arr)) continue;
-    for (var j = 0; j < arr.length; j++) {
-      var h = arr[j];
-      if (h && _tpNormDateYmd(h.date || h.meeting_date || '') === targetDate) return h;
-    }
-  }
-  return null;
-}
-
-// p175r1: the meeting BODY of the pending agenda, resolved from the agenda
-// document itself. The project's agendaRefs carry the agenda url for the pending
-// date; SCRAPED_DOCS carries that same url as view_url / pdf_url together with
-// the document's meeting_type (and any operator meeting_type_override). An exact
-// url join first; a jurisdiction + date + Agenda join second; '' when neither
-// resolves (the caller then tries the PUBLIC_HEARINGS row, then the summarized
-// hearing's type). The agenda document is the FIRST source because it is an
-// exact join (the same url the ref was minted from) and because the page's
-// hearings copy can lag the scrape: measured 2026-09-10, the served page held
-// 86 Westfield hearings while the CDN snapshot held 87 — the 9/9 APC video,
-// scraped that morning, was the missing row. (The wire itself emits the row
-// with summary_doc blanked — MuniData.js getHearingsJSON — so the lag is the
-// localStorage / snapshot copy, not a wire filter.)
-function _tpAgendaBodyForDate(p, dateStr) {
-  if (!p || !dateStr) return '';
-  if (typeof SCRAPED_DOCS === 'undefined' || !Array.isArray(SCRAPED_DOCS) || !SCRAPED_DOCS.length) return '';
-  var targetDate = _tpNormDateYmd(dateStr);
-  if (!targetDate) return '';
-  var body = function(d) { return ((d.meeting_type_override || d.meeting_type || '') + '').trim(); };
-  var urls = {};
-  (Array.isArray(p.agendaRefs) ? p.agendaRefs : []).forEach(function(a) {
-    if (a && a.url && _tpNormDateYmd(a.date || '') === targetDate) urls[String(a.url)] = true;
-  });
-  var i, d;
-  if (Object.keys(urls).length) {
-    for (i = 0; i < SCRAPED_DOCS.length; i++) {
-      d = SCRAPED_DOCS[i];
-      if (d && (urls[d.view_url] || urls[d.pdf_url]) && body(d)) return body(d);
-    }
-  }
-  var jurisRaw = (p.jurisdiction || '').toString().toLowerCase().trim();
-  if (!jurisRaw) return '';
-  for (i = 0; i < SCRAPED_DOCS.length; i++) {
-    d = SCRAPED_DOCS[i];
-    if (!d || _tpNormDateYmd(d.meeting_date || '') !== targetDate) continue;
-    if (String(d.document_type || '').toLowerCase() !== 'agenda') continue;
-    var dj = (d.jurisdiction || '').toString().toLowerCase();
-    if (dj === jurisRaw || dj.indexOf(jurisRaw) !== -1 || jurisRaw.indexOf(dj) !== -1) {
-      if (body(d)) return body(d);
-    }
-  }
-  return '';
-}
-
 // P71 R3: persist Builder dropdown change via update_tracked_project. Optimistic
 // local update + rollback on error (mirrors tpStatusChange).
 function tpBuilderChange(selectEl) {
@@ -7943,74 +7848,10 @@ function _tpNormDateYmd(raw) {
   return s.slice(0, 10);
 }
 
-// P137: does a SUMMARIZED hearing exist for this project's jurisdiction on an
-// arbitrary date? (Generalizes _tpFindSummaryDocFor, which is pinned to
-// p.latestMeetingDate.) Used to suppress a false "⏳ pending summary" flag — if a
-// summary_doc exists for the pending date, the hearing was summarized and nothing
-// is pending. Mirrors _tpFindSummaryDocFor's juris-key resolution exactly.
-function _tpSummaryDocForDate(p, dateStr) {
-  if (!p || !dateStr) return '';
-  if (typeof PUBLIC_HEARINGS !== 'object' || !PUBLIC_HEARINGS) return '';
-  var targetDate = _tpNormDateYmd(dateStr);
-  if (!targetDate) return '';
-  var jurisRaw = (p.jurisdiction || '').toString().toLowerCase().trim();
-  var keysToTry = [];
-  if (jurisRaw) keysToTry.push(jurisRaw);
-  if (typeof MUNICIPALITIES !== 'undefined' && Array.isArray(MUNICIPALITIES)) {
-    var hit = MUNICIPALITIES.find(function(m) {
-      return (m.id || '').toLowerCase() === jurisRaw
-          || (m.name || '').toLowerCase() === jurisRaw
-          || (jurisRaw && (m.name || '').toLowerCase().indexOf(jurisRaw) !== -1);
-    });
-    if (hit && hit.id) keysToTry.push(hit.id.toLowerCase());
-  }
-  for (var i = 0; i < keysToTry.length; i++) {
-    var arr = PUBLIC_HEARINGS[keysToTry[i]];
-    if (!Array.isArray(arr)) continue;
-    for (var j = 0; j < arr.length; j++) {
-      var h = arr[j];
-      if (h && _tpNormDateYmd(h.date || h.meeting_date || '') === targetDate && h.summary_doc) return String(h.summary_doc);
-    }
-  }
-  return '';
-}
-
-function _tpFindSummaryDocFor(p) {
-  if (!p || !p.latestMeetingDate) return '';
-  if (typeof PUBLIC_HEARINGS !== 'object' || !PUBLIC_HEARINGS) return '';
-  var targetDate = _tpNormDateYmd(p.latestMeetingDate);
-  if (!targetDate) return '';
-  var jurisRaw = (p.jurisdiction || '').toString().toLowerCase().trim();
-  // Resolve jurisdiction key — PUBLIC_HEARINGS is keyed by muni id (e.g.
-  // "carmel"). MUNICIPALITIES maps id → {id, name}. Try the raw key first,
-  // then fall back to matching by name.
-  var keysToTry = [];
-  if (jurisRaw) keysToTry.push(jurisRaw);
-  if (typeof MUNICIPALITIES !== 'undefined' && Array.isArray(MUNICIPALITIES)) {
-    var hit = MUNICIPALITIES.find(function(m) {
-      return (m.id || '').toLowerCase() === jurisRaw
-          || (m.name || '').toLowerCase() === jurisRaw
-          || (jurisRaw && (m.name || '').toLowerCase().indexOf(jurisRaw) !== -1);
-    });
-    if (hit && hit.id) keysToTry.push(hit.id.toLowerCase());
-  }
-  for (var i = 0; i < keysToTry.length; i++) {
-    var k = keysToTry[i];
-    var arr = PUBLIC_HEARINGS[k];
-    if (!Array.isArray(arr)) continue;
-    for (var j = 0; j < arr.length; j++) {
-      var h = arr[j];
-      if (!h) continue;
-      var hd = _tpNormDateYmd(h.date || h.meeting_date || '');
-      if (hd === targetDate && h.summary_doc) return String(h.summary_doc);
-    }
-  }
-  return '';
-}
-
 // P106: resolve the matching hearing's meeting_id (= YouTube video id) for a
 // tracked project's latest meeting — used to wire the item-scoped Ask button
-// in the Latest YT column. Mirrors _tpFindSummaryDocFor's jurisdiction/date
+// in the Latest YT column. Resolves the jurisdiction key by id, then by name (the p175r1
+// date helpers that shared this logic were removed in p191r1), then matches the date
 // resolution but returns the meeting_id only when a YouTube video exists.
 function _tpFindMeetingIdFor(p) {
   if (!p || !p.latestMeetingDate) return '';
