@@ -1233,6 +1233,32 @@
      reusing the .tp-action-cell 2-line clamp (≈ old Notes column width). */
   .tp-results-outcome { font-weight: 600; }
   .tp-results-notes { display: block; margin-top: 2px; color: var(--text-dim); }
+  /* p190r2 / AGD-117: the Upcoming / Previous meeting groups (the approved mockup) — a tinted
+     band per group, a coloured rule down each group's first column, and the two "no result"
+     states of the previous meeting. */
+  #tp-table th.tp-band { padding: 6px 10px 4px; font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; border-bottom: none; }
+  #tp-table th.tp-band small { font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--muted, #888); margin-left: 6px; }
+  #tp-table th.tp-band-up, #tp-table th.tp-col-up, #tp-table td.tp-slot-up { background: rgba(232, 134, 42, 0.07); }
+  #tp-table th.tp-band-prev, #tp-table th.tp-col-prev, #tp-table td.tp-slot-prev { background: rgba(106, 183, 255, 0.06); }
+  #tp-table th.tp-band-up { color: #e8862a; border-left: 3px solid #e8862a; }
+  #tp-table th.tp-band-prev { color: #6ab7ff; border-left: 3px solid rgba(106, 183, 255, 0.6); }
+  #tp-table .tp-slot-up.tp-slot-first, #tp-table th.tp-col-up.tp-slot-first { border-left: 3px solid #e8862a; }
+  #tp-table .tp-slot-prev.tp-slot-first, #tp-table th.tp-col-prev.tp-slot-first { border-left: 3px solid rgba(106, 183, 255, 0.6); }
+  #tp-table td.tp-slot-up, #tp-table td.tp-slot-prev { padding: 8px 8px; vertical-align: top; }
+  #tp-table td.tp-slot-none { color: var(--muted, #888); font-style: italic; font-size: 11px; }
+  .tp-slot-date { font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .tp-slot-up .tp-slot-date { color: #e8862a; }
+  .tp-slot-prev .tp-slot-date { color: #6ab7ff; }
+  .tp-slot-today { display: inline-block; margin-top: 3px; font-size: 9px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #111; background: #e8862a; border-radius: 3px; padding: 1px 5px; }
+  .tp-slot-more { display: block; margin-top: 3px; font-size: 10px; color: #e8862a; cursor: help; }
+  .tp-state { display: inline-block; font-size: 10px; font-weight: 600; border-radius: 3px; padding: 1px 6px; white-space: nowrap; }
+  .tp-state-wait { color: var(--muted, #aaa); border: 1px dashed var(--muted, #888); }
+  .tp-state-miss { color: #e8928b; background: rgba(212, 97, 90, 0.13); border: 1px solid rgba(212, 97, 90, 0.5); }
+  .tp-state-hint { display: block; margin-top: 3px; font-size: 10px; line-height: 1.3; color: var(--muted, #888); max-width: 220px; white-space: normal; }
+  .tp-chip[aria-pressed="true"] { background: rgba(232, 134, 42, 0.18); border-color: #e8862a; color: #e8862a; }
+  [data-theme="light"] .tp-slot-up .tp-slot-date, [data-theme="light"] #tp-table th.tp-band-up { color: #9a5a12; }
+  [data-theme="light"] .tp-slot-prev .tp-slot-date, [data-theme="light"] #tp-table th.tp-band-prev { color: #1b4965; }
+  [data-theme="light"] .tp-state-miss { color: #a8403a; }
   /* P95: persistent horizontal scrollbar pinned to the bottom of the TP table
      viewport, synced to the table's own horizontal scroll so the user never
      has to scroll down to the bottom of a long table to slide it sideways. */
