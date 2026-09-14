@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p189r3 -->
+<!-- MIP build p190r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p189r3">
+<link rel="stylesheet" href="styles.css?v=p190r1">
 </head>
 <body>
 
@@ -7637,57 +7637,106 @@ function tpToggleAction(el) {
 }
 window.tpToggleAction = tpToggleAction;
 
+// p190r1 / AGD-118 (Ty, 2026-09-14: "when I click into a field the text is deleted"). The four
+// override fields opened EMPTY with the derived value only as grey placeholder text, so the first
+// keystroke wiped the value off the screen. They now open filled with what the table shows — the
+// override if one is set, else the derived value — and tpSaveEditRow sends a value that still
+// equals the derived one as '' (automatic), so a Save never pins today's value.
+// _tpEditDerived(p) = what each column shows with NO override for that field, resolved exactly as
+// tpRenderTable does: Meeting Date = the pending agenda || the summarized hearing; Meeting Type =
+// the displayed date's agenda body, else its hearing row, else the summarized hearing's type;
+// Results = Outcome + Vote, then Additional Notes.
+function _tpEditDerived(p) {
+  var noMd = {};
+  for (var k in p) noMd[k] = p[k];
+  noMd.manualMeetingDate = '';
+  var eff = _tpEffectiveDates(p);
+  var pendHearing = eff.pending ? _tpHearingForDate(p, eff.pending) : null;
+  var mtype = (eff.pending ? _tpAgendaBodyForDate(p, eff.pending) : '')
+    || (pendHearing && (pendHearing.meeting_type || '').toString().trim())
+    || (p.latestMeetingType || '');
+  return {
+    mtype:   String(mtype || '').trim(),
+    mdate:   String(_tpEffectiveDates(noMd).display || '').trim(),
+    desc:    (p.latestRequestSummary || '').toString().trim(),
+    results: [p.latestActionTaken, p.latestAdditionalNotes]
+               .map(function(s) { return (s || '').toString().trim(); })
+               .filter(Boolean).join('\n')
+  };
+}
+
+// p190r1 / AGD-118: a typed override that still equals the derived value is not an override.
+// Dates compare as yyyy-MM-dd (M/D/YYYY and yyyy-MM-dd both reach this field); text compares with
+// whitespace collapsed (a textarea rewrites \r\n, and a trailing newline is invisible). A cleared
+// field is automatic, as before.
+function _tpOverrideOrAuto(typed, derived, isDate) {
+  var t = (typed || '').toString().trim();
+  var d = (derived || '').toString().trim();
+  if (!t || !d) return t;
+  var dateRe = /^(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{4})$/;
+  if (isDate && dateRe.test(t) && dateRe.test(d)) return _tpNormDateYmd(t) === _tpNormDateYmd(d) ? '' : t;
+  return t.replace(/\s+/g, ' ') === d.replace(/\s+/g, ' ') ? '' : t;
+}
+
 // P61 task 2: the inline Edit dropdown row. Fields: project_name, ordinance_id,
 // aliases. Save uses update_tracked_project; Delete is soft (status='deleted').
 // Aliases are also where additional ordinance numbers go (task 1 — single
 // schema column, comma-separated, already participates in auto-scan matching).
+// p190r1 / AGD-118: every field opens holding its current value, escaped with esc() — escAttr is
+// a JS-string escaper, so a " in a name or description ended the value attribute early and a \
+// doubled on every save.
 function _tpRenderEditDropdown(p, pidAttr) {
   var pid = p.projectId || '';
+  var der = _tpEditDerived(p);
+  var man = function(v) { return (v || '').toString().trim(); };
+  var mMt = man(p.manualMeetingType), mMd = man(p.manualMeetingDate), mDs = man(p.manualDescription), mRs = man(p.manualResults);
+  var src = function(manual) {
+    return manual
+      ? ' <span style="font-weight:600;color:#e0a040;" title="Your value — clear the field to go back to automatic">· manual</span>'
+      : ' <span style="font-weight:400;color:var(--muted,#888);" title="Derived from the agenda / summary">· auto</span>';
+  };
   return '<tr class="tp-edit-row" data-edit-pid="' + pidAttr + '" style="background:var(--bg-card,#1a1a1a);">' +
     '<td colspan="17" style="padding:14px 18px;border-bottom:1px solid var(--border,#333);">' +
       '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;align-items:end;">' +
         '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);">Project name' +
-          '<input id="tpe-name-' + pidAttr + '" type="text" value="' + escAttr(p.projectName || '') + '" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
+          '<input id="tpe-name-' + pidAttr + '" type="text" value="' + esc(p.projectName || '') + '" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
         '</label>' +
         '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);">Ordinance # (primary)' +
-          '<input id="tpe-ord-' + pidAttr + '" type="text" value="' + escAttr(p.ordinanceId || '') + '" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
+          '<input id="tpe-ord-' + pidAttr + '" type="text" value="' + esc(p.ordinanceId || '') + '" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
         '</label>' +
         '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);">Aliases / Additional Ord #s (comma-sep)' +
-          '<input id="tpe-alias-' + pidAttr + '" type="text" value="' + escAttr(p.aliases || '') + '" placeholder="ORD-2024-16, ORD-2024-17, alt project name" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
+          '<input id="tpe-alias-' + pidAttr + '" type="text" value="' + esc(p.aliases || '') + '" placeholder="ORD-2024-16, ORD-2024-17, alt project name" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
         '</label>' +
         // P71 R3: Petitioner editable in the Edit dropdown.
         // P79 A4: precedence flipped — when this field is non-empty, the
         // manual value WINS over the YT-derived petitionerDisplay so saves
         // are visible in the table on next render.
         '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);">Petitioner / Applicant' +
-          '<input id="tpe-petitioner-' + pidAttr + '" type="text" value="' + escAttr(p.petitionerApplicant || '') + '" placeholder="Manual value wins over YT-derived (P79)" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
+          '<input id="tpe-petitioner-' + pidAttr + '" type="text" value="' + esc(p.petitionerApplicant || '') + '" placeholder="Manual value wins over YT-derived (P79)" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
         '</label>' +
         // P79 A1: Lots — total lots/homesites in proposed residential project.
         // Gemini extracts from YouTube summary transcript (carry-forward R2);
         // manual override here persists to Tracked_Projects.lots col 18.
         '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);">Lots (homesites)' +
-          '<input id="tpe-lots-' + pidAttr + '" type="text" inputmode="numeric" value="' + escAttr(p.lots == null ? '' : String(p.lots)) + '" placeholder="e.g. 124" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
+          '<input id="tpe-lots-' + pidAttr + '" type="text" inputmode="numeric" value="' + esc(p.lots == null ? '' : String(p.lots)) + '" placeholder="e.g. 124" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
         '</label>' +
-        // P124: manual overrides for the otherwise-derived Meeting Type / Meeting
-        // Date / Results columns. Empty = use the value joined from Meetings +
-        // Agenda_Items; a non-empty value wins (and stops auto-updating from new
-        // meetings) — same manual-wins precedence as Petitioner/Lots. The
-        // placeholder shows the current derived value for reference.
-        '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);">Meeting Type (override)' +
-          '<input id="tpe-mtype-' + pidAttr + '" type="text" value="' + escAttr(p.manualMeetingType || '') + '" placeholder="' + escAttr(p.latestMeetingType || 'auto') + '" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
+        // P124 / P142 item 5: manual overrides for the otherwise-derived Meeting Type /
+        // Meeting Date / Description / Results columns — same manual-wins precedence as
+        // Petitioner/Lots. Each opens holding what the table shows (p190r1 / AGD-118); a
+        // value that differs from the derived one wins until a NEWER summary is matched
+        // (P71 manual_overrides_asof), and one left equal to it (or cleared) stays automatic.
+        '<div style="grid-column:1/-1;font-size:11px;color:var(--muted,#888);">Each field below shows what the table shows. Leave it as it is (or clear it) and it stays automatic; change it and your value wins until a newer summary is matched.</div>' +
+        '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);"><span>Meeting Type' + src(mMt) + '</span>' +
+          '<input id="tpe-mtype-' + pidAttr + '" type="text" value="' + esc(mMt || der.mtype) + '" placeholder="auto" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
         '</label>' +
-        '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);">Meeting Date (override)' +
-          '<input id="tpe-mdate-' + pidAttr + '" type="text" value="' + escAttr(p.manualMeetingDate || '') + '" placeholder="' + escAttr(p.latestRefDate || 'M/D/YYYY') + '" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
+        '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);"><span>Meeting Date' + src(mMd) + '</span>' +
+          '<input id="tpe-mdate-' + pidAttr + '" type="text" value="' + esc(mMd || der.mdate) + '" placeholder="M/D/YYYY" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
         '</label>' +
-        // P142 item 5: Description override. Like the others it YIELDS to a newer
-        // summary — when the next hearing summary is matched to this project, the
-        // fresh summary replaces this text (it's a convenience edit, not a pin).
-        '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);grid-column:1/-1;">Description (override) ' +
-          '<span style="font-weight:400;color:var(--muted,#888);">— replaced when a newer summary is matched</span>' +
-          '<textarea id="tpe-desc-' + pidAttr + '" rows="2" placeholder="' + escAttr(p.latestRequestSummary || 'Request summary — leave blank to use the auto value') + '" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;resize:vertical;font-family:inherit;">' + esc(p.manualDescription || '') + '</textarea>' +
+        '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);grid-column:1/-1;"><span>Description' + src(mDs) + '</span>' +
+          '<textarea id="tpe-desc-' + pidAttr + '" rows="2" placeholder="Request summary" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;resize:vertical;font-family:inherit;">' + esc(mDs || der.desc) + '</textarea>' +
         '</label>' +
-        '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);grid-column:1/-1;">Results (override)' +
-          '<textarea id="tpe-results-' + pidAttr + '" rows="2" placeholder="Outcome / Vote / Additional Notes — leave blank to use the auto value" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;resize:vertical;font-family:inherit;">' + esc(p.manualResults || '') + '</textarea>' +
+        '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);grid-column:1/-1;"><span>Results' + src(mRs) + '</span>' +
+          '<textarea id="tpe-results-' + pidAttr + '" rows="2" placeholder="Outcome / Vote / Additional Notes" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;resize:vertical;font-family:inherit;">' + esc(mRs || der.results) + '</textarea>' +
         '</label>' +
       '</div>' +
       '<div style="margin-top:12px;display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;">' +
@@ -7728,10 +7777,14 @@ function tpSaveEditRow(pid) {
   var pet  = petEl  ? (petEl.value  || '').trim() : (current.petitionerApplicant || '');
   var lots = lotsEl ? (lotsEl.value || '').trim() : (current.lots == null ? '' : String(current.lots));
   // P124: override values (empty string = clear the override → fall back to derived).
-  var mtype   = mtypeEl   ? (mtypeEl.value   || '').trim() : (current.manualMeetingType || '');
-  var mdate   = mdateEl   ? (mdateEl.value   || '').trim() : (current.manualMeetingDate || '');
-  var results = resultsEl ? (resultsEl.value || '').trim() : (current.manualResults || '');
-  var desc    = descEl    ? (descEl.value    || '').trim() : (current.manualDescription || '');
+  // p190r1 / AGD-118: the fields open holding the derived value, so a field nobody changed
+  // still equals it — send that as '' (automatic), or every Save would pin today's value and
+  // stamp manual_overrides_asof below. Derived from the same state the row was rendered from.
+  var der = _tpEditDerived(current);
+  var mtype   = mtypeEl   ? _tpOverrideOrAuto(mtypeEl.value,   der.mtype,   false) : (current.manualMeetingType || '');
+  var mdate   = mdateEl   ? _tpOverrideOrAuto(mdateEl.value,   der.mdate,   true)  : (current.manualMeetingDate || '');
+  var results = resultsEl ? _tpOverrideOrAuto(resultsEl.value, der.results, false) : (current.manualResults || '');
+  var desc    = descEl    ? _tpOverrideOrAuto(descEl.value,    der.desc,    false) : (current.manualDescription || '');
   // P142 item 5: stamp the override as-of date = the project's CURRENT derived latest
   // summary date. The backend (P71) shows the edits only until a NEWER summary lands,
   // then the fresh summary overwrites them. Only stamp when an override is actually set.
