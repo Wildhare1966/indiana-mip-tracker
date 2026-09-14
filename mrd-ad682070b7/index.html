@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p189r1 -->
+<!-- MIP build p189r2 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p189r1">
+<link rel="stylesheet" href="styles.css?v=p189r2">
 </head>
 <body>
 
@@ -5144,6 +5144,13 @@ function buildUnifiedDateSet(muniId) {
       dateMap[k] = { date: h.date, body_type: bt, status: '', youtube_url: '', summary_doc: '', minutes_url: '', agendas: [], meeting_type: h.meeting_type || bt };
     }
     const cur = dateMap[k];
+    // p189r2 / AGD-115: keep EVERY hearing, not only the merged one, so the row can render
+    // each video with its own Summary and state. One entry per video url (else per Doc).
+    const hKey = h.youtube_url || h.summary_doc || '';
+    if (hKey) {
+      if (!cur._hearings) cur._hearings = [];
+      if (!cur._hearings.some(x => x._key === hKey)) cur._hearings.push(Object.assign({ _key: hKey }, h));
+    }
     if (h.youtube_url) cur.youtube_url = h.youtube_url;
     if (h.video_title) cur.video_title = h.video_title;
     if (h.minutes_url) cur.minutes_url = h.minutes_url;
@@ -5239,6 +5246,11 @@ function buildUnifiedDateSet(muniId) {
       if (!target.video_title && e.video_title) target.video_title = e.video_title;
       if (!target.summary_doc && e.summary_doc) target.summary_doc = e.summary_doc;
       if (!target.minutes_url && e.minutes_url) target.minutes_url = e.minutes_url;
+      // p189r2 / AGD-115: the folded entry's hearings travel too.
+      (e._hearings || []).forEach(x => {
+        if (!target._hearings) target._hearings = [];
+        if (!target._hearings.some(y => y._key === x._key)) target._hearings.push(x);
+      });
       toDelete.push(k);
     }
   });
@@ -5410,6 +5422,93 @@ function renderScheduleBanner(muniId, unified, ref) {
   return html;
 }
 
+// p189r2 / AGD-115: one hearing's block in the YouTube / Summary cell — the body of the old
+// single-video cell, parameterised so a bucket holding several hearings renders each one.
+// `vi` suffixes every element id (0 = exactly the ids the single-video row always used);
+// `tail` lands before the title line (where the single-video row's minutes button always sat).
+function ytHearingBlockHtml(entry, muniId, bodyLabel, rowIdx, vi, multi, tail) {
+  const idBase = muniId + '_' + bodyLabel.replace(/\s/g,'') + '_' + rowIdx + (vi ? '_v' + vi : '');
+  const summaryId = 'yts_' + idBase;
+  const btnId = 'ytrs_' + idBase;
+  let ytCell = `<div class="yt-hearing-item">`;
+  if (entry.youtube_url) {
+    ytCell += `<a href="${escUrl(entry.youtube_url)}" target="_blank" class="hearing-link yt" data-doc-link="youtube" data-scraped-id="${escAttr(entry.meeting_id || '')}">▶ YouTube</a>`;
+  }
+  ytCell += `<span id="${esc(summaryId)}">`;
+  // P80 Stage 1.9: coverage_state branching.
+  const covState = (entry.coverage_state || '').toLowerCase();
+  const isCovPending = covState === 'retry_queued'
+                    || covState.indexOf('retry_attempt_') === 0
+                    || covState === 'needs_human_review'
+                    || covState === 'force_redraft';
+  const isCovPartialAccept = covState === 'accept_as_partial';
+  const isCovPartialNoSrc  = covState === 'no_better_source';
+  let covLabelSuffix = '';
+  let covClsSuffix = '';
+  if (isCovPartialAccept) { covLabelSuffix = ' (partial)';              covClsSuffix = ' summary-partial-accept'; }
+  else if (isCovPartialNoSrc) { covLabelSuffix = ' (recording incomplete)'; covClsSuffix = ' summary-partial-nosrc';  }
+  if (isCovPending) {
+    ytCell += covPendingHtml(covState, entry);
+  } else if (entry.summary_doc) {
+    // P58.8 r4: default Summary button color is yellow; when the meeting's
+    // summary has been flagged for review, the button shifts to orange
+    // (current accent) so the flag state is visible on the button itself,
+    // not only in a transient toast right after click.
+    const sumFlagCls = entry._summary_flagged ? ' summary-flagged' : '';
+    // P67 R2: summary approved (visitor pressed Yes) → anchor goes green.
+    const sumApprovedLocal = window._summaryApprovedLocal && window._summaryApprovedLocal[String(entry.meeting_id || '')];
+    const sumConfirmedCls = (entry._summary_approved || sumApprovedLocal) ? ' summary-confirmed' : '';
+    const sumAnchorId = 'sum_a_' + idBase;
+    ytCell += `<a id="${esc(sumAnchorId)}" href="${escUrl(entry.summary_doc)}" target="_blank" class="hearing-link doc${sumFlagCls}${sumConfirmedCls}${covClsSuffix}" data-doc-link="summary" data-scraped-id="${escAttr(entry.meeting_id || '')}">✦ Summary${covLabelSuffix}</a>`;
+  }
+  ytCell += `</span>`;
+  // p174r1 / AGD-70: a slot the summary-flags read fills with a chip when the
+  // daily protocol has flagged this meeting (blocked / self-healing /
+  // dispositioned). Carries what the popover's buttons need to act.
+  if (entry.meeting_id) {
+    ytCell += `<span class="sum-flag-slot" data-mid="${escAttr(entry.meeting_id)}" data-yt="${escAttr(entry.youtube_url || '')}"`
+            + ` data-muni="${escAttr(muniId)}" data-date="${escAttr(entry.date)}" data-btn="${escAttr(btnId)}" data-sum="${escAttr(summaryId)}"></span>`;
+  }
+  // P106: the Ask feature moved to the Tracked Projects tab (item-scoped
+  // Detailed Summary). The whole-meeting Q&A pill was removed from here.
+  if (entry.summary_doc && !isCovPending) {
+    // P67 R2: "Yes" button between Summary and Flag — turns Summary anchor
+    // green via .summary-confirmed (same green family as Agenda/Minutes Yes).
+    // Hidden once approved (mirrors agApprove/mnApprove pattern).
+    const sumApprovedLocal2 = window._summaryApprovedLocal && window._summaryApprovedLocal[String(entry.meeting_id || '')];
+    if (!entry._summary_approved && !sumApprovedLocal2) {
+      const yesId = 'sumyes_' + idBase;
+      const anchorId2 = 'sum_a_' + idBase;
+      ytCell += `<button class="ag-correct-btn yes" id="${esc(yesId)}" onclick="summaryApprove('${escAttr(entry.meeting_id || '')}','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(entry.meeting_type || '')}','${esc(yesId)}','${esc(anchorId2)}')">✓ Yes</button>`;
+    }
+    // P31 R3: Replace "↻ Resubmit" with "⚑ Flag" for visitor reporting.
+    // Operator runs batch resummarize against flagged meetings.
+    if (entry._summary_flagged) {
+      ytCell += `<button class="yt-resubmit-btn" disabled title="Summary already flagged" style="opacity:0.6;cursor:default;">⚑ Flagged</button>`;
+    } else {
+      ytCell += `<button class="yt-resubmit-btn" id="${esc(btnId)}" onclick="showFlagSummaryPopover(this,'${escAttr(entry.meeting_id || '')}','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(entry.meeting_type || '')}')">⚑ Flag</button>`;
+    }
+  } else if (entry.youtube_url && !isCovPending) {
+    // No summary yet — keep the existing Generate path (operator-facing).
+    // P77: Generate requires a YT source URL, so it only fires when youtube_url exists.
+    ytCell += `<button class="yt-resubmit-btn" id="${esc(btnId)}" onclick="ytResubmit('${escAttr(entry.youtube_url)}','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(btnId)}','${escAttr(summaryId)}')">↻ Generate Summary</button>`;
+  }
+  if (tail) ytCell += tail;
+  // P57 W5b: ✕ remove-YouTube-URL button removed per user request. The
+  // Flag-summary button covers visitor-reportable issues; URL removal is
+  // an operator action that lives in the Meetings sheet directly.
+  // P31 R6: visible truncated YouTube title on its own line. Click to toggle full text.
+  // Replaces the unreliable `title=` hover (didn't render in some browsers / on touch).
+  // p189r2: in a multi-hearing row a Summary with no video says where it came from.
+  const titleText = entry.video_title
+    || (multi && !entry.youtube_url && /-M$/.test(entry.meeting_id || '') ? 'Summary from the minutes' : '');
+  if (titleText) {
+    ytCell += `<div class="yt-title-inline" onclick="toggleYtTitle(this)" title="Click to expand / collapse">${esc(titleText)}</div>`;
+  }
+  ytCell += `</div>`;
+  return ytCell;
+}
+
 // ── Render one body section ──
 function renderBodySection(bodyLabel, dates, muniId) {
   let rowIdx = 0;
@@ -5427,93 +5526,42 @@ function renderBodySection(bodyLabel, dates, muniId) {
     // hid the Summary anchor for those rows. YT anchor itself stays gated on
     // youtube_url; only the "Generate Summary" branch needs YT as a source.
     let ytCell = '';
+    // p189r2 / AGD-115 (Ty, 2026-09-14: "render every video"). A date + body bucket can hold
+    // several hearings — Bargersville TC 6/30's regular and Administrative meetings, Carmel's
+    // Council + Committee of the Whole, Part 1 / Part 2, one meeting on two channels (69
+    // buckets fleet-wide; 57 hid a second Summary). Each hearing now gets its own block —
+    // YouTube, Summary and its state, Yes / Flag / Generate, the flag chip, the title. A
+    // bucket with one hearing renders exactly as before (ytHearingBlockHtml, vi = 0).
+    const hearingsHere = entry._hearings || [];
     if (entry.youtube_url || entry.summary_doc) {
-      const summaryId = 'yts_' + muniId + '_' + bodyLabel.replace(/\s/g,'') + '_' + rowIdx;
-      const btnId = 'ytrs_' + muniId + '_' + bodyLabel.replace(/\s/g,'') + '_' + rowIdx;
-      ytCell = `<div class="yt-hearing-item">`;
-      if (entry.youtube_url) {
-        ytCell += `<a href="${escUrl(entry.youtube_url)}" target="_blank" class="hearing-link yt" data-doc-link="youtube" data-scraped-id="${escAttr(entry.meeting_id || '')}">▶ YouTube</a>`;
+      // Multi-block only when the bucket holds 2+ distinct VIDEOS. One video + a minutes
+      // Summary stays one block with the merged Summary (p186r2, Carmel Aug 3) — splitting it
+      // would put "Generate Summary" on a meeting the minutes already cover (75 such buckets).
+      const videoHearings = hearingsHere.filter(h => h.youtube_url);
+      const multi = videoHearings.length > 1;
+      let views = [entry];
+      if (multi) {
+        // A Summary with no video (a minutes Summary) follows the videos, once per meeting id:
+        // some minutes ids carry several Meetings rows (Bargersville BG-2026-07-20-M x4, AGD-116);
+        // the later one wins, as in the merge.
+        const summaryOnly = new Map();
+        hearingsHere.filter(h => !h.youtube_url).forEach(h => summaryOnly.set(h.meeting_id || h._key, h));
+        views = videoHearings.concat([...summaryOnly.values()]).map(h => Object.assign({}, entry, {
+          youtube_url: h.youtube_url || '', video_title: h.video_title || '',
+          summary_doc: h.summary_doc || '', meeting_id: h.meeting_id || '',
+          coverage_state: h.coverage_state || '',
+          coverage_pct: (h.coverage_pct === undefined) ? null : h.coverage_pct,
+          _summary_flagged: !!h._summary_flagged, _summary_flag_entry_id: h._summary_flag_entry_id || '' }));
       }
-      ytCell += `<span id="${esc(summaryId)}">`;
-      // P80 Stage 1.9: coverage_state branching.
-      const covState = (entry.coverage_state || '').toLowerCase();
-      const isCovPending = covState === 'retry_queued'
-                        || covState.indexOf('retry_attempt_') === 0
-                        || covState === 'needs_human_review'
-                        || covState === 'force_redraft';
-      const isCovPartialAccept = covState === 'accept_as_partial';
-      const isCovPartialNoSrc  = covState === 'no_better_source';
-      let covLabelSuffix = '';
-      let covClsSuffix = '';
-      if (isCovPartialAccept) { covLabelSuffix = ' (partial)';              covClsSuffix = ' summary-partial-accept'; }
-      else if (isCovPartialNoSrc) { covLabelSuffix = ' (recording incomplete)'; covClsSuffix = ' summary-partial-nosrc';  }
-      if (isCovPending) {
-        ytCell += covPendingHtml(covState, entry);
-      } else if (entry.summary_doc) {
-        // P58.8 r4: default Summary button color is yellow; when the meeting's
-        // summary has been flagged for review, the button shifts to orange
-        // (current accent) so the flag state is visible on the button itself,
-        // not only in a transient toast right after click.
-        const sumFlagCls = entry._summary_flagged ? ' summary-flagged' : '';
-        // P67 R2: summary approved (visitor pressed Yes) → anchor goes green.
-        const sumApprovedLocal = window._summaryApprovedLocal && window._summaryApprovedLocal[String(entry.meeting_id || '')];
-        const sumConfirmedCls = (entry._summary_approved || sumApprovedLocal) ? ' summary-confirmed' : '';
-        const sumAnchorId = 'sum_a_' + muniId + '_' + bodyLabel.replace(/\s/g,'') + '_' + rowIdx;
-        ytCell += `<a id="${esc(sumAnchorId)}" href="${escUrl(entry.summary_doc)}" target="_blank" class="hearing-link doc${sumFlagCls}${sumConfirmedCls}${covClsSuffix}" data-doc-link="summary" data-scraped-id="${escAttr(entry.meeting_id || '')}">✦ Summary${covLabelSuffix}</a>`;
-      }
-      ytCell += `</span>`;
-      // p174r1 / AGD-70: a slot the summary-flags read fills with a chip when the
-      // daily protocol has flagged this meeting (blocked / self-healing /
-      // dispositioned). Carries what the popover's buttons need to act.
-      if (entry.meeting_id) {
-        ytCell += `<span class="sum-flag-slot" data-mid="${escAttr(entry.meeting_id)}" data-yt="${escAttr(entry.youtube_url || '')}"`
-                + ` data-muni="${escAttr(muniId)}" data-date="${escAttr(entry.date)}" data-btn="${escAttr(btnId)}" data-sum="${escAttr(summaryId)}"></span>`;
-      }
-      // P106: the Ask feature moved to the Tracked Projects tab (item-scoped
-      // Detailed Summary). The whole-meeting Q&A pill was removed from here.
-      if (entry.summary_doc && !isCovPending) {
-        // P67 R2: "Yes" button between Summary and Flag — turns Summary anchor
-        // green via .summary-confirmed (same green family as Agenda/Minutes Yes).
-        // Hidden once approved (mirrors agApprove/mnApprove pattern).
-        const sumApprovedLocal2 = window._summaryApprovedLocal && window._summaryApprovedLocal[String(entry.meeting_id || '')];
-        if (!entry._summary_approved && !sumApprovedLocal2) {
-          const yesId = 'sumyes_' + muniId + '_' + bodyLabel.replace(/\s/g,'') + '_' + rowIdx;
-          const anchorId2 = 'sum_a_' + muniId + '_' + bodyLabel.replace(/\s/g,'') + '_' + rowIdx;
-          ytCell += `<button class="ag-correct-btn yes" id="${esc(yesId)}" onclick="summaryApprove('${escAttr(entry.meeting_id || '')}','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(entry.meeting_type || '')}','${esc(yesId)}','${esc(anchorId2)}')">✓ Yes</button>`;
-        }
-        // P31 R3: Replace "↻ Resubmit" with "⚑ Flag" for visitor reporting.
-        // Operator runs batch resummarize against flagged meetings.
-        if (entry._summary_flagged) {
-          ytCell += `<button class="yt-resubmit-btn" disabled title="Summary already flagged" style="opacity:0.6;cursor:default;">⚑ Flagged</button>`;
-        } else {
-          ytCell += `<button class="yt-resubmit-btn" id="${esc(btnId)}" onclick="showFlagSummaryPopover(this,'${escAttr(entry.meeting_id || '')}','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(entry.meeting_type || '')}')">⚑ Flag</button>`;
-        }
-      } else if (entry.youtube_url && !isCovPending) {
-        // No summary yet — keep the existing Generate path (operator-facing).
-        // P77: Generate requires a YT source URL, so it only fires when youtube_url exists.
-        ytCell += `<button class="yt-resubmit-btn" id="${esc(btnId)}" onclick="ytResubmit('${escAttr(entry.youtube_url)}','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(btnId)}','${escAttr(summaryId)}')">↻ Generate Summary</button>`;
-      }
-      // p186r1: the video has no summary — blocked, queued, or stuck "pending review"
-      // (Carmel Aug 3: a requeued caption-less video never resolves) — but the minutes
-      // are here.
-      // p189r1 (Ty, 2026-09-14, Bargersville TC 6/30: "has associated Minutes … no
-      // option to choose drafting the Summary from Minutes"). The row HAD a summary —
-      // the Administrative meeting's, drafted from an unintelligible recording (0%) —
-      // so the `!summary_doc` gate hid the button on exactly the row that needed it.
-      // A summary awaiting review, or marked "recording incomplete", is no reason to
-      // withhold the minutes. After the press the minutes Summary wins the merge
-      // (step 2 of buildUnifiedDateSet) and the button goes away.
-      const mnSummaryWeak = !entry.summary_doc || covState === 'needs_human_review' || isCovPartialNoSrc;
-      if (mnSummaryWeak && entry.minutes_sd_id && isPast) ytCell += mnFromMinutesBtnHtml(entry);
-      // P57 W5b: ✕ remove-YouTube-URL button removed per user request. The
-      // Flag-summary button covers visitor-reportable issues; URL removal is
-      // an operator action that lives in the Meetings sheet directly.
-      // P31 R6: visible truncated YouTube title on its own line. Click to toggle full text.
-      // Replaces the unreliable `title=` hover (didn't render in some browsers / on touch).
-      if (entry.video_title) {
-        ytCell += `<div class="yt-title-inline" onclick="toggleYtTitle(this)" title="Click to expand / collapse">${esc(entry.video_title)}</div>`;
-      }
-      ytCell += `</div>`;
+      // p186r1: a past meeting whose video Summary is missing, blocked or stuck — but whose
+      // minutes are scraped — offers "Summary from minutes". p189r1 (Bargersville TC 6/30): a
+      // Summary awaiting review, or marked "recording incomplete", is no reason to withhold it.
+      // p189r2: judged across every hearing in the bucket, and offered once per row.
+      const weak = v => { const c = String(v.coverage_state || '').toLowerCase();
+        return !v.summary_doc || c === 'needs_human_review' || c === 'no_better_source'; };
+      const mnBtn = (views.every(weak) && entry.minutes_sd_id && isPast) ? mnFromMinutesBtnHtml(entry) : '';
+      ytCell = views.map((v, vi) => ytHearingBlockHtml(v, muniId, bodyLabel, rowIdx, vi, multi, multi ? '' : mnBtn)).join('');
+      if (multi && mnBtn) ytCell += `<div class="yt-hearing-item">${mnBtn}</div>`;
     } else if (isPast) {
       const addYtId = 'addyt_' + muniId + '_' + rowIdx;
       ytCell = `<button class="add-url-btn" id="${esc(addYtId)}" onclick="showAddUrlPopover(this,'youtube','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(entry.meeting_type || entry.body_type || '')}')">+ Add YouTube</button>`;
