@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p188r1 -->
+<!-- MIP build p189r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -5121,6 +5121,21 @@ function buildUnifiedDateSet(muniId) {
   });
 
   // 2. PUBLIC_HEARINGS overlay
+  // p189r1 (Bargersville TC 6/30): several hearings can share one date|body bucket —
+  // the regular meeting's video, the Administrative meeting's video, and after a
+  // "Summary from minutes" press the minutes Summary. The bucket shows ONE summary, and
+  // it was whichever the sheet listed last, so a press could write a good minutes
+  // Summary while the row kept showing the unintelligible one (P188: saved is not
+  // shown). A settled summary now beats one awaiting review or marked incomplete;
+  // between equals the later still wins. The winner's meeting_id, coverage_state and
+  // coverage_pct travel with it, so Accept / No better source / Flag act on the hearing
+  // whose summary is on screen — meeting_id used to be last-wins on its own and could
+  // name a different video than the summary beside it.
+  const summaryWeak = (cs) => {
+    cs = String(cs || '').toLowerCase();
+    return cs === 'needs_human_review' || cs === 'no_better_source' || cs === 'force_redraft'
+        || cs === 'retry_queued' || cs.indexOf('retry_attempt_') === 0;
+  };
   hearings.forEach(h => {
     if (!h.date) return;
     const bt = classifyBodyType(h.meeting_type);
@@ -5128,16 +5143,15 @@ function buildUnifiedDateSet(muniId) {
     if (!dateMap[k]) {
       dateMap[k] = { date: h.date, body_type: bt, status: '', youtube_url: '', summary_doc: '', minutes_url: '', agendas: [], meeting_type: h.meeting_type || bt };
     }
-    if (h.youtube_url) dateMap[k].youtube_url = h.youtube_url;
-    if (h.video_title) dateMap[k].video_title = h.video_title;
-    if (h.summary_doc) dateMap[k].summary_doc = h.summary_doc;
-    if (h.minutes_url) dateMap[k].minutes_url = h.minutes_url;
-    if (h.meeting_id) dateMap[k].meeting_id = h.meeting_id;
-    if (h.meeting_type) dateMap[k].meeting_type = h.meeting_type;
-    if (h._manual_entry_id) dateMap[k]._manual_entry_id = h._manual_entry_id;
+    const cur = dateMap[k];
+    if (h.youtube_url) cur.youtube_url = h.youtube_url;
+    if (h.video_title) cur.video_title = h.video_title;
+    if (h.minutes_url) cur.minutes_url = h.minutes_url;
+    if (h.meeting_type) cur.meeting_type = h.meeting_type;
+    if (h._manual_entry_id) cur._manual_entry_id = h._manual_entry_id;
     if (h._summary_flagged) {
-      dateMap[k]._summary_flagged = true;
-      dateMap[k]._summary_flag_entry_id = h._summary_flag_entry_id || '';
+      cur._summary_flagged = true;
+      cur._summary_flag_entry_id = h._summary_flag_entry_id || '';
     }
     // P80 Stage 1.9: carry coverage_state + coverage_pct through the merge so
     // the muni-page Summary cell can branch on retry/partial/no-source states.
@@ -5145,9 +5159,18 @@ function buildUnifiedDateSet(muniId) {
     // and a caption-less video row merge onto one day (Carmel Aug 3); the video's
     // force_redraft must not render "Summary pending review" over the minutes Summary,
     // whichever row the sheet lists first.
-    if (h.summary_doc) dateMap[k].coverage_state = h.coverage_state || '';
-    else if (h.coverage_state && !dateMap[k].summary_doc) dateMap[k].coverage_state = h.coverage_state;
-    if (h.coverage_pct !== undefined && h.coverage_pct !== null) dateMap[k].coverage_pct = h.coverage_pct;
+    const takeSummary = !!h.summary_doc
+      && (!cur.summary_doc || !summaryWeak(h.coverage_state) || summaryWeak(cur.coverage_state));
+    if (takeSummary) {
+      cur.summary_doc = h.summary_doc;
+      cur.coverage_state = h.coverage_state || '';
+      cur.coverage_pct = (h.coverage_pct === undefined) ? null : h.coverage_pct;
+      if (h.meeting_id) cur.meeting_id = h.meeting_id;
+    } else if (!cur.summary_doc) {
+      if (h.coverage_state) cur.coverage_state = h.coverage_state;
+      if (h.coverage_pct !== undefined && h.coverage_pct !== null) cur.coverage_pct = h.coverage_pct;
+      if (h.meeting_id) cur.meeting_id = h.meeting_id;
+    }
   });
 
   // 3. Scraped docs overlay (agendas) — honor meeting_type_override if set (P18)
@@ -5473,7 +5496,15 @@ function renderBodySection(bodyLabel, dates, muniId) {
       // p186r1: the video has no summary — blocked, queued, or stuck "pending review"
       // (Carmel Aug 3: a requeued caption-less video never resolves) — but the minutes
       // are here.
-      if (!entry.summary_doc && entry.minutes_sd_id && isPast) ytCell += mnFromMinutesBtnHtml(entry);
+      // p189r1 (Ty, 2026-09-14, Bargersville TC 6/30: "has associated Minutes … no
+      // option to choose drafting the Summary from Minutes"). The row HAD a summary —
+      // the Administrative meeting's, drafted from an unintelligible recording (0%) —
+      // so the `!summary_doc` gate hid the button on exactly the row that needed it.
+      // A summary awaiting review, or marked "recording incomplete", is no reason to
+      // withhold the minutes. After the press the minutes Summary wins the merge
+      // (step 2 of buildUnifiedDateSet) and the button goes away.
+      const mnSummaryWeak = !entry.summary_doc || covState === 'needs_human_review' || isCovPartialNoSrc;
+      if (mnSummaryWeak && entry.minutes_sd_id && isPast) ytCell += mnFromMinutesBtnHtml(entry);
       // P57 W5b: ✕ remove-YouTube-URL button removed per user request. The
       // Flag-summary button covers visitor-reportable issues; URL removal is
       // an operator action that lives in the Meetings sheet directly.
