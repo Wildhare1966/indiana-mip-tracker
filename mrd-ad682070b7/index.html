@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p191r1 -->
+<!-- MIP build p200r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p191r1">
+<link rel="stylesheet" href="styles.css?v=p200r1">
 </head>
 <body>
 
@@ -583,7 +583,7 @@
               <!-- p190r2 / AGD-117 (Ty's rulings 2026-09-14): the Upcoming / Previous meeting groups.
                    PublicStatus moved beside the project; the Map column is gone. 18 columns. -->
               <tr style="background:var(--bg-card,#1a1a1a);text-align:left;">
-                <th colspan="6" class="tp-band"></th>
+                <th colspan="7" class="tp-band"></th>
                 <th colspan="3" class="tp-band tp-band-up">Upcoming meeting<small>today or later</small></th>
                 <th colspan="5" class="tp-band tp-band-prev">Previous meeting<small>most recent before today</small></th>
                 <th colspan="4" class="tp-band"></th>
@@ -594,6 +594,7 @@
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">PublicStatus</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Jurisdiction</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Builder</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;" title="Petitioner / Applicant — the manual value when one is set, otherwise the value derived from the hearing summary. Click a cell to expand.">App</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;" title="Total lots / homesites in proposed residential project — Gemini-extracted, manually editable">Lots</th>
                 <th class="tp-col-up tp-slot-first" style="padding:8px 8px;border-bottom:1px solid var(--border,#333);white-space:nowrap;" title="The earliest agenda dated today or later — an evening meeting today has not happened yet">Date</th>
                 <th class="tp-col-up" style="padding:8px 8px;border-bottom:1px solid var(--border,#333);min-width:100px;">Meeting<br>Type</th>
@@ -3274,7 +3275,7 @@ function _tprRerender() {
 // P100: inline tag-form row for the Tracked Projects table — mirrors the rail's
 // inline tag affordance (reuses _tprRenderTagForm + tprSubmitTag/tprToggleTagInput).
 function _tpRenderTagRow(p, pidAttr) {
-  return '<tr class="tp-tag-row"><td colspan="18" style="padding:10px 18px;border-bottom:1px solid var(--border,#333);background:var(--panel-2,#1c1c1c);">'
+  return '<tr class="tp-tag-row"><td colspan="19" style="padding:10px 18px;border-bottom:1px solid var(--border,#333);background:var(--panel-2,#1c1c1c);">'
     + '<div style="max-width:520px;">'
     + '<div style="font-size:11px;color:var(--muted,#888);margin-bottom:6px;">Tag a document to <strong>' + esc(p.projectName || '(untitled)') + '</strong></div>'
     + _tprRenderTagForm(p.projectId || '')
@@ -7170,7 +7171,10 @@ function tpRenderTable() {
     }
     if (jurisFilter && (p.jurisdiction||'') !== jurisFilter) return false;
     if (textFilter) {
-      var hay = ((p.projectName||'') + ' ' + (p.petitionerApplicant||'') + ' ' + (p.builder||'') + ' ' + (p.ordinanceId||'') + ' ' + (p.aliases||'')).toLowerCase();
+      // P200: petitionerDisplay joins the haystack. The App column renders the RESOLVED value,
+      // so a project whose petitioner is summary-derived (no manual value) was visible in the
+      // column but unfindable by the search box that claims to search petitioners.
+      var hay = ((p.projectName||'') + ' ' + (p.petitionerApplicant||'') + ' ' + (p.petitionerDisplay||'') + ' ' + (p.builder||'') + ' ' + (p.ordinanceId||'') + ' ' + (p.aliases||'')).toLowerCase();
       if (hay.indexOf(textFilter) === -1) return false;
     }
     return true;
@@ -7225,7 +7229,7 @@ function tpRenderTable() {
   if (statusEl) statusEl.textContent = rows.length + ' project' + (rows.length === 1 ? '' : 's') + (tpProjects.length === rows.length ? '' : ' (of ' + tpProjects.length + ')');
 
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="18" style="padding:24px;text-align:center;color:var(--muted,#888);">No projects match the current filters.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="19" style="padding:24px;text-align:center;color:var(--muted,#888);">No projects match the current filters.</td></tr>';
     return;
   }
 
@@ -7300,12 +7304,14 @@ function tpRenderTable() {
       };
       var _links = p.agendaRefs.map(_agLink);
       // P124r2: 4 links per row (was 5) — narrows the Agendas column ~20%.
-      if (_links.length > 4) {
+      // P200: 3 per row — narrower again, freeing the width the App column needs. The "+N"
+      // affordance is untouched, so no link is lost; the overflow rows just hold three each.
+      if (_links.length > 3) {
         var _rest = '';
-        for (var _ai = 4; _ai < _links.length; _ai += 4) { _rest += '<div class="tp-agendas-row">' + _links.slice(_ai, _ai + 4).join(' ') + '</div>'; }
+        for (var _ai = 3; _ai < _links.length; _ai += 3) { _rest += '<div class="tp-agendas-row">' + _links.slice(_ai, _ai + 3).join(' ') + '</div>'; }
         agendaRefsCell = '<div class="tp-agendas-wrap">'
-          + '<div class="tp-agendas-row">' + _links.slice(0, 4).join(' ')
-          + ' <a href="javascript:void(0)" class="tp-agendas-more" title="Show / hide the rest" onclick="this.closest(\'.tp-agendas-wrap\').classList.toggle(\'expanded\');return false;">+' + (_links.length - 4) + '</a></div>'
+          + '<div class="tp-agendas-row">' + _links.slice(0, 3).join(' ')
+          + ' <a href="javascript:void(0)" class="tp-agendas-more" title="Show / hide the rest" onclick="this.closest(\'.tp-agendas-wrap\').classList.toggle(\'expanded\');return false;">+' + (_links.length - 3) + '</a></div>'
           + '<div class="tp-agendas-rest">' + _rest + '</div></div>';
       } else {
         agendaRefsCell = '<div class="tp-agendas-wrap"><div class="tp-agendas-row">' + _links.join(' ') + '</div></div>';
@@ -7381,6 +7387,17 @@ function tpRenderTable() {
     var lotsCell = lotsVal
       ? '<div class="tp-lots-cell" onclick="tpToggleAction(this)" title="' + escAttr(lotsVal) + ' — click to expand"><span class="tp-lots-text">' + esc(lotsVal) + '</span></div>'
       : '<span style="color:var(--muted,#888);">—</span>';
+    // P200: App — the Petitioner / Applicant column, restored between Builder and Lots
+    // (removed in P106 to free horizontal space; Ty asked for it back under a short heading).
+    // Renders petitionerDisplay, NOT petitionerApplicant: that is the resolved value the
+    // backend already computes — the manual field when it is set, else the summary-derived
+    // one (P79 A4) — and it is the same value the ArcGIS sync writes to OwnerName, so the
+    // page and the map cannot disagree. Truncated to the Lots width with click-to-expand,
+    // reusing tpToggleAction.
+    var appVal = (p.petitionerDisplay || p.petitionerApplicant || '').toString().trim();
+    var appCell = appVal
+      ? '<div class="tp-app-cell" onclick="tpToggleAction(this)" title="' + escAttr(appVal) + ' — click to expand"><span class="tp-app-text">' + esc(appVal) + '</span></div>'
+      : '<span style="color:var(--muted,#888);">—</span>';
 
     return '<tr data-project-id="' + pidAttr + '" style="border-bottom:1px solid var(--border,#2a2a2a);">' +
       '<td style="padding:6px 4px;vertical-align:top;text-align:center;">' + editBtn + '</td>' +
@@ -7393,6 +7410,7 @@ function tpRenderTable() {
       '<td style="padding:8px 10px;vertical-align:top;">' + statusSelect + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' + (p.jurisdiction ? esc(_muniDisplayName(p.jurisdiction)) : '<i>all</i>') + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;">' + builderCell + '</td>' +
+      '<td style="padding:8px 10px;vertical-align:top;">' + appCell + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;text-align:center;">' + lotsCell + '</td>' +
       upCells + prevCells +
       '<td class="tp-agendas-cell" style="padding:8px 6px;vertical-align:top;font-size:11px;">' + agendaRefsCell + '</td>' +
@@ -7637,8 +7655,11 @@ function _tpRenderEditDropdown(p, pidAttr) {
     return html + '</fieldset>';
   };
   return '<tr class="tp-edit-row" data-edit-pid="' + pidAttr + '" style="background:var(--bg-card,#1a1a1a);">' +
-    '<td colspan="18" style="padding:14px 18px;border-bottom:1px solid var(--border,#333);">' +
-      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;align-items:end;">' +
+    '<td colspan="19" style="padding:14px 18px;border-bottom:1px solid var(--border,#333);">' +
+      // P200: explicit column widths, not auto-fit. Ty asked for a narrower Ordinance and a
+      // narrower Lots, which auto-fit cannot express — every track it makes is 1fr, so the
+      // six fields were six equal columns. Widths live in .tp-edit-grid (styles.css).
+      '<div class="tp-edit-grid" style="display:grid;gap:10px;align-items:end;">' +
         '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);">Project name' +
           '<input id="tpe-name-' + pidAttr + '" type="text" value="' + esc(p.projectName || '') + '" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
         '</label>' +
@@ -7661,11 +7682,21 @@ function _tpRenderEditDropdown(p, pidAttr) {
         '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);">Lots (homesites)' +
           '<input id="tpe-lots-' + pidAttr + '" type="text" inputmode="numeric" value="' + esc(p.lots == null ? '' : String(p.lots)) + '" placeholder="e.g. 124" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
         '</label>' +
+        // P200: Acres — site acreage, immediately after Lots. Operator-entered only: unlike
+        // lots there is no Gemini-extracted fallback, so the value here is always the manual
+        // one and the field carries no "· auto" source hint. Free text like lots, so "±38"
+        // and "9.2-10" survive; the backend appends the column on the first save.
+        '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);">Acres' +
+          '<input id="tpe-acres-' + pidAttr + '" type="text" inputmode="decimal" value="' + esc(p.acres == null ? '' : String(p.acres)) + '" placeholder="e.g. 38.5" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
+        '</label>' +
         // p190r2 / AGD-117: per-meeting overrides — one fieldset per meeting, every field opening
         // with what the table shows (p190r1 / AGD-118). A value changed from the derived one is an
         // override for THAT meeting only; one left as it is (or cleared) stays automatic.
       '</div>' +
-      '<div style="margin-top:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;">' +
+      // P200: the two meeting fieldsets are an explicit 50/50 split (.tp-edit-slots). They were
+      // `auto-fit, minmax(320px,1fr)`, which on a wide screen fits THREE tracks — so each
+      // fieldset rendered at ~1/3 of the row, not the half it looks like it should be.
+      '<div class="tp-edit-slots" style="margin-top:12px;display:grid;gap:12px;">' +
         _slotFieldset('u', sl && sl.up[0]) + _slotFieldset('p', sl && sl.prev) +
         '<div style="grid-column:1/-1;font-size:11px;color:var(--muted,#888);">Each field shows what the table shows. Leave it as it is (or clear it) and it stays automatic; change it and your value wins for that meeting only.</div>' +
       '</div>' +
@@ -7691,6 +7722,8 @@ function tpSaveEditRow(pid) {
   var petEl  = document.getElementById('tpe-petitioner-' + pid);
   // P79 A1: lots field added to the edit dropdown.
   var lotsEl = document.getElementById('tpe-lots-' + pid);
+  // P200: acres field, beside lots.
+  var acresEl = document.getElementById('tpe-acres-' + pid);
   // p190r2 / AGD-117: the per-meeting fields are read by _tpCollectSlotOverrides.
   var msgEl  = document.getElementById('tpe-msg-' + pid);
   if (!nameEl || !ordEl || !aliEl) return;
@@ -7701,6 +7734,7 @@ function tpSaveEditRow(pid) {
   var ali  = (aliEl.value || '').trim();
   var pet  = petEl  ? (petEl.value  || '').trim() : (current.petitionerApplicant || '');
   var lots = lotsEl ? (lotsEl.value || '').trim() : (current.lots == null ? '' : String(current.lots));
+  var acres = acresEl ? (acresEl.value || '').trim() : (current.acres == null ? '' : String(current.acres));
   // p190r2 / AGD-117: the per-meeting override map, merged over every stored meeting. A field
   // nobody changed still equals its derived value and stays automatic (p190r1 / AGD-118).
   var ovr = _tpCollectSlotOverrides(current, pid);
@@ -7712,7 +7746,7 @@ function tpSaveEditRow(pid) {
   if (!webappUrl) return;
   if (msgEl) { msgEl.textContent = 'Saving…'; msgEl.style.color = 'var(--muted,#888)'; }
   // Optimistic local update
-  var prev = { projectName: current.projectName, ordinanceId: current.ordinanceId, aliases: current.aliases, petitionerApplicant: current.petitionerApplicant, lots: current.lots,
+  var prev = { projectName: current.projectName, ordinanceId: current.ordinanceId, aliases: current.aliases, petitionerApplicant: current.petitionerApplicant, lots: current.lots, acres: current.acres,
                manualMeetingType: current.manualMeetingType, manualMeetingDate: current.manualMeetingDate, manualResults: current.manualResults,
                manualDescription: current.manualDescription,
                meetingSlots: current.meetingSlots ? JSON.parse(JSON.stringify(current.meetingSlots)) : current.meetingSlots };
@@ -7721,6 +7755,7 @@ function tpSaveEditRow(pid) {
   current.aliases             = ali;
   current.petitionerApplicant = pet;
   current.lots                = lots;
+  current.acres               = acres;
   // p190r2: optimistic — the legacy columns clear and the map lands on the slots.
   current.manualMeetingType   = '';
   current.manualMeetingDate   = '';
@@ -7740,6 +7775,7 @@ function tpSaveEditRow(pid) {
         + '&aliases=' + encodeURIComponent(ali)
         + '&petitioner_applicant=' + encodeURIComponent(pet)
         + '&lots=' + encodeURIComponent(lots)
+        + '&acres=' + encodeURIComponent(acres)
         + '&manual_slot_overrides=' + encodeURIComponent(ovr.json)
         + '&manual_meeting_type=&manual_meeting_date=&manual_results=&manual_description=&manual_overrides_asof=';
   // P142 item 3: route through mipWriteFetch so a stale URL override can't break the save.
@@ -7757,6 +7793,7 @@ function tpSaveEditRow(pid) {
         current.aliases             = prev.aliases;
         current.petitionerApplicant = prev.petitionerApplicant;
         current.lots                = prev.lots;
+      current.acres               = prev.acres;
         current.manualMeetingType   = prev.manualMeetingType;
         current.manualMeetingDate   = prev.manualMeetingDate;
         current.manualResults       = prev.manualResults;
@@ -7771,6 +7808,7 @@ function tpSaveEditRow(pid) {
       current.aliases             = prev.aliases;
       current.petitionerApplicant = prev.petitionerApplicant;
       current.lots                = prev.lots;
+      current.acres               = prev.acres;
       current.manualMeetingType   = prev.manualMeetingType;
       current.manualMeetingDate   = prev.manualMeetingDate;
       current.manualResults       = prev.manualResults;

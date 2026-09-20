@@ -1229,6 +1229,47 @@
   .tp-lots-cell .tp-lots-text { display: inline-block; max-width: 52px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; font-weight: 600; }
   .tp-lots-cell.expanded .tp-lots-text { max-width: none; overflow: visible; white-space: normal; }
   .tp-lots-cell:hover .tp-lots-text { color: var(--accent, #e8a020); }
+  /* P200: App (Petitioner / Applicant) — the Lots cell's twin, same 52px truncation and the
+     same tpToggleAction click-to-expand. Not bold: Lots is a figure you scan, App is a name
+     you read, and two bold narrow columns side by side fight each other. */
+  .tp-app-cell { cursor: pointer; position: relative; }
+  .tp-app-cell .tp-app-text { display: inline-block; max-width: 52px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+  /* Expanded = a POP-OUT, not a re-wrap. The Lots cell can wrap in place because "120-130" is
+     short; a petitioner ("Pulte Homes of Indiana, LLC") wrapped inside a 52px column becomes a
+     column of single words. So the expanded text lifts out of the flow and overlays the
+     neighbouring cells instead, which is also why .tp-app-cell needs position:relative. */
+  .tp-app-cell.expanded .tp-app-text {
+    position: absolute;
+    top: -4px;
+    left: -6px;
+    z-index: 30;
+    max-width: 260px;
+    width: max-content;
+    overflow: visible;
+    white-space: normal;
+    text-overflow: clip;
+    padding: 5px 8px;
+    background: var(--bg-card, #1a1a1a);
+    border: 1px solid var(--accent, #e8a020);
+    border-radius: 4px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+    line-height: 1.35;
+  }
+  .tp-app-cell:hover .tp-app-text { color: var(--accent, #e8a020); }
+  /* P200: the TP edit dropdown's two grids.
+     .tp-edit-grid — Project name | Ordinance | Aliases | Petitioner | Lots | Acres. Explicit
+     tracks, because the old `auto-fit, minmax(200px,1fr)` made every field the same width and
+     so could not express "narrower Ordinance, narrower Lots" at all.
+     .tp-edit-slots — the Upcoming / Previous meeting fieldsets at a true 50/50. Under auto-fit
+     a wide screen fitted three 320px tracks, so each fieldset took a third of the row.
+     minmax(0,1fr) rather than 1fr: a grid item's default min-width:auto lets a long
+     un-breakable value (a URL in a Description) push its track wider than its share. */
+  .tp-edit-grid  { grid-template-columns: 1.7fr 0.85fr 1.9fr 1.6fr 0.55fr 0.55fr; }
+  .tp-edit-slots { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (max-width: 1100px) {
+    .tp-edit-grid  { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+    .tp-edit-slots { grid-template-columns: 1fr; }
+  }
   /* P95: Results column — Outcome+Vote line (bold) over Additional Notes,
      reusing the .tp-action-cell 2-line clamp (≈ old Notes column width). */
   .tp-results-outcome { font-weight: 600; }
