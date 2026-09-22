@@ -28,6 +28,26 @@ PORT = 8778
 BIND = "127.0.0.1"
 
 
+def _say(msg):
+    """Log without ever letting logging kill the server.
+
+    ⛔ This file's own launcher warns about exactly this: a console-less process
+    has `sys.stderr` as None (or a handle that raises), and stock http.server
+    crashes per request trying to write to it. `Start-Process -WindowStyle
+    Hidden` allocates a hidden console so stderr survives — but a process
+    started with no console at all (Win32_Process.Create, a scheduled task, a
+    service wrapper) does not, and this server exited instantly the first time
+    it was launched that way. A static file server must not die because it could
+    not narrate itself.
+    """
+    try:
+        if sys.stderr is not None:
+            sys.stderr.write(msg + "\n")
+            sys.stderr.flush()
+    except Exception:
+        pass
+
+
 class NoCacheHTMLHandler(http.server.SimpleHTTPRequestHandler):
     def end_headers(self):
         ctype = self.headers_buffer_content_type()
@@ -56,8 +76,7 @@ class NoCacheHTMLHandler(http.server.SimpleHTTPRequestHandler):
         return ""
 
     def log_message(self, fmt, *args):
-        # Same quiet behaviour the hidden-window launcher relied on.
-        sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
+        _say("%s - %s" % (self.address_string(), fmt % args))
 
 
 class Server(socketserver.ThreadingTCPServer):
@@ -71,7 +90,7 @@ def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else PORT
     handler = functools.partial(NoCacheHTMLHandler, directory=None)
     with Server((BIND, port), handler) as httpd:
-        sys.stderr.write("MRD server on http://%s:%d (HTML: no-store)\n" % (BIND, port))
+        _say("MRD server on http://%s:%d (HTML: no-store)" % (BIND, port))
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:
