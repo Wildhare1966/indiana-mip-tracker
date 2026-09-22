@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p200r1 -->
+<!-- MIP build p202r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p200r1">
+<link rel="stylesheet" href="styles.css?v=p202r1">
 </head>
 <body>
 
@@ -2747,9 +2747,12 @@ var tprTagFile      = null;  // File object from <input type="file">, never re-r
 var tprTagMsg       = '';
 var tprTagMsgKind   = '';
 
-// P58.8 commit 5a: per-project session-only description rows. Pre-existing
-// descriptions from the backend are NOT loaded here (would require extending
-// listProjectDocuments); only newly-tagged docs surface in this map. Map shape:
+// P58.8 commit 5a: per-project description rows.
+// ⚠ AGD-152 (2026-09-22): this comment used to read "Pre-existing descriptions
+// from the backend are NOT loaded here (would require extending
+// listProjectDocuments)". That extension shipped in backend @540, and
+// _tprSeedDescriptions now merges the stored cols L-N into this map, with
+// session rows winning. The map is no longer session-only. Map shape:
 //   { project_id: [{ doc_id, filename, description, description_status, description_date_iso }, ...] }
 // description_status: 'analyzing' | 'done' | 'failed' | 'skipped'
 var tprDescriptionsByProject = {};
@@ -3019,6 +3022,53 @@ function tprToggleDescExpand(pid) {
   _tprRerender();
 }
 
+// AGD-152: merge the backend's stored descriptions into the session map.
+//
+// A SESSION ROW ALWAYS WINS. A doc tagged in this session may still be
+// 'analyzing', and the backend row it came from is a snapshot from before
+// describe_document finished — seeding over it would replace a live state with
+// a stale one and the chip would sit on "Analyzing…" forever.
+//
+// Rows with nothing to say are deliberately NOT seeded: a 'skipped' row with no
+// description is a url-only document (no blob, so nothing to describe), and
+// 146 of 297 rows are in that state. Seeding them would spray "Skipped" chips
+// across the rail and bury the real labels. The document itself still appears
+// in the doc list below, which is where a url-only row belongs.
+function _tprSeedDescriptions(pid, docs) {
+  var existing = tprDescriptionsByProject[pid] || [];
+  var seen = {};
+  existing.forEach(function(r) { if (r && r.doc_id) seen[r.doc_id] = true; });
+
+  var seeded = [];
+  (docs || []).forEach(function(d) {
+    if (!d || !d.doc_id || seen[d.doc_id]) return;
+    var desc = (d.description || '').trim();
+    var st = (d.description_status || '').trim();
+    // ⚠ `pending` means two different things. On a row WITH a blob it is
+    // transient and "Analyzing…" is true. On a url-only row there is nothing to
+    // describe, describe_document can never run, and the chip would spin
+    // forever claiming work was in progress. Probed 2026-09-22: proj_1778769299163
+    // carries two url-only/pending rows that did exactly that. So a transient
+    // status only earns a chip when the row actually has a file.
+    var hasBlob = !!(d.drive_file_id || '').trim();
+    var transient = hasBlob && (st === 'analyzing' || st === 'pending' || st === 'failed');
+    var worthShowing = !!desc || transient;
+    if (!worthShowing) return;
+    seeded.push({
+      doc_id: d.doc_id,
+      filename: d.filename || '',
+      description: desc,
+      // A row carrying a description but no status predates the status column;
+      // treat it as finished rather than letting it render "Analyzing…".
+      description_status: st || (desc ? 'done' : 'pending'),
+      description_date_iso: d.description_date_iso || ''
+    });
+  });
+  if (!seeded.length && existing.length) return;
+  // Backend order first (most recent tag first), session rows after.
+  tprDescriptionsByProject[pid] = seeded.concat(existing);
+}
+
 // P61 task 3: fetch tagged documents for a project. Stores result in
 // tprDocsByProject[pid] and re-renders the rail. Called lazily from
 // renderTpRail when a project has >0 docs and no cached entry.
@@ -3032,6 +3082,11 @@ function _tprFetchProjectDocs(pid) {
     .then(function(res) {
       if (res && res.ok) {
         tprDocsByProject[pid] = { state: 'loaded', docs: res.documents || [], folder_url: res.folder_url || '' };
+        // AGD-152: seed the description list from what the backend stored.
+        // Until @540 listProjectDocuments did not return cols L-N at all, so a
+        // classification survived only the session that created it and this map
+        // held newly-tagged docs only.
+        _tprSeedDescriptions(pid, res.documents || []);
       } else {
         tprDocsByProject[pid] = { state: 'error', docs: [] };
       }
@@ -8466,8 +8521,15 @@ function tpOpenDocsPopup(projectId, anchorEl) {
         var untag = isOperator()
           ? ' <button type="button" onclick="tpUntagDoc(\'' + escAttr(d.doc_id) + '\', \'' + escAttr(projectId) + '\', this)" style="background:transparent;color:#d65a5a;border:1px solid #5a2a2a;border-radius:3px;padding:0 5px;font-size:10px;cursor:pointer;" title="Untag (operator only)">✕</button>'
           : '';
+        // AGD-152: the stored classification (cols L-N, returned since @540).
+        // Shown only when there is one — a url-only row has no blob to describe,
+        // and an empty line per row would make the popup harder to read, not easier.
+        var descLine = (d.description || '').trim()
+          ? '<div style="color:var(--muted,#888);font-size:10px;padding-left:2px;">' + esc(d.description) + '</div>'
+          : '';
         return '<div style="padding:4px 0;border-bottom:1px dotted var(--border,#2a2a2a);">'
              + statusBadge + primary + sizeLabel + untag
+             + descLine
              + (d.source_url && d.drive_file_url ? '<div style="font-size:9px;color:var(--muted,#aaa);margin-left:60px;">orig: <a class="tp-doc-link" href="' + esc(d.source_url) + '" target="_blank" rel="noopener" data-no-tag style="font-size:9px;font-weight:500;">' + esc(d.source_url.length > 60 ? d.source_url.slice(0,57)+'…' : d.source_url) + '</a></div>' : '')
              + '</div>';
       }).join('');
