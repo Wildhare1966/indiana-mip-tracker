@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p202r1 -->
+<!-- MIP build p203r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p202r1">
+<link rel="stylesheet" href="styles.css?v=p203r1">
 </head>
 <body>
 
@@ -4544,6 +4544,31 @@ async function ytResubmit(youtubeUrl, jurisdiction, meetingDate, btnId, summaryE
 window._agendaApprovalStatus = {}; // 'id|meeting_type' -> 'approved'|'rejected'|'cancelled'
 function _agKey(docId, meetingType) { return String(docId || '') + '|' + String(meetingType || ''); }
 
+// p203r1 / AGD-157: a posted cancellation notice, detected from its file name. Measured on the
+// wire 2026-09-26: 18 Fortville cancellations arrive as document_type=Notice (HeyGov reclassifies
+// them) and never reached a row, so the meeting read as a scraper/YouTube gap; 14 more elsewhere
+// (Sheridan, Whitestown, McCordsville, Kokomo, Fortville) arrive typed Agenda and rendered a plain
+// "↓ Agenda" with Yes/No. The file name is the only signal that separates a cancellation from
+// Fortville's ordinary Police Commission meeting notices, so `Notice` alone is never enough.
+// Matches cancelled / canceled / cancellation / cancelation; not a bare "cancel".
+function isCancellationDoc(sd) {
+  var u = String((sd && (sd.view_url || sd.pdf_url)) || '');
+  try { u = decodeURIComponent(u); } catch (e) {}
+  return /cancel+(?:ed|ation)/i.test(u);
+}
+// Cancelled by the operator's P115 press, or by a posted notice. A "✓ Yes" on a notice says it
+// is the right document for the meeting, and the document says the meeting did not happen - so
+// approved still reads cancelled (Sheridan APC 8/21/25 and 5/21/26, Whitestown BZA 12/8/25).
+// A rejected row never reaches the wire.
+function agIsCancelled(sd) {
+  var st = window._agendaApprovalStatus[_agKey(sd.id, sd.meeting_type || '')] || sd.approval_status || '';
+  return st === 'cancelled' || isCancellationDoc(sd);
+}
+// Every document on the row says the meeting did not happen.
+function entryIsCancelled(entry) {
+  return !!(entry && entry.agendas && entry.agendas.length && entry.agendas.every(agIsCancelled));
+}
+
 async function agApprove(docId, meetingType, jurisdiction, btnYesId, btnNoId, rowId) {
   const btnY = document.getElementById(btnYesId);
   const btnN = document.getElementById(btnNoId);
@@ -5282,8 +5307,13 @@ function buildUnifiedDateSet(muniId) {
   });
 
   // 3. Scraped docs overlay (agendas) — honor meeting_type_override if set (P18)
+  // p203r1 / AGD-157: a cancellation Notice rides in the agenda slot, where the row renders it
+  // as "⊘ Cancelled" (isCancellationDoc). Other Notices (meeting / executive-session) stay out.
   Object.keys(scrapedByDate).forEach(date => {
-    const docs = scrapedByDate[date].filter(sd => (sd.document_type||'').toLowerCase().includes('agenda'));
+    const docs = scrapedByDate[date].filter(sd => {
+      const t = (sd.document_type || '').toLowerCase();
+      return t.includes('agenda') || (t === 'notice' && isCancellationDoc(sd));
+    });
     docs.forEach(sd => {
       const effectiveType = sd.meeting_type_override || sd.meeting_type;
       const bt = classifyBodyType(effectiveType);
@@ -5473,6 +5503,8 @@ function findFuzzyAgendaMatch(dateMap, date, bodyType, maxDays, excludeKey, acce
     if (k === excludeKey) return;
     const c = dateMap[k];
     if (!c || c.agendas.length === 0) return;
+    // p203r1 / AGD-157: a meeting that did not happen owns no neighbour's video or minutes.
+    if (c.agendas.every(isCancellationDoc)) return;
     const sameBody = (c.body_type === bodyType);
     if (!sameBody && !acceptAnyBody) return;
     const dist = Math.abs(dayDelta(c.date, date));
@@ -5615,6 +5647,10 @@ function renderBodySection(bodyLabel, dates, muniId) {
   let rowIdx = 0;
   const rows = dates.map(entry => {
     const isPast = entry.date < new Date().toISOString().split('T')[0];
+    // p203r1 / AGD-157: nothing is missing from a meeting that did not happen — no "+ Add"
+    // prompts and no missing-content highlight. A video or minutes, if any, still render.
+    const cancelled = entryIsCancelled(entry);
+    const noneCell = `<span style="color:var(--text-dim);font-size:10px;">—</span>`;
 
     // Status badge — P58.8 r3: "projected" warning labels removed per user
     // request. "confirmed" badge retained as a positive signal.
@@ -5663,6 +5699,8 @@ function renderBodySection(bodyLabel, dates, muniId) {
       const mnBtn = (views.every(weak) && entry.minutes_sd_id && isPast) ? mnFromMinutesBtnHtml(entry) : '';
       ytCell = views.map((v, vi) => ytHearingBlockHtml(v, muniId, bodyLabel, rowIdx, vi, multi, multi ? '' : mnBtn)).join('');
       if (multi && mnBtn) ytCell += `<div class="yt-hearing-item">${mnBtn}</div>`;
+    } else if (cancelled) {
+      ytCell = noneCell;
     } else if (isPast) {
       const addYtId = 'addyt_' + muniId + '_' + rowIdx;
       ytCell = `<button class="add-url-btn" id="${esc(addYtId)}" onclick="showAddUrlPopover(this,'youtube','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(entry.meeting_type || entry.body_type || '')}')">+ Add YouTube</button>`;
@@ -5684,7 +5722,10 @@ function renderBodySection(bodyLabel, dates, muniId) {
         // P58.8 r4: session memory wins over server (covers in-flight clicks
         // before the next SCRAPED_DOCS fetch); falls back to the server-emitted
         // approval_status so prior-session Yes/No selections persist on reload.
-        const status = window._agendaApprovalStatus[_agKey(sd.id, sd.meeting_type || '')] || sd.approval_status || '';
+        const storedStatus = window._agendaApprovalStatus[_agKey(sd.id, sd.meeting_type || '')] || sd.approval_status || '';
+        // p203r1 / AGD-157: a posted cancellation renders as cancelled on its own, reviewed or not.
+        const noticeCancel = storedStatus !== 'cancelled' && isCancellationDoc(sd);
+        const status = noticeCancel ? 'cancelled' : storedStatus;
         const cls = status === 'approved' ? ' ag-approved' : status === 'rejected' ? ' ag-rejected' : status === 'cancelled' ? ' ag-cancelled' : '';
         const curType = sd.meeting_type_override || sd.meeting_type || '';
         // P75: stash meeting metadata on the wrapper so agReject can wire
@@ -5701,7 +5742,9 @@ function renderBodySection(bodyLabel, dates, muniId) {
         h += `<span class="ag-firstline">` + agParseBadge(sd.parse_status);
         // P115: a meeting marked Cancelled shows a badge in place of the agenda
         // link + review buttons (the cancellation persists via cancel_agenda).
-        if (status === 'cancelled') {
+        if (noticeCancel && sdUrl) {
+          h += `<a href="${escUrl(inlineViewerUrl(sdUrl))}" target="_blank" class="ag-cancelled-badge" data-doc-link="agenda" data-scraped-id="${escAttr(sd.id || '')}" title="The jurisdiction posted a cancellation notice — click to read it">⊘ Cancelled</a></span>`;
+        } else if (status === 'cancelled') {
           h += `<span class="ag-cancelled-badge" title="Marked cancelled">⊘ Cancelled</span></span>`;
         } else {
           h += (sdUrl ? `<a href="${escUrl(inlineViewerUrl(sdUrl))}" target="_blank" class="hearing-link ag" data-doc-link="agenda" data-scraped-id="${escAttr(sd.id || '')}">↓ Agenda</a>${downloadSiblingHtml(sdUrl)}` : `<span class="hearing-link ag" style="cursor:default;">↓ Agenda</span>`) + `</span>`;
@@ -5758,6 +5801,8 @@ function renderBodySection(bodyLabel, dates, muniId) {
         mnCell += ` <button class="ag-correct-btn no" title="Remove this minutes URL" onclick="showRemoveUrlPopover(this,'minutes_url','Meetings','${escAttr(entry.meeting_id)}','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(entry.meeting_type || '')}')">✕</button>`;
       }
       mnCell += `</span>`;
+    } else if (cancelled) {
+      mnCell = noneCell;
     } else if (isPast) {
       const addMnId = 'addmn_' + muniId + '_' + rowIdx;
       mnCell = `<button class="add-url-btn" id="${esc(addMnId)}" onclick="showAddUrlPopover(this,'minutes','${escAttr(muniId)}','${escAttr(entry.date)}','${escAttr(entry.meeting_type || entry.body_type || '')}')">+ Add Minutes</button>`;
@@ -5766,7 +5811,7 @@ function renderBodySection(bodyLabel, dates, muniId) {
     }
 
     // Missing content highlight
-    const missingBoth = isPast && !entry.youtube_url && entry.agendas.length === 0;
+    const missingBoth = isPast && !cancelled && !entry.youtube_url && entry.agendas.length === 0;
     const rowClass = 'hearings-table-row' + (missingBoth ? ' hearings-row-missing' : '');
 
     rowIdx++;
@@ -8972,9 +9017,14 @@ function phRenderWeeklyHearings() {
           var u = sd.view_url || sd.pdf_url || '';
           if (u) { agUrl = u; agScrapedId = sd.id || ''; break; }
         }
+        // p203r1 / AGD-157: a meeting whose only documents say it was cancelled reads as such.
+        var agCancelled = entryIsCancelled(e);
+        var agLabel = agCancelled ? '⊘ Cancelled' : 'Agenda';
+        var agTitle = agCancelled ? 'Meeting cancelled — click to read the notice' : 'Agenda';
         var agLink = agUrl
-          ? '<a href="' + escUrl(inlineViewerUrl(agUrl)) + '" target="_blank" class="ph-meeting-link ag" title="Agenda" data-doc-link="agenda" data-scraped-id="' + escAttr(agScrapedId) + '">Agenda</a>' + downloadSiblingHtml(agUrl)
-          : '<span class="ph-meeting-link ag disabled" title="No agenda">Agenda</span>';
+          ? '<a href="' + escUrl(inlineViewerUrl(agUrl)) + '" target="_blank" class="ph-meeting-link ag" title="' + agTitle + '" data-doc-link="agenda" data-scraped-id="' + escAttr(agScrapedId) + '">' + agLabel + '</a>' + downloadSiblingHtml(agUrl)
+          : (agCancelled ? '<span class="ph-meeting-link ag" title="Marked cancelled">⊘ Cancelled</span>'
+                         : '<span class="ph-meeting-link ag disabled" title="No agenda">Agenda</span>');
         // P80 Stage 1.9: coverage_state branching (parallel to per-juris muni page).
         var phCovState = (e.coverage_state || '').toLowerCase();
         var phIsCovPending = phCovState === 'retry_queued'
