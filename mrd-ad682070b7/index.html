@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p205r2 -->
+<!-- MIP build p205r3 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p205r2">
+<link rel="stylesheet" href="styles.css?v=p205r3">
 </head>
 <body>
 
@@ -870,7 +870,7 @@
               <th title="Newest agenda meeting date on file (rejected rows and far-future rows ignored).">Last agenda</th>
               <th title="Newest minutes meeting date on file.">Last minutes</th>
               <th title="Newest meeting with a Summary Doc. Chips: past videos with no Summary yet; videos the summary-flags audit calls blocked.">Last Summary</th>
-              <th title="p205r2: of the meetings HELD in the last 90 days (an agenda, a video, or a Summary on file; cancellations and excluded bodies dropped), how many have a Summary Doc for that date and body. Hover the chip for the uncovered meetings.">Coverage 90d</th>
+              <th title="p205r2: of the meetings HELD in the last 90 days (an agenda, a video, or a Summary on file; cancellations and excluded bodies dropped), how many have a Summary Doc for that date and body. Counts TRACKED bodies only — Council, Plan Commission, and any body this town has summarized in the last year; other bodies held are shown beneath. Hover the chip for the uncovered meetings.">Coverage 90d</th>
               <th title="Active Tracked Projects in this jurisdiction (public list).">Tracked</th>
               <th title="Confirmed meeting cadence from the bootstrap (Council / Plan Commission rules).">Cadence</th>
               <th title="Open issue reports submitted from this jurisdiction's page.">Issues</th>
@@ -11555,7 +11555,7 @@ function jsRender(){
     if(sc){
       var pr=String(sc.platform_result||''); var prCls=/error/.test(pr)?'blocked':/skipped/.test(pr)?'await':/^ran/.test(pr)?'ok':'';
       var parts=[];
-      if(pr) parts.push('<span class="js-chip '+prCls+'" title="'+escAttr('Last nightly scrape'+(sc.last_run_at?' at '+String(sc.last_run_at).replace('T',' ').slice(0,16):'')+(sc.skipped_platforms&&sc.skipped_platforms.length?'; skipped by the runtime budget: '+sc.skipped_platforms.join(', '):''))+'">'+_diagEsc(pr)+'</span>');
+      if(pr) parts.push('<span class="js-chip '+prCls+'" title="'+escAttr('Last nightly scrape'+(sc.last_run_at?' at '+String(sc.last_run_at).replace('T',' ').slice(0,16):'')+(sc.run_marker==='newest log row'?' (no run banner in the log tail — dated by its newest row)':'')+(sc.skipped_platforms&&sc.skipped_platforms.length?'; skipped by the runtime budget: '+sc.skipped_platforms.join(', '):''))+'">'+_diagEsc(pr)+'</span>');
       if(sc.probe&&sc.probe.status){ var ps=sc.probe.status; var pCls=/empty_index|source_broken|fetch_error/.test(ps)?'blocked':/unverified|sub_source|alarm/.test(ps)?'await':ps==='fresh'||ps==='healthy'?'ok':''; parts.push('<span class="js-chip '+pCls+'" title="'+escAttr('Freshness cron\'s last source probe ('+String(sc.probe.at||'').slice(0,16)+'): '+ps)+'">probe: '+_diagEsc(ps.replace(/_/g,' '))+'</span>'); }
       if(sc.last_error) parts.push('<div class="js-sub" title="'+escAttr(sc.last_error.message)+'">'+_diagEsc(String(sc.last_error.at||'').replace('T',' ').slice(0,16))+' — '+_diagEsc(String(sc.last_error.message).slice(0,90))+(String(sc.last_error.message).length>90?'…':'')+'</div>');
       if(parts.length) scrapeCell=parts.join(' ');
@@ -11563,8 +11563,8 @@ function jsRender(){
     var cv=m.coverage_90d, covCell='<span class="js-sub">—</span>';
     if(cv&&cv.pct!=null){
       var cCls=cv.pct>=80?'ok':cv.pct>=50?'await':'blocked';
-      covCell='<span class="js-chip '+cCls+'" title="'+escAttr((cv.uncovered&&cv.uncovered.length?'Uncovered (newest first): '+cv.uncovered.join('; '):'Every meeting held in the window has a Summary'))+'">'+cv.pct+'%</span><div class="js-sub">'+cv.covered+' of '+cv.held+' meetings</div>';
-    } else if(cv) covCell='<span class="js-age none" title="No agenda, video or Summary dated inside the window">no meetings</span>';
+      covCell='<span class="js-chip '+cCls+'" title="'+escAttr((cv.uncovered&&cv.uncovered.length?'Uncovered (newest first): '+cv.uncovered.join('; '):'Every tracked meeting held in the window has a Summary'))+'">'+cv.pct+'%</span><div class="js-sub">'+cv.covered+' of '+cv.held+' tracked'+(cv.other_held?' · +'+cv.other_held+' other'+(cv.other_held===1?' body':' bodies'):'')+'</div>';
+    } else if(cv) covCell='<span class="js-age none" title="No tracked-body agenda, video or Summary dated inside the window">no meetings</span>'+(cv.other_held?'<div class="js-sub">'+cv.other_held+' other-body meeting'+(cv.other_held===1?'':'s')+'</div>':'');
     var bodies=Object.keys(m.bodies_recent||{}).sort(function(a,b){ return m.bodies_recent[b]-m.bodies_recent[a]; });
     var bodyCell=bodies.length?bodies.slice(0,4).map(function(b){ return _diagEsc(b)+' <span class="js-sub">'+m.bodies_recent[b]+'</span>'; }).join('<br>')+(bodies.length>4?'<div class="js-sub">+'+(bodies.length-4)+' more</div>':''):'<span class="js-age none">none</span>';
     if(c.excluded_bodies&&c.excluded_bodies.length) bodyCell+='<div class="js-sub" title="Excluded from scraping / intake">'+c.excluded_bodies.map(function(b){ return '<span class="js-excl">'+_diagEsc(b)+'</span>'; }).join(' ')+'</div>';
@@ -11619,7 +11619,7 @@ function jsNoteRestore(id){
 }
 function jsExportCsv(){
   var rows=_jsVisibleRows();
-  var head=['jurisdiction','county','platform','agenda_landing_url','youtube_channel','summaries_from','summary_docs','caption_route','captions_yes','captions_no','ai_transcripts_done','stuck_by','freshness_alarms','freshness_drift','scrape_last_run','scrape_result','scrape_probe','scrape_last_error','coverage_90d_pct','coverage_90d_covered','coverage_90d_held','bodies_365d','excluded_bodies','last_agenda','last_minutes','last_summary','awaiting_summary','blocked_videos','tracked_active','open_issues','note','note_updated'];
+  var head=['jurisdiction','county','platform','agenda_landing_url','youtube_channel','summaries_from','summary_docs','caption_route','captions_yes','captions_no','ai_transcripts_done','stuck_by','freshness_alarms','freshness_drift','scrape_last_run','scrape_result','scrape_probe','scrape_last_error','coverage_90d_pct','coverage_90d_covered','coverage_90d_held','coverage_other_bodies_held','bodies_365d','excluded_bodies','last_agenda','last_minutes','last_summary','awaiting_summary','blocked_videos','tracked_active','open_issues','note','note_updated'];
   var q=function(v){ v=String(v==null?'':v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; };
   var lines=[head.join(',')].concat(rows.map(function(r){
     var c=r.configured||{}, m=r.measured||{}, n=r.note||{}, bare=_jsBare(r.name);
@@ -11628,7 +11628,7 @@ function jsExportCsv(){
     return [r.name,r.county,c.platform_label,c.agenda_landing_url,(c.youtube_channel||{}).channel_id||'',c.summary_source,m.summary_mix,m.caption_route,m.captions_yes,m.captions_no,m.ai_transcripts_completed,stuck,
       (fr.alarms||[]).map(function(a){ return a.body+' '+a.days_silent+'d '+a.ratio+'x'; }).join('; '),(fr.drift||[]).map(function(a){ return a.body+' -> '+(a.absorbed_by||''); }).join('; '),
       (m.scrape||{}).last_run_at||'',(m.scrape||{}).platform_result||'',((m.scrape||{}).probe||{}).status||'',(((m.scrape||{}).last_error||{}).at||'')+' '+(((m.scrape||{}).last_error||{}).message||''),
-      (m.coverage_90d||{}).pct==null?'':(m.coverage_90d||{}).pct,(m.coverage_90d||{}).covered||0,(m.coverage_90d||{}).held||0,
+      (m.coverage_90d||{}).pct==null?'':(m.coverage_90d||{}).pct,(m.coverage_90d||{}).covered||0,(m.coverage_90d||{}).held||0,(m.coverage_90d||{}).other_held||0,
       bodies,(c.excluded_bodies||[]).join('; '),
       m.last_agenda_date,m.last_minutes_date,m.last_summary_date,m.awaiting_summary,_jsBlocked[bare]||0,_jsTracked[bare]||0,m.open_issues,n.note,String(n.updated_at||'').slice(0,10)].map(q).join(',');
   }));
