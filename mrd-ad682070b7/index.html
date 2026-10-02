@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p205r3 -->
+<!-- MIP build p207r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p205r3">
+<link rel="stylesheet" href="styles.css?v=p207r1">
 </head>
 <body>
 
@@ -849,6 +849,7 @@
               <option value="alarms">Sort: Freshness alarms first</option>
               <option value="coverage">Sort: Lowest coverage first</option>
               <option value="scrape">Sort: Scrape problems first</option>
+              <option value="docs">Sort: Most unarchived documents</option>
               <option value="note">Sort: Newest note</option>
             </select>
             <button class="refresh-btn" onclick="jsExportCsv()" title="Download this table as CSV">&#10515; CSV</button>
@@ -872,6 +873,7 @@
               <th title="Newest meeting with a Summary Doc. Chips: past videos with no Summary yet; videos the summary-flags audit calls blocked.">Last Summary</th>
               <th title="p205r2: of the meetings HELD in the last 90 days (an agenda, a video, or a Summary on file; cancellations and excluded bodies dropped), how many have a Summary Doc for that date and body. Counts TRACKED bodies only — Council, Plan Commission, and any body this town has summarized in the last year; other bodies held are shown beneath. Hover the chip for the uncovered meetings.">Coverage 90d</th>
               <th title="Active Tracked Projects in this jurisdiction (public list).">Tracked</th>
+              <th title="p207r1 (AGD-163 e): documents tagged to this jurisdiction's Tracked Projects, by what was stored. url-only = the link was saved but no Drive copy exists (the host is outside the fetch allowlist, or the fetch was refused); failed = the fetch errored. Either looks like a successful tag everywhere else.">Documents</th>
               <th title="Confirmed meeting cadence from the bootstrap (Council / Plan Commission rules).">Cadence</th>
               <th title="Open issue reports submitted from this jurisdiction's page.">Issues</th>
               <th style="min-width:260px;" title="Operator note: the latest issue or status. Saved to the Jurisdiction_Notes tab; the previous note is kept and can be restored.">Notes</th>
@@ -11481,16 +11483,20 @@ function jsLoad(force){
     jsRender();
   }).catch(function(e){ if(sum) sum.textContent='Network error: '+_diagEsc(e&&e.message); });
 }
+// p207r1: a string key that sorts LARGEST n first. The old String(100000-n) put n=0 ("100000") ahead of
+// n=5 ("99995") because the keys are compared as strings — every "most … first" sort led with the empty rows.
+function _jsDesc(n){ return ('00000'+Math.max(0,99999-(Number(n)||0))).slice(-5); }
 function _jsSortKey(r, mode){
   var m=r.measured||{}, n=r.note||{};
   if(mode==='name') return [r.name||'', ''];
   if(mode==='agenda') return [m.last_agenda_date||'0000', r.name||''];
   if(mode==='minutes') return [m.last_minutes_date||'0000', r.name||''];
   if(mode==='summary') return [m.last_summary_date||'0000', r.name||''];
-  if(mode==='awaiting') return [String(100000-((m.awaiting_summary||0)+(_jsBlocked[_jsBare(r.name)]||0))), r.name||''];
-  if (mode==='alarms'){ var fa=(m.freshness&&m.freshness.alarms)||[]; var worst=fa.reduce(function(x,a){ return Math.max(x,a.days_silent||0); },0); return [String(100000-worst), r.name||'']; }
+  if(mode==='awaiting') return [_jsDesc((m.awaiting_summary||0)+(_jsBlocked[_jsBare(r.name)]||0)), r.name||''];
+  if (mode==='alarms'){ var fa=(m.freshness&&m.freshness.alarms)||[]; var worst=fa.reduce(function(x,a){ return Math.max(x,a.days_silent||0); },0); return [_jsDesc(worst), r.name||'']; }
   if(mode==='coverage'){ var cv=m.coverage_90d||{}; var pc=(cv.pct==null)?101:cv.pct; return [('000'+pc).slice(-3), r.name||'']; }
   if(mode==='scrape'){ var sc=m.scrape||{}; var sev=/error|skipped/.test(sc.platform_result||'')?0:(sc.probe&&/empty_index|source_broken|fetch_error|unverified/.test(sc.probe.status)?1:(sc.last_error?2:3)); return [String(sev), r.name||'']; }
+  if(mode==='docs'){ var dq=m.documents||{}; return [_jsDesc((dq.url_only||0)+(dq.failed||0)), r.name||'']; }
   if(mode==='note') return [n.updated_at?('0'+String(9999999999999-new Date(n.updated_at).getTime())):'9', r.name||''];
   return [r.county||'', r.name||''];
 }
@@ -11508,7 +11514,7 @@ function _jsVisibleRows(){
 function jsRender(){
   var tb=document.getElementById('js-tbody'), sum=document.getElementById('js-summary'); if(!tb) return;
   var rows=_jsVisibleRows(), op=!!getAuthToken();
-  var stale=_jsRows.filter(function(r){ var a=_jsAgeDays((r.measured||{}).last_agenda_date); return a===null||a>90; }).length;
+  var stale=_jsRows.filter(function(r){ if((r.configured||{}).scraper_ruling) return false; var a=_jsAgeDays((r.measured||{}).last_agenda_date); return a===null||a>90; }).length;
   var awaiting=_jsRows.reduce(function(n,r){ return n+((r.measured||{}).awaiting_summary||0); },0);
   var alarmed=_jsRows.filter(function(r){ var f=(r.measured||{}).freshness; return f&&f.alarms&&f.alarms.length; }).length;
   var covAll=_jsRows.reduce(function(a,r){ var c=(r.measured||{}).coverage_90d||{}; a.h+=(c.held||0); a.c+=(c.covered||0); return a; },{h:0,c:0});
@@ -11519,12 +11525,12 @@ function jsRender(){
     +(_jsScrapeAt?' · last scrape '+_diagEsc(String(_jsScrapeAt).replace('T',' ').slice(0,16)):'')
     +(_jsWarnings.length?' · <span class="js-age warn" title="'+escAttr(_jsWarnings.join(' | '))+'">'+_jsWarnings.length+' source(s) failed</span>':'')
     +(op?'':' · <span title="Set the operator token in Settings to edit Notes">notes read-only</span>');
-  if(!rows.length){ tb.innerHTML='<tr><td colspan="16" style="padding:14px 6px;color:var(--text-dim);">No jurisdictions match.</td></tr>'; return; }
+  if(!rows.length){ tb.innerHTML='<tr><td colspan="17" style="padding:14px 6px;color:var(--text-dim);">No jurisdictions match.</td></tr>'; return; }
   tb.innerHTML=rows.map(function(r){
     var c=r.configured||{}, m=r.measured||{}, n=r.note||{}, bare=_jsBare(r.name);
     var plats=(c.platforms||[]); var landing=c.agenda_landing_url||(plats[0]&&plats[0].url)||'';
     var seen=Object.keys(m.platforms_seen||{}).sort(function(a,b){ return m.platforms_seen[b]-m.platforms_seen[a]; });
-    var platCell=(c.platform_label?_diagEsc(c.platform_label):'<span class="js-age none">not configured</span>')
+    var platCell=(c.platform_label?_diagEsc(c.platform_label):(c.scraper_ruling?'<span class="js-chip" style="color:#9aa7b4;background:rgba(154,167,180,0.16);" title="'+escAttr(c.scraper_ruling)+'">no scraper · by ruling</span>':'<span class="js-age none">not configured</span>'))
       +(landing?' <a class="js-link" href="'+escAttr(landing)+'" target="_blank" rel="noopener" title="Open the agenda landing page">↗</a>':'')
       +(seen.length?'<div class="js-sub">rows: '+_diagEsc(seen.map(function(k){ return k+' '+m.platforms_seen[k]; }).join(', '))+'</div>':'')
       +(c.data_gap?'<div><span class="js-chip gap" title="'+escAttr(c.gap_note||'data_gap flagged in Muni_Data')+'">data gap</span></div>':'');
@@ -11573,13 +11579,23 @@ function jsRender(){
       +((m.awaiting_summary||blocked)?'<div>'+(m.awaiting_summary?'<span class="js-chip await" title="Past hearing videos with no Summary Doc yet">'+m.awaiting_summary+' awaiting</span>':'')
         +(blocked?'<span class="js-chip blocked" title="Videos the summary-flags audit reports blocked (no captions / no transcript)">'+blocked+' blocked</span>':'')+'</div>':'');
     var tracked=_jsTracked[bare]||0;
+    // p207r1 (AGD-163 e): an older wire has no `documents` — say nothing rather than "0".
+    var dq=m.documents, docCell='<span class="js-sub">—</span>';
+    if(dq){
+      docCell=(dq.tagged||'<span class="js-sub">0</span>')
+        +((dq.url_only||dq.failed)?'<div>'+(dq.url_only?'<span class="js-chip await" title="Tagged, but no Drive copy: the link is all that was stored">'+dq.url_only+' url-only</span>':'')
+          +(dq.failed?'<span class="js-chip blocked" title="The fetch failed at tag time; no Drive copy">'+dq.failed+' failed</span>':'')+'</div>':'');
+    }
+    // p207r1 (AGD-163 g): the ops console opens on the read-only "why no Summary" card with this jurisdiction filled in.
+    var opsMuni=String(r.name||'').replace(/,?\s*Indiana$/i,'').replace(/^(City|Town)\s+of\s+/i,'').trim();
+    var opsLink=' · <a class="js-link" href="../p168-ops.html?muni='+encodeURIComponent(opsMuni)+'#p180" target="_blank" rel="noopener" title="Open the ops console on this jurisdiction (P180 · Why do these rows still have no summary? — read-only; the jurisdiction is filled in, nothing is pressed)">ops ↗</a>';
     var noteMeta=n.updated_at?'<div class="js-sub">updated '+_diagEsc(String(n.updated_at).slice(0,10))+(n.updated_by?' · '+_diagEsc(n.updated_by):'')
       +(n.previous_note&&op?' · <a class="js-link" href="#" onclick="jsNoteRestore(\''+escAttr(r.id)+'\');return false;" title="'+escAttr('Restore the previous note: '+n.previous_note)+'">↶ previous</a>':'')+'</div>':'';
     var noteCell='<textarea class="js-note" id="js-note-'+escAttr(r.id)+'" data-id="'+escAttr(r.id)+'"'+(op?' oninput="jsNoteChanged(this)"':' readonly')+' placeholder="'+(op?'Latest issue or status…':'')+'">'+_diagEsc(n.note||'')+'</textarea>'
       +(op?'<div style="margin-top:3px;"><button class="refresh-btn" id="js-save-'+escAttr(r.id)+'" onclick="jsNoteSave(\''+escAttr(r.id)+'\')" style="font-size:10px;padding:2px 9px;display:'+(_jsDirty[r.id]?'':'none')+';">Save</button></div>':'')
       +noteMeta;
     return '<tr data-js-id="'+escAttr(r.id)+'">'
-      +'<td><span class="js-name" onclick="buildSidebar(); setTimeout(function(){ selectMuni(\''+escAttr(r.id)+'\'); }, 50);" title="Open the jurisdiction page">'+_diagEsc(r.name||r.id)+'</span><div class="js-sub">'+_diagEsc(r.county||'')+(r.county?' County':'')+'</div></td>'
+      +'<td><span class="js-name" onclick="buildSidebar(); setTimeout(function(){ selectMuni(\''+escAttr(r.id)+'\'); }, 50);" title="Open the jurisdiction page">'+_diagEsc(r.name||r.id)+'</span><div class="js-sub">'+_diagEsc(r.county||'')+(r.county?' County':'')+opsLink+'</div></td>'
       +'<td>'+platCell+'</td>'
       +'<td>'+ytCell+'</td>'
       +'<td>'+sumCell+'</td>'
@@ -11592,6 +11608,7 @@ function jsRender(){
       +'<td>'+lastSum+'</td>'
       +'<td>'+covCell+'</td>'
       +'<td style="text-align:center;">'+(tracked||'<span class="js-sub">0</span>')+'</td>'
+      +'<td style="text-align:center;">'+docCell+'</td>'
       +'<td>'+_jsCadence(r.id)+'</td>'
       +'<td style="text-align:center;">'+(m.open_issues?'<span class="js-chip await">'+m.open_issues+'</span>':'<span class="js-sub">0</span>')+'</td>'
       +'<td>'+noteCell+'</td>'
@@ -11619,7 +11636,7 @@ function jsNoteRestore(id){
 }
 function jsExportCsv(){
   var rows=_jsVisibleRows();
-  var head=['jurisdiction','county','platform','agenda_landing_url','youtube_channel','summaries_from','summary_docs','caption_route','captions_yes','captions_no','ai_transcripts_done','stuck_by','freshness_alarms','freshness_drift','scrape_last_run','scrape_result','scrape_probe','scrape_last_error','coverage_90d_pct','coverage_90d_covered','coverage_90d_held','coverage_other_bodies_held','bodies_365d','excluded_bodies','last_agenda','last_minutes','last_summary','awaiting_summary','blocked_videos','tracked_active','open_issues','note','note_updated'];
+  var head=['jurisdiction','county','platform','agenda_landing_url','youtube_channel','summaries_from','summary_docs','caption_route','captions_yes','captions_no','ai_transcripts_done','stuck_by','freshness_alarms','freshness_drift','scrape_last_run','scrape_result','scrape_probe','scrape_last_error','coverage_90d_pct','coverage_90d_covered','coverage_90d_held','coverage_other_bodies_held','bodies_365d','excluded_bodies','last_agenda','last_minutes','last_summary','awaiting_summary','blocked_videos','tracked_active','documents_tagged','documents_url_only','documents_failed','open_issues','note','note_updated'];
   var q=function(v){ v=String(v==null?'':v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; };
   var lines=[head.join(',')].concat(rows.map(function(r){
     var c=r.configured||{}, m=r.measured||{}, n=r.note||{}, bare=_jsBare(r.name);
@@ -11630,7 +11647,7 @@ function jsExportCsv(){
       (m.scrape||{}).last_run_at||'',(m.scrape||{}).platform_result||'',((m.scrape||{}).probe||{}).status||'',(((m.scrape||{}).last_error||{}).at||'')+' '+(((m.scrape||{}).last_error||{}).message||''),
       (m.coverage_90d||{}).pct==null?'':(m.coverage_90d||{}).pct,(m.coverage_90d||{}).covered||0,(m.coverage_90d||{}).held||0,(m.coverage_90d||{}).other_held||0,
       bodies,(c.excluded_bodies||[]).join('; '),
-      m.last_agenda_date,m.last_minutes_date,m.last_summary_date,m.awaiting_summary,_jsBlocked[bare]||0,_jsTracked[bare]||0,m.open_issues,n.note,String(n.updated_at||'').slice(0,10)].map(q).join(',');
+      m.last_agenda_date,m.last_minutes_date,m.last_summary_date,m.awaiting_summary,_jsBlocked[bare]||0,_jsTracked[bare]||0,(m.documents||{}).tagged==null?'':(m.documents||{}).tagged,(m.documents||{}).url_only==null?'':(m.documents||{}).url_only,(m.documents||{}).failed==null?'':(m.documents||{}).failed,m.open_issues,n.note,String(n.updated_at||'').slice(0,10)].map(q).join(',');
   }));
   var blob=new Blob([lines.join('\n')],{type:'text/csv'}); var a=document.createElement('a');
   a.href=URL.createObjectURL(blob); a.download='mrd-jurisdiction-status-'+new Date().toISOString().slice(0,10)+'.csv'; document.body.appendChild(a); a.click();
