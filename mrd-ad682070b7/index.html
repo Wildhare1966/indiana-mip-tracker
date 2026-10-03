@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p207r2 -->
+<!-- MIP build p209r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p207r2">
+<link rel="stylesheet" href="styles.css?v=p209r1">
 </head>
 <body>
 
@@ -548,7 +548,8 @@
             </select>
             <input id="tp-filter-text" type="search" placeholder="Search project/petitioner/builder…" oninput="tpRenderTable()" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-card,#1a1a1a);color:inherit;border-radius:4px;font-size:12px;width:280px;">
             <select id="tp-sort-key" onchange="tpRenderTable()" title="Sort projects" style="padding:6px 10px;border:1px solid var(--border,#444);background:var(--bg-card,#1a1a1a);color:inherit;border-radius:4px;font-size:12px;">
-              <option value="">Sort: soonest upcoming meeting</option>
+              <option value="">Sort: furthest upcoming meeting</option>
+              <option value="upcoming">Sort: soonest upcoming meeting</option>
               <option value="previous">Sort: newest previous meeting</option>
               <option value="project">Sort: Project</option>
               <option value="jurisdiction">Sort: Jurisdiction</option>
@@ -5603,8 +5604,61 @@ function ytHearingBlockHtml(entry, muniId, bodyLabel, rowIdx, vi, multi, tail) {
   return ytCell;
 }
 
+// p209r1 (Ty, 2026-10-03): every meeting-type section on a jurisdiction page expands and
+// collapses, and opens to its upcoming meetings plus the 10 most recent past ones. Default is
+// collapsed. The state is per jurisdiction + section and lasts for the page session (a reload
+// starts collapsed again). Nothing is hidden silently: the header carries the section's full
+// count, and an open section that is holding rows back says how many and offers them.
+const JV_SEC_RECENT = 10;
+window._jvSecOpen = window._jvSecOpen || {};
+window._jvSecAll = window._jvSecAll || {};
+function _jvSecRerender(muniId) {
+  const grid = document.getElementById('members-grid');
+  if (grid) grid.innerHTML = renderHearingsContent(muniId);
+}
+function jvToggleSection(muniId, label) {
+  const k = muniId + '|' + label;
+  window._jvSecOpen[k] = !window._jvSecOpen[k];
+  _jvSecRerender(muniId);
+}
+function jvToggleSectionAll(muniId, label) {
+  const k = muniId + '|' + label;
+  window._jvSecAll[k] = !window._jvSecAll[k];
+  _jvSecRerender(muniId);
+}
+window.jvToggleSection = jvToggleSection;
+window.jvToggleSectionAll = jvToggleSectionAll;
+// Which rows an open section shows: every upcoming meeting, then the newest `recent` past ones.
+// Pure — the smoke page calls it.
+function jvSectionWindow(dates, todayStr, recent, showAll) {
+  const sorted = (dates || []).slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  if (showAll) return { rows: sorted, held: 0 };
+  const upcoming = sorted.filter(d => d.date >= todayStr);
+  const past = sorted.filter(d => d.date < todayStr);
+  return { rows: upcoming.concat(past.slice(0, recent)), held: Math.max(0, past.length - recent) };
+}
+
 // ── Render one body section ──
 function renderBodySection(bodyLabel, dates, muniId) {
+  const _secKey = muniId + '|' + bodyLabel;
+  const _secOpen = !!window._jvSecOpen[_secKey];
+  const _secTotal = dates.length;
+  const _secHead = `<div class="body-section-header jv-sec-head" role="button" tabindex="0" aria-expanded="${_secOpen}"
+    data-muni="${esc(muniId)}" data-sec="${esc(bodyLabel)}"
+    onclick="jvToggleSection(this.dataset.muni, this.dataset.sec)"
+    onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();jvToggleSection(this.dataset.muni, this.dataset.sec);}"
+    title="${_secOpen ? 'Collapse' : 'Expand'} ${esc(bodyLabel)}"><span class="jv-sec-caret">${_secOpen ? '▾' : '▸'}</span>${esc(bodyLabel)}<span class="jv-sec-count">${_secTotal} meeting${_secTotal === 1 ? '' : 's'}</span></div>`;
+  if (!_secOpen) return _secHead;
+  const _secAll = !!window._jvSecAll[_secKey];
+  const _secWin = jvSectionWindow(dates, new Date().toISOString().split('T')[0], JV_SEC_RECENT, _secAll);
+  dates = _secWin.rows;
+  let _secNote = '';
+  if (_secWin.held > 0 || _secAll) {
+    _secNote = `<div class="jv-sec-note">` + (_secAll
+        ? `Showing all ${_secTotal}. `
+        : `Showing upcoming and the ${JV_SEC_RECENT} most recent of ${_secTotal} — ${_secWin.held} older not shown. `)
+      + `<a href="#" data-muni="${esc(muniId)}" data-sec="${esc(bodyLabel)}" onclick="jvToggleSectionAll(this.dataset.muni, this.dataset.sec);return false;">${_secAll ? 'Show the latest ' + JV_SEC_RECENT + ' only' : 'Show all'}</a></div>`;
+  }
   let rowIdx = 0;
   const rows = dates.map(entry => {
     const isPast = entry.date < new Date().toISOString().split('T')[0];
@@ -5799,7 +5853,7 @@ function renderBodySection(bodyLabel, dates, muniId) {
     </tr>`;
   }).join('');
 
-  return `<div class="body-section-header">${bodyLabel}</div>
+  return `${_secHead}
   <table class="hearings-table">
     <thead>
       <tr>
@@ -5812,7 +5866,7 @@ function renderBodySection(bodyLabel, dates, muniId) {
       </tr>
     </thead>
     <tbody>${rows}</tbody>
-  </table>`;
+  </table>${_secNote}`;
 }
 
 // ── Add URL Popover ──
@@ -7249,9 +7303,13 @@ function tpRenderTable() {
   var sortKey = (document.getElementById('tp-sort-key')||{}).value || '';
   // p190r2 / AGD-117: the DEFAULT is the soonest upcoming meeting (the approved mockup), then
   // the newest previous one; "previous" sorts on the previous meeting alone. Overrides count.
-  if (!sortKey) sortKey = 'upcoming';
+  // p209r1 (Ty, 2026-10-03): "the hearing with Upcoming Meeting dates should be listed starting
+  // with the most future date first". The default is now the FURTHEST upcoming meeting; projects
+  // with no upcoming meeting still follow, newest previous first. The soonest-first order the
+  // p190r2 mockup shipped stays available as its own option ('upcoming').
+  if (!sortKey) sortKey = 'upcoming_far';
   if (sortKey) {
-    if (sortKey === 'upcoming' || sortKey === 'previous') {
+    if (sortKey === 'upcoming_far' || sortKey === 'upcoming' || sortKey === 'previous') {
       var _slYmd = function(p, which) {
         var sl = SL[p.projectId], s = sl && (which === 'up' ? sl.up[0] : sl.prev);
         return s ? _tpSlotYmd(s) : '';
@@ -7260,6 +7318,11 @@ function tpRenderTable() {
         if (sortKey === 'upcoming') {
           var au = _slYmd(a, 'up') || '9999-12-31', bu = _slYmd(b, 'up') || '9999-12-31';
           if (au !== bu) return au < bu ? -1 : 1;
+        }
+        if (sortKey === 'upcoming_far') {
+          // '' (no upcoming meeting) sorts after every date in a descending compare.
+          var af = _slYmd(a, 'up'), bf = _slYmd(b, 'up');
+          if (af !== bf) return af > bf ? -1 : 1;
         }
         var ap = _slYmd(a, 'prev'), bp = _slYmd(b, 'prev');
         if (ap !== bp) return ap > bp ? -1 : 1;
