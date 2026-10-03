@@ -183,6 +183,9 @@ License: MIT
     text-transform:uppercase;color:var(--ink);border-bottom:1px solid var(--line);
     cursor:pointer;white-space:nowrap;user-select:none;font-weight:700;z-index:2}
   thead th:hover{background:#163850}
+  /* a header sits over its values: numeric and date cells are right-aligned (td.num), so
+     their titles are too - in every table on the page */
+  thead th.num{text-align:right}
   thead th .arr{color:var(--accent);margin-left:4px;font-size:11px}
   thead th[draggable=true]{cursor:grab}
   thead th[draggable=true]:active{cursor:grabbing}
@@ -217,6 +220,71 @@ License: MIT
   .pager button:hover:not(:disabled){background:var(--panel-2);border-color:var(--accent)}
   .pager button:disabled{opacity:.4;cursor:default}
 
+  /* review view — the queue of items a human should rule on (review_queue.csv, local only) */
+  .hdr-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .views{display:inline-flex;border:1px solid rgba(255,255,255,.35);border-radius:6px;overflow:hidden}
+  .views button{background:transparent;border:none;color:#fff;padding:7px 13px;font-size:12.5px;
+    font-weight:600;cursor:pointer;font-family:var(--sans)}
+  .views button+button{border-left:1px solid rgba(255,255,255,.35)}
+  .views button:hover{background:rgba(255,255,255,.10)}
+  .views button.on{background:rgba(255,255,255,.24)}
+  .views .ct{font-family:var(--mono);font-size:11px;opacity:.85;margin-left:5px}
+  .review{margin-bottom:14px;flex:none;overflow:hidden}
+  .rv-top{display:flex;align-items:center;gap:12px;padding:11px 14px;flex-wrap:wrap}
+  .rv-top h3{font-size:14px;font-weight:700;color:var(--ink)}
+  .rv-top select{width:auto}
+  .rv-top input[type=search]{width:220px}
+  .rv-top .meta{font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .rv-top .spacer{flex:1}
+  .rv-chk{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer}
+  .rv-btn{background:var(--input);border:1px solid var(--line);color:var(--ink);border-radius:6px;
+    padding:6px 12px;cursor:pointer;font-family:var(--sans);font-size:12px;font-weight:600;white-space:nowrap}
+  .rv-btn:hover{border-color:var(--accent)}
+  .rv-hint{padding:0 14px 10px;font-size:12px;color:var(--muted);max-width:1100px}
+  .rv-scroll{overflow:auto;max-height:22vh;min-height:96px;border-top:1px solid var(--line)}
+  /* the queue panel takes height the records table needs, so in this view alone the page may
+     scroll and the table keeps a usable floor instead of being squeezed to nothing */
+  .body-pad.rv-mode{overflow:auto}
+  .body-pad.rv-mode .tablewrap{min-height:360px;flex:1 0 auto}
+  .body-pad.rv-mode .tablewrap .scroll{max-height:60vh}
+  .review thead th{cursor:default}
+  .review tbody td.id{font-family:var(--mono)}
+  .review tbody td{max-width:420px}
+  .review tbody tr{cursor:pointer}
+  .review tbody tr.none td{color:var(--ink-faint)}
+  .review tbody tr.on td{background:rgba(74,159,196,.20)}
+  .pill.rv{background:rgba(232,163,12,.18);color:#f0bb55;margin-right:5px}
+
+  /* methodology view — a document, not a workspace: it hides the working panels and scrolls */
+  .body-pad.m-mode>.controls,.body-pad.m-mode>details.charts-box,
+  .body-pad.m-mode>.tablewrap,.body-pad.m-mode>#apperr{display:none}
+  .method{flex:1;min-height:0;overflow:auto;padding:22px 28px 34px}
+  .method .m-in{max-width:1040px}
+  .method h2{font-size:19px;font-weight:700;color:var(--ink);margin-bottom:6px}
+  .method h3{font-size:15px;font-weight:700;color:var(--accent-2);margin:26px 0 8px;
+    padding-top:16px;border-top:1px solid var(--line)}
+  .method h4{font-size:12px;font-weight:700;color:var(--ink);margin:16px 0 6px;
+    text-transform:uppercase;letter-spacing:.04em}
+  .method p{margin:0 0 9px;color:var(--ink);max-width:900px}
+  .method .lede{color:var(--muted);font-size:13.5px}
+  .method ol,.method ul{margin:0 0 10px 22px;max-width:900px}
+  .method li{margin-bottom:5px}
+  .method code{font-family:var(--mono);font-size:12px;background:var(--input);
+    border:1px solid var(--line);border-radius:4px;padding:0 4px}
+  .method .m-toc{display:flex;flex-wrap:wrap;gap:6px 8px;margin:12px 0 4px}
+  .method .m-toc a{font-size:12px;color:var(--accent-2);text-decoration:none;
+    border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+  .method .m-toc a:hover{border-color:var(--accent)}
+  .method .m-live{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0 4px}
+  .method .m-live .stat .v{font-size:19px}
+  .method .m-note{border-left:3px solid var(--amber);background:rgba(232,163,12,.08);
+    padding:8px 12px;border-radius:0 6px 6px 0;margin:8px 0 12px;max-width:900px;font-size:13px}
+  .method .m-dim{color:var(--muted)}
+  .method .m-tbl{overflow:auto;border:1px solid var(--line);border-radius:8px;margin:8px 0 12px}
+  .method thead th{position:static;cursor:default}
+  .method tbody td{white-space:normal;max-width:none;overflow:visible;vertical-align:top}
+  .method tbody tr:hover td{background:transparent}
+
   .err{background:rgba(224,107,94,.14);border:1px solid rgba(224,107,94,.4);color:#ef9489;
     padding:12px 15px;border-radius:8px;font-size:13px;margin-bottom:14px}
   @media (max-width:760px){.charts{grid-template-columns:1fr}}
@@ -247,7 +315,14 @@ License: MIT
         <h1>Sales Disclosure <span class="tag">INDY METRO</span></h1>
         <div class="sub">Showing <b id="shown">0</b> of <b id="total">0</b> transactions · <span id="filenote"></span></div>
       </div>
-      <button class="reset" id="reset">↺ Reset filters</button>
+      <div class="hdr-right">
+        <div class="views hidden" id="viewTabs">
+          <button type="button" id="vAll" class="on">Transactions</button>
+          <button type="button" id="vReview" class="hidden">Needs review<span class="ct" id="rvCount"></span></button>
+          <button type="button" id="vMethod">Methodology</button>
+        </div>
+        <button class="reset" id="reset">↺ Reset filters</button>
+      </div>
     </header>
 
    <div class="body-pad">
@@ -322,6 +397,27 @@ License: MIT
       </div>
     </section>
 
+    <!-- REVIEW QUEUE (shown only in the Needs-review view) -->
+    <section class="panel review hidden" id="reviewPanel">
+      <div class="rv-top">
+        <h3>Review queue</h3>
+        <select id="rvType" aria-label="Queue type"><option value="">All types</option></select>
+        <input type="search" id="rvSearch" placeholder="Search item or builder…">
+        <label class="rv-chk"><input type="checkbox" id="rvHere" checked> with records here</label>
+        <span class="meta" id="rvMeta"></span>
+        <span class="spacer"></span>
+        <button type="button" class="rv-btn hidden" id="rvClear">✕ Clear selection</button>
+        <label class="rv-btn" id="rvPick" tabindex="0">Load review_queue.csv<input type="file" id="rvFile" accept=".csv,text/csv"></label>
+      </div>
+      <div class="rv-hint" id="rvHint"></div>
+      <div class="rv-scroll">
+        <table>
+          <thead><tr><th>Type</th><th>Item</th><th>Suggested</th><th class="num">Queue rows</th><th class="num">Records here</th><th>Example SDF</th></tr></thead>
+          <tbody id="rvBody"></tbody>
+        </table>
+      </div>
+    </section>
+
     <div id="apperr"></div>
 
     <!-- STATS + CHARTS (collapsed by default) -->
@@ -341,7 +437,7 @@ License: MIT
     <!-- TABLE -->
     <section class="tablewrap">
       <div class="table-top">
-        <h3>Transactions</h3>
+        <h3 id="tblTitle">Transactions</h3>
         <input type="search" id="fSearch" placeholder="Search address, names, parcel…" style="max-width:260px">
         <span class="meta" id="tableMeta"></span>
         <span class="spacer"></span>
@@ -368,10 +464,450 @@ License: MIT
         <button id="next">Next ›</button>
       </div>
     </section>
+
+    <!-- METHODOLOGY (shown only in the Methodology view). The builder, county, placeholder and
+         column tables render from the #methodData JSON below, which tests/smoke_test.py compares
+         against the pipeline's own constants - so those lists cannot drift from the code. The
+         prose is hand-written: when a rule changes in the pipeline, change it here too. -->
+    <section class="panel method hidden" id="methodPanel">
+     <div class="m-in">
+      <h2>Methodology</h2>
+      <p class="lede">How a raw Indiana Sales Disclosure Form filing becomes a row on this dashboard: every step of the workflow, and every rule used to filter records and to canonicalize builder, subdivision, city and school-district names.</p>
+      <div class="m-toc">
+        <a href="#m-source">1 Source data</a><a href="#m-prep">2 Prep</a><a href="#m-contacts">3 Contacts &amp; price</a>
+        <a href="#m-norm">4 Name normalizers</a><a href="#m-builders">5 Builder list</a><a href="#m-authority">6 Address authority</a>
+        <a href="#m-seller">7 Seller-side match</a><a href="#m-gate">8 Seller-name gate</a><a href="#m-buyer">9 Buyer-side match</a>
+        <a href="#m-kind">10 Transaction type</a><a href="#m-subdiv">11 Subdivision names</a><a href="#m-legal">12 Subdivision backfill</a>
+        <a href="#m-school">13 School district</a><a href="#m-metro">14 Metro filter</a><a href="#m-publish">15 Publish</a>
+        <a href="#m-display">16 Dashboard rules</a><a href="#m-review">17 Human review</a><a href="#m-limits">18 Known limits</a>
+      </div>
+      <div class="m-live" id="mLive"></div>
+
+      <h3 id="m-source">1 · Source data</h3>
+      <p>The source is the Indiana Sales Disclosure Form (SDF) extract published by the state, one zip per filing year. Each year holds three tab-delimited files that share the key <code>SDF_ID</code>:</p>
+      <ul>
+        <li><b>SALEDISC</b> — one row per disclosure: conveyance date, sale price, the form's checkbox answers (vacant land, construction financing, physical change, and so on).</li>
+        <li><b>SALEPARCEL</b> — one row per parcel in the sale: parcel number, property address, subdivision box, legal description, assessed value, property class, acreage.</li>
+        <li><b>SALECONTAC</b> — one row per contact, typed <b>B</b>uyer, <b>S</b>eller or <b>P</b>reparer, each with a name, a company and a mailing address.</li>
+      </ul>
+      <p>Six filing years are processed, 2021 through 2026. This dashboard shows the current two (2025–2026); the earlier four feed a separate six-year file used for mapping. 2020 and earlier are out of scope because the state used a different file format. At each refresh both current-year zips are downloaded again, because counties revise prior-year filings.</p>
+
+      <h3 id="m-prep">2 · Prep — one row per disclosure</h3>
+      <p>Prep mirrors the state extract faithfully. It decodes and rolls up; it filters nothing and changes no values.</p>
+      <ol>
+        <li><b>Read.</b> Each file is read as tab-delimited text, trying three encodings in turn (UTF-8, UTF-16, Latin-1) because the extracts are not uniformly encoded. A header row is recognized by the presence of <code>SDF_ID</code>; otherwise the state's published column layout is applied.</li>
+        <li><b>Parcel roll-up</b> to one row per <code>SDF_ID</code>: parcel count; assessed value and acreage <b>summed</b> across parcels; the subdivision name and the property address taken from the <b>first parcel that has one</b>; all parcel numbers joined with “; ”; the distinct property-class codes; and the <b>primary class</b> = the first parcel's class code.</li>
+        <li><b>Contact roll-up:</b> buyer, seller and preparer names, each joined with “; ”.</li>
+        <li><b>Join</b> both roll-ups onto SALEDISC (every disclosure is kept, with or without parcels or contacts).</li>
+        <li><b>Derived columns:</b> the sale date is the <b>conveyance date</b> (form field C7); the sale price is field E1; property classes are decoded with the state's official class-code list; <i>single-family</i> means primary class <span id="mSF"></span>; a sale-vs-assessed-value tag; and two new-construction proxies read off the form — construction-loan financing (G9) and a reported physical change (D1 or F1).</li>
+      </ol>
+
+      <h3 id="m-contacts">3 · Contacts join and price correction</h3>
+      <ol>
+        <li><b>Mailing addresses.</b> The address on a prepped row is the <i>property</i> being sold, which identifies nothing. The seller's and buyer's own <b>mailing addresses</b> exist only in SALECONTAC, so they are joined on by <code>SDF_ID</code>. For each side, the address comes from the <b>first contact of that type</b> (lowest contact number), and the <b>names and company fields of all contacts of that type</b> are concatenated into one text used for matching — so a builder named only in the Company field is still found. If a disclosure has no contact of that type, the prepped name is used instead. This join is mandatory: the enrichment refuses to run without it.</li>
+        <li><b>Price.</b> The state ships the sale price in <b>cents</b>. It is divided by <span id="mScale">100</span> to give dollars.</li>
+        <li><b>Sale vs assessed value</b> is then recomputed on the corrected price: <i>Premium Sale</i> if price &gt; total assessed value, <i>Discounted Sale</i> if lower, <i>Equal</i> if identical, <i>Unknown</i> if either is missing or the assessed value is zero.</li>
+      </ol>
+
+      <h3 id="m-norm">4 · The name and address normalizers</h3>
+      <p>Every match below compares normalized text, never the raw filing. Four normalizers are used, each for a different purpose.</p>
+      <div class="m-tbl"><table>
+        <thead><tr><th>Normalizer</th><th>What it does</th><th>Used for</th></tr></thead>
+        <tbody>
+          <tr><td><b>Company name</b></td><td>Lowercase; punctuation becomes a space; these entity words are removed: <span class="m-dim">inc, incorporated, llc, l.l.c, lc, co, company, corp, corporation, ltd, lp, llp, homes, home, builders, builder, construction, development, developments, communities, community, group, of indiana, indiana, in, usa, the</span>; whitespace collapsed. So “Ryan Homes, Inc.” becomes <code>ryan</code>.</td><td>Matching a seller or buyer name to a builder alias</td></tr>
+          <tr><td><b>Seller text</b></td><td>Lowercase; anything that is not a letter or digit becomes a space; whitespace collapsed. Entity words are <b>kept</b>, so “Davis Building Group” survives intact.</td><td>The seller-name gate (step 8)</td></tr>
+          <tr><td><b>Address key</b></td><td>Street lowercased; punctuation removed; unit words removed (suite, ste, unit, apt, floor, fl, #); street types and directions abbreviated (street→st, avenue→ave, boulevard→blvd, drive→dr, road→rd, lane→ln, parkway→pkwy, north→n, south→s, east→e, west→w); then joined to the <b>5-digit ZIP</b>. City and state are not part of the key.</td><td>Recognizing a builder's mailing address</td></tr>
+          <tr><td><b>Corporate test</b></td><td>A name “looks corporate” if it contains any of: <span class="m-dim">llc, l.l.c, inc, incorporated, corp, corporation, co, company, ltd, lp, llp, homes, home, builders, builder, building, construction, development, developments, communities, community, group, properties, property, dba, enterprises, holdings, ventures, partners, partnership, realty, investments, associates, trust</span>.</td><td>Telling a business from a private individual</td></tr>
+        </tbody>
+      </table></div>
+
+      <h3 id="m-builders">5 · The builder reference list</h3>
+      <p>A hand-curated list of canonical builders and their known aliases is the only human-edited input to builder matching. A builder is added, and an alias or allowed seller form is changed, only on a human ruling. The table shows the full list as it stands in the pipeline.</p>
+      <div class="m-tbl"><table>
+        <thead><tr><th>Canonical builder</th><th>Aliases matched</th><th>Seller name must contain one of (step 8)</th><th class="num">Fuzzy bar</th><th>Accepted as a land buyer by</th></tr></thead>
+        <tbody id="mBuilders"></tbody>
+      </table></div>
+      <h4>How a name is matched to an alias</h4>
+      <ol>
+        <li>The name and each alias are put through the company-name normalizer.</li>
+        <li><b>Exact match</b> (<code>name_exact</code>) if the normalized name equals an alias, <b>or</b> the alias is one of the name's whole words, <b>or</b> the alias is longer than four characters and appears anywhere in the name. The aliases are tried in list order and the <b>first hit wins</b> — which is why Majestic Custom Homes is listed before Milakis Homes: some filings name both, and Majestic is the selling entity.</li>
+        <li>Otherwise a <b>fuzzy match</b> (<code>name_fuzzy</code>): the name is scored against every alias with a token-set similarity ratio (word order and extra words do not lower the score), and the best-scoring builder is accepted at <span id="mFz"></span> or above — or <span id="mFzS"></span> for the builders whose names are common words or surnames (<span id="mHi"></span>).</li>
+        <li>No match leaves the builder blank. An uncertain match is never forced.</li>
+      </ol>
+
+      <h3 id="m-authority">6 · Building the address authority</h3>
+      <p>Builder matching is <b>address-first</b>. A builder's corporate mailing address recurs across hundreds of sales and is a far more reliable signal than a name, so the pipeline first learns which addresses belong to which builder. This “seed” runs once per refresh over all six years, and both eras share the result.</p>
+      <ol>
+        <li>For every disclosure, the seller text is matched to a builder by name (step 5).</li>
+        <li>The seller's mailing address is recorded as that builder's <b>only if the seller is trusted to teach</b>: the name looks corporate, <b>or</b> the entire normalized name is itself a known alias (this keeps a builder that files under a bare trading name, with no “LLC” or “Inc”). A private individual whose first name or surname happens to match an alias can therefore never register their home as a builder address.</li>
+        <li>Addresses on a short, human-ruled <b>deny list</b> are never learned.</li>
+        <li>Each learned address is assigned to the builder seen there most often. An address used by <b>more than one builder</b> is flagged <i>ambiguous</i> (a likely title company or other intermediary) and is <b>not used</b> for matching unless a person confirms it.</li>
+        <li>A person can override any suggested builder in the authority file; a confirmed value always wins over a suggested one.</li>
+      </ol>
+
+      <h3 id="m-seller">7 · Seller-side builder match</h3>
+      <p>For each disclosure, in this order:</p>
+      <ol>
+        <li><b>Address.</b> If the seller's mailing-address key is in the authority, the seller is that builder (method <code>address</code>). Address always wins over name.</li>
+        <li><b>Name.</b> Otherwise the seller text is matched by name (step 5; method <code>name_exact</code> or <code>name_fuzzy</code>). Because the name matched but the address was unknown, the address is listed for review as a possible new builder address.</li>
+        <li><b>Gate.</b> The result is then passed through the seller-name gate (step 8), which can remove it.</li>
+      </ol>
+
+      <h3 id="m-gate">8 · The seller-name confirmation gate</h3>
+      <p>Address matching assigns a builder to <i>every</i> seller filing from that address, and several aliases are bare surnames or first names. Both pull in sellers who are not the builder: private individuals, co-located companies, and the single-purpose developer LLCs that sell lots <i>to</i> builders. So for the gated builders, a seller-side match — by address <b>or</b> by name — is <b>kept only if the seller text contains one of that builder's allowed forms</b>, shown in the third column of the table in step 5. Otherwise the builder is removed from the seller side of that record.</p>
+      <ul>
+        <li>The allowed forms are the builder's own spellings, its observed misspellings, and affiliates ruled to be the builder (for example a builder's development arm or its filing entity).</li>
+        <li>Builders marked “not gated” showed no private individuals or foreign entities among their matches when measured, so no gate is applied.</li>
+        <li>Every rejection whose seller name looks corporate is written to the review queue, ordered by the number of records affected, so a builder filing under a new affiliate spelling is seen rather than silently lost. Rejections of private individuals are not queued.</li>
+        <li>The gate acts on the seller side only.</li>
+      </ul>
+
+      <h3 id="m-buyer">9 · Buyer-side builder match (land purchases)</h3>
+      <p>A builder appearing as the <b>buyer</b> is acquiring land. The buyer is matched against the same reference list and the same address authority, with stricter entry conditions:</p>
+      <ol>
+        <li>The buyer name must <b>look corporate</b>. A private individual is never matched as a builder, whatever their name or address.</li>
+        <li><b>Address.</b> If the buyer's mailing-address key is in the authority, the buyer is that builder.</li>
+        <li><b>Name</b>, otherwise — accepted outright for most builders. For the builders whose names collide with common surnames, first names or street names (<span id="mBlk"></span>), a name match is accepted <b>only if the buyer text also contains one of that builder's allowed seller forms</b> from step 8; where a builder has no such forms, only the address path can match it.</li>
+      </ol>
+
+      <h3 id="m-kind">10 · Transaction type and the new-construction score</h3>
+      <div class="m-tbl"><table>
+        <thead><tr><th>Type shown</th><th>Rule, tested in this order</th></tr></thead>
+        <tbody>
+          <tr><td><span class="pill vl">Vacant Land</span></td><td>The <b>buyer</b> is an identified builder (step 9). This takes precedence: a record with a builder on both sides is a land purchase.</td></tr>
+          <tr><td><span class="pill nc">New Construction</span></td><td>Otherwise, the <b>seller</b> is an identified builder that survived the gate (steps 7–8).</td></tr>
+          <tr><td><span class="pill unk">resale</span></td><td>Neither. Shown as “Resale / other”.</td></tr>
+        </tbody>
+      </table></div>
+      <p>The pipeline also scores each single-family disclosure for new-construction likelihood: seller is an identified builder +2, construction-loan financing +2, the form's vacant-land box +1, a reported physical change +1. A score of 3 or more is <i>high</i>, 2 is <i>medium</i>, below that <i>low</i>; a score of exactly 1 is listed for review as borderline. This score is kept in the working files and is not among the published columns.</p>
+
+      <h3 id="m-subdiv">11 · Subdivision name canonicalization</h3>
+      <p>The same development is filed as “Somerset Sec 2”, “SOMERSET SECTION 3 LOT 14”, “Somerset Ph II”. The canonical subdivision (the <i>Subdiv (canon)</i> column) collapses those to one base name; the name as filed stays in the <i>Subdivision</i> column.</p>
+      <ol>
+        <li><b>Placeholders</b> are treated as blank: <span class="m-dim" id="mPlace"></span>.</li>
+        <li><b>Crosswalk lookup.</b> If the filed name is in the subdivision crosswalk, its canonical name is used — a human-confirmed value if one exists, otherwise the suggested one.</li>
+        <li><b>Otherwise the base name is computed</b> by stripping trailing plat qualifiers, repeatedly, until nothing more comes off: <i>section / sec</i>, <i>phase / ph</i>, <i>unit</i>, <i>part / pt</i>, <i>block / blk</i>, <i>lot</i> (each with its number), <i>addition / addn / add</i>, <i>subdivision / sub</i>, <i>replat</i>, <i>amended</i>, trailing Roman numerals, and trailing commas, hyphens or slashes. Whitespace is collapsed and the result is put in Title Case. The new name is listed for review.</li>
+        <li><b>Near-duplicates are flagged, never merged automatically.</b> When the crosswalk is rebuilt, two canonical names are flagged as a likely spelling variant when their token-sort similarity is 92 or higher. Parent/child pairs (“Somerset” and “Somerset West”, where one name's words are a subset of the other's) are deliberately not flagged: they are different subdivisions.</li>
+      </ol>
+
+      <h3 id="m-legal">12 · Subdivision backfill from the legal description</h3>
+      <p>Many counties leave the form's subdivision box blank. For those records the name is recovered from the parcel's legal description, offline, with no outside data.</p>
+      <ol>
+        <li><b>Only blank records are touched.</b> A name entered on the form is never overwritten.</li>
+        <li>Each of the sale's parcels is looked up in the raw SALEPARCEL file by parcel number; the first parcel whose legal description yields a name is used.</li>
+        <li><b>Survey-style descriptions</b> (“…, Range 4, AUBURN ESTATES, Section 1, Lot 21”): the name is the text after “Range <i>n</i>,” up to the next Section, Lot, Block, Unit or Phase.</li>
+        <li><b>Name-first descriptions</b> (“WINCHESTER ESTATES SEC B LOT 17”): the description must contain the word <b>LOT</b> — a platted parcel has a lot. Parenthetical acreage and any leading acreage preamble are dropped, and the name is everything before the first structural word (lot, sec, section, block, blk, unit, phase, pt, part, replat, outlot, parcel, contract, except, beg, beginning), directional half (N/2), direction-plus-number, or dimension.</li>
+        <li>Trailing filler (directions, numbers, “of”, “the”…) is trimmed. The result is rejected if it is shorter than three characters, has no real name word, or is a placeholder.</li>
+        <li>A description with no lot and no survey pattern is metes-and-bounds: it names no subdivision and the record stays blank on purpose.</li>
+        <li>The recovered name goes through the same canonicalization as step 11 and is added to the crosswalk as a suggestion.</li>
+      </ol>
+      <p>Every record carries its <b>subdivision source</b>: <code>form</code> (entered by the filer), <code>legal_parsed</code> (recovered here) or <code>none</code>. The parser agreed with the human-entered name on about 85% of a validation sample, so every recovered name carries an <span class="mth infer">inferred</span> mark in the table and can be filtered with <i>Subdivision source</i>.</p>
+
+      <h3 id="m-school">13 · School district</h3>
+      <ol>
+        <li><b>Parcel join.</b> Each parcel number (the 18-digit state parcel number) is matched to the statewide parcel layer's school tax district. Method <code>parcel</code> when every parcel in the sale matched, <code>partial</code> when only some did. A sale spanning more than one district lists them joined with “; ”.</li>
+        <li><b>Tax-district fallback</b> for records still unmatched (typically new lots the statewide layer has not caught up with): the last three digits of the parcel number are the state taxing-district code, and a taxing district belongs to one school corporation. The county-plus-district → school table is learned from every parcel that did match, and a key is trusted only where one school holds at least 95% of it. Method <code>district_inferred</code>.</li>
+        <li><b>Subdivision fallback</b> for what remains: the district held by at least 90% of the already-matched records in the same canonical subdivision. Method <code>subdiv_inferred</code>.</li>
+        <li>Anything else is <code>unmatched</code> — in practice a malformed parcel number.</li>
+      </ol>
+
+      <h3 id="m-metro">14 · Metro filter</h3>
+      <p>The dashboard file keeps only disclosures in these <span id="mCountyN"></span> counties (the county name is lower-cased and a trailing “County” removed before the test): <span id="mCounties"></span>. Steps 12 and 13 run on this subset.</p>
+
+      <h3 id="m-publish">15 · Publish</h3>
+      <ol>
+        <li><b>One row per disclosure.</b> Duplicate rows for the same <code>SDF_ID</code> are dropped, keeping the first.</li>
+        <li><b>Column slim.</b> Only these <span id="mKeepN"></span> columns are published: <span class="m-dim" id="mKeep"></span>. Seller and buyer mailing addresses, phone numbers and e-mail addresses are never published.</li>
+        <li>The file is compressed and published; a publish is verified by downloading the served file and comparing its content hash, and only happens on a person's go-ahead.</li>
+      </ol>
+
+      <h3 id="m-display">16 · What this dashboard does to the published file</h3>
+      <ul>
+        <li><b>Non-priced transfers are always hidden.</b> A disclosure with a sale price of $0 or no price (gifts, quitclaims, many foreclosures) is excluded from the table, the counts, the statistics and the charts. This is not a filter you can switch off, and it is why the header reads “Showing <i>x</i> of <i>y</i>” with no filter applied: <i>y</i> is every disclosure in the file, <i>x</i> the priced ones that pass your filters.</li>
+        <li><b>One row per disclosure</b> — the same <code>SDF_ID</code> de-duplication as publish, applied again on load.</li>
+        <li><b>Acres.</b> The state ships acreage multiplied by 1,000; the Acres column divides it back.</li>
+        <li><b>Property city is standardized here, for display and filtering only</b> (the published value is left as filed): a trailing state or ZIP and stray punctuation are removed; anything that is an Indianapolis abbreviation (ind, indy, india, indiana, indpls, inpls) or within four single-character edits of “indianapolis” becomes <b>Indianapolis</b>; a curated list of known misspellings is corrected (for example “Grrenfield” → Greenfield, “Zionville” → Zionsville); everything else is put in Title Case.</li>
+        <li><b>The Subdivision (canon) filter only offers builder-active subdivisions</b> — those with at least one identified builder sale or builder land purchase. Typing a subdivision with no builder activity returns nothing by design.</li>
+        <li><b>Transaction type “Resale / other”</b> means the type is blank (step 10).</li>
+        <li><b>Search</b> looks in the address, city, buyer, seller and preparer names, parcel numbers, disclosure ID, builder, canonical subdivision and school district.</li>
+      </ul>
+
+      <h3 id="m-review">17 · Human review</h3>
+      <p>The pipeline front-loads judgment into files a person rules on, then applies those rulings unattended. Each run writes a review queue of what changed or was uncertain:</p>
+      <div class="m-tbl"><table>
+        <thead><tr><th>Queue item</th><th>Meaning</th><th>A ruling becomes</th></tr></thead>
+        <tbody>
+          <tr><td>Gate-rejected seller</td><td>A corporate seller matched a gated builder but its name is not an allowed form, so the seller-side match was dropped (step 8).</td><td>A new allowed form for that builder — or nothing, if it is not the builder</td></tr>
+          <tr><td>New builder address</td><td>A seller matched a builder by name from an address the authority does not hold (step 7).</td><td>The address is learned at the next seed, if the seller is trusted to teach</td></tr>
+          <tr><td>New subdivision stem</td><td>A filed subdivision name not yet in the crosswalk (step 11).</td><td>A confirmed or merged canonical name</td></tr>
+          <tr><td>Borderline new construction</td><td>A single-family sale scoring exactly 1 (step 10).</td><td>No change to the published columns</td></tr>
+        </tbody>
+      </table></div>
+      <p>The queue is an operator file and is not published. Where it is available, the <i>Needs review</i> view lists each item beside the records it points at.</p>
+
+      <h3 id="m-limits">18 · Known limits</h3>
+      <ul>
+        <li><b>A builder not on the reference list is not identified.</b> Its sales read as resale until it is added by a ruling.</li>
+        <li><b>The gate can drop a real builder sale</b> filed under an affiliate name nobody has ruled on yet. Those appear in the review queue, not in the builder's totals.</li>
+        <li><b>On a lot sale the builder is the buyer.</b> The seller is usually a per-project developer LLC, which is deliberately not treated as a builder.</li>
+        <li><b>Authority suggestions are mostly unconfirmed.</b> Address-to-builder and name-to-canonical-subdivision entries are machine suggestions used as-is unless a person has overridden them.</li>
+        <li><b>Recovered subdivision names are about 85% precise</b> and are marked as inferred.</li>
+        <li><b>Subdivision and property class come from the first parcel</b> of a multi-parcel sale; assessed value and acreage are summed across all of them.</li>
+        <li><b>Scope:</b> 15 metro counties, filing years 2025–2026, priced transfers only.</li>
+      </ul>
+     </div>
+    </section>
    </div>
   </div>
 </div>
 
+<!-- The pipeline's own constants, copied for the Methodology view. tests/smoke_test.py fails if
+     any value here differs from enrich_sales.py / publish_sales_disclosures.py. -->
+<script type="application/json" id="methodData">
+{
+ "builder_reference": {
+  "Arbor": [
+   "arbor",
+   "arbor homes"
+  ],
+  "Beazer": [
+   "beazer",
+   "beazer homes"
+  ],
+  "David Weekley": [
+   "david weekley",
+   "weekley"
+  ],
+  "Davis Homes": [
+   "davis homes",
+   "davis"
+  ],
+  "DR Horton": [
+   "dr horton",
+   "d r horton",
+   "drh",
+   "horton",
+   "express homes"
+  ],
+  "Drees": [
+   "drees",
+   "drees homes"
+  ],
+  "Epcon": [
+   "epcon",
+   "epcon communities"
+  ],
+  "Estridge": [
+   "estridge"
+  ],
+  "Fischer Homes": [
+   "fischer",
+   "fischer homes"
+  ],
+  "Lennar": [
+   "lennar"
+  ],
+  "MI Homes": [
+   "mi homes",
+   "m i homes",
+   "m/i homes"
+  ],
+  "Old Town": [
+   "old town",
+   "old town design",
+   "old town companies"
+  ],
+  "Olthof": [
+   "olthof",
+   "olthof homes"
+  ],
+  "Onyx East": [
+   "onyx east",
+   "onyx"
+  ],
+  "Pulte": [
+   "pulte",
+   "pulte homes",
+   "pultegroup",
+   "centex",
+   "delwebb",
+   "del webb",
+   "john wagner"
+  ],
+  "Ryan/NVR": [
+   "ryan",
+   "ryan homes",
+   "nvr",
+   "nvr inc"
+  ],
+  "Taylor Morrison": [
+   "taylor morrison",
+   "pyatt",
+   "pyatt builders"
+  ],
+  "Hallmark": [
+   "hallmark",
+   "hallmark homes"
+  ],
+  "Citation Homes": [
+   "citation homes"
+  ],
+  "JR Lazaro Builders": [
+   "jr lazaro builders"
+  ],
+  "Joyner Homes": [
+   "joyner homes"
+  ],
+  "Majestic Custom Homes": [
+   "majestic custom homes"
+  ],
+  "Milakis Homes": [
+   "milakis homes"
+  ],
+  "Tempest Homes": [
+   "tempest homes"
+  ]
+ },
+ "seller_name_required": {
+  "Ryan/NVR": [
+   "nvr",
+   "ryan home"
+  ],
+  "DR Horton": [
+   "dr horton",
+   "d r horton"
+  ],
+  "MI Homes": [
+   "mi homes",
+   "m i homes"
+  ],
+  "David Weekley": [
+   "weekley",
+   "cnd woods robinson",
+   "cnd grantham",
+   "weekly homes"
+  ],
+  "Fischer Homes": [
+   "fischer homes",
+   "fischer att",
+   "fischer development",
+   "grand communities"
+  ],
+  "Davis Homes": [
+   "davis building group",
+   "davis building grp",
+   "david building group",
+   "davis investment group",
+   "davis investments group",
+   "davis homes"
+  ],
+  "Pulte": [
+   "pulte",
+   "pule homes",
+   "puite homes",
+   "centex"
+  ],
+  "Citation Homes": [
+   "citation homes"
+  ],
+  "JR Lazaro Builders": [
+   "lazaro builders"
+  ],
+  "Joyner Homes": [
+   "joyner homes"
+  ],
+  "Milakis Homes": [
+   "milakis homes"
+  ],
+  "Tempest Homes": [
+   "tempest homes"
+  ]
+ },
+ "high_threshold_names": [
+  "DR Horton",
+  "Davis Homes",
+  "Hallmark",
+  "Old Town"
+ ],
+ "buyer_name_block": [
+  "DR Horton",
+  "Davis Homes",
+  "Hallmark",
+  "Old Town",
+  "Ryan/NVR"
+ ],
+ "name_fuzzy_threshold": 92,
+ "name_fuzzy_threshold_strict": 96,
+ "price_scale": 100,
+ "single_family_classes": [
+  510,
+  511,
+  512,
+  513,
+  514,
+  515
+ ],
+ "metro_counties": [
+  "bartholomew",
+  "boone",
+  "hamilton",
+  "hancock",
+  "hendricks",
+  "howard",
+  "johnson",
+  "madison",
+  "marion",
+  "montgomery",
+  "morgan",
+  "putnam",
+  "shelby",
+  "tippecanoe",
+  "tipton"
+ ],
+ "placeholder_subdiv": [
+  "",
+  "-",
+  "--",
+  ".",
+  "000",
+  "n/a",
+  "na",
+  "no subdivision",
+  "none",
+  "not applicable",
+  "tbd",
+  "unk",
+  "unknown",
+  "xxx"
+ ],
+ "keep": [
+  "SDF_ID",
+  "County_Name",
+  "sale_price_num",
+  "total_AV_sum",
+  "conveyance_date",
+  "primary_class_code",
+  "acreage_sum",
+  "rep_city",
+  "rep_street",
+  "subdiv_canonical",
+  "subdiv_name",
+  "subdiv_source",
+  "parcel_count",
+  "parcel_numbers",
+  "transaction_kind",
+  "builder_canonical",
+  "buyer_builder_canonical",
+  "buyers",
+  "sellers",
+  "preparers",
+  "prop_class_descs",
+  "sale_vs_AV",
+  "school_district",
+  "school_match_method"
+ ]
+}
+</script>
 <script>
 // Column set + left-to-right order (drag a header to reorder)
 let COLS = [
@@ -590,6 +1126,7 @@ function boot(){
   $('reset').addEventListener('click',()=>{
     ['fCounty','fCity','fKind','fBuilder','fLandBuyer','fSubdiv','fSubdivSrc','fSchool','fFrom','fTo','fSearch'].forEach(id=>$(id).value='');
     selClasses.clear(); syncClassUI();
+    RV_FOCUS=null; $('rvType').value=''; $('rvSearch').value=''; renderReview();
     page=0; apply();
   });
   $('exportBtn').addEventListener('click',exportCSV);
@@ -600,6 +1137,8 @@ function boot(){
   $('next').addEventListener('click',()=>{if((page+1)*PER<VIEW.length){page++;render();scrollTableTop();}});
   $('total').textContent=RAW.length.toLocaleString();
   apply();
+  initViews();
+  initReview();
 }
 
 function apply(){
@@ -612,10 +1151,17 @@ function apply(){
   const city=$('fCity').value.trim().toLowerCase();
   const subdiv=$('fSubdiv').value.trim().toLowerCase();
   const q=$('fSearch').value.trim().toLowerCase();
+  const rvType=$('rvType').value;
 
   VIEW=RAW.filter(r=>{
     // non-priced transfers ($0 gifts, quitclaims, foreclosures) are ALWAYS excluded
     if(r._price===0||r._price===null)return false;
+    // review view: only records a queue item points at; a selected item narrows to its own
+    if(MODE==='review'){
+      if(!r._rev)return false;
+      if(RV_FOCUS!=null){if(!r._rev.includes(RV_FOCUS))return false;}
+      else if(rvType&&!r._rev.some(i=>RVQ[i].type===rvType))return false;
+    }
     if(county&&r.County_Name!==county)return false;
     if(selClasses.size&&!selClasses.has(String(r.primary_class_code||'').trim()))return false;
     if(builder==='__any'){if(!(r.builder_canonical||'').trim())return false;}
@@ -804,12 +1350,17 @@ function render(){
       }
       return `<td title="${nm.replace(/"/g,'')}">${nm}</td>`;
     }
+    if(c.rev){
+      if(!r._rev)return '<td>—</td>';
+      return `<td title="${esc(r._revTxt)}">`+r._rev.slice(0,3).map(i=>{const it=RVQ[i];
+        return `<span class="pill rv">${RV_SHORT[it.type]||esc(it.type)}</span>${it.bld?`<span class="bld">${esc(it.bld)}</span> `:''}`;}).join('')+'</td>';
+    }
     if(c.bld){return v?`<td><span class="bld ${c.land?'land':''}">${v}</span></td>`:'<td>—</td>';}
     if(c.mth){if(!v)return '<td>—</td>';
       const lbl={address:'addr',name_exact:'name',name_fuzzy:'name?'}[v]||v;
       return `<td><span class="mth ${v==='address'?'addr':''}" title="${v}">${lbl}</span></td>`;}
     return `<td title="${(v||'').toString().replace(/"/g,'')}">${v||'—'}</td>`;
-  }).join('')+'</tr>').join('')||`<tr><td colspan="${COLS.length}" style="padding:30px;text-align:center;color:var(--muted)">No transactions match these filters.</td></tr>`;
+  }).join('')+'</tr>').join('')||`<tr><td colspan="${COLS.length}" style="padding:30px;text-align:center;color:var(--muted)">${MODE==='review'&&!RVQ.length?'No review queue loaded — use “Load review_queue.csv” above.':'No transactions match these filters.'}</td></tr>`;
   const totPages=Math.max(1,Math.ceil(VIEW.length/PER));
   $('pageInfo').textContent=`page ${page+1} / ${totPages}`;
   $('prev').disabled=page===0; $('next').disabled=(page+1)>=totPages;
@@ -823,7 +1374,7 @@ function scrollTableTop(){ const s=document.querySelector('.scroll'); if(s)s.scr
 let dragIdx=null;
 function buildThead(){
   $('thead').innerHTML=COLS.map((c,i)=>
-    `<th draggable="true" data-k="${c.k}" data-idx="${i}"><span class="grip">⠿</span>${c.t}<span class="arr" data-arr="${c.k}"></span></th>`).join('');
+    `<th draggable="true" data-k="${c.k}" data-idx="${i}"${(c.n||c.acres||c.d)?' class="num"':''}><span class="grip">⠿</span>${c.t}<span class="arr" data-arr="${c.k}"></span></th>`).join('');
   $('thead').querySelectorAll('th').forEach(th=>{
     th.addEventListener('click',()=>{ if(th._dragged){th._dragged=false;return;}
       const k=th.dataset.k; if(sortKey===k)sortDir*=-1;else{sortKey=k;sortDir=1;} render(); });
@@ -874,6 +1425,192 @@ function exportCSV(){
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a'); a.href=url; a.download='sales_transactions_filtered.csv';
   document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
+
+// ── Review view ──────────────────────────────────────────────────────────────
+// review_queue.csv is what the enrichment stage writes for a human to rule on (SDF-10): seller
+// names the builder gate dropped, mailing addresses that look like a builder's but are not in the
+// authority, and single-family sales that score borderline for new construction.
+// ⚠ It is a LOCAL operator file and is never published. So the view exists only where the file can
+// be reached: served from the repo root (localhost -> output/review_queue.csv), ?review=<url>, or
+// the picker (?review=pick). ?review=none switches it off. On the deployed MRD none of those apply,
+// so the tab never appears and no request is made. ?view=review opens straight into it.
+// ⚠ The queue is statewide and the loaded file is the 15-county metro subset with $0 transfers
+// excluded, so "Records here" is routinely smaller than the queue's own row count - and for a new
+// address only the example record can be shown, because the seller MAILING address it keys on is
+// not one of the published columns.
+let MODE='all', RVQ=[], RV_FOCUS=null, RV_WIRED=false;
+// ⚠ The MRD itself is served from localhost (serve-mrd, :8778), so a hostname test alone would put
+// the tab inside the MRD embed with a queue it cannot reach. Embedded in a frame, the view is off
+// unless ?review= asks for it.
+const FRAMED=(()=>{ try{ return window.self!==window.top; }catch(e){ return true; } })();
+const REVIEW_LOCAL=!FRAMED&&['','localhost','127.0.0.1'].includes(location.hostname);
+const REV_COL={k:'_revTxt', t:'Review', rev:1};
+const RV_LABEL={builder_gate_rejected:'Gate-rejected seller', builder_new_address:'New builder address',
+  nc_borderline:'Borderline new construction', subdiv_new_stem:'New subdivision stem'};
+const RV_SHORT={builder_gate_rejected:'gate', builder_new_address:'address', nc_borderline:'NC?', subdiv_new_stem:'subdiv'};
+const RV_HINT={
+  builder_gate_rejected:'The seller matched a builder by address or name, but its name is not an allowed form for that builder, so the seller-side match was dropped. Rule on each: add it as an allowed spelling, or leave it dropped.',
+  builder_new_address:'A seller mailing address that matched a builder by name but is not in the address authority. Only the example record is shown — the mailing address itself is not in the published file.',
+  nc_borderline:'Single-family sales that scored 1 on the new-construction test — neither clearly new nor clearly resale.',
+  subdiv_new_stem:'A subdivision name with no canonical stem in the crosswalk yet.'};
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function initReview(){
+  const qp=_qp('review');
+  if(qp==='none'||!(qp||REVIEW_LOCAL)) return;
+  $('vReview').classList.remove('hidden');
+  if(!RV_WIRED){ RV_WIRED=true;
+    $('vReview').addEventListener('click',()=>setMode('review'));
+    $('rvType').addEventListener('input',()=>{RV_FOCUS=null;renderReview();page=0;apply();});
+    $('rvSearch').addEventListener('input',renderReview);
+    $('rvHere').addEventListener('change',renderReview);
+    $('rvClear').addEventListener('click',()=>{RV_FOCUS=null;renderReview();page=0;apply();});
+    $('rvBody').addEventListener('click',e=>{const tr=e.target.closest('tr[data-i]'); if(!tr)return;
+      const i=+tr.dataset.i; RV_FOCUS=(RV_FOCUS===i)?null:i; renderReview(); page=0; apply(); scrollTableTop();});
+    $('rvPick').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('rvFile').click();}});
+    $('rvFile').addEventListener('change',e=>{const f=e.target.files[0]; if(!f)return;
+      Papa.parse(f,{header:true,skipEmptyLines:true,
+        complete:res=>ingestReview(res,f.name),
+        error:err=>{$('rvHint').textContent='Could not read file: '+err.message;}});});
+  }
+  if(_qp('view')==='review') setMode('review');
+  if(qp!=='pick') autoLoadReview(qp||'output/review_queue.csv');
+  else renderReview();
+}
+async function autoLoadReview(url){
+  try{
+    const resp=await fetch(url,{cache:'no-cache'});
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
+    ingestReview(Papa.parse(await resp.text(),{header:true,skipEmptyLines:true}), url.split('/').pop());
+  }catch(err){
+    $('rvHint').textContent='Could not auto-load '+url+' ('+err.message+'). Use “Load review_queue.csv” to pick it from the output/ folder.';
+  }
+}
+function ingestReview(res,name){
+  const rows=res.data||[];
+  if(!rows.length||!('queue_type' in rows[0])||!('value' in rows[0])){
+    $('rvHint').textContent='That does not look like review_queue.csv — expected queue_type / value columns.'; return;
+  }
+  RVQ=rows.map(r=>{
+    const sug=String(r.suggested_resolution||'').trim(), m=sug.match(/\((\d+) rows?\)\s*$/);
+    return {type:String(r.queue_type||'').trim(), value:String(r.value||'').trim(), sug,
+      bld:/^score=/.test(sug)?'':sug.replace(/\s*\(\d+ rows?\)\s*$/,''),
+      qrows:m?+m[1]:null, ex:String(r.example_sdf_id||'').trim(), n:0};
+  });
+  RV_FOCUS=null; $('rvPick').title='Loaded: '+name;
+  linkReview();
+  const tm={}; RVQ.forEach(q=>{tm[q.type]=(tm[q.type]||0)+1;});
+  $('rvType').innerHTML='<option value="">All types</option>'+Object.entries(tm).sort((a,b)=>b[1]-a[1])
+    .map(([t,n])=>`<option value="${esc(t)}">${esc(RV_LABEL[t]||t)} (${n.toLocaleString()})</option>`).join('');
+  renderReview();
+  if(MODE==='review'){page=0;apply();}
+}
+// attach each queue item to the loaded records it points at (and each record back to its items)
+function linkReview(){
+  const byId=new Map(), bySeller=new Map();
+  RAW.forEach(r=>{ r._rev=null; r._revTxt='';
+    if(r._price===0||r._price===null) return;          // same exclusion as the table
+    byId.set(String(r.SDF_ID||'').trim(),r);
+    const s=String(r.sellers||'').trim().toLowerCase();
+    if(s){ if(!bySeller.has(s))bySeller.set(s,[]); bySeller.get(s).push(r); } });
+  RVQ.forEach((q,i)=>{
+    let rows;
+    if(q.type==='builder_gate_rejected') rows=bySeller.get(q.value.toLowerCase())||[];
+    else{ const r=byId.get(q.type==='nc_borderline'?q.value:q.ex); rows=r?[r]:[]; }
+    q.n=rows.length;
+    rows.forEach(r=>{(r._rev||(r._rev=[])).push(i);});
+  });
+  let flagged=0;
+  RAW.forEach(r=>{ if(!r._rev)return; flagged++;
+    r._revTxt=r._rev.map(i=>{const q=RVQ[i]; return (RV_LABEL[q.type]||q.type)+(q.sug?': '+q.sug:'');}).join('; '); });
+  $('rvCount').textContent=flagged.toLocaleString();
+}
+function renderReview(){
+  const type=$('rvType').value, s=$('rvSearch').value.trim().toLowerCase(), here=$('rvHere').checked;
+  const idx=[];
+  RVQ.forEach((q,i)=>{
+    if(type&&q.type!==type)return;
+    if(here&&!q.n&&i!==RV_FOCUS)return;
+    if(s&&!(q.value+' '+q.sug+' '+q.ex).toLowerCase().includes(s))return;
+    idx.push(i);
+  });
+  idx.sort((a,b)=>(RVQ[b].n-RVQ[a].n)||((RVQ[b].qrows||0)-(RVQ[a].qrows||0)));
+  const CAP=300;
+  $('rvBody').innerHTML=idx.slice(0,CAP).map(i=>{const q=RVQ[i];
+    return `<tr data-i="${i}" class="${i===RV_FOCUS?'on':''}${q.n?'':' none'}">`+
+      `<td><span class="pill rv">${RV_SHORT[q.type]||esc(q.type)}</span></td>`+
+      `<td title="${esc(q.value)}">${esc(q.value)}</td>`+
+      `<td>${q.bld?`<span class="bld">${esc(q.bld)}</span>`:esc(q.sug)||'—'}</td>`+
+      `<td class="num">${q.qrows==null?'—':q.qrows.toLocaleString()}</td>`+
+      `<td class="num">${q.n.toLocaleString()}</td>`+
+      `<td class="id">${esc(q.ex)||'—'}</td></tr>`;}).join('')
+    ||`<tr><td colspan="6" style="padding:18px;text-align:center;color:var(--muted)">${RVQ.length?'No queue items match.':'No review queue loaded.'}</td></tr>`;
+  const withRec=RVQ.filter(q=>q.n).length;
+  $('rvMeta').textContent=RVQ.length?`${RVQ.length.toLocaleString()} items · ${withRec.toLocaleString()} with records here`
+    +(idx.length>CAP?` · showing ${CAP} of ${idx.length.toLocaleString()}`:` · ${idx.length.toLocaleString()} listed`):'';
+  $('rvClear').classList.toggle('hidden',RV_FOCUS==null);
+  if(RVQ.length) $('rvHint').textContent=RV_FOCUS!=null
+    ?`Showing the records for “${RVQ[RV_FOCUS].value}”. Click it again, or Clear selection, to see every flagged record.`
+    :(RV_HINT[type]||'Click an item to see only its records in the table below. The queue is statewide; this file is the metro subset, so some items have no records here.');
+}
+// ── Views ────────────────────────────────────────────────────────────────────
+// Transactions and Methodology are always offered (the MRD embed included); Needs review joins
+// them only where the queue file is reachable (initReview). ?view=method opens into Methodology.
+function initViews(){
+  $('viewTabs').classList.remove('hidden');
+  $('vAll').addEventListener('click',()=>setMode('all'));
+  $('vMethod').addEventListener('click',()=>setMode('method'));
+  renderMethod();
+  if(_qp('view')==='method') setMode('method');
+}
+// Fill the Methodology view's tables from #methodData (the pipeline's constants) and its
+// "this file" tiles from the loaded rows, so neither is a number typed into prose.
+function renderMethod(){
+  let M; try{ M=JSON.parse($('methodData').textContent); }catch(e){ return; }
+  const gate=M.seller_name_required, hi=new Set(M.high_threshold_names), blk=new Set(M.buyer_name_block);
+  const list=a=>a.map(esc).join(' · ');
+  $('mBuilders').innerHTML=Object.entries(M.builder_reference).map(([b,al])=>
+    `<tr><td><span class="bld">${esc(b)}</span></td><td>${list(al)}</td>`+
+    `<td>${gate[b]?list(gate[b]):'<span class="m-dim">not gated</span>'}</td>`+
+    `<td class="num">${hi.has(b)?M.name_fuzzy_threshold_strict:M.name_fuzzy_threshold}</td>`+
+    `<td>${blk.has(b)?(gate[b]?'address, or a name carrying an allowed seller form':'address only'):'address or name'}</td></tr>`).join('');
+  $('mFz').textContent=M.name_fuzzy_threshold; $('mFzS').textContent=M.name_fuzzy_threshold_strict;
+  $('mHi').textContent=M.high_threshold_names.join(', ');
+  $('mBlk').textContent=M.buyer_name_block.join(', ');
+  $('mScale').textContent=M.price_scale;
+  $('mSF').textContent=M.single_family_classes[0]+'–'+M.single_family_classes[M.single_family_classes.length-1];
+  $('mPlace').textContent=M.placeholder_subdiv.map(p=>p===''?'(empty)':'“'+p+'”').join(', ');
+  $('mCountyN').textContent=M.metro_counties.length;
+  $('mCounties').textContent=M.metro_counties.map(c=>c.charAt(0).toUpperCase()+c.slice(1)).join(', ');
+  $('mKeepN').textContent=M.keep.length; $('mKeep').textContent=M.keep.join(', ');
+  // live tiles: what the rules above did to the file that is loaded right now
+  const priced=RAW.filter(r=>!(r._price===0||r._price===null));
+  const cnt=f=>priced.filter(f).length.toLocaleString();
+  const tiles=[['Disclosures in file',RAW.length.toLocaleString(),'one row per SDF_ID'],
+    ['Hidden as non-priced',(RAW.length-priced.length).toLocaleString(),'$0 or no price · step 16'],
+    ['Priced, shown',priced.length.toLocaleString(),'before your filters']];
+  if(HAS_ENRICH) tiles.push(
+    ['New Construction',cnt(r=>r.transaction_kind==='New Construction'),'builder is the seller'],
+    ['Vacant Land',cnt(r=>r.transaction_kind==='Vacant Land'),'builder is the buyer'],
+    ['Subdivision inferred',cnt(r=>(r.subdiv_source||'').trim()==='legal_parsed'),'from the legal description']);
+  $('mLive').innerHTML=tiles.map(([k,v,x])=>
+    `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div><div class="x">${x}</div></div>`).join('');
+  $('methodPanel').addEventListener('click',e=>{const a=e.target.closest('.m-toc a'); if(!a)return;
+    e.preventDefault(); const t=document.querySelector(a.getAttribute('href')); if(t)t.scrollIntoView({block:'start'});});
+}
+function setMode(m){
+  MODE=m;
+  $('vAll').classList.toggle('on',m==='all'); $('vReview').classList.toggle('on',m==='review');
+  $('vMethod').classList.toggle('on',m==='method');
+  $('reviewPanel').classList.toggle('hidden',m!=='review');
+  $('methodPanel').classList.toggle('hidden',m!=='method');
+  $('reset').classList.toggle('hidden',m==='method');
+  document.querySelector('.body-pad').classList.toggle('m-mode',m==='method');
+  document.querySelector('.body-pad').classList.toggle('rv-mode',m==='review');
+  COLS=COLS.filter(c=>!c.rev); if(m==='review') COLS.unshift(REV_COL);
+  $('tblTitle').textContent=m==='review'?'Records needing review':'Transactions';
+  buildThead(); page=0; apply();
 }
 
 // theme follow (mirrors the MRD Zonda iframe): ?theme=light|dark ; default = dark (:root)
