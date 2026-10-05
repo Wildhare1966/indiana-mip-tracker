@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p209r2 -->
+<!-- MIP build p210r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p209r2">
+<link rel="stylesheet" href="styles.css?v=p210r1">
 </head>
 <body>
 
@@ -905,6 +905,105 @@
   </div>
 </div>
 
+<script>
+// p210r1 (2026-10-05): a lost reply is retried — for READS only.
+//
+// Measured that morning: a read the Apps Script log showed "Completed in 6.3 s" came back to the
+// browser as a 404 HTML page a full minute later. The script had answered; Google's delivery hop
+// lost the answer. Two of six reads went that way, and each one put up "Live refresh failed —
+// showing a CDN snapshot". Every read here was tried exactly once.
+//
+// So window.fetch is wrapped, and a GET to the web app whose action is on the READ list below gets
+// a second attempt: at once when the first comes back as an error page (not ok, or HTML where JSON
+// was asked for) or fails on the network, and in PARALLEL after MIP_READ_HEDGE_MS when the first
+// has simply not come back — a lost reply takes 30–60 s to say so, longer than most callers wait.
+// The first good answer wins. Two attempts at most: a third would pile executions onto a backend
+// that is already slow.
+//
+// ⛔ WRITES ARE NEVER RETRIED HERE. A lost reply does not mean the work did not happen, and a
+// repeated write is a second write. An action missing from the list gets the plain fetch — so a
+// new action is safe by default, and only earns a retry by being added as a read.
+var MIP_READ_ACTIONS = {
+  bootstrap: 1, scraped_documents: 1, data_version: 1, meeting_dates: 1, member_profiles: 1,
+  list_tracked_projects: 1, list_tracked_projects_detailed: 1, project_timeline: 1,
+  list_project_documents: 1, list_project_document_counts: 1, jurisdiction_references: 1,
+  summary_flags: 1, jurisdiction_status: 1, recent_changes: 1, review_queue: 1, intel_feed: 1
+};
+var MIP_READ_ADMIN_FNS = { getAgendaCandidatesJSON: 1, getAgendaItemsFeedJSON: 1, listTriggers: 1, geminiQuotaStatus: 1 };
+var MIP_READ_HEDGE_MS = 15000;
+
+/** Is this request a read that is safe to send twice? Pure. */
+function mipIsRetryableRead(url, init) {
+  if (typeof url !== 'string') return false;
+  if (init && init.method && String(init.method).toUpperCase() !== 'GET') return false;
+  if (init && init.body) return false;
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[^\/]+\/exec\?/.test(url)) return false;
+  var m = /[?&]action=([a-z_]+)/.exec(url);
+  if (!m) return false;
+  if (m[1] === 'admin_run') {
+    var f = /[?&]fn=([A-Za-z0-9_]+)/.exec(url);
+    return !!(f && MIP_READ_ADMIN_FNS[f[1]] === 1);
+  }
+  return MIP_READ_ACTIONS[m[1]] === 1;
+}
+
+/** A reply that arrived but is not the answer: an error status, or an HTML page. Pure. */
+function mipIsLostReply(resp) {
+  if (!resp || !resp.ok) return true;
+  var ct = '';
+  try { ct = String(resp.headers.get('content-type') || '').toLowerCase(); } catch (e) {}
+  return ct.indexOf('text/html') !== -1;
+}
+
+/**
+ * fetchFn(url, init) with one second attempt, as described above. Resolves with the first good
+ * Response; when both attempts are bad, with the last bad Response (so the caller's own
+ * `!r.ok` / `r.json()` handling runs exactly as before), or rejects with the last error.
+ * The caller's abort signal ends everything at once.
+ */
+function mipHedgedRead(fetchFn, url, init, hedgeMs, timers) {
+  timers = timers || { set: function (f, ms) { return setTimeout(f, ms); }, clear: function (id) { clearTimeout(id); } };
+  return new Promise(function (resolve, reject) {
+    var launched = 0, settled = 0, done = false, lastBad = null, lastErr = null, hedge = null;
+    var signal = init && init.signal;
+    function finish(fn, v) { if (done) return; done = true; if (hedge !== null) timers.clear(hedge); fn(v); }
+    function aborted(e) { return (signal && signal.aborted) || (e && (e.name === 'AbortError' || e.name === 'TimeoutError')); }
+    function exhausted() {
+      if (lastBad) finish(resolve, lastBad);
+      else finish(reject, lastErr || new Error('read failed'));
+    }
+    function launch() {
+      if (done || launched >= 2) return;
+      launched++;
+      var p;
+      try { p = fetchFn(url, init); } catch (e) { p = Promise.reject(e); }
+      p.then(function (resp) {
+        settled++;
+        if (!mipIsLostReply(resp)) return finish(resolve, resp);
+        lastBad = resp;
+        if (launched < 2) launch(); else if (settled >= launched) exhausted();
+      }, function (err) {
+        settled++;
+        if (aborted(err)) return finish(reject, err);
+        lastErr = err;
+        if (launched < 2) launch(); else if (settled >= launched) exhausted();
+      });
+    }
+    launch();
+    hedge = timers.set(function () { hedge = null; launch(); }, hedgeMs);
+  });
+}
+
+(function () {
+  if (typeof window === 'undefined' || typeof window.fetch !== 'function' || window.__mipFetchWrapped) return;
+  var nativeFetch = window.fetch.bind(window);
+  window.__mipFetchWrapped = true;
+  window.fetch = function (input, init) {
+    if (!mipIsRetryableRead(input, init)) return nativeFetch(input, init);
+    return mipHedgedRead(nativeFetch, input, init, MIP_READ_HEDGE_MS);
+  };
+})();
+</script>
 <script>
 // ── MEMBER PROFILE PIPELINE CONSTANTS ────────────────────────────────────────────────────────────────────────
 const PROFILE_CACHE_KEY = 'mip_member_profiles';
