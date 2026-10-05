@@ -254,6 +254,22 @@ License: MIT
   .review tbody tr.none td{color:var(--ink-faint)}
   .review tbody tr.on td{background:rgba(74,159,196,.20)}
   .pill.rv{background:rgba(232,163,12,.18);color:#f0bb55;margin-right:5px}
+  /* rulings — approve / revise a flagged record; kept in this browser, exported as a CSV */
+  .rv-act{background:var(--input);border:1px solid var(--line);color:var(--ink);border-radius:5px;
+    padding:2px 8px;cursor:pointer;font-family:var(--sans);font-size:11px;font-weight:600;margin-right:4px;white-space:nowrap}
+  .rv-act:hover:not(:disabled){border-color:var(--accent)}
+  .rv-act:disabled,.rv-btn:disabled{opacity:.45;cursor:default}
+  .rv-act.ok{color:var(--good,#62c890)}
+  tbody td.rul{max-width:none;overflow:visible}
+  .rv-bulk{display:inline-flex;align-items:center;gap:2px}
+  dialog.rv-dlg{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:8px;
+    padding:18px;width:min(460px,92vw);font-family:var(--sans)}
+  dialog.rv-dlg::backdrop{background:rgba(0,0,0,.55)}
+  .rv-dlg h3{font-size:15px;font-weight:700;margin:0 0 8px}
+  .rv-dlg-ctx{font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6}
+  .rv-dlg label{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;
+    font-weight:700;margin:10px 0 4px}
+  .rv-dlg-btns{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
 
   /* methodology view — a document, not a workspace: it hides the working panels and scrolls */
   .body-pad.m-mode>.controls,.body-pad.m-mode>details.charts-box,
@@ -407,16 +423,34 @@ License: MIT
         <span class="meta" id="rvMeta"></span>
         <span class="spacer"></span>
         <button type="button" class="rv-btn hidden" id="rvClear">✕ Clear selection</button>
+        <button type="button" class="rv-btn" id="rvExport" disabled title="Download every ruling made here as review_rulings.csv">⤓ Export rulings</button>
+        <label class="rv-btn" for="rvFile" title="Re-load a review_rulings.csv exported earlier (merges with the rulings already here)">Load rulings</label>
         <label class="rv-btn" id="rvPick" tabindex="0">Load review_queue.csv<input type="file" id="rvFile" accept=".csv,text/csv"></label>
       </div>
       <div class="rv-hint" id="rvHint"></div>
       <div class="rv-scroll">
         <table>
-          <thead><tr><th>Type</th><th>Item</th><th>Suggested</th><th class="num">Queue rows</th><th class="num">Records here</th><th>Example SDF</th></tr></thead>
+          <thead><tr><th>Type</th><th>Item</th><th id="rvSugTh">Pipeline suggestion</th><th class="num">Queue rows</th><th class="num">Records here</th><th class="num" title="Records here that carry a ruling">Ruled</th><th>Example SDF</th></tr></thead>
           <tbody id="rvBody"></tbody>
         </table>
       </div>
     </section>
+
+    <dialog class="rv-dlg" id="rvDlg">
+      <form id="rvDlgForm">
+        <h3>Revise</h3>
+        <div class="rv-dlg-ctx" id="rvDlgCtx"></div>
+        <label for="rvDlgTo" id="rvDlgToLbl">Correct answer</label>
+        <input type="text" id="rvDlgTo" list="rvDlgOpts" autocomplete="off">
+        <datalist id="rvDlgOpts"></datalist>
+        <label for="rvDlgNote">Note (optional)</label>
+        <input type="text" id="rvDlgNote" autocomplete="off">
+        <div class="rv-dlg-btns">
+          <button type="button" class="rv-btn" id="rvDlgCancel">Cancel</button>
+          <button type="submit" class="btn-export">Save revision</button>
+        </div>
+      </form>
+    </dialog>
 
     <div id="apperr"></div>
 
@@ -440,6 +474,11 @@ License: MIT
         <h3 id="tblTitle">Transactions</h3>
         <input type="search" id="fSearch" placeholder="Search address, names, parcel…" style="max-width:260px">
         <span class="meta" id="tableMeta"></span>
+        <span class="rv-bulk hidden" id="rvBulk">
+          <button type="button" class="rv-act ok" id="rvBulkOk"></button>
+          <button type="button" class="rv-act" id="rvBulkRev" title="Give every record shown the same corrected answer">✎ Revise all shown</button>
+          <button type="button" class="rv-act" id="rvBulkClr" title="Remove the ruling from every record shown">↺ Clear shown</button>
+        </span>
         <span class="spacer"></span>
         <label for="perPage">Rows</label>
         <select id="perPage" title="Rows per page (use Export for the full filtered set)">
@@ -643,7 +682,7 @@ License: MIT
           <tr><td>Borderline new construction</td><td>A single-family sale scoring exactly 1 (step 10).</td><td>No change to the published columns</td></tr>
         </tbody>
       </table></div>
-      <p>The queue is an operator file and is not published. Where it is available, the <i>Needs review</i> view lists each item beside the records it points at.</p>
+      <p>The queue is an operator file and is not published. Where it is available, the <i>Needs review</i> view lists each item beside the records it points at, and the operator can approve the pipeline's suggestion for a record or revise it. Those rulings are a worksheet: they are saved as a separate file and change nothing here until they are applied to the pipeline's rules.</p>
 
       <h3 id="m-limits">18 · Known limits</h3>
       <ul>
@@ -1350,6 +1389,14 @@ function render(){
       }
       return `<td title="${nm.replace(/"/g,'')}">${nm}</td>`;
     }
+    if(c.act){
+      if(!r._rev)return '<td>—</td>';
+      const id=String(r.SDF_ID||'').trim(), t=rvTargets(r), u=t.map(i=>RUL[rulKey(id,RVQ[i])]).find(Boolean);
+      if(u)return `<td class="rul" title="${esc(u.note)}"><span class="pill ${u.ruling==='approved'?'nc':'vl'}">${u.ruling}</span> <span class="bld">${esc(u.to)}</span> `+
+        `<button type="button" class="rv-act" data-rul="clear" data-id="${esc(id)}" title="Remove this ruling">↺</button></td>`;
+      return `<td class="rul"><button type="button" class="rv-act ok" data-rul="approve" data-id="${esc(id)}" title="Approve the pipeline suggestion: ${esc(rvProposal(RVQ[t[0]]))}">✓ Approve</button>`+
+        `<button type="button" class="rv-act" data-rul="revise" data-id="${esc(id)}" title="Record a different answer">✎ Revise</button></td>`;
+    }
     if(c.rev){
       if(!r._rev)return '<td>—</td>';
       return `<td title="${esc(r._revTxt)}">`+r._rev.slice(0,3).map(i=>{const it=RVQ[i];
@@ -1365,6 +1412,7 @@ function render(){
   $('pageInfo').textContent=`page ${page+1} / ${totPages}`;
   $('prev').disabled=page===0; $('next').disabled=(page+1)>=totPages;
   $('tableMeta').textContent=`${VIEW.length.toLocaleString()} rows · sorted by ${sortKey} ${sortDir>0?'asc':'desc'}`;
+  syncBulk();
 }
 
 // scroll the table body back to the top (used on page change)
@@ -1446,14 +1494,23 @@ let MODE='all', RVQ=[], RV_FOCUS=null, RV_WIRED=false;
 const FRAMED=(()=>{ try{ return window.self!==window.top; }catch(e){ return true; } })();
 const REVIEW_LOCAL=!FRAMED&&['','localhost','127.0.0.1'].includes(location.hostname);
 const REV_COL={k:'_revTxt', t:'Review', rev:1};
+const REV_ACT={k:'_rulTxt', t:'Ruling', rev:1, act:1};
 const RV_LABEL={builder_gate_rejected:'Gate-rejected seller', builder_new_address:'New builder address',
   nc_borderline:'Borderline new construction', subdiv_new_stem:'New subdivision stem'};
 const RV_SHORT={builder_gate_rejected:'gate', builder_new_address:'address', nc_borderline:'NC?', subdiv_new_stem:'subdiv'};
 const RV_HINT={
-  builder_gate_rejected:'The seller matched a builder by address or name, but its name is not an allowed form for that builder, so the seller-side match was dropped. Rule on each: add it as an allowed spelling, or leave it dropped.',
-  builder_new_address:'A seller mailing address that matched a builder by name but is not in the address authority. Only the example record is shown — the mailing address itself is not in the published file.',
-  nc_borderline:'Single-family sales that scored 1 on the new-construction test — neither clearly new nor clearly resale.',
-  subdiv_new_stem:'A subdivision name with no canonical stem in the crosswalk yet.'};
+  builder_gate_rejected:'Each item is a corporate seller name. “Builder it matched” is the builder the pipeline matched that seller to, by mailing address or name, before the seller-name gate dropped the match because the name is not an allowed form for that builder — so these sales are currently credited to no builder. Approve a record if the sale really is that builder’s; Revise to name a different builder or “Not a builder sale”.',
+  builder_new_address:'A seller mailing address that matched a builder by name but is not in the address authority; “Builder matched by name” is that builder. Approve if the address is the builder’s, Revise if not. Only the example record is shown — the mailing address itself is not in the published file.',
+  nc_borderline:'Single-family sales that scored 1 on the new-construction test — neither clearly new nor clearly resale, and currently treated as not new construction. Approve to keep that, Revise to mark the sale new construction.',
+  subdiv_new_stem:'A subdivision name with no canonical stem in the crosswalk yet; the suggestion is the canonical name the pipeline derived. Approve it, or Revise to the right name.'};
+// what the third queue column holds depends on the queue type, so its title does too
+const RV_SUGHEAD={_all:'Pipeline suggestion', builder_gate_rejected:'Builder it matched', builder_new_address:'Builder matched by name',
+  nc_borderline:'Score', subdiv_new_stem:'Suggested canonical name'};
+const RV_SUGTIP={_all:'What the pipeline proposes for the item: a builder, a canonical subdivision name, or a new-construction score. Pick a type to see exactly which.',
+  builder_gate_rejected:'The builder this seller matched before the seller-name gate dropped the match. Approving a record says the sale is that builder’s.',
+  builder_new_address:'The builder whose name the seller matched from this unlisted mailing address.',
+  nc_borderline:'New-construction score (builder seller +2, construction loan +2, vacant-land box +1, physical change +1). A score of 1 is treated as not new construction.',
+  subdiv_new_stem:'The canonical subdivision name the pipeline derived from the filed name.'};
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 function initReview(){
@@ -1468,6 +1525,19 @@ function initReview(){
     $('rvClear').addEventListener('click',()=>{RV_FOCUS=null;renderReview();page=0;apply();});
     $('rvBody').addEventListener('click',e=>{const tr=e.target.closest('tr[data-i]'); if(!tr)return;
       const i=+tr.dataset.i; RV_FOCUS=(RV_FOCUS===i)?null:i; renderReview(); page=0; apply(); scrollTableTop();});
+    $('tbody').addEventListener('click',e=>{const b=e.target.closest('button[data-rul]'); if(!b)return;
+      const r=RV_BYID.get(b.dataset.id); if(!r)return;
+      if(b.dataset.rul==='revise'){openRevise([r]);return;}
+      setRuling(r,b.dataset.rul==='approve'?'approved':null); afterRuling();});
+    $('rvBulkOk').addEventListener('click',()=>{VIEW.forEach(r=>{if(!hasRuling(r))setRuling(r,'approved');}); afterRuling();});
+    $('rvBulkRev').addEventListener('click',()=>{if(VIEW.length)openRevise(VIEW.slice());});
+    $('rvBulkClr').addEventListener('click',()=>{VIEW.forEach(r=>setRuling(r,null)); afterRuling();});
+    $('rvExport').addEventListener('click',exportRulings);
+    $('rvDlgCancel').addEventListener('click',()=>$('rvDlg').close());
+    $('rvDlgForm').addEventListener('submit',e=>{e.preventDefault();
+      const to=$('rvDlgTo').value.trim(), note=$('rvDlgNote').value.trim();
+      if(!to){$('rvDlgTo').focus();return;}
+      (RV_DLG||[]).forEach(r=>setRuling(r,'revised',to,note)); RV_DLG=null; $('rvDlg').close(); afterRuling();});
     $('rvPick').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('rvFile').click();}});
     $('rvFile').addEventListener('change',e=>{const f=e.target.files[0]; if(!f)return;
       Papa.parse(f,{header:true,skipEmptyLines:true,
@@ -1489,8 +1559,9 @@ async function autoLoadReview(url){
 }
 function ingestReview(res,name){
   const rows=res.data||[];
+  if(rows.length&&('ruling' in rows[0])&&('ruled_value' in rows[0])){ ingestRulings(rows,name); return; }
   if(!rows.length||!('queue_type' in rows[0])||!('value' in rows[0])){
-    $('rvHint').textContent='That does not look like review_queue.csv — expected queue_type / value columns.'; return;
+    $('rvHint').textContent='That does not look like review_queue.csv (queue_type / value columns) or an exported review_rulings.csv.'; return;
   }
   RVQ=rows.map(r=>{
     const sug=String(r.suggested_resolution||'').trim(), m=sug.match(/\((\d+) rows?\)\s*$/);
@@ -1509,7 +1580,8 @@ function ingestReview(res,name){
 // attach each queue item to the loaded records it points at (and each record back to its items)
 function linkReview(){
   const byId=new Map(), bySeller=new Map();
-  RAW.forEach(r=>{ r._rev=null; r._revTxt='';
+  RV_BYID=byId;
+  RAW.forEach(r=>{ r._rev=null; r._revTxt=''; r._rulTxt='';
     if(r._price===0||r._price===null) return;          // same exclusion as the table
     byId.set(String(r.SDF_ID||'').trim(),r);
     const s=String(r.sellers||'').trim().toLowerCase();
@@ -1518,12 +1590,13 @@ function linkReview(){
     let rows;
     if(q.type==='builder_gate_rejected') rows=bySeller.get(q.value.toLowerCase())||[];
     else{ const r=byId.get(q.type==='nc_borderline'?q.value:q.ex); rows=r?[r]:[]; }
-    q.n=rows.length;
+    q.n=rows.length; q.ids=rows.map(r=>String(r.SDF_ID||'').trim());
     rows.forEach(r=>{(r._rev||(r._rev=[])).push(i);});
   });
   let flagged=0;
   RAW.forEach(r=>{ if(!r._rev)return; flagged++;
-    r._revTxt=r._rev.map(i=>{const q=RVQ[i]; return (RV_LABEL[q.type]||q.type)+(q.sug?': '+q.sug:'');}).join('; '); });
+    r._revTxt=r._rev.map(i=>{const q=RVQ[i]; return (RV_LABEL[q.type]||q.type)+(q.sug?': '+q.sug:'');}).join('; ');
+    syncRulTxt(r); });
   $('rvCount').textContent=flagged.toLocaleString();
 }
 function renderReview(){
@@ -1544,15 +1617,98 @@ function renderReview(){
       `<td>${q.bld?`<span class="bld">${esc(q.bld)}</span>`:esc(q.sug)||'—'}</td>`+
       `<td class="num">${q.qrows==null?'—':q.qrows.toLocaleString()}</td>`+
       `<td class="num">${q.n.toLocaleString()}</td>`+
+      `<td class="num">${q.n?q.ids.filter(id=>RUL[rulKey(id,q)]).length.toLocaleString()+' / '+q.n.toLocaleString():'—'}</td>`+
       `<td class="id">${esc(q.ex)||'—'}</td></tr>`;}).join('')
-    ||`<tr><td colspan="6" style="padding:18px;text-align:center;color:var(--muted)">${RVQ.length?'No queue items match.':'No review queue loaded.'}</td></tr>`;
+    ||`<tr><td colspan="7" style="padding:18px;text-align:center;color:var(--muted)">${RVQ.length?'No queue items match.':'No review queue loaded.'}</td></tr>`;
   const withRec=RVQ.filter(q=>q.n).length;
+  const nRul=Object.keys(RUL).length;
   $('rvMeta').textContent=RVQ.length?`${RVQ.length.toLocaleString()} items · ${withRec.toLocaleString()} with records here`
-    +(idx.length>CAP?` · showing ${CAP} of ${idx.length.toLocaleString()}`:` · ${idx.length.toLocaleString()} listed`):'';
+    +(idx.length>CAP?` · showing ${CAP} of ${idx.length.toLocaleString()}`:` · ${idx.length.toLocaleString()} listed`)
+    +` · ${nRul.toLocaleString()} ruled`:'';
+  $('rvExport').disabled=!nRul; $('rvExport').textContent='⤓ Export rulings'+(nRul?` (${nRul.toLocaleString()})`:'');
+  $('rvSugTh').textContent=RV_SUGHEAD[type]||RV_SUGHEAD._all; $('rvSugTh').title=RV_SUGTIP[type]||RV_SUGTIP._all;
   $('rvClear').classList.toggle('hidden',RV_FOCUS==null);
   if(RVQ.length) $('rvHint').textContent=RV_FOCUS!=null
-    ?`Showing the records for “${RVQ[RV_FOCUS].value}”. Click it again, or Clear selection, to see every flagged record.`
-    :(RV_HINT[type]||'Click an item to see only its records in the table below. The queue is statewide; this file is the metro subset, so some items have no records here.');
+    ?`Showing the records for “${RVQ[RV_FOCUS].value}” (${RV_SUGHEAD[RVQ[RV_FOCUS].type]||'suggestion'}: ${rvProposal(RVQ[RV_FOCUS])}). Rule on each record below, or on all of them with the buttons above the table. Click the item again, or Clear selection, to see every flagged record.`
+    :(RV_HINT[type]||'Click an item to see only its records in the table below, then Approve or Revise them. The queue is statewide; this file is the metro subset, so some items have no records here. Rulings are kept in this browser and leave it only through Export rulings — they do not change the data until they are applied to the pipeline.');
+}
+// ── Rulings ──────────────────────────────────────────────────────────────────
+// A ruling is a person's answer on ONE record for ONE queue item: "approved" (the pipeline's
+// suggestion is right) or "revised" (to a stated value). It is the operator's worksheet, not an
+// edit: nothing here changes the loaded data or the pipeline. Rulings live in localStorage, which
+// is per ORIGIN - localhost:8765 and :8766 do not share them - so Export rulings is the durable
+// copy and Load rulings brings one back.
+const RUL_KEY='sdfReviewRulings.v1';
+let RUL={}, RV_BYID=new Map(), RV_DLG=null;
+try{ RUL=JSON.parse(localStorage.getItem(RUL_KEY)||'{}')||{}; }catch(e){ RUL={}; }
+const rulKey=(id,q)=>id+'\u001f'+q.type+'\u001f'+q.value;
+function saveRulings(){ try{ localStorage.setItem(RUL_KEY,JSON.stringify(RUL)); }catch(e){} }
+// the answer an Approve records: the suggested builder / canonical name, or - for a borderline
+// score, which suggests nothing - the classification the pipeline already gave it
+function rvProposal(q){ return q.type==='nc_borderline'?'Not new construction':(q.bld||q.sug); }
+// the queue items a row's buttons act on: the selected item, else the filtered type, else all
+function rvTargets(r){
+  if(!r._rev)return [];
+  const type=$('rvType').value;
+  const t=r._rev.filter(i=>RV_FOCUS!=null?i===RV_FOCUS:(!type||RVQ[i].type===type));
+  return t.length?t:r._rev;
+}
+function hasRuling(r){ const id=String(r.SDF_ID||'').trim(); return rvTargets(r).some(i=>RUL[rulKey(id,RVQ[i])]); }
+function syncRulTxt(r){
+  const id=String(r.SDF_ID||'').trim();
+  r._rulTxt=(r._rev||[]).map(i=>RUL[rulKey(id,RVQ[i])]).filter(Boolean)
+    .map(u=>u.ruling+': '+u.to+(u.note?' ('+u.note+')':'')).join('; ');
+}
+function setRuling(r,ruling,to,note){
+  const id=String(r.SDF_ID||'').trim(); if(!id)return;
+  rvTargets(r).forEach(i=>{ const q=RVQ[i], k=rulKey(id,q);
+    if(ruling==null){ delete RUL[k]; return; }
+    RUL[k]={id, type:q.type, value:q.value, sug:q.sug, ruling, to:ruling==='approved'?rvProposal(q):to, note:note||'',
+      at:new Date().toISOString(), seller:String(r.sellers||'').trim(), county:r.County_Name||''}; });
+  syncRulTxt(r);
+}
+function afterRuling(){ saveRulings(); renderReview(); render(); }
+function syncBulk(){
+  const on=MODE==='review'&&RV_FOCUS!=null&&VIEW.length>0;
+  $('rvBulk').classList.toggle('hidden',!on); if(!on)return;
+  const un=VIEW.filter(r=>!hasRuling(r)).length;
+  $('rvBulkOk').textContent=`✓ Approve ${un.toLocaleString()} unruled`; $('rvBulkOk').disabled=!un;
+  $('rvBulkOk').title='Approve every record shown that has no ruling yet: '+rvProposal(RVQ[RV_FOCUS]);
+}
+function openRevise(rows){
+  RV_DLG=rows; const r=rows[0], q=RVQ[rvTargets(r)[0]];
+  const bld=q.type==='builder_gate_rejected'||q.type==='builder_new_address';
+  $('rvDlgCtx').innerHTML=(rows.length>1?`<b>${rows.length.toLocaleString()} records</b> shown`:`<b>${esc(r.SDF_ID)}</b> · ${esc(r.sellers)}`)
+    +`<br>${esc(RV_LABEL[q.type]||q.type)}: ${esc(q.value)}<br>Pipeline suggestion: <span class="bld">${esc(rvProposal(q))}</span>`;
+  $('rvDlgToLbl').textContent=bld?'Correct builder':q.type==='nc_borderline'?'Correct classification':'Correct value';
+  let opts=[];
+  if(bld){ try{ opts=Object.keys(JSON.parse($('methodData').textContent).builder_reference); }catch(e){} opts.push('Not a builder sale'); }
+  else if(q.type==='nc_borderline') opts=['New construction','Not new construction'];
+  $('rvDlgOpts').innerHTML=opts.map(o=>`<option value="${esc(o)}">`).join('');
+  $('rvDlgTo').value=''; $('rvDlgNote').value='';
+  $('rvDlgTo').placeholder=bld?'Builder name, or “Not a builder sale”':'';
+  $('rvDlg').showModal(); $('rvDlgTo').focus();
+}
+function exportRulings(){
+  const us=Object.values(RUL); if(!us.length)return;
+  us.sort((a,b)=>a.type.localeCompare(b.type)||a.value.localeCompare(b.value)||a.id.localeCompare(b.id));
+  const cols=['SDF_ID','queue_type','item','pipeline_suggestion','ruling','ruled_value','note','ruled_at','seller','county'];
+  const csv=Papa.unparse(us.map(u=>({SDF_ID:u.id,queue_type:u.type,item:u.value,pipeline_suggestion:u.sug,ruling:u.ruling,
+    ruled_value:u.to,note:u.note,ruled_at:u.at,seller:u.seller,county:u.county})),{columns:cols});
+  const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
+  const a=document.createElement('a'); a.href=url; a.download='review_rulings.csv';
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
+// merge an exported review_rulings.csv back in (the file wins over what this browser holds)
+function ingestRulings(rows,name){
+  let n=0;
+  rows.forEach(x=>{ const id=String(x.SDF_ID||'').trim(), type=String(x.queue_type||'').trim(), value=String(x.item||'').trim();
+    if(!id||!type||!x.ruling)return;
+    RUL[rulKey(id,{type,value})]={id,type,value,sug:x.pipeline_suggestion||'',ruling:String(x.ruling).trim(),to:x.ruled_value||'',
+      note:x.note||'',at:x.ruled_at||'',seller:x.seller||'',county:x.county||''}; n++; });
+  RAW.forEach(r=>{ if(r._rev)syncRulTxt(r); });
+  afterRuling();
+  $('rvHint').textContent=`Loaded ${n.toLocaleString()} rulings from ${name}.`;
 }
 // ── Views ────────────────────────────────────────────────────────────────────
 // Transactions and Methodology are always offered (the MRD embed included); Needs review joins
@@ -1608,7 +1764,7 @@ function setMode(m){
   $('reset').classList.toggle('hidden',m==='method');
   document.querySelector('.body-pad').classList.toggle('m-mode',m==='method');
   document.querySelector('.body-pad').classList.toggle('rv-mode',m==='review');
-  COLS=COLS.filter(c=>!c.rev); if(m==='review') COLS.unshift(REV_COL);
+  COLS=COLS.filter(c=>!c.rev); if(m==='review') COLS.unshift(REV_COL,REV_ACT);
   $('tblTitle').textContent=m==='review'?'Records needing review':'Transactions';
   buildThead(); page=0; apply();
 }
