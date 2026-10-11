@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p212r1 -->
+<!-- MIP build p215r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p212r1">
+<link rel="stylesheet" href="styles.css?v=p215r1">
 </head>
 <body>
 
@@ -5704,20 +5704,24 @@ function ytHearingBlockHtml(entry, muniId, bodyLabel, rowIdx, vi, multi, tail) {
 }
 
 // p209r1 (Ty, 2026-10-03): every meeting-type section on a jurisdiction page expands and
-// collapses, and opens to its upcoming meetings plus the 10 most recent past ones. Default is
-// collapsed. The state is per jurisdiction + section and lasts for the page session (a reload
-// starts collapsed again). Nothing is hidden silently: the header carries the section's full
-// count, and an open section that is holding rows back says how many and offers them.
+// collapses, and opens to its upcoming meetings plus the 10 most recent past ones.
+// p215r1 (Ty, 2026-10-11, weekly review): default is EXPANDED — "Meeting Types should be expanded
+// by default". A section is collapsed only after the operator collapses it; the state is per
+// jurisdiction + section and lasts for the page session (a reload starts expanded again). Nothing
+// is hidden silently: the header carries the section's full count, and an open section that is
+// holding rows back says how many and offers them.
 const JV_SEC_RECENT = 10;
 window._jvSecOpen = window._jvSecOpen || {};
 window._jvSecAll = window._jvSecAll || {};
+// Open unless explicitly collapsed (undefined = never touched = open).
+function _jvSecIsOpen(k) { return window._jvSecOpen[k] !== false; }
 function _jvSecRerender(muniId) {
   const grid = document.getElementById('members-grid');
   if (grid) grid.innerHTML = renderHearingsContent(muniId);
 }
 function jvToggleSection(muniId, label) {
   const k = muniId + '|' + label;
-  window._jvSecOpen[k] = !window._jvSecOpen[k];
+  window._jvSecOpen[k] = !_jvSecIsOpen(k);
   _jvSecRerender(muniId);
 }
 function jvToggleSectionAll(muniId, label) {
@@ -5740,7 +5744,7 @@ function jvSectionWindow(dates, todayStr, recent, showAll) {
 // ── Render one body section ──
 function renderBodySection(bodyLabel, dates, muniId) {
   const _secKey = muniId + '|' + bodyLabel;
-  const _secOpen = !!window._jvSecOpen[_secKey];
+  const _secOpen = _jvSecIsOpen(_secKey);
   const _secTotal = dates.length;
   const _secHead = `<div class="body-section-header jv-sec-head" role="button" tabindex="0" aria-expanded="${_secOpen}"
     data-muni="${esc(muniId)}" data-sec="${esc(bodyLabel)}"
