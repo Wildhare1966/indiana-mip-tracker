@@ -3583,7 +3583,7 @@ body.agenda-panel-locked { overflow: hidden; }
 .sum-flag-chip.sum-flag-relevant { border-color:rgba(224,120,90,0.6); background:rgba(224,120,90,0.16); color:#e88a6a; }
 .sum-flag-chip.sum-flag-ready { border-color:rgba(26,122,74,0.45); background:rgba(26,122,74,0.15); color:#6dc49a; }
 .sum-flag-chip.sum-flag-self_healing { border-color:rgba(120,160,220,0.35); background:rgba(120,160,220,0.10); color:#9fbbe6; font-weight:500; }
-.sum-flag-chip.sum-flag-dispositioned { border-color:rgba(255,255,255,0.15); background:rgba(255,255,255,0.05); color:var(--text-dim); font-weight:500; }
+.sum-flag-chip.sum-flag-dispositioned, .sum-flag-chip.sum-flag-covered { border-color:rgba(255,255,255,0.15); background:rgba(255,255,255,0.05); color:var(--text-dim); font-weight:500; }
 .sum-flag-popover { display:block; margin-top:6px; padding:8px 10px; background:var(--panel); border:1px solid var(--border); border-radius:6px; max-width:520px; font-size:11px; }
 .sum-flag-pop-body table { border-collapse:collapse; margin-bottom:6px; }
 .sum-flag-pop-body th { text-align:left; color:var(--text-dim); font-weight:600; padding:2px 10px 2px 0; vertical-align:top; white-space:nowrap; }
@@ -3596,5 +3596,5 @@ body.agenda-panel-locked { overflow: hidden; }
 [data-theme="light"] .sum-flag-chip.sum-flag-relevant { border-color:rgba(180,60,30,0.5); background:rgba(180,60,30,0.08); color:#b43c1e; }
 [data-theme="light"] .sum-flag-chip.sum-flag-ready { border-color:rgba(26,122,74,0.4); background:rgba(26,122,74,0.08); color:#1a7a4a; }
 [data-theme="light"] .sum-flag-chip.sum-flag-self_healing { border-color:rgba(60,90,150,0.35); background:rgba(60,90,150,0.06); color:#3c5a96; }
-[data-theme="light"] .sum-flag-chip.sum-flag-dispositioned { border-color:rgba(0,0,0,0.15); background:rgba(0,0,0,0.03); color:#64748b; }
+[data-theme="light"] .sum-flag-chip.sum-flag-dispositioned, [data-theme="light"] .sum-flag-chip.sum-flag-covered { border-color:rgba(0,0,0,0.15); background:rgba(0,0,0,0.03); color:#64748b; }
 [data-theme="light"] .sum-flag-popover { background:#fff; border-color:rgba(0,0,0,0.12); }
