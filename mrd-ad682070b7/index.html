@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p216r1 -->
+<!-- MIP build p217r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p216r1">
+<link rel="stylesheet" href="styles.css?v=p217r1">
 </head>
 <body>
 
@@ -7050,6 +7050,22 @@ function submitTagDocForm(muniId) {
     });
 }
 
+// p217r1 / AGD-43 (Ty ruled 2026-10-12: fold at display): one meeting found by both the video
+// stream and the agenda stream is one timeline entry. Per meeting date, each video ref pairs with
+// at most ONE non-video ref (shown with the video's timecoded link as "▶ Video"), so two agenda refs
+// of two bodies on one day stay two. Same rule as the backend's folded refCount (P217_TwinFold.js).
+function foldTimelineTwins(refs) {
+  const isVideo = r => /youtube|video/i.test(r.sourceStream || '');
+  const out = [];
+  refs.forEach(r => { if (!isVideo(r)) { out.push(Object.assign({}, r)); } });
+  refs.forEach(r => {
+    if (!isVideo(r)) return;
+    const mate = out.find(o => !o.twin && o.meetingDate && o.meetingDate === r.meetingDate && !isVideo(o));
+    if (mate) mate.twin = r; else out.push(Object.assign({}, r));
+  });
+  return out.sort((a, b) => new Date(a.meetingDate) - new Date(b.meetingDate));
+}
+
 function renderTrackedTimeline(projectId) {
   const refs = trackedTimelineCache[projectId];
   if (!refs) {
@@ -7058,10 +7074,12 @@ function renderTrackedTimeline(projectId) {
   }
   if (refs.length === 0) return '<div class="tracked-empty">No references found yet. Try rescanning.</div>';
 
-  return refs.map(r => {
+  return foldTimelineTwins(refs).map(r => {
     const natureCls = 'nature-' + (r.nature || 'discussed').replace(' ','-');
-    const link = r.sourceUrl
-      ? `<a class="tracked-timeline-link" href="${r.sourceUrl}" target="_blank" rel="noopener" data-doc-link="reference" data-scraped-id="${escAttr(r.meetingId || '')}">→ Source</a>` : '';
+    const link = (r.sourceUrl
+      ? `<a class="tracked-timeline-link" href="${r.sourceUrl}" target="_blank" rel="noopener" data-doc-link="reference" data-scraped-id="${escAttr(r.meetingId || '')}">→ Source</a>` : '')
+      + (r.twin && r.twin.sourceUrl
+      ? ` <a class="tracked-timeline-link" href="${r.twin.sourceUrl}" target="_blank" rel="noopener" data-doc-link="reference" data-scraped-id="${escAttr(r.twin.meetingId || '')}">▶ Video</a>` : '');
     return `<div class="tracked-timeline-item">
       <div class="tracked-timeline-dot"></div>
       <div class="tracked-timeline-body">
