@@ -1,0 +1,6 @@
+{
+ "fingerprint": "4b87257acdc5",
+ "source": "arcgis/sdf_parcels_to_ago.py",
+ "item": "SDF-20",
+ "note": "Behaviour fingerprint of the AGO notebook (ATTR_SPEC, ALLOW_EMPTY_FIELDS, TARGETS, VACANT_CLASS, DATA_URL, ALLOWED_CLASSES). The notebook refuses a live run when its own fingerprint differs from this one \u2014 that means the copy in the org is stale. Re-deliver arcgis/sdf_parcels_to_ago.ipynb, then Kernel > Restart Kernel and Run All Cells."
+}
