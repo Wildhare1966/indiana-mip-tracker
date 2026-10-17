@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p219r1 -->
+<!-- MIP build p219r2 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p219r1">
+<link rel="stylesheet" href="styles.css?v=p219r2">
 </head>
 <body>
 
@@ -11169,7 +11169,7 @@ function _ttFiltered(){
     return true;
   });
 }
-function _ttKwChips(s){ return String(s||'').split('|').map(function(k){ k=k.trim(); return k?'<span class="tt-kw">'+_diagEsc(k)+'</span>':''; }).join(''); }
+function _ttKwChips(s){ return String(s||'').split(/[|,\n]/).map(function(k){ k=k.trim(); return k?'<span class="tt-kw">'+_diagEsc(k)+'</span>':''; }).join(''); }
 function _ttSrcBadge(h){
   return h.source_type==='summary_doc' ? '<span class="tt-src doc" title="Found in a hearing / minutes Summary Doc">SUMMARY</span>'
                                        : '<span class="tt-src agenda" title="Found in a parsed agenda item">'+_diagEsc((h.meeting_type||'AGENDA').toUpperCase())+'</span>';
@@ -11272,7 +11272,7 @@ function _ttFormHtml(t){
   return '<div class="tt-topic tt-form" style="border-color:#1c7c3a;">'
     +'<div class="tt-name">'+(isNew?'New topic':'Edit topic')+'</div>'
     +'<label>Name</label><input id="tt-fm-name" value="'+escAttr(t.name||'')+'" placeholder="e.g. Data centers">'
-    +'<label>Keywords — one phrase per line (whole words, case-insensitive)</label><textarea id="tt-fm-kw" placeholder="data center\ndata centers\nhyperscale">'+_diagEsc(String(t.keywords||'').split('|').map(function(k){return k.trim();}).filter(Boolean).join('\n'))+'</textarea>'
+    +'<label>Keywords — one phrase per line, or comma-separated (whole words, case-insensitive; a hyphen counts as a space)</label><textarea id="tt-fm-kw" placeholder="data center\ndata centers\nhyperscale">'+_diagEsc(String(t.keywords||'').split(/[|,\n]/).map(function(k){return k.trim();}).filter(Boolean).join('\n'))+'</textarea>'
     +'<label>Match</label><select id="tt-fm-mode"><option value="any"'+(t.match_mode==='all'?'':' selected')+'>any phrase</option><option value="all"'+(t.match_mode==='all'?' selected':'')+'>every phrase in the same item</option></select>'
     +'<label>Jurisdictions — comma-separated, blank = all</label><input id="tt-fm-juris" value="'+escAttr(t.jurisdictions||'')+'" placeholder="Avon, Plainfield">'
     +'<div style="display:flex;gap:6px;"><div style="flex:1;"><label>From</label><input type="date" id="tt-fm-from" value="'+escAttr(String(t.date_from||'').slice(0,10))+'"></div><div style="flex:1;"><label>To</label><input type="date" id="tt-fm-to" value="'+escAttr(String(t.date_to||'').slice(0,10))+'"></div></div>'
@@ -11284,7 +11284,7 @@ function _ttFormHtml(t){
 function ttSave(){
   if(!_ttNeedToken()) return;
   var g=function(id){ var e=document.getElementById(id); return e?e.value:undefined; };
-  var kw=String(g('tt-fm-kw')||'').split(/\r?\n|\|/).map(function(k){return k.trim();}).filter(Boolean).join('|');
+  var kw=String(g('tt-fm-kw')||'').split(/\r?\n|\||,/).map(function(k){return k.trim();}).filter(Boolean).join('|');
   if(!String(g('tt-fm-name')||'').trim()){ alert('Name the topic.'); return; }
   if(!kw){ alert('Give the topic at least one keyword phrase.'); return; }
   var q='&action=upsert_tracked_topic&name='+encodeURIComponent(g('tt-fm-name'))+'&keywords='+encodeURIComponent(kw)+'&match_mode='+encodeURIComponent(g('tt-fm-mode')||'any')
