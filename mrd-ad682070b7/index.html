@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p217r1 -->
+<!-- MIP build p219r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p217r1">
+<link rel="stylesheet" href="styles.css?v=p219r1">
 </head>
 <body>
 
@@ -31,6 +31,8 @@
          Jurisdiction Status takes the slot. -->
     <button class="topbar-btn" onclick="switchView('jurisstatus')" id="nav-jurisstatus">Jurisdiction Status</button>
     <button class="topbar-btn" onclick="switchView('tracked')" id="nav-tracked">Tracked Projects</button>
+    <!-- p219r1 / AGD-218 (Ty, 2026-10-16): Tracked Topics — keyword watch over agendas + Summaries. Badge = new hits. -->
+    <button class="topbar-btn" onclick="switchView('topics')" id="nav-topics">Tracked Topics <span id="nav-topics-badge" style="display:none;background:#1c7c3a;color:#fff;font-size:9px;font-weight:700;padding:0 6px;border-radius:9px;margin-left:2px;vertical-align:middle;"></span></button>
     <button class="topbar-btn" onclick="switchView('schedule')" id="nav-schedule">Schedule & Requirements</button>
     <button class="topbar-btn" onclick="switchView('market')" id="nav-market">Zonda</button>
     <button class="topbar-btn" onclick="switchView('salesdisclosures')" id="nav-salesdisclosures">Sales Disclosures</button>
@@ -620,6 +622,39 @@
              #tp-table-scroll is hidden in CSS so this is still a SINGLE bar (P136 intent),
              just always visible. tpSyncHScroll() mirrors scrollLeft both ways. -->
         <div id="tp-hscroll-proxy" class="tp-hscroll-proxy" aria-hidden="true"><div id="tp-hscroll-spacer"></div></div>
+      </div>
+    </div>
+
+    <!-- p219r1 / AGD-218: TRACKED TOPICS — keyword watch over Agenda_Items + Summary Docs (backend P219_TrackedTopics.js, @583).
+         Left: the hit queue (approve / dismiss). Right rail: the topic manager (add / edit / run). Writes are token-gated. -->
+    <div id="view-topics" class="view">
+      <div class="cand-layout">
+        <div class="cand-main" style="padding:24px 32px;">
+          <div style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;">
+            <div>
+              <div class="overview-title">Tracked Topics</div>
+              <div class="overview-sub">Keywords you name, searched across every parsed agenda item and every hearing / minutes Summary, with a weekly re-run. Review each hit — <b>Approve</b> keeps it as a confirmed finding under its topic; <b>Dismiss</b> hides it (and it never comes back). Topics, keywords and date ranges are managed in the right rail; <b>Run now</b> searches a topic on demand.</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <select id="tt-f-topic" onchange="ttSetTopic(this.value)" title="Filter by topic" style="font-size:12px;padding:4px 8px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:5px;"><option value="">All topics</option></select>
+              <select id="tt-f-status" onchange="ttSetStatus(this.value)" title="Hit status" style="font-size:12px;padding:4px 8px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:5px;">
+                <option value="new">New</option>
+                <option value="approved">Approved</option>
+                <option value="dismissed">Dismissed</option>
+                <option value="all">All</option>
+              </select>
+              <select id="tt-f-juris" onchange="ttSetJuris(this.value)" title="Filter by jurisdiction" style="font-size:12px;padding:4px 8px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:5px;"><option value="">All jurisdictions</option></select>
+              <input type="date" id="tt-f-from" onchange="ttRender()" title="Meeting date from" style="font-size:12px;padding:3px 6px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:5px;">
+              <input type="date" id="tt-f-to" onchange="ttRender()" title="Meeting date to" style="font-size:12px;padding:3px 6px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:5px;">
+              <input type="text" id="tt-f-text" oninput="ttSetSearch(this.value)" placeholder="Search snippet / keywords" style="font-size:12px;padding:4px 10px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:5px;min-width:190px;">
+              <button class="refresh-btn" id="tt-bulk-dismiss" onclick="ttBulkDismiss()" style="display:none;" title="Dismiss every selected hit">Dismiss selected</button>
+              <button class="refresh-btn" onclick="ttLoad(true)" title="Re-read the hit queue from the backend">↺ Refresh</button>
+            </div>
+          </div>
+          <div id="tt-summary" class="js-sub" style="margin-bottom:8px;"></div>
+          <div id="tt-list"><div style="color:var(--text-dim);">Loading topics…</div></div>
+        </div>
+        <aside class="cand-tp-rail tt-rail" id="tt-rail" aria-label="Topics"></aside>
       </div>
     </div>
 
@@ -11055,6 +11090,255 @@ window.candGoPage=candGoPage; window.candToggleSel=candToggleSel; window.candSel
 window.candSelectAllFiltered=candSelectAllFiltered; window.candClearSel=candClearSel; window.candBulkDismiss=candBulkDismiss;
 registerViewInit('candidates', candLoad);
 
+// ═══════════════════════════════════════════════════════
+// p219r1 / AGD-218 — TRACKED TOPICS (keyword watch; backend P219_TrackedTopics.js, @583)
+// Reads: ?action=topic_hits&status=&topic_id= (public, P117-cached; hits + topics + counts in one reply).
+// Writes (token-gated): upsert_tracked_topic, set_topic_hit_status, run_topic_search (dry → apply).
+// Snapshot-first on the default queue (topic_hits.json, published by P118 once AGD-219 lands), then live.
+// ═══════════════════════════════════════════════════════
+var _ttHits=[], _ttTopics=[], _ttCounts={}, _ttByTopic={};
+var _ttStatus='new', _ttTopic='', _ttJuris='', _ttSearch='', _ttSel={}, _ttApplied=false;
+var _ttEdit=null;            // null = no form; {} = new topic; {topic_id,…} = editing
+var _ttRun={};               // topic_id -> last dry/apply reply (for the rail's run panel)
+
+function _ttTopicById(id){ for(var i=0;i<_ttTopics.length;i++){ if(String(_ttTopics[i].topic_id)===String(id)) return _ttTopics[i]; } return null; }
+function _ttNeedToken(){ if(getAuthToken()) return true; alert('Set the operator token in Settings to edit topics or rule on hits.'); return false; }
+
+function ttLoad(force){
+  var el=document.getElementById('tt-list'); if(!el) return;
+  var base=getWebAppUrl(); if(!base){ el.innerHTML='<div style="color:var(--text-dim);">No dashboard connection configured.</div>'; return; }
+  if(!_ttApplied || force) el.innerHTML='<div style="color:var(--text-dim);">Loading topics…</div>';
+  var want={status:_ttStatus, topic:_ttTopic}, painted=false;
+  function apply(res, src){
+    if(!res||!res.ok){
+      var msg=(res&&res.error)||'unknown';
+      if(!_ttApplied) el.innerHTML='<div style="color:var(--text-dim);">Could not load topics: '+_diagEsc(msg)+'</div>';
+      else if(src==='live') mipMarkStale('topics','Tracked Topics');
+      return;
+    }
+    if(want.status!==_ttStatus||want.topic!==_ttTopic) return;   // the filter moved on while this read was in flight
+    _ttHits=res.hits||[]; _ttTopics=res.topics||[]; _ttCounts=res.counts||{}; _ttByTopic=res.by_topic||{};
+    if(!_ttApplied) _ttSel={};
+    _ttApplied=true; painted=true;
+    if(src==='live') mipMarkFresh('topics');
+    _ttFillTopicFilter(); _ttFillJurisFilter(); ttRender(); ttRenderRail(); _ttBadge();
+  }
+  if(_ttStatus==='new' && !_ttTopic){
+    mipSnapshot('topic_hits.json').then(function(snap){ if(snap && !painted) apply(snap,'snap'); });
+  }
+  mipReadFetch('&action=topic_hits&status='+encodeURIComponent(_ttStatus)+'&topic_id='+encodeURIComponent(_ttTopic)).then(function(res){ apply(res,'live'); })
+    .catch(function(e){
+      if(!_ttApplied) el.innerHTML='<div style="color:var(--text-dim);">Network error: '+_diagEsc(e.message)+'</div>';
+      else mipMarkStale('topics','Tracked Topics');
+    });
+}
+function _ttBadge(){
+  var b=document.getElementById('nav-topics-badge'); if(!b) return;
+  var n=Number(_ttCounts['new']||0);
+  if(n>0){ b.textContent=n; b.style.display='inline-block'; } else { b.style.display='none'; }
+}
+function _ttFillTopicFilter(){
+  var sel=document.getElementById('tt-f-topic'); if(!sel) return;
+  var html='<option value="">All topics</option>';
+  _ttTopics.forEach(function(t){
+    var c=_ttByTopic[t.topic_id]||{}; var n=c[_ttStatus==='all'?'new':_ttStatus]||0;
+    html+='<option value="'+escAttr(t.topic_id)+'"'+(String(t.topic_id)===_ttTopic?' selected':'')+'>'+_diagEsc(t.name)+(_ttStatus==='all'?'':' ('+n+')')+'</option>';
+  });
+  sel.innerHTML=html;
+}
+function _ttFillJurisFilter(){
+  var sel=document.getElementById('tt-f-juris'); if(!sel) return;
+  var seen={}; _ttHits.forEach(function(h){ var j=_normJurisName(h.jurisdiction||'—')||'—'; seen[j]=(seen[j]||0)+1; });
+  var keys=Object.keys(seen).sort();
+  if(_ttJuris && !seen[_ttJuris]) _ttJuris='';
+  sel.innerHTML='<option value="">All jurisdictions</option>'+keys.map(function(j){ return '<option value="'+escAttr(j)+'"'+(j===_ttJuris?' selected':'')+'>'+_diagEsc(j)+' ('+seen[j]+')</option>'; }).join('');
+}
+function ttSetStatus(v){ _ttStatus=v||'new'; _ttSel={}; ttLoad(true); }
+function ttSetTopic(v){ _ttTopic=v||''; _ttSel={}; ttLoad(true); }
+function ttSetJuris(v){ _ttJuris=v||''; ttRender(); }
+function ttSetSearch(v){ _ttSearch=String(v||'').toLowerCase().trim(); ttRender(); }
+
+function _ttFiltered(){
+  var from=(document.getElementById('tt-f-from')||{}).value||'', to=(document.getElementById('tt-f-to')||{}).value||'';
+  return _ttHits.filter(function(h){
+    if(_ttJuris && (_normJurisName(h.jurisdiction||'—')||'—')!==_ttJuris) return false;
+    var d=String(h.meeting_date||'').slice(0,10);
+    if(from && d && d<from) return false;
+    if(to && d && d>to) return false;
+    if(_ttSearch){ var hay=((h.snippet||'')+' '+(h.matched_keywords||'')+' '+(h.jurisdiction||'')).toLowerCase(); if(hay.indexOf(_ttSearch)===-1) return false; }
+    return true;
+  });
+}
+function _ttKwChips(s){ return String(s||'').split('|').map(function(k){ k=k.trim(); return k?'<span class="tt-kw">'+_diagEsc(k)+'</span>':''; }).join(''); }
+function _ttSrcBadge(h){
+  return h.source_type==='summary_doc' ? '<span class="tt-src doc" title="Found in a hearing / minutes Summary Doc">SUMMARY</span>'
+                                       : '<span class="tt-src agenda" title="Found in a parsed agenda item">'+_diagEsc((h.meeting_type||'AGENDA').toUpperCase())+'</span>';
+}
+function ttRender(){
+  var el=document.getElementById('tt-list'); if(!el) return;
+  var rows=_ttFiltered(), sum=document.getElementById('tt-summary');
+  if(sum){
+    var c=_ttCounts||{};
+    sum.innerHTML='Showing <b>'+rows.length+'</b> of '+_ttHits.length+' '+_diagEsc(_ttStatus==='all'?'':_ttStatus)+' hit'+(_ttHits.length===1?'':'s')
+      +' &middot; queue: <b>'+(c['new']||0)+'</b> new, '+(c.approved||0)+' approved, '+(c.dismissed||0)+' dismissed &middot; '+_ttTopics.length+' topic'+(_ttTopics.length===1?'':'s');
+  }
+  var bd=document.getElementById('tt-bulk-dismiss'); if(bd){ var nSel=Object.keys(_ttSel).length; bd.style.display=nSel?'':'none'; bd.textContent='Dismiss selected ('+nSel+')'; }
+  if(!_ttTopics.length){
+    el.innerHTML='<div style="color:var(--text-dim);padding:18px 0;">No topics yet. Add one in the right rail &rarr; name it, list its keywords, then <b>Run now</b>.</div>'; return;
+  }
+  if(!rows.length){
+    el.innerHTML='<div style="color:var(--text-dim);padding:18px 0;">No '+_diagEsc(_ttStatus==='all'?'':_ttStatus)+' hits match these filters.</div>'; return;
+  }
+  var showSel=(_ttStatus==='new');
+  var html='<div style="overflow:auto;max-height:calc(100vh - 250px);border:1px solid var(--border);border-radius:4px;"><table id="tt-table"><thead><tr>'
+    +(showSel?'<th><input type="checkbox" onchange="ttSelectAll(this.checked)" title="Select every row shown"></th>':'')
+    +'<th>Date</th><th>Jurisdiction</th><th>Source</th><th>Topic</th><th>Matched</th><th>Snippet</th><th>Link</th><th>Status</th><th style="text-align:right;">Action</th></tr></thead><tbody>';
+  rows.forEach(function(h){
+    var t=_ttTopicById(h.topic_id), id=String(h.hit_id), st=String(h.status||'new');
+    var link=h.url?'<a href="'+escUrl(h.source_type==='summary_doc'?h.url:inlineViewerUrl(h.url))+'" target="_blank" rel="noopener">open</a>':'<span style="color:var(--text-dim);">—</span>';
+    var acts='';
+    if(st!=='approved') acts+='<button class="refresh-btn tt-btn-sm tt-btn-go" onclick="ttRule(\''+escAttr(id)+'\',\'approved\',this)">Approve</button> ';
+    if(st!=='dismissed') acts+='<button class="refresh-btn tt-btn-sm" onclick="ttRule(\''+escAttr(id)+'\',\'dismissed\',this)">Dismiss</button> ';
+    if(st!=='new') acts+='<button class="refresh-btn tt-btn-sm" onclick="ttRule(\''+escAttr(id)+'\',\'new\',this)" title="Back to the review queue">Reopen</button>';
+    html+='<tr>'
+      +(showSel?'<td><input type="checkbox" '+(_ttSel[id]?'checked':'')+' onchange="ttToggleSel(\''+escAttr(id)+'\',this.checked)"></td>':'')
+      +'<td style="white-space:nowrap;">'+_diagEsc(String(h.meeting_date||'').slice(0,10)||'—')+'</td>'
+      +'<td>'+_diagEsc(_normJurisName(h.jurisdiction||'')||h.jurisdiction||'—')+'</td>'
+      +'<td>'+_ttSrcBadge(h)+'</td>'
+      +'<td style="white-space:nowrap;">'+_diagEsc(t?t.name:h.topic_id)+'</td>'
+      +'<td>'+_ttKwChips(h.matched_keywords)+'</td>'
+      +'<td style="min-width:260px;max-width:520px;line-height:1.45;">'+_diagEsc(h.snippet||'')+(h.tracked_project_id?'<div style="font-size:10px;color:#5ad37f;">already matched to Tracked Project '+_diagEsc(h.tracked_project_id)+'</div>':'')+'</td>'
+      +'<td style="white-space:nowrap;">'+link+'</td>'
+      +'<td><span class="tt-status '+_diagEsc(st)+'">'+_diagEsc(st)+'</span>'+(h.note?'<div style="font-size:10px;color:var(--text-dim);">'+_diagEsc(h.note)+'</div>':'')+'</td>'
+      +'<td style="text-align:right;white-space:nowrap;">'+acts+'</td>'
+      +'</tr>';
+  });
+  el.innerHTML=html+'</tbody></table></div>';
+}
+function ttToggleSel(id, on){ if(on) _ttSel[id]=true; else delete _ttSel[id]; var bd=document.getElementById('tt-bulk-dismiss'); if(bd){ var n=Object.keys(_ttSel).length; bd.style.display=n?'':'none'; bd.textContent='Dismiss selected ('+n+')'; } }
+function ttSelectAll(on){ _ttSel={}; if(on) _ttFiltered().forEach(function(h){ _ttSel[String(h.hit_id)]=true; }); ttRender(); }
+
+// One ruling (or many): the backend writes status + reviewed_at; the rows leave the current queue locally.
+function ttRule(ids, status, btn){
+  if(!_ttNeedToken()) return;
+  var list=Array.isArray(ids)?ids:[ids]; if(!list.length) return;
+  if(btn){ btn.disabled=true; btn.textContent='Saving…'; }
+  mipWriteFetch('&action=set_topic_hit_status&hit_ids='+encodeURIComponent(list.join(','))+'&status='+encodeURIComponent(status)).then(function(r){
+    if(!r||!r.ok){ alert('Ruling failed: '+((r&&r.error)||'unknown')); if(btn){ btn.disabled=false; btn.textContent='Retry'; } return; }
+    var done={}; (r.updated||[]).forEach(function(id){ done[id]=true; });
+    _ttHits.forEach(function(h){ if(done[String(h.hit_id)]){ var was=String(h.status||'new'); h.status=status; _ttCounts[was]=Math.max(0,(_ttCounts[was]||0)-1); _ttCounts[status]=(_ttCounts[status]||0)+1;
+      var bt=_ttByTopic[h.topic_id]; if(bt){ bt[was]=Math.max(0,(bt[was]||0)-1); bt[status]=(bt[status]||0)+1; } } });
+    if(_ttStatus!=='all') _ttHits=_ttHits.filter(function(h){ return String(h.status||'new')===_ttStatus; });
+    list.forEach(function(id){ delete _ttSel[id]; });
+    _ttFillTopicFilter(); ttRender(); ttRenderRail(); _ttBadge();
+  }).catch(function(e){ alert('Ruling failed: '+(e&&e.message)); if(btn){ btn.disabled=false; btn.textContent='Retry'; } });
+}
+function ttBulkDismiss(){ var ids=Object.keys(_ttSel); if(!ids.length) return; if(!confirm('Dismiss '+ids.length+' selected hit'+(ids.length===1?'':'s')+'? They will not come back on a re-run.')) return; ttRule(ids,'dismissed',document.getElementById('tt-bulk-dismiss')); }
+
+// ── Right rail: the topic manager ──
+function ttRenderRail(){
+  var rail=document.getElementById('tt-rail'); if(!rail) return;
+  var html='<div class="ctr-header"><div class="ctr-title">Topics<span class="ctr-title-count">&middot; '+_ttTopics.length+'</span></div>'
+    +'<button class="refresh-btn tt-btn-sm tt-btn-go" onclick="ttNew()" title="Add a topic">+ New</button></div>';
+  if(_ttEdit) html+=_ttFormHtml(_ttEdit);
+  if(!_ttTopics.length && !_ttEdit) html+='<div style="color:var(--text-dim);font-size:11px;margin-top:10px;">No topics yet.</div>';
+  _ttTopics.forEach(function(t){
+    var c=_ttByTopic[t.topic_id]||{}, run=_ttRun[t.topic_id];
+    html+='<div class="tt-topic '+(t.status==='paused'?'paused':'')+'">'
+      +'<div class="tt-name"><span>'+_diagEsc(t.name)+'</span><span class="tt-status '+(t.status==='active'?'approved':'dismissed')+'">'+_diagEsc(t.status)+'</span></div>'
+      +'<div>'+_ttKwChips(t.keywords)+'</div>'
+      +'<div class="tt-meta">'+(t.match_mode==='all'?'all phrases':'any phrase')
+      +(t.jurisdictions?' &middot; '+_diagEsc(t.jurisdictions):' &middot; all jurisdictions')
+      +(t.date_from||t.date_to?' &middot; '+_diagEsc(t.date_from||'…')+' → '+_diagEsc(t.date_to||'…'):'')
+      +'<br>'+(c['new']||0)+' new &middot; '+(c.approved||0)+' approved &middot; '+(c.dismissed||0)+' dismissed'
+      +(t.last_run_at?'<br>last run '+_diagEsc(String(t.last_run_at).slice(0,16).replace('T',' '))+' UTC ('+_diagEsc(String(t.last_run_hits||0))+' new)':'<br>never run')
+      +'</div>'
+      +'<div class="tt-acts">'
+      +'<button class="refresh-btn tt-btn-sm" onclick="ttShowOnly(\''+escAttr(t.topic_id)+'\')" title="Show only this topic\'s hits">Show hits</button>'
+      +'<button class="refresh-btn tt-btn-sm" onclick="ttEditTopic(\''+escAttr(t.topic_id)+'\')">Edit</button>'
+      +'<button class="refresh-btn tt-btn-sm tt-btn-go" onclick="ttRunPanel(\''+escAttr(t.topic_id)+'\')" title="Search this topic now (dry run first)">Run now</button>'
+      +'</div>'
+      +(run?_ttRunHtml(t, run):'')
+      +'</div>';
+  });
+  rail.innerHTML=html;
+}
+function ttShowOnly(id){ _ttTopic=String(id); var s=document.getElementById('tt-f-topic'); if(s) s.value=_ttTopic; _ttSel={}; ttLoad(true); }
+function ttNew(){ _ttEdit={}; ttRenderRail(); var f=document.getElementById('tt-fm-name'); if(f) f.focus(); }
+function ttEditTopic(id){ var t=_ttTopicById(id); if(!t) return; _ttEdit=JSON.parse(JSON.stringify(t)); ttRenderRail(); }
+function ttCancelEdit(){ _ttEdit=null; ttRenderRail(); }
+function _ttFormHtml(t){
+  var isNew=!t.topic_id;
+  return '<div class="tt-topic tt-form" style="border-color:#1c7c3a;">'
+    +'<div class="tt-name">'+(isNew?'New topic':'Edit topic')+'</div>'
+    +'<label>Name</label><input id="tt-fm-name" value="'+escAttr(t.name||'')+'" placeholder="e.g. Data centers">'
+    +'<label>Keywords — one phrase per line (whole words, case-insensitive)</label><textarea id="tt-fm-kw" placeholder="data center\ndata centers\nhyperscale">'+_diagEsc(String(t.keywords||'').split('|').map(function(k){return k.trim();}).filter(Boolean).join('\n'))+'</textarea>'
+    +'<label>Match</label><select id="tt-fm-mode"><option value="any"'+(t.match_mode==='all'?'':' selected')+'>any phrase</option><option value="all"'+(t.match_mode==='all'?' selected':'')+'>every phrase in the same item</option></select>'
+    +'<label>Jurisdictions — comma-separated, blank = all</label><input id="tt-fm-juris" value="'+escAttr(t.jurisdictions||'')+'" placeholder="Avon, Plainfield">'
+    +'<div style="display:flex;gap:6px;"><div style="flex:1;"><label>From</label><input type="date" id="tt-fm-from" value="'+escAttr(String(t.date_from||'').slice(0,10))+'"></div><div style="flex:1;"><label>To</label><input type="date" id="tt-fm-to" value="'+escAttr(String(t.date_to||'').slice(0,10))+'"></div></div>'
+    +(isNew?'':'<label>Status</label><select id="tt-fm-status"><option value="active"'+(t.status==='active'?' selected':'')+'>active (weekly run)</option><option value="paused"'+(t.status==='paused'?' selected':'')+'>paused</option><option value="deleted">delete (hidden; hits kept)</option></select>')
+    +'<label>Notes</label><input id="tt-fm-notes" value="'+escAttr(t.notes||'')+'">'
+    +'<div class="tt-acts" style="margin-top:10px;"><button class="refresh-btn tt-btn-sm tt-btn-go" id="tt-fm-save" onclick="ttSave()">'+(isNew?'Create':'Save')+'</button><button class="refresh-btn tt-btn-sm" onclick="ttCancelEdit()">Cancel</button></div>'
+    +'</div>';
+}
+function ttSave(){
+  if(!_ttNeedToken()) return;
+  var g=function(id){ var e=document.getElementById(id); return e?e.value:undefined; };
+  var kw=String(g('tt-fm-kw')||'').split(/\r?\n|\|/).map(function(k){return k.trim();}).filter(Boolean).join('|');
+  if(!String(g('tt-fm-name')||'').trim()){ alert('Name the topic.'); return; }
+  if(!kw){ alert('Give the topic at least one keyword phrase.'); return; }
+  var q='&action=upsert_tracked_topic&name='+encodeURIComponent(g('tt-fm-name'))+'&keywords='+encodeURIComponent(kw)+'&match_mode='+encodeURIComponent(g('tt-fm-mode')||'any')
+    +'&jurisdictions='+encodeURIComponent(g('tt-fm-juris')||'')+'&date_from='+encodeURIComponent(g('tt-fm-from')||'')+'&date_to='+encodeURIComponent(g('tt-fm-to')||'')+'&notes='+encodeURIComponent(g('tt-fm-notes')||'');
+  if(_ttEdit&&_ttEdit.topic_id){ q+='&topic_id='+encodeURIComponent(_ttEdit.topic_id); if(g('tt-fm-status')!==undefined) q+='&status='+encodeURIComponent(g('tt-fm-status')); }
+  var b=document.getElementById('tt-fm-save'); if(b){ b.disabled=true; b.textContent='Saving…'; }
+  mipWriteFetch(q).then(function(r){
+    if(!r||!r.ok){ alert('Save failed: '+((r&&r.error)||'unknown')); if(b){ b.disabled=false; b.textContent='Retry'; } return; }
+    _ttEdit=null; ttLoad(true);
+  }).catch(function(e){ alert('Save failed: '+(e&&e.message)); if(b){ b.disabled=false; b.textContent='Retry'; } });
+}
+
+// Run now: a dry run first (nothing written, sample shown), then "Write N hits" applies the same window.
+function ttRunPanel(id){ _ttRun[id]={ open:true }; ttRenderRail(); }
+function _ttRunHtml(t, run){
+  var id=t.topic_id;
+  var html='<div class="tt-run-out">';
+  if(run.busy){ html+='<div>Searching… one topic over the whole corpus takes about a minute.</div>'; return html+'</div>'; }
+  if(run.open||run.reply){
+    html+='<div style="display:flex;gap:6px;align-items:flex-end;flex-wrap:wrap;margin-bottom:6px;">'
+      +'<div><label style="display:block;color:var(--text-dim);">From</label><input type="date" id="tt-run-from-'+escAttr(id)+'" value="'+escAttr(run.from||'')+'" style="font-size:10px;"></div>'
+      +'<div><label style="display:block;color:var(--text-dim);">To</label><input type="date" id="tt-run-to-'+escAttr(id)+'" value="'+escAttr(run.to||'')+'" style="font-size:10px;"></div>'
+      +'<button class="refresh-btn tt-btn-sm" onclick="ttRun(\''+escAttr(id)+'\',false)" title="Nothing is written">Dry run</button>'
+      +'<button class="refresh-btn tt-btn-sm" onclick="ttRunClose(\''+escAttr(id)+'\')">Close</button></div>'
+      +'<div style="color:var(--text-dim);">Blank dates = the topic\'s own range. A run never duplicates a hit or reopens one you dismissed.</div>';
+  }
+  var r=run.reply;
+  if(r){
+    if(!r.ok){ html+='<div style="color:#e8a020;margin-top:6px;">Run failed: '+_diagEsc(r.error||'unknown')+'</div>'; }
+    else {
+      html+='<div style="margin-top:6px;"><b>'+(r.apply?'Wrote':'Found')+' '+r.new_hits+' new hit'+(r.new_hits===1?'':'s')+'</b> ('+r.item_hits+' agenda items + '+r.doc_hits+' Summary Docs scanned in '+Math.round((r.ms||0)/1000)+' s; '+r.already_known+' already known)'
+        +(r.budget&&r.budget.docs_unknown?' &middot; '+r.budget.docs_unknown+' Summary Docs had no Meetings row and were skipped':'')+'</div>';
+      if(!r.apply && r.new_hits>0) html+='<div style="margin:6px 0;"><button class="refresh-btn tt-btn-sm tt-btn-go" onclick="ttRun(\''+escAttr(id)+'\',true)">Write '+r.new_hits+' hit'+(r.new_hits===1?'':'s')+' to the queue</button></div>';
+      (r.sample||[]).slice(0,8).forEach(function(s){ html+='<div style="margin-top:4px;border-top:1px solid var(--border);padding-top:3px;"><span style="color:var(--text-dim);">'+_diagEsc(s.meeting_date||'')+' &middot; '+_diagEsc(_normJurisName(s.jurisdiction||'')||s.jurisdiction||'')+'</span> '+_ttKwChips(s.matched)+'<br>'+_diagEsc(String(s.snippet||'').slice(0,160))+'</div>'; });
+      if((r.sample||[]).length>8) html+='<div style="color:var(--text-dim);margin-top:3px;">… '+((r.sample||[]).length-8)+' more in the sample</div>';
+    }
+  }
+  return html+'</div>';
+}
+function ttRunClose(id){ delete _ttRun[id]; ttRenderRail(); }
+function ttRun(id, apply){
+  if(!_ttNeedToken()) return;
+  var from=(document.getElementById('tt-run-from-'+id)||{}).value||'', to=(document.getElementById('tt-run-to-'+id)||{}).value||'';
+  var prev=_ttRun[id]||{}; _ttRun[id]={ open:true, busy:true, from:from, to:to, reply:null }; ttRenderRail();
+  mipWriteFetch('&action=run_topic_search&topic_id='+encodeURIComponent(id)+'&from='+encodeURIComponent(from)+'&to='+encodeURIComponent(to)+(apply?'&apply=true':'')).then(function(r){
+    _ttRun[id]={ open:true, busy:false, from:from, to:to, reply:r||{ok:false,error:'empty reply'} };
+    if(r&&r.ok&&r.apply){ ttLoad(true); } else { ttRenderRail(); }
+  }).catch(function(e){ _ttRun[id]={ open:true, busy:false, from:from, to:to, reply:{ok:false,error:(e&&e.message)||'network error'} }; ttRenderRail(); });
+}
+window.ttLoad=ttLoad; window.ttRender=ttRender; window.ttSetStatus=ttSetStatus; window.ttSetTopic=ttSetTopic; window.ttSetJuris=ttSetJuris; window.ttSetSearch=ttSetSearch;
+window.ttRule=ttRule; window.ttBulkDismiss=ttBulkDismiss; window.ttToggleSel=ttToggleSel; window.ttSelectAll=ttSelectAll; window.ttShowOnly=ttShowOnly;
+window.ttNew=ttNew; window.ttEditTopic=ttEditTopic; window.ttCancelEdit=ttCancelEdit; window.ttSave=ttSave; window.ttRunPanel=ttRunPanel; window.ttRunClose=ttRunClose; window.ttRun=ttRun;
+registerViewInit('topics', function(){ ttLoad(false); });
+
 // ═══════════════════════════════════════════════════════════════════════════
 // P145 — ALL PARSED AGENDA ITEMS audit views (Agenda Items = 'ag' stream,
 // Youtube Items = 'yt' stream). One shared component, keyed by stream. Shows
@@ -13200,6 +13484,30 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
   #js-table td{padding:6px;border-bottom:1px solid var(--border);vertical-align:top;}
   #js-table tr:hover td{background:rgba(127,127,127,0.06);}
   .js-sub{font-size:10px;color:var(--text-dim);}
+  /* p219r1 / AGD-218: Tracked Topics view. */
+  .tt-rail{flex:0 0 340px;width:340px;}
+  #tt-table{width:100%;border-collapse:collapse;font-size:11px;}
+  #tt-table th{position:sticky;top:0;z-index:1;background:var(--bg-card,#1a1a1a);text-align:left;padding:8px 6px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  #tt-table td{padding:6px;border-bottom:1px solid var(--border);vertical-align:top;}
+  #tt-table tr:hover td{background:rgba(127,127,127,0.06);}
+  .tt-kw{display:inline-block;background:rgba(27,124,58,0.18);color:#5ad37f;border-radius:9px;padding:0 7px;font-size:10px;font-weight:600;margin:1px 2px 1px 0;white-space:nowrap;}
+  [data-theme="light"] .tt-kw{color:#1c7c3a;}
+  .tt-src{display:inline-block;border-radius:3px;padding:0 5px;font-size:9px;font-weight:700;letter-spacing:.03em;}
+  .tt-src.agenda{background:#2b3a55;color:#9fc3ff;} .tt-src.doc{background:#4a2b55;color:#e3a4ff;}
+  .tt-status{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
+  .tt-status.approved{color:#5ad37f;} .tt-status.dismissed{color:var(--text-dim);} .tt-status.new{color:#e8a020;}
+  .tt-topic{border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:8px;background:rgba(255,255,255,0.02);}
+  .tt-topic.paused{opacity:.65;}
+  .tt-topic .tt-name{font-weight:700;font-size:12px;display:flex;justify-content:space-between;align-items:center;gap:6px;}
+  .tt-topic .tt-meta{font-size:10px;color:var(--text-dim);margin-top:3px;line-height:1.5;}
+  .tt-topic .tt-acts{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;}
+  .tt-form label{display:block;font-size:10px;color:var(--text-dim);margin:7px 0 2px;}
+  .tt-form input,.tt-form select,.tt-form textarea{width:100%;box-sizing:border-box;font-size:11px;padding:4px 6px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:4px;font-family:inherit;}
+  .tt-form textarea{min-height:58px;resize:vertical;}
+  .tt-btn-sm{font-size:10px;padding:3px 9px;}
+  .tt-btn-go{background:#1c7c3a;color:#fff;border-color:#1c7c3a;}
+  .tt-btn-warn{background:#8a2d2d;color:#fff;border-color:#8a2d2d;}
+  .tt-run-out{font-size:10px;margin-top:6px;padding:6px 8px;border:1px dashed var(--border);border-radius:4px;max-height:180px;overflow:auto;}
   .js-name{font-weight:600;cursor:pointer;} .js-name:hover{color:var(--accent,#e8a020);}
   .js-date{white-space:nowrap;}
   .js-age{display:inline-block;padding:0 5px;border-radius:8px;font-size:9px;font-weight:700;white-space:nowrap;}
