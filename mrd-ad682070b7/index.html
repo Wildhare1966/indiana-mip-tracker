@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p219r2 -->
+<!-- MIP build p220r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p219r2">
+<link rel="stylesheet" href="styles.css?v=p220r1">
 </head>
 <body>
 
@@ -7965,14 +7965,14 @@ function _tpRenderEditDropdown(p, pidAttr) {
         // Gemini extracts from YouTube summary transcript (carry-forward R2);
         // manual override here persists to Tracked_Projects.lots col 18.
         '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);">Lots (homesites)' +
-          '<input id="tpe-lots-' + pidAttr + '" type="text" inputmode="numeric" value="' + esc(p.lots == null ? '' : String(p.lots)) + '" placeholder="e.g. 124" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
+          '<input id="tpe-lots-' + pidAttr + '" type="text" inputmode="numeric" value="' + esc(_tpManualVal(p, 'lots')) + '" placeholder="' + escAttr(p.lotsDerived ? 'auto: ' + p.lotsDerived + ' (from agenda)' : 'e.g. 124') + '" title="Blank = filled automatically from the agenda item" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
         '</label>' +
         // P200: Acres — site acreage, immediately after Lots. Operator-entered only: unlike
         // lots there is no Gemini-extracted fallback, so the value here is always the manual
         // one and the field carries no "· auto" source hint. Free text like lots, so "±38"
         // and "9.2-10" survive; the backend appends the column on the first save.
         '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#aaa);">Acres' +
-          '<input id="tpe-acres-' + pidAttr + '" type="text" inputmode="decimal" value="' + esc(p.acres == null ? '' : String(p.acres)) + '" placeholder="e.g. 38.5" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
+          '<input id="tpe-acres-' + pidAttr + '" type="text" inputmode="decimal" value="' + esc(_tpManualVal(p, 'acres')) + '" placeholder="' + escAttr(p.acresDerived ? 'auto: ' + p.acresDerived + ' (from agenda)' : 'e.g. 38.5') + '" title="Blank = filled automatically from the agenda item" style="padding:6px 8px;background:var(--bg-page,#0d0d0d);border:1px solid var(--border,#444);color:inherit;border-radius:4px;font-size:12px;">' +
         '</label>' +
         // p190r2 / AGD-117: per-meeting overrides — one fieldset per meeting, every field opening
         // with what the table shows (p190r1 / AGD-118). A value changed from the derived one is an
@@ -8018,8 +8018,8 @@ function tpSaveEditRow(pid) {
   var ord  = (ordEl.value || '').trim();
   var ali  = (aliEl.value || '').trim();
   var pet  = petEl  ? (petEl.value  || '').trim() : (current.petitionerApplicant || '');
-  var lots = lotsEl ? (lotsEl.value || '').trim() : (current.lots == null ? '' : String(current.lots));
-  var acres = acresEl ? (acresEl.value || '').trim() : (current.acres == null ? '' : String(current.acres));
+  var lots = lotsEl ? (lotsEl.value || '').trim() : _tpManualVal(current, 'lots');
+  var acres = acresEl ? (acresEl.value || '').trim() : _tpManualVal(current, 'acres');
   // p190r2 / AGD-117: the per-meeting override map, merged over every stored meeting. A field
   // nobody changed still equals its derived value and stays automatic (p190r1 / AGD-118).
   var ovr = _tpCollectSlotOverrides(current, pid);
@@ -8031,7 +8031,8 @@ function tpSaveEditRow(pid) {
   if (!webappUrl) return;
   if (msgEl) { msgEl.textContent = 'Saving…'; msgEl.style.color = 'var(--muted,#888)'; }
   // Optimistic local update
-  var prev = { projectName: current.projectName, ordinanceId: current.ordinanceId, aliases: current.aliases, petitionerApplicant: current.petitionerApplicant, lots: current.lots, acres: current.acres,
+  var prev = { lotsManual: current.lotsManual, acresManual: current.acresManual, projectName: current.projectName, ordinanceId: current.ordinanceId, aliases: current.aliases, petitionerApplicant: current.petitionerApplicant,
+               petitionerDisplay: current.petitionerDisplay, petitionerSource: current.petitionerSource, lots: current.lots, acres: current.acres,
                manualMeetingType: current.manualMeetingType, manualMeetingDate: current.manualMeetingDate, manualResults: current.manualResults,
                manualDescription: current.manualDescription,
                meetingSlots: current.meetingSlots ? JSON.parse(JSON.stringify(current.meetingSlots)) : current.meetingSlots };
@@ -8039,8 +8040,14 @@ function tpSaveEditRow(pid) {
   current.ordinanceId         = ord;
   current.aliases             = ali;
   current.petitionerApplicant = pet;
-  current.lots                = lots;
-  current.acres               = acres;
+  // P220: the App column renders petitionerDisplay, so the optimistic update must set it too,
+  // with the backend's precedence (P71 A4: manual wins, else the summary-derived value).
+  _tpSetPetitionerDisplay(current);
+  // P220: lots / acres display manual || derived (P71); the manual fields track the form.
+  current.lotsManual          = lots;
+  current.acresManual         = acres;
+  current.lots                = lots  || current.lotsDerived  || '';
+  current.acres               = acres || current.acresDerived || '';
   // p190r2: optimistic — the legacy columns clear and the map lands on the slots.
   current.manualMeetingType   = '';
   current.manualMeetingDate   = '';
@@ -8077,6 +8084,10 @@ function tpSaveEditRow(pid) {
         current.ordinanceId         = prev.ordinanceId;
         current.aliases             = prev.aliases;
         current.petitionerApplicant = prev.petitionerApplicant;
+        current.petitionerDisplay   = prev.petitionerDisplay;
+        current.petitionerSource    = prev.petitionerSource;
+        current.lotsManual          = prev.lotsManual;
+        current.acresManual         = prev.acresManual;
         current.lots                = prev.lots;
       current.acres               = prev.acres;
         current.manualMeetingType   = prev.manualMeetingType;
@@ -8092,6 +8103,10 @@ function tpSaveEditRow(pid) {
       current.ordinanceId         = prev.ordinanceId;
       current.aliases             = prev.aliases;
       current.petitionerApplicant = prev.petitionerApplicant;
+      current.petitionerDisplay   = prev.petitionerDisplay;
+      current.petitionerSource    = prev.petitionerSource;
+      current.lotsManual          = prev.lotsManual;
+      current.acresManual         = prev.acresManual;
       current.lots                = prev.lots;
       current.acres               = prev.acres;
       current.manualMeetingType   = prev.manualMeetingType;
@@ -8247,6 +8262,24 @@ function tpStatusChange(sel) {
     });
 }
 
+// P220: the operator's own lots / acres. The wire serves lotsManual / acresManual since P220; an
+// older snapshot without them falls back to the resolved value (the pre-P220 behaviour).
+function _tpManualVal(p, f) {
+  var m = p[f + 'Manual'];
+  if (m === undefined) m = p[f];
+  return (m == null) ? '' : String(m);
+}
+
+// P220: the backend's petitioner precedence (P71_TrackedProjectsDetailed.js, P79 A4) applied on
+// the client after a save, so the App column shows the edit without waiting for a reload.
+function _tpSetPetitionerDisplay(p) {
+  var manual = (p.petitionerApplicant || '').toString().trim();
+  var yt = (p.latestYtPetitioner || '').toString().trim();
+  p.petitionerDisplay = manual || yt;
+  p.petitionerSource = manual ? 'manual' : (yt ? 'youtube' : '');
+  return p;
+}
+
 function tpInlineSave(inputEl) {
   if (!inputEl) return;
   var tr = inputEl.closest('tr');
@@ -8279,7 +8312,7 @@ function tpInlineSave(inputEl) {
     .then(function(res) {
       if (res && res.success) {
         inputEl.style.borderColor = '#4ac49a';
-        if (field === 'petitioner_applicant') current.petitionerApplicant = newVal;
+        if (field === 'petitioner_applicant') { current.petitionerApplicant = newVal; _tpSetPetitionerDisplay(current); }
         if (field === 'map_id')               current.mapId = newVal;
         if (field === 'map_url') {
           current.mapUrl = newVal;
@@ -9443,6 +9476,8 @@ const JURISDICTION_REFS = {
     notes:'Administered by Tippecanoe County APC; multi-jurisdictional UZO; APC meets Wednesdays', status:'Verified'
   },
   'lapel': {
+    agendasUrl:'https://www.townoflapel.in.gov/events/agendas?meeting=planning',   // P220 (Ty): PC
+    agendasUrl2:'https://www.townoflapel.in.gov/events/agendas?meeting=town-council', agendasUrl2Label:'Council Agendas',
     name:'Town of Lapel, Indiana', county:'Madison',
     udoUrl:'https://lapelindiana.org/chapters.asp',
     rezoningAppUrl:'',
@@ -9476,6 +9511,7 @@ const JURISDICTION_REFS = {
     notes:'Plans to adopt new UDO in 2025/2026; all apps via SDL online portal', status:'Verified'
   },
   'mooresville': {
+    agendasUrl:'https://portal.laserfiche.com/Portal/Browse.aspx?id=11729&repo=r-0366bf02',   // P220 (Ty)
     name:'Town of Mooresville, Indiana', county:'Other',
     udoUrl:'https://www.mooresville.in.gov/online-forms/',
     rezoningAppUrl:'',
@@ -10008,6 +10044,9 @@ function renderScheduleRefLinks(results) {
   const ref = JURISDICTION_REFS[jId];
   if (!ref) return;
   const links = [];
+  // P220 (Ty, 10/18): the town's own agenda listing, where one is known.
+  if (ref.agendasUrl) links.push({ label: 'Agendas', url: ref.agendasUrl });
+  if (ref.agendasUrl2) links.push({ label: ref.agendasUrl2Label || 'Agendas (2)', url: ref.agendasUrl2 });
   if (ref.udoUrl) links.push({ label: 'Unified Development Ordinance', url: ref.udoUrl });
   if (ref.rezoningAppUrl) links.push({ label: 'Rezoning Application', url: ref.rezoningAppUrl });
   if (ref.primaryPlatUrl) links.push({ label: 'Primary Plat Application', url: ref.primaryPlatUrl });
