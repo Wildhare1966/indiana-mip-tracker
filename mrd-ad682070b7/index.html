@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p222r1 -->
+<!-- MIP build p222r2 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data: https:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p222r1">
+<link rel="stylesheet" href="styles.css?v=p222r2">
 </head>
 <body>
 
@@ -1549,6 +1549,8 @@ async function callGeminiProxy(opts) {
     temperature: typeof opts.temperature === 'number' ? opts.temperature : 0.3,
     maxTokens: opts.maxTokens || 2048
   };
+  // p222r2: Google Search grounding — the proxy (@589) forwards exactly [{ googleSearch: {} }].
+  if (opts.tools) body.tools = opts.tools;
   const userKey = getUserGeminiKey();
   if (userKey) body.userKey = userKey;
   // P20: Include auth token in POST body for server-side validation
@@ -1596,6 +1598,8 @@ async function callGeminiProxy(opts) {
     throw new Error(data.error + detail);
   }
   if (!data.candidates || !data.candidates[0]) throw new Error('Empty Gemini response.');
+  // p222r2: the proxy's grounding summary {web_search_queries, sources[{uri,title}], supports}, when it ran.
+  callGeminiProxy.lastGrounding = data.grounding || null;
   return data.candidates[0].content.parts[0].text;
 }
 
@@ -2662,15 +2666,16 @@ function openApp(url) {
   window.open(url, '_blank', 'noopener');
 }
 // ═══════════════════════════════════════════════════════════════════════════
-// p222r1 (Ty, 2026-10-21): PROFILES — member overlay, photos, Update Members /
-// Update Profiles. The Jurisdictions page is now two nav doors (Profiles,
-// Hearings) into one DOM; muniMode says which. Everything these buttons learn
-// is kept in THIS BROWSER (localStorage overlay) and merged onto the member
-// objects at render time — the backend has no member write route yet, and
-// its gemini_proxy does not forward the googleSearch tool, so both buttons
-// run on model knowledge until that lands. The log says so every time.
+// p222r2 (Ty, 2026-10-21): PROFILES — Update Members / Update Profiles, wired to
+// the backend (@589, indiana-agenda-tracker AGD-234). gemini_proxy forwards
+// tools:[{googleSearch:{}}] and answers with `grounding` {web_search_queries,
+// sources[{uri,title}], supports}; upsert_member (GET, token on the query string
+// via getWebAppUrl) and set_member_profile (POST text/plain JSON, token in
+// _token) write the Members sheet; the roster wire and member_profiles carry
+// status / photo_url / photo_source / civic_affiliations / other_public back.
+// The p222r1 localStorage overlay is GONE: a write that fails is said so in the
+// update log, never kept quietly in this browser. Writes never retry (p210r1).
 // ═══════════════════════════════════════════════════════════════════════════
-var MEMBER_OVERLAY_KEY  = 'mip_member_overlay_v1';
 var MUNI_UPDATE_LOG_KEY = 'mip_muni_update_log_v1';
 
 function _loadJson(k, d) { try { var v = JSON.parse(localStorage.getItem(k) || 'null'); return v === null ? d : v; } catch (e) { return d; } }
@@ -2684,36 +2689,38 @@ function _sameName(a, b) {
   return pa.length > 1 && pb.length > 1 && pa[pa.length - 1] === pb[pb.length - 1] && pa[0][0] === pb[0][0];
 }
 function _memKey(muniId, mem) { return normalizeMemberKey(muniId, mem.body === 'PC' ? 'PC' : 'Council', mem.name || ''); }
+// 'departed' | 'new' | '' — the sheet's `status` (roster wire / member_profiles) or an in-session write.
+function memStatus(mem) { var s = String(mem._status || mem.status || '').toLowerCase(); return (s === 'departed' || s === 'new') ? s : ''; }
+function _today() { return new Date().toISOString().slice(0, 10); }
 
-function getMemberOverlay(muniId) {
-  var all = _loadJson(MEMBER_OVERLAY_KEY, {});
-  var ov = all[muniId] || { members: {}, added: [] };
-  if (!ov.members) ov.members = {};
-  if (!ov.added) ov.added = [];
-  return ov;
-}
-function saveMemberOverlay(muniId, ov) { var all = _loadJson(MEMBER_OVERLAY_KEY, {}); all[muniId] = ov; _saveJson(MEMBER_OVERLAY_KEY, all); }
-
-// Merge the browser overlay onto the live member objects. Idempotent; called at
-// the top of every renderMuniPanel so a reload or a data refresh cannot lose it.
-function applyMemberOverlay(m) {
-  if (!m || !m.id) return;
-  var ov = getMemberOverlay(m.id);
-  ['council', 'pc'].forEach(function (bt) {
-    var list = m[bt] || [];
-    list.forEach(function (mem) {
-      var o = ov.members[_memKey(m.id, mem)];
-      if (o) Object.keys(o).forEach(function (k) { mem[k] = o[k]; });
-    });
-    ov.added.filter(function (a) { return a._bodyType === bt; }).forEach(function (a) {
-      if (!list.some(function (x) { return _sameName(x.name, a.name); })) list.push(Object.assign({}, a));
-    });
-    m[bt] = list;
-  });
+// Drop the warm caches so the next load re-reads the sheet instead of the pre-write snapshot.
+function invalidateMemberCaches() {
+  [MUNI_CACHE_KEY, MUNI_CACHE_TS_KEY, PROFILE_CACHE_KEY, PROFILE_CACHE_TS_KEY].forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} });
 }
 
-// Photo or initials. Photo URLs are model-sourced (Update Profiles) and the img
-// falls back to initials on any load error. img-src now allows https:.
+// One backend write. Throws with the backend's `error` text (e.g. "Unauthorized") on anything but {ok:true}.
+async function mipMemberWrite(action, fields) {
+  var base = getWebAppUrl();
+  if (!base) throw new Error('Web App URL not configured.');
+  var sep = base.indexOf('?') === -1 ? '?' : '&';
+  var resp;
+  if (action === 'upsert_member') {
+    var qs = Object.keys(fields).filter(function (k) { return fields[k] !== undefined && fields[k] !== null; })
+      .map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(fields[k]); }).join('&');
+    resp = await fetch(base + sep + 'action=upsert_member&' + qs);
+  } else {
+    var body = Object.assign({}, fields);
+    var tok = getAuthToken(); if (tok) body._token = tok;
+    resp = await fetch(base + sep + 'action=' + action, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=UTF-8' }, body: JSON.stringify(body) });
+  }
+  var data = null;
+  try { data = await resp.json(); } catch (e) { throw new Error('HTTP ' + resp.status + ' (not JSON)'); }
+  if (!data || data.ok !== true) throw new Error((data && data.error) || ('HTTP ' + resp.status));
+  return data;
+}
+
+// Photo or initials. Photo URLs come from the sheet (photo_url, https only) and fall back to
+// initials on any load error. img-src allows https:.
 function memberPhotoHtml(mem, size) {
   var initials = String(mem.name || '').split(/\s+/).filter(Boolean).slice(0, 2).map(function (p) { return p[0]; }).join('').toUpperCase() || '?';
   var cls = size >= 64 ? 'member-photo' : 'member-avatar';
@@ -2722,22 +2729,35 @@ function memberPhotoHtml(mem, size) {
   var img = url ? '<img class="' + cls + '" src="' + url + '" alt="" width="' + size + '" height="' + size + '" referrerpolicy="no-referrer" loading="lazy" onerror="this.style.display=&quot;none&quot;;if(this.nextSibling)this.nextSibling.style.display=&quot;&quot;;">' : '';
   return '<span class="member-photo-wrap">' + img + fb + '</span>';
 }
-function removeMemberPhoto(muniId, key) {
-  var ov = getMemberOverlay(muniId);
-  if (ov.members[key]) { delete ov.members[key].photo_url; delete ov.members[key].photo_source; }
-  saveMemberOverlay(muniId, ov);
-  if (selectedMember) { delete selectedMember.photo_url; delete selectedMember.photo_source; }
+async function removeMemberPhoto(muniId, key) {
+  try {
+    await mipMemberWrite('set_member_profile', { member_key: key, photo_url: '', photo_source: '' });
+    if (selectedMember) { selectedMember.photo_url = ''; selectedMember.photo_source = ''; }
+    invalidateMemberCaches();
+  } catch (e) {
+    appendMuniUpdateLog(muniId, 'Remove photo failed', [String(e && e.message || e)]);
+  }
   renderMuniPanel(); renderMemberDetail(selectedMember);
 }
 
 // ── Update log: lives at the bottom of the Municipality Summary until dismissed ──
 function getMuniUpdateLog(muniId) { return _loadJson(MUNI_UPDATE_LOG_KEY, {})[muniId] || null; }
 function setMuniUpdateLog(muniId, entries) { var all = _loadJson(MUNI_UPDATE_LOG_KEY, {}); if (entries && entries.length) all[muniId] = entries; else delete all[muniId]; _saveJson(MUNI_UPDATE_LOG_KEY, all); }
-function appendMuniUpdateLog(muniId, title, lines) {
+function appendMuniUpdateLog(muniId, title, lines, grounding) {
   var log = getMuniUpdateLog(muniId) || [];
-  log.unshift({ ts: new Date().toISOString(), title: title, lines: lines });
+  var entry = { ts: new Date().toISOString(), title: title, lines: (lines || []).filter(Boolean) };
+  if (grounding) {
+    entry.queries = (grounding.web_search_queries || []).slice(0, 8);
+    entry.sources = _dedupeSources(grounding.sources || []).slice(0, 12);
+  }
+  log.unshift(entry);
   setMuniUpdateLog(muniId, log.slice(0, 10));
   muniSummaryOpenById[muniId] = true;
+}
+function _dedupeSources(list) {
+  var seen = {}, out = [];
+  (list || []).forEach(function (s) { if (s && s.uri && !seen[s.uri]) { seen[s.uri] = 1; out.push({ uri: s.uri, title: s.title || '' }); } });
+  return out;
 }
 function dismissMuniUpdateLog(muniId) { setMuniUpdateLog(muniId, null); renderMuniPanel(); renderMemberDetail(selectedMember); }
 function renderMuniUpdateLog(m) {
@@ -2747,79 +2767,96 @@ function renderMuniUpdateLog(m) {
     '<div class="muni-update-log-head"><span class="detail-section-label" style="margin:0;">Update log — review, then dismiss</span>' +
     '<button class="settings-add-btn" style="margin-top:0;" onclick="dismissMuniUpdateLog(\'' + escAttr(m.id) + '\')" title="Delete this message">✕ Dismiss</button></div>' +
     log.map(function (e) {
+      var src = (e.sources && e.sources.length)
+        ? '<div class="muni-update-sources">Sources: ' + e.sources.map(function (s) { var u = escUrl(s.uri); return u ? '<a href="' + u + '" target="_blank" rel="noopener">' + esc(s.title || s.uri) + '</a>' : esc(s.title || s.uri); }).join(' · ') + '</div>' : '';
+      var q = (e.queries && e.queries.length) ? '<div class="muni-update-sources">Searched: ' + e.queries.map(esc).join(' · ') + '</div>' : '';
       return '<div class="muni-update-entry"><div class="muni-update-title">' + esc(e.title) + ' <span class="muni-update-ts">' + esc(new Date(e.ts).toLocaleString()) + '</span></div>' +
-        (e.lines || []).map(function (l) { return '<div class="muni-update-line">' + esc(l) + '</div>'; }).join('') + '</div>';
+        (e.lines || []).map(function (l) { return '<div class="muni-update-line">' + esc(l) + '</div>'; }).join('') + q + src + '</div>';
     }).join('') + '</div>';
 }
 
-var MEMBER_SEARCH_CAVEAT = 'Source: Gemini through the backend proxy, which does not yet forward live web search — treat every change as a lead to verify, not a fact. Changes are saved in this browser only until a backend member route exists.';
+var MEMBER_SEARCH_CAVEAT = 'Searched live (Google Search grounding through the backend proxy) and saved to the Members sheet; sources are listed below. It is still a model reading of the web — verify a DEPARTED or NEW before acting on it.';
 
-// ── Update Members: confirm the current roster of both bodies ──
+// ── Update Members: confirm the current roster of both bodies, write each verdict to the sheet ──
 async function updateMembersRoster(muniId, btn) {
   var m = MUNICIPALITIES.find(function (x) { return x.id === muniId; });
   if (!m) return;
-  if (btn) { btn.disabled = true; btn.textContent = 'Checking roster…'; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Searching roster…'; }
   var known = [].concat(
     (m.council || []).map(function (x) { return Object.assign({ _bt: 'council' }, x); }),
     (m.pc || []).map(function (x) { return Object.assign({ _bt: 'pc' }, x); }));
   var rosterText = known.map(function (x) { return (x._bt === 'council' ? 'COUNCIL' : 'PC') + ' | ' + x.name + ' | ' + (x.role || '') + ' | ' + (x.party || '') + ' | ' + (x.term || ''); }).join('\n') || '(none on record)';
-  var prompt = 'Today is ' + new Date().toISOString().slice(0, 10) + '. Confirm the CURRENT membership of the two governing bodies of ' + m.name + ', ' + m.county + ' County, Indiana: (1) the city or town council and (2) the plan commission.\n\n' +
+  var prompt = 'Today is ' + _today() + '. Confirm the CURRENT membership of the two governing bodies of ' + m.name + ', ' + m.county + ' County, Indiana: (1) the city or town council and (2) the plan commission.\n\n' +
     'Our roster on record (BODY | NAME | ROLE | PARTY | TERM):\n' + rosterText + '\n\n' +
-    'Check official sources first: the municipal website, meeting agendas and minutes from the last 90 days, election results, Ballotpedia, local news. ' +
+    'Search official sources first: the municipal website, meeting agendas and minutes from the last 90 days, election results, Ballotpedia, local news. ' +
     'Return ONLY lines in this exact format, one per person, covering every person on our roster plus anyone currently serving who is missing:\n' +
     'BODY | NAME | ROLE | PARTY | TERM | STATUS | SOURCE\n' +
     'BODY is COUNCIL or PC. PARTY is R, D, I or blank. STATUS is one of CONFIRMED (on our roster, still serving), CHANGED (still serving but role, party or term differs - give the new values), DEPARTED (no longer serving), NEW (serving now but missing from our roster), UNVERIFIED (could not confirm either way). SOURCE is the URL relied on, or none. No commentary, no header line.';
-  var lines = [];
+  var lines = [], grounding = null;
   try {
     var text = await callGeminiProxy({ prompt: prompt, maxTokens: 4096, temperature: 0.1, tools: [{ googleSearch: {} }] });
+    grounding = callGeminiProxy.lastGrounding || null;
     var rows = text.split('\n').map(function (l) { return l.trim().replace(/^[-*•\s]+/, ''); })
       .filter(function (l) { return l.indexOf('|') > -1 && !/^BODY\s*\|/i.test(l); })
       .map(function (l) {
         var p = l.split('|').map(function (s) { return s.trim(); });
         return { body: /pc|plan/i.test(p[0] || '') ? 'pc' : 'council', name: p[1] || '', role: p[2] || '', party: (p[3] || '').toUpperCase().replace(/[^RDI]/g, '').slice(0, 1), term: p[4] || '', status: (p[5] || '').toUpperCase().replace(/[^A-Z]/g, ''), source: (p[6] || '').replace(/^none$/i, '') };
       }).filter(function (r) { return r.name && !/^name$/i.test(r.name); });
-    var ov = getMemberOverlay(muniId);
-    var counts = { CONFIRMED: 0, CHANGED: 0, DEPARTED: 0, NEW: 0, UNVERIFIED: 0 };
-    rows.forEach(function (r) {
+    var counts = { CONFIRMED: 0, CHANGED: 0, DEPARTED: 0, NEW: 0, UNVERIFIED: 0 }, written = 0, failed = 0, stop = false;
+    if (btn) btn.textContent = 'Saving…';
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
       var mem = (m[r.body] || []).find(function (x) { return _sameName(x.name, r.name); })
              || known.find(function (x) { return _sameName(x.name, r.name); });
       var st = counts.hasOwnProperty(r.status) ? r.status : 'UNVERIFIED';
       if (mem && st === 'NEW') st = 'CONFIRMED';
       if (!mem && (st === 'CONFIRMED' || st === 'CHANGED')) st = 'NEW';
       counts[st]++;
-      var src = r.source ? ' · ' + r.source : '';
+      var srcNote = r.source ? ' · ' + r.source : '';
+      var srcUrl = /^https?:\/\/\S+$/i.test(r.source) ? r.source : undefined;
+      if (st === 'UNVERIFIED') { lines.push('UNVERIFIED · ' + r.name + srcNote); continue; }
+      if (stop) { lines.push(st + ' · ' + r.name + ' — not saved (writes stopped)'); continue; }
+      var fields, applyFn;
       if (mem) {
-        var key = _memKey(muniId, mem);
-        var o = ov.members[key] || (ov.members[key] = {});
+        var bodyLabel = mem.body === 'PC' ? 'PC' : 'Council';
         if (st === 'CHANGED') {
           var ch = [];
-          if (r.role && r.role !== mem.role)   { ch.push('role ' + (mem.role || '—') + ' → ' + r.role); o.role = r.role; }
-          if (r.party && r.party !== mem.party) { ch.push('party ' + (mem.party || '—') + ' → ' + r.party); o.party = r.party; }
-          if (r.term && r.term !== mem.term)   { ch.push('term ' + (mem.term || '—') + ' → ' + r.term); o.term = r.term; }
-          o._status = ''; o._confirmed = new Date().toISOString().slice(0, 10);
-          lines.push('CHANGED · ' + mem.name + ': ' + (ch.join(', ') || 'no field actually differed') + src);
+          if (r.role && r.role !== mem.role)   ch.push('role ' + (mem.role || '—') + ' → ' + r.role);
+          if (r.party && r.party !== mem.party) ch.push('party ' + (mem.party || '—') + ' → ' + r.party);
+          if (r.term && r.term !== mem.term)   ch.push('term ' + (mem.term || '—') + ' → ' + r.term);
+          fields = { muni_id: muniId, body: bodyLabel, name: mem.name, role: r.role || undefined, party: r.party || undefined, term: r.term || undefined, status: 'current', source_url: srcUrl, confirmed_date: _today() };
+          applyFn = (function (mem, r) { return function () { if (r.role) mem.role = r.role; if (r.party) mem.party = r.party; if (r.term) mem.term = r.term; mem._status = ''; mem.status = 'current'; }; })(mem, r);
+          lines.push('CHANGED · ' + mem.name + ': ' + (ch.join(', ') || 'no field actually differed') + srcNote);
         } else if (st === 'DEPARTED') {
-          o._status = 'departed';
-          lines.push('DEPARTED · ' + mem.name + src);
-        } else if (st === 'CONFIRMED') {
-          o._status = ''; o._confirmed = new Date().toISOString().slice(0, 10);
-        } else {
-          lines.push('UNVERIFIED · ' + mem.name + src);
+          fields = { muni_id: muniId, body: bodyLabel, name: mem.name, status: 'departed', source_url: srcUrl, confirmed_date: _today() };
+          applyFn = (function (mem) { return function () { mem._status = 'departed'; mem.status = 'departed'; }; })(mem);
+          lines.push('DEPARTED · ' + mem.name + srcNote);
+        } else { // CONFIRMED
+          fields = { muni_id: muniId, body: bodyLabel, name: mem.name, status: 'current', source_url: srcUrl, confirmed_date: _today() };
+          applyFn = (function (mem) { return function () { mem._status = ''; mem.status = 'current'; mem.confirmed_date = _today(); }; })(mem);
         }
-      } else if (st === 'NEW') {
-        if (!ov.added.some(function (a) { return _sameName(a.name, r.name); })) {
-          ov.added.push({ name: r.name, role: r.role, party: r.party, term: r.term, body: r.body === 'pc' ? 'PC' : 'Council', _bodyType: r.body, _status: 'new', _source: r.source });
-        }
-        lines.push('NEW · ' + r.name + (r.role ? ' (' + r.role + ')' : '') + (r.body === 'pc' ? ' — plan commission' : ' — council') + src);
+      } else { // NEW
+        fields = { muni_id: muniId, body: r.body === 'pc' ? 'PC' : 'Council', name: r.name, role: r.role || undefined, party: r.party || undefined, term: r.term || undefined, status: 'new', source_url: srcUrl, confirmed_date: _today() };
+        applyFn = (function (r) { return function () {
+          var list = m[r.body] || (m[r.body] = []);
+          if (!list.some(function (x) { return _sameName(x.name, r.name); })) list.push({ name: r.name, role: r.role, party: r.party, term: r.term, body: r.body === 'pc' ? 'PC' : 'Council', status: 'new', _status: 'new', source_url: r.source });
+        }; })(r);
+        lines.push('NEW · ' + r.name + (r.role ? ' (' + r.role + ')' : '') + (r.body === 'pc' ? ' — plan commission' : ' — council') + srcNote);
       }
-    });
+      try { await mipMemberWrite('upsert_member', fields); applyFn(); written++; }
+      catch (e) {
+        failed++;
+        lines.push('   ⚠ not saved for ' + (mem ? mem.name : r.name) + ': ' + String(e && e.message || e));
+        if (/Unauthorized|403|Web App URL/.test(String(e && e.message))) { stop = true; lines.push('Writes stopped — the backend needs the operator token (Settings → Operator Access).'); }
+      }
+    }
     known.forEach(function (x) {
       if (!rows.some(function (r) { return _sameName(r.name, x.name); })) lines.push('NOT MENTIONED · ' + x.name + ' — left unchanged');
     });
-    saveMemberOverlay(muniId, ov);
-    lines.unshift('Confirmed ' + counts.CONFIRMED + ' · Changed ' + counts.CHANGED + ' · Departed ' + counts.DEPARTED + ' · New ' + counts.NEW + ' · Unverified ' + counts.UNVERIFIED + ' — of ' + known.length + ' on record');
-    lines.push(MEMBER_SEARCH_CAVEAT);
-    appendMuniUpdateLog(muniId, 'Update Members', lines);
+    if (written) invalidateMemberCaches();
+    lines.unshift('Confirmed ' + counts.CONFIRMED + ' · Changed ' + counts.CHANGED + ' · Departed ' + counts.DEPARTED + ' · New ' + counts.NEW + ' · Unverified ' + counts.UNVERIFIED + ' — of ' + known.length + ' on record · saved ' + written + (failed ? ' · failed ' + failed : ''));
+    lines.push(grounding && grounding.sources && grounding.sources.length ? MEMBER_SEARCH_CAVEAT : 'The reply carried no grounding sources — the model answered from memory this time; treat every change as a lead to verify.');
+    appendMuniUpdateLog(muniId, 'Update Members', lines, grounding);
   } catch (e) {
     appendMuniUpdateLog(muniId, 'Update Members failed', [String(e && e.message || e), /Unauthorized|403/.test(String(e && e.message)) ? 'The backend needs the operator token: Settings → Operator Access.' : '']);
   }
@@ -2827,7 +2864,7 @@ async function updateMembersRoster(muniId, btn) {
   renderMuniPanel(); renderMemberDetail(null);
 }
 
-// ── Update Profiles: photo, socials, background, affiliations for every member ──
+// ── Update Profiles: photo, socials, background, affiliations for every member, written per member ──
 async function updateAllProfiles(muniId, btn) {
   var m = MUNICIPALITIES.find(function (x) { return x.id === muniId; });
   if (!m) return;
@@ -2836,14 +2873,14 @@ async function updateAllProfiles(muniId, btn) {
     (m.pc || []).map(function (x) { return { mem: x, label: 'plan commission' }; }));
   if (!members.length) return;
   if (btn) btn.disabled = true;
-  var ov = getMemberOverlay(muniId), lines = [], n = 0, photos = 0, socials = 0, failed = 0;
+  var lines = [], n = 0, photos = 0, socials = 0, failed = 0, written = 0, allSources = [], allQueries = [];
   for (var i = 0; i < members.length; i++) {
     var mem = members[i].mem; n++;
     if (btn) btn.textContent = 'Updating ' + n + '/' + members.length + '…';
     var prompt = 'Find publicly available profile information for ' + mem.name + ', ' + (mem.role || 'member') + ' of the ' + m.name + ', Indiana ' + members[i].label + '. ' +
-      'Use the municipal website, LinkedIn, Facebook, X/Twitter, campaign sites, Ballotpedia, local news and civic organisation pages. ' +
+      'Search the municipal website, LinkedIn, Facebook, X/Twitter, campaign sites, Ballotpedia, local news and civic organisation pages. ' +
       'Return EXACTLY these lines, each on its own line, with "Not found." when unknown:\n' +
-      'PHOTO_URL: [direct URL of an official or public headshot image file, jpg or png, preferably from the municipal website]\n' +
+      'PHOTO_URL: [direct https URL of an official or public headshot image file, jpg or png, preferably from the municipal website]\n' +
       'PHOTO_SOURCE: [page the photo appears on]\n' +
       'LINKEDIN: [URL]\nFACEBOOK: [URL]\nTWITTER: [URL or handle]\nCAMPAIGN_SITE: [URL]\n' +
       'PROFESSIONAL_BACKGROUND: [one sentence]\n' +
@@ -2851,34 +2888,48 @@ async function updateAllProfiles(muniId, btn) {
       'OTHER: [one other relevant public fact, or Not found.]';
     try {
       var text = await callGeminiProxy({ prompt: prompt, maxTokens: 1024, temperature: 0.1, tools: [{ googleSearch: {} }] });
+      var g = callGeminiProxy.lastGrounding;
+      if (g) { allSources = allSources.concat(g.sources || []); allQueries = allQueries.concat(g.web_search_queries || []); }
       var get = function (k) { var mm = text.match(new RegExp('^\\s*\\**' + k + '\\**:\\s*(.+)$', 'mi')); var v = mm ? mm[1].trim().replace(/^\[|\]$/g, '') : ''; return (!v || /^not found/i.test(v)) ? '' : v; };
-      var key = _memKey(muniId, mem), o = ov.members[key] || (ov.members[key] = {}), found = [];
+      var patch = {}, found = [];
       var photo = get('PHOTO_URL');
-      if (photo && /^https?:\/\/\S+$/i.test(photo)) { o.photo_url = photo; o.photo_source = get('PHOTO_SOURCE'); photos++; found.push('photo'); }
+      if (photo && /^https:\/\/\S+$/i.test(photo)) { patch.photo_url = photo; var ps = get('PHOTO_SOURCE'); if (/^https?:\/\/\S+$/i.test(ps)) patch.photo_source = ps; photos++; found.push('photo'); }
       [['LINKEDIN', 'linkedin'], ['FACEBOOK', 'facebook'], ['TWITTER', 'twitter'], ['CAMPAIGN_SITE', 'campaign_site']].forEach(function (pair) {
-        var v = get(pair[0]); if (v) { o[pair[1]] = v; socials++; found.push(pair[1]); }
+        var v = get(pair[0]);
+        if (v && (/^https?:\/\/\S+$/i.test(v) || (pair[1] === 'twitter' && /^@?[A-Za-z0-9_]{1,30}$/.test(v)))) { patch[pair[1]] = v; socials++; found.push(pair[1]); }
       });
-      var pb = get('PROFESSIONAL_BACKGROUND'); if (pb) { o.professional_background = pb; found.push('background'); }
-      var civ = get('CIVIC_AFFILIATIONS');     if (civ) { o.notes = civ; found.push('affiliations'); }
-      var oth = get('OTHER');                  if (oth) { o.other_public = oth; found.push('other'); }
-      o._profile_updated = new Date().toISOString();
-      lines.push(mem.name + ': ' + (found.length ? found.join(', ') : 'nothing new'));
+      var pb = get('PROFESSIONAL_BACKGROUND'); if (pb) { patch.professional_background = pb; found.push('background'); }
+      var civ = get('CIVIC_AFFILIATIONS');     if (civ) { patch.civic_affiliations = civ; found.push('affiliations'); }
+      var oth = get('OTHER');                  if (oth) { patch.other_public = oth; found.push('other'); }
+      if (!found.length) { lines.push(mem.name + ': nothing new'); }
+      else {
+        try {
+          await mipMemberWrite('set_member_profile', Object.assign({ member_key: _memKey(muniId, mem) }, patch));
+          written++;
+          Object.keys(patch).forEach(function (k) { mem[k === 'civic_affiliations' ? 'notes' : k] = patch[k]; });
+          mem._profile_updated = new Date().toISOString();
+          lines.push(mem.name + ': ' + found.join(', ') + ' — saved');
+        } catch (we) {
+          failed++;
+          lines.push(mem.name + ': found ' + found.join(', ') + ' — ⚠ not saved: ' + String(we && we.message || we));
+          if (/Unauthorized|403|Web App URL/.test(String(we && we.message))) { lines.push('Stopped — the backend needs the operator token (Settings → Operator Access).'); break; }
+        }
+      }
     } catch (e) {
       failed++;
-      lines.push(mem.name + ': failed — ' + String(e && e.message || e));
-      if (/Unauthorized|403/.test(String(e && e.message))) { lines.push('Stopped: the backend needs the operator token (Settings → Operator Access).'); break; }
+      lines.push(mem.name + ': search failed — ' + String(e && e.message || e));
+      if (/Unauthorized|403/.test(String(e && e.message))) { lines.push('Stopped — the backend needs the operator token (Settings → Operator Access).'); break; }
     }
-    saveMemberOverlay(muniId, ov);
     await new Promise(function (r) { setTimeout(r, 600); });
   }
-  lines.unshift('Profiles checked for ' + n + ' of ' + members.length + ' members — photos ' + photos + ' · social/campaign links ' + socials + ' · failed ' + failed);
-  lines.push('Photo URLs are model-sourced; a wrong or dead link shows initials instead, and "remove photo" on the profile clears one.');
-  lines.push(MEMBER_SEARCH_CAVEAT);
-  appendMuniUpdateLog(muniId, 'Update Profiles', lines);
+  if (written) invalidateMemberCaches();
+  lines.unshift('Profiles searched for ' + n + ' of ' + members.length + ' members — photos ' + photos + ' · social/campaign links ' + socials + ' · saved ' + written + (failed ? ' · failed ' + failed : ''));
+  lines.push('Photo URLs are model-sourced; a wrong or dead link shows initials instead, and "remove photo" on the profile clears it from the sheet.');
+  lines.push(allSources.length ? MEMBER_SEARCH_CAVEAT : 'No grounding sources came back — the model answered from memory; verify before relying on any of it.');
+  appendMuniUpdateLog(muniId, 'Update Profiles', lines, { web_search_queries: allQueries, sources: allSources });
   if (btn) { btn.disabled = false; btn.textContent = 'Update Profiles'; }
   renderMuniPanel(); renderMemberDetail(selectedMember);
 }
-
 function switchView(name) {
   // p222r1: Profiles and Hearings are two doors into one DOM (#view-muni). The legacy name 'muni'
   // (county cards, deep links) means Hearings, the long-standing default tab.
@@ -2965,7 +3016,6 @@ function selectMuni(id) {
 function renderMuniPanel() {
   if (!currentMuni) return;
   const m = currentMuni;
-  applyMemberOverlay(m); // p222r1: browser-held roster/profile changes
   const panel = document.getElementById('muni-panel');
 
   const recColors = { high: 'rec-high', med: 'rec-med', low: 'rec-low', mixed: 'rec-mixed' };
@@ -3968,13 +4018,13 @@ function renderMemberCards(members) {
     const termTag = mem.term ? `<span class="member-tag tag-term">${esc(mem.term)}</span>` : '';
 
     return `
-      <div class="member-card ${selectedMember && selectedMember.name === mem.name ? 'selected' : ''}${mem._status === 'departed' ? ' departed' : ''}" data-idx="${idx}"
+      <div class="member-card ${selectedMember && selectedMember.name === mem.name ? 'selected' : ''}${memStatus(mem) === 'departed' ? ' departed' : ''}" data-idx="${idx}"
            onclick="showMemberDetail(${idx})">
         ${memberPhotoHtml(mem, 32)}
         <div class="member-name">${esc(mem.name)}</div>
         <div class="member-role">${esc(mem.role)}</div>
         <div class="member-tags">
-          ${bodyTag}${partyTag}${termTag}${mem._status === 'new' ? '<span class="member-tag tag-new">NEW · VERIFY</span>' : mem._status === 'departed' ? '<span class="member-tag tag-departed">DEPARTED?</span>' : ''}
+          ${bodyTag}${partyTag}${termTag}${memStatus(mem) === 'new' ? '<span class="member-tag tag-new">NEW · VERIFY</span>' : memStatus(mem) === 'departed' ? '<span class="member-tag tag-departed">DEPARTED?</span>' : ''}
         </div>
       </div>
     `;
@@ -4147,7 +4197,7 @@ function renderMemberDetail(mem) {
       <div class="detail-name">${esc(mem.name)}</div>
       <div class="detail-role">${esc(mem.role)}</div>
       ${mem.photo_url ? `<button class="photo-remove" onclick="removeMemberPhoto('${escAttr(currentMuni?.id || '')}','${escAttr(_memKey(currentMuni?.id || '', mem))}')" title="${escAttr(mem.photo_source || 'model-sourced photo')}">✕ remove photo</button>` : ''}
-      ${mem._status === 'departed' ? `<div style="margin-top:6px;"><span class="member-tag tag-departed">DEPARTED? — flagged by Update Members</span></div>` : mem._status === 'new' ? `<div style="margin-top:6px;"><span class="member-tag tag-new">NEW — added by Update Members, verify</span></div>` : ''}
+      ${memStatus(mem) === 'departed' ? `<div style="margin-top:6px;"><span class="member-tag tag-departed">DEPARTED? — flagged by Update Members</span></div>` : memStatus(mem) === 'new' ? `<div style="margin-top:6px;"><span class="member-tag tag-new">NEW — added by Update Members, verify</span></div>` : ''}
       ${/* P58.7 R10: "Needs Verification" badge removed; ✓ Verified retained as positive affirmation. */ ''}
       ${isVerified ? `<div style="margin-top:6px;"><span class="member-tag" style="background:rgba(26,122,74,0.2);color:#6dc49a;border:1px solid rgba(26,122,74,0.35);">✓ Verified</span></div>` : ''}
     </div></div>
@@ -6890,6 +6940,15 @@ function mergeMemberProfiles(profiles) {
           mem.campaign_site = p.campaign_site || null;
           mem._profile_confidence = p.confidence;
           mem._last_researched = p.last_researched;
+        }
+        // p222r2: operator-written fields (P224) — present with or without a research run.
+        if (p) {
+          if (p.photo_url) mem.photo_url = p.photo_url;
+          if (p.photo_source) mem.photo_source = p.photo_source;
+          if (p.civic_affiliations) mem.notes = p.civic_affiliations;
+          if (p.other_public) mem.other_public = p.other_public;
+          if (p.status) mem.status = p.status;
+          if (p.profile_updated) mem._profile_updated = p.profile_updated;
         }
       });
     });
