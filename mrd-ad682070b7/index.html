@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p222r2 -->
+<!-- MIP build p222r3 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data: https:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p222r2">
+<link rel="stylesheet" href="styles.css?v=p222r3">
 </head>
 <body>
 
@@ -2759,6 +2759,19 @@ function _dedupeSources(list) {
   (list || []).forEach(function (s) { if (s && s.uri && !seen[s.uri]) { seen[s.uri] = 1; out.push({ uri: s.uri, title: s.title || '' }); } });
   return out;
 }
+// p222r3: one item from each member's list in turn, so a 14-member run's log shows eight members'
+// queries and a spread of their sources — not the first member's eight (Ty's Lebanon run, 2026-10-21).
+function _roundRobin(lists, max) {
+  var out = [], i = 0, more = true;
+  while (more && out.length < max) {
+    more = false;
+    for (var j = 0; j < lists.length && out.length < max; j++) {
+      if (lists[j] && lists[j].length > i) { out.push(lists[j][i]); more = true; }
+    }
+    i++;
+  }
+  return out;
+}
 function dismissMuniUpdateLog(muniId) { setMuniUpdateLog(muniId, null); renderMuniPanel(); renderMemberDetail(selectedMember); }
 function renderMuniUpdateLog(m) {
   var log = getMuniUpdateLog(m.id);
@@ -2873,7 +2886,7 @@ async function updateAllProfiles(muniId, btn) {
     (m.pc || []).map(function (x) { return { mem: x, label: 'plan commission' }; }));
   if (!members.length) return;
   if (btn) btn.disabled = true;
-  var lines = [], n = 0, photos = 0, socials = 0, failed = 0, written = 0, allSources = [], allQueries = [];
+  var lines = [], n = 0, photos = 0, socials = 0, failed = 0, written = 0, perMember = [];
   for (var i = 0; i < members.length; i++) {
     var mem = members[i].mem; n++;
     if (btn) btn.textContent = 'Updating ' + n + '/' + members.length + '…';
@@ -2889,7 +2902,7 @@ async function updateAllProfiles(muniId, btn) {
     try {
       var text = await callGeminiProxy({ prompt: prompt, maxTokens: 1024, temperature: 0.1, tools: [{ googleSearch: {} }] });
       var g = callGeminiProxy.lastGrounding;
-      if (g) { allSources = allSources.concat(g.sources || []); allQueries = allQueries.concat(g.web_search_queries || []); }
+      if (g) perMember.push({ queries: g.web_search_queries || [], sources: g.sources || [] });
       var get = function (k) { var mm = text.match(new RegExp('^\\s*\\**' + k + '\\**:\\s*(.+)$', 'mi')); var v = mm ? mm[1].trim().replace(/^\[|\]$/g, '') : ''; return (!v || /^not found/i.test(v)) ? '' : v; };
       var patch = {}, found = [];
       var photo = get('PHOTO_URL');
@@ -2925,8 +2938,10 @@ async function updateAllProfiles(muniId, btn) {
   if (written) invalidateMemberCaches();
   lines.unshift('Profiles searched for ' + n + ' of ' + members.length + ' members — photos ' + photos + ' · social/campaign links ' + socials + ' · saved ' + written + (failed ? ' · failed ' + failed : ''));
   lines.push('Photo URLs are model-sourced; a wrong or dead link shows initials instead, and "remove photo" on the profile clears it from the sheet.');
-  lines.push(allSources.length ? MEMBER_SEARCH_CAVEAT : 'No grounding sources came back — the model answered from memory; verify before relying on any of it.');
-  appendMuniUpdateLog(muniId, 'Update Profiles', lines, { web_search_queries: allQueries, sources: allSources });
+  var rrQueries = _roundRobin(perMember.map(function (x) { return x.queries; }), 8);
+  var rrSources = _roundRobin(perMember.map(function (x) { return x.sources; }), 40);
+  lines.push(rrSources.length ? MEMBER_SEARCH_CAVEAT : 'No grounding sources came back — the model answered from memory; verify before relying on any of it.');
+  appendMuniUpdateLog(muniId, 'Update Profiles', lines, { web_search_queries: rrQueries, sources: rrSources });
   if (btn) { btn.disabled = false; btn.textContent = 'Update Profiles'; }
   renderMuniPanel(); renderMemberDetail(selectedMember);
 }
