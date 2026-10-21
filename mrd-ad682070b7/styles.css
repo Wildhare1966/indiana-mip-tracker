@@ -237,6 +237,10 @@
   }
   .topbar-btn:hover { background: rgba(255,255,255,0.05); color: var(--text); }
   .topbar-btn.active { background: rgba(255,255,255,0.10); color: #ffffff; box-shadow: inset 0 -3px 0 #e8a30c; }
+  /* p221r1: thin divider before the "Apps" launcher group (Video Console, Cropper, ...) in the top nav.
+     Launchers reuse .topbar-btn; .topbar-app only adds the new-tab glyph. */
+  .topbar-sep { display: inline-block; width: 1px; align-self: stretch; margin: 6px 6px; background: rgba(255,255,255,0.18); }
+  .topbar-app::after { content: ' \2197'; opacity: 0.55; font-size: 10px; }
   .topbar-right {
     display: flex;
     align-items: center;

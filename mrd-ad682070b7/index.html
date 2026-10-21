@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p220r1 -->
+<!-- MIP build p221r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -8,10 +8,10 @@
      newly-deployed FE reaches users without manual hard-reload. -->
 <meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com http://localhost:8765; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com http://localhost:8765;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p220r1">
+<link rel="stylesheet" href="styles.css?v=p221r1">
 </head>
 <body>
 
@@ -36,6 +36,14 @@
     <button class="topbar-btn" onclick="switchView('schedule')" id="nav-schedule">Schedule & Requirements</button>
     <button class="topbar-btn" onclick="switchView('market')" id="nav-market">Zonda</button>
     <button class="topbar-btn" onclick="switchView('salesdisclosures')" id="nav-salesdisclosures">Sales Disclosures</button>
+    <!-- p221r1 (Ty, 2026-10-21): "Apps" group — launchers for sibling local tools, each in a NEW TAB via
+         openApp(). They are not views: they never call switchView and have no view-* element. Every URL is
+         a loopback server owned by another repo under C:\Users\ty\Claude_Code; nothing here starts one.
+         A tab that opens to a connection error means that server is not running — start it from its own repo. -->
+    <span class="topbar-sep" aria-hidden="true"></span>
+    <button class="topbar-btn topbar-app" onclick="openApp('http://127.0.0.1:8766/')" id="app-videoconsole" title="market-video-pipeline console (tools\console-server.mjs) — opens in a new tab">Video Console</button>
+    <button class="topbar-btn topbar-app" onclick="openApp('http://127.0.0.1:8756/')" id="app-cropper" title="Skill-cropper (crop.py) — opens in a new tab">Cropper</button>
+    <!-- Land Presentation Map launcher: pending Ty's choice of URL (live map.wildhare.app vs localhost:8080/public/). -->
     <button class="topbar-btn" onclick="switchView('settings')" id="nav-settings">⚙ Settings</button>
     <!-- P80 Stage 1.8: operator-only review queue. Hidden until isOperator()
          flips it visible at boot. -->
@@ -928,10 +936,19 @@
               referrerpolicy="no-referrer"></iframe>
     </div>
 
-    <!-- SALES DISCLOSURES VIEW — embedded Indiana SDF dashboard (iframe, self-contained).
-         Lazy-loaded: iframe src is set on first open via registerViewInit('salesdisclosures', …).
+    <!-- SALES DISCLOSURES VIEW — embedded Indiana SDF dashboard (iframe).
+         p221r1 (2026-10-21): the frame now loads the LIVE dashboard served by the Sales Disclosures repo
+         (SD_DASHBOARD_URL, port 8765) instead of a copy in this repo — a copy went stale (10-06 vs 10-20) and
+         this repo is public. Lazy-loaded: loadSalesDashboardFrame() runs on first open via
+         registerViewInit('salesdisclosures', …); if the server is down the notice below shows instead.
          The dashboard auto-loads its dataset from the FE repo's data-sales branch via the raw CDN. -->
     <div id="view-salesdisclosures" class="view" style="padding:0;">
+      <div id="sd-offline" style="display:none;padding:28px 32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:var(--text-dim);">
+        <div style="color:var(--text);font-weight:600;margin-bottom:6px;">The Sales Disclosures server is not running.</div>
+        <div>The dashboard is served live from <code>http://localhost:8765</code> by the Sales Disclosures repo. Start it by double-clicking
+          <strong>Start Sales Dashboard.bat</strong> in <code>C:\Users\ty\Claude_Code\Sales Disclosures</code>, then retry.</div>
+        <button class="refresh-btn" onclick="loadSalesDashboardFrame()" style="margin-top:14px;">↻ Retry</button>
+      </div>
       <iframe id="sd-frame" title="Sales Disclosures — Indiana SDF Market Activity"
               style="width:100%;height:calc(100vh - 52px);border:0;display:block;"
               referrerpolicy="no-referrer"></iframe>
@@ -2402,6 +2419,11 @@ async function fetchLiveIntelFeed() {
 // ═══════════════════════════════════════════════════════
 // THEME TOGGLE — light / dark mode
 // ═══════════════════════════════════════════════════════
+// p221r1: the live Sales Disclosures dashboard. localhost, NOT 127.0.0.1, on purpose — that repo's
+// "Start Sales Dashboard.bat" documents that review edits live in localStorage for the origin
+// http://localhost:8765, and 127.0.0.1 is a different origin that shows none of them. The page CSP
+// lists this origin under frame-src (the iframe) and connect-src (the availability probe).
+var SD_DASHBOARD_URL = 'http://localhost:8765/sales_dashboard.html';
 function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
   const btn = document.getElementById('theme-toggle-btn');
@@ -2411,7 +2433,7 @@ function applyTheme(theme) {
   const mf = document.getElementById('market-frame');
   if (mf && mf.src) mf.src = 'dashboard.html?theme=' + theme;
   const sdf = document.getElementById('sd-frame');
-  if (sdf && sdf.src) sdf.src = 'sales_dashboard.html?theme=' + theme;
+  if (sdf && sdf.src) sdf.src = SD_DASHBOARD_URL + '?theme=' + theme;
 }
 function toggleTheme() {
   const current = document.documentElement.getAttribute('data-theme') || 'dark';
@@ -2643,10 +2665,27 @@ registerViewInit('market', function () {
 });
 // Sales Disclosures: defer loading the embedded SDF dashboard (and its CDN dataset)
 // until the operator first opens the page. Theme-follow mirrors the Zonda wiring.
-registerViewInit('salesdisclosures', function () {
+// p221r1: the dashboard is another repo's local server, so probe it first (HEAD, no-cors — an
+// opaque 200 resolves, a refused connection rejects). Down → show #sd-offline, never a blank frame.
+function loadSalesDashboardFrame() {
   var f = document.getElementById('sd-frame');
-  if (f && !f.src) f.src = 'sales_dashboard.html?theme=' + (document.documentElement.getAttribute('data-theme') || 'dark');
-});
+  var note = document.getElementById('sd-offline');
+  if (!f || f.src) return;
+  var url = SD_DASHBOARD_URL + '?theme=' + (document.documentElement.getAttribute('data-theme') || 'dark');
+  fetch(SD_DASHBOARD_URL, { method: 'HEAD', mode: 'no-cors', cache: 'no-store' })
+    .then(function () { if (note) note.style.display = 'none'; f.style.display = 'block'; f.src = url; })
+    .catch(function (e) {
+      console.warn('[mrd] Sales Disclosures server not reachable at ' + SD_DASHBOARD_URL, e);
+      f.style.display = 'none';
+      if (note) note.style.display = 'block';
+    });
+}
+registerViewInit('salesdisclosures', loadSalesDashboardFrame);
+// p221r1: top-bar "Apps" launchers — open a sibling tool in a new tab. noopener: the new tab gets
+// no window.opener back into this page. Not a view; never touches switchView.
+function openApp(url) {
+  window.open(url, '_blank', 'noopener');
+}
 function switchView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.topbar-btn').forEach(b => b.classList.remove('active'));
