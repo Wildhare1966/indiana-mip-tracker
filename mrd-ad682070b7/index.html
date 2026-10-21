@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p222r3 -->
+<!-- MIP build p222r4 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data: https:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p222r3">
+<link rel="stylesheet" href="styles.css?v=p222r4">
 </head>
 <body>
 
@@ -2772,6 +2772,24 @@ function _roundRobin(lists, max) {
   }
   return out;
 }
+// p222r4: the model's SOURCE cell may hold several comma-separated URLs, one of them a Google
+// grounding redirect hundreds of characters long (Ty's Lebanon run). Keep the first REAL URL for
+// the sheet and the log; label links by host; mark redirect links as such.
+function _isSearchRedirect(u) { return /vertexaisearch\.cloud\.google\.com\/grounding-api-redirect/i.test(String(u || '')); }
+function _firstSourceUrl(cell) {
+  var urls = (String(cell || '').match(/https?:\/\/[^\s,;|<>"']+/g) || []).map(function (u) { return u.replace(/[.)\]]+$/, ''); });
+  var real = urls.filter(function (u) { return !_isSearchRedirect(u); });
+  return real[0] || urls[0] || '';
+}
+function _srcLabel(u) {
+  if (_isSearchRedirect(u)) return 'search redirect';
+  try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return 'source'; }
+}
+function _srcLink(u, title) {
+  var safe = escUrl(u);
+  var label = title ? esc(title) + (_isSearchRedirect(u) ? ' (redirect)' : '') : esc(_srcLabel(u));
+  return safe ? '<a href="' + safe + '" target="_blank" rel="noopener">' + label + '</a>' : label;
+}
 function dismissMuniUpdateLog(muniId) { setMuniUpdateLog(muniId, null); renderMuniPanel(); renderMemberDetail(selectedMember); }
 function renderMuniUpdateLog(m) {
   var log = getMuniUpdateLog(m.id);
@@ -2781,10 +2799,13 @@ function renderMuniUpdateLog(m) {
     '<button class="settings-add-btn" style="margin-top:0;" onclick="dismissMuniUpdateLog(\'' + escAttr(m.id) + '\')" title="Delete this message">✕ Dismiss</button></div>' +
     log.map(function (e) {
       var src = (e.sources && e.sources.length)
-        ? '<div class="muni-update-sources">Sources: ' + e.sources.map(function (s) { var u = escUrl(s.uri); return u ? '<a href="' + u + '" target="_blank" rel="noopener">' + esc(s.title || s.uri) + '</a>' : esc(s.title || s.uri); }).join(' · ') + '</div>' : '';
+        ? '<div class="muni-update-sources">Sources: ' + e.sources.map(function (s) { return _srcLink(s.uri, s.title); }).join(' · ') + '</div>' : '';
       var q = (e.queries && e.queries.length) ? '<div class="muni-update-sources">Searched: ' + e.queries.map(esc).join(' · ') + '</div>' : '';
       return '<div class="muni-update-entry"><div class="muni-update-title">' + esc(e.title) + ' <span class="muni-update-ts">' + esc(new Date(e.ts).toLocaleString()) + '</span></div>' +
-        (e.lines || []).map(function (l) { return '<div class="muni-update-line">' + esc(l) + '</div>'; }).join('') + q + src + '</div>';
+        (e.lines || []).map(function (l) {
+          var txt = (l && typeof l === 'object') ? l.text : l, url = (l && typeof l === 'object' && l.url) ? l.url : '';
+          return '<div class="muni-update-line">' + esc(txt) + (url ? ' · ' + _srcLink(url) : '') + '</div>';
+        }).join('') + q + src + '</div>';
     }).join('') + '</div>';
 }
 
@@ -2825,9 +2846,9 @@ async function updateMembersRoster(muniId, btn) {
       if (mem && st === 'NEW') st = 'CONFIRMED';
       if (!mem && (st === 'CONFIRMED' || st === 'CHANGED')) st = 'NEW';
       counts[st]++;
-      var srcNote = r.source ? ' · ' + r.source : '';
-      var srcUrl = /^https?:\/\/\S+$/i.test(r.source) ? r.source : undefined;
-      if (st === 'UNVERIFIED') { lines.push('UNVERIFIED · ' + r.name + srcNote); continue; }
+      var srcUrl = _firstSourceUrl(r.source) || undefined;
+      var srcLine = function (text) { return srcUrl ? { text: text, url: srcUrl } : text; };
+      if (st === 'UNVERIFIED') { lines.push(srcLine('UNVERIFIED · ' + r.name)); continue; }
       if (stop) { lines.push(st + ' · ' + r.name + ' — not saved (writes stopped)'); continue; }
       var fields, applyFn;
       if (mem) {
@@ -2839,11 +2860,11 @@ async function updateMembersRoster(muniId, btn) {
           if (r.term && r.term !== mem.term)   ch.push('term ' + (mem.term || '—') + ' → ' + r.term);
           fields = { muni_id: muniId, body: bodyLabel, name: mem.name, role: r.role || undefined, party: r.party || undefined, term: r.term || undefined, status: 'current', source_url: srcUrl, confirmed_date: _today() };
           applyFn = (function (mem, r) { return function () { if (r.role) mem.role = r.role; if (r.party) mem.party = r.party; if (r.term) mem.term = r.term; mem._status = ''; mem.status = 'current'; }; })(mem, r);
-          lines.push('CHANGED · ' + mem.name + ': ' + (ch.join(', ') || 'no field actually differed') + srcNote);
+          lines.push(srcLine('CHANGED · ' + mem.name + ': ' + (ch.join(', ') || 'no field actually differed')));
         } else if (st === 'DEPARTED') {
           fields = { muni_id: muniId, body: bodyLabel, name: mem.name, status: 'departed', source_url: srcUrl, confirmed_date: _today() };
           applyFn = (function (mem) { return function () { mem._status = 'departed'; mem.status = 'departed'; }; })(mem);
-          lines.push('DEPARTED · ' + mem.name + srcNote);
+          lines.push(srcLine('DEPARTED · ' + mem.name));
         } else { // CONFIRMED
           fields = { muni_id: muniId, body: bodyLabel, name: mem.name, status: 'current', source_url: srcUrl, confirmed_date: _today() };
           applyFn = (function (mem) { return function () { mem._status = ''; mem.status = 'current'; mem.confirmed_date = _today(); }; })(mem);
@@ -2854,7 +2875,7 @@ async function updateMembersRoster(muniId, btn) {
           var list = m[r.body] || (m[r.body] = []);
           if (!list.some(function (x) { return _sameName(x.name, r.name); })) list.push({ name: r.name, role: r.role, party: r.party, term: r.term, body: r.body === 'pc' ? 'PC' : 'Council', status: 'new', _status: 'new', source_url: r.source });
         }; })(r);
-        lines.push('NEW · ' + r.name + (r.role ? ' (' + r.role + ')' : '') + (r.body === 'pc' ? ' — plan commission' : ' — council') + srcNote);
+        lines.push(srcLine('NEW · ' + r.name + (r.role ? ' (' + r.role + ')' : '') + (r.body === 'pc' ? ' — plan commission' : ' — council')));
       }
       try { await mipMemberWrite('upsert_member', fields); applyFn(); written++; }
       catch (e) {

@@ -3653,3 +3653,4 @@ body.agenda-panel-locked { overflow: hidden; }
 .muni-update-line { color: var(--text); padding: 1px 0 1px 10px; border-left: 2px solid var(--border); margin: 2px 0; line-height: 1.45; word-break: break-word; }
 .muni-update-sources { margin-top: 4px; font-size: 10px; color: var(--text-dim); line-height: 1.5; word-break: break-word; }
 .muni-update-sources a { color: var(--accent); }
+.muni-update-line a { color: var(--accent); }
