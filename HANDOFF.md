@@ -1,6 +1,6 @@
 # HANDOFF — Indiana MIP Tracker (MRD front end)
 
-HANDOFF-STAMP: 2026-10-21 | rev 9
+HANDOFF-STAMP: 2026-10-21 | rev 10
 
 > **Read first:** [`CLAUDE.md`](CLAUDE.md) → this file → [`docs/OPEN-ITEMS.md`](docs/OPEN-ITEMS.md).
 > Backend coordinates: `C:\Users\ty\Claude_Code\indiana-agenda-tracker\ARCHITECTURE.md` §0 is the
@@ -9,23 +9,24 @@ HANDOFF-STAMP: 2026-10-21 | rev 9
 
 ## One line
 
-Build **`p221r2`**: the MRD is now the launcher for the sibling apps — the Sales Disclosures tab
-frames the **live** dashboard on port 8765 (the in-repo copy is gone) and a top-bar **Apps** group
-opens the Video Console, the Cropper and the Land Presentation Map (live build, Ty's ruling on
-**MIP-13**) in new tabs. All four items of Ty's 2026-10-21 request shipped. One item open: **MIP-11**.
+Build **`p222r1`**: the MRD is the launcher for the sibling apps — a top-bar **Apps** group opens
+Sales Disclosures (standalone tab, no frame), Video Console, Cropper and Map — and **Jurisdictions is
+split into Profiles and Hearings**, with the member profile inline below the list and **Update Members /
+Update Profiles** buttons (Gemini via the proxy, browser-held results). Zonda is off the nav; Schedule &
+Requirements is **Schedule Builder**. One item open: **MIP-11**. Backend follow-up proposed as a card.
 
 ## Live coordinates (probed 2026-10-21 on this desktop)
 
 | Thing | State |
 |---|---|
-| Repo | `main` @ **`11d5e9d`** (`p221r2`; `38b6c4d` was `p221r1`) plus this close-out commit, pushed — public remote `Wildhare1966/indiana-mip-tracker` |
-| Served build | **`p221r2`** on both markers — `mrd-ad682070b7/index.html` line 2 and `styles.css?v=` line 14; served at `http://localhost:8778/mrd-ad682070b7/` (listener `127.0.0.1:8778`, answering `200`) |
-| Sales Disclosures tab | `#sd-frame` → `http://localhost:8765/sales_dashboard.html?theme=…`, **live** from `C:\Users\ty\Claude_Code\Sales Disclosures` (`tools\serve_nocache.py`, bound `0.0.0.0:8765`, running at probe time, file at `c3eb983` 2026-10-20). `mrd-ad682070b7/sales_dashboard.html` **removed** |
-| Apps group | **Video Console** → `http://127.0.0.1:8766/` (`market-video-pipeline\tools\console-server.mjs`, running) · **Cropper** → `http://127.0.0.1:8756/` (`Skill-cropper\crop.py`, **not** running; `Start Cropper.bat`) · **Land Presentation Map** → `https://map.wildhare.app/` (Cloudflare Pages behind Cloudflare Access; a tab that lands on the Access login means that browser is not signed in there) |
-| CSP | `frame-src` and `connect-src` each gained `http://localhost:8765`; nothing else changed |
+| Repo | `main` @ **`685cd3e`** (`p222r1`; `11d5e9d` was `p221r2`, `38b6c4d` `p221r1`) plus this close-out commit, pushed — public remote `Wildhare1966/indiana-mip-tracker` |
+| Served build | **`p222r1`** on both markers — `mrd-ad682070b7/index.html` line 2 and `styles.css?v=` line 14; served at `http://localhost:8778/mrd-ad682070b7/` (listener `127.0.0.1:8778`, answering `200`) |
+| Sales Disclosures | a **launcher** (first in the Apps group) → `http://localhost:8765/sales_dashboard.html` in a new tab. The `p221r1` iframe is gone: the dashboard detects a frame and switches to its published two-year dataset, hiding Tile Studio. `mrd-ad682070b7/sales_dashboard.html` remains removed |
+| Apps group | Sales Disclosures → `localhost:8765` · **Video Console** → `http://127.0.0.1:8766/` (`market-video-pipeline`) · **Cropper** → `http://127.0.0.1:8756/` (`Skill-cropper`, start it with `Start Cropper.bat`) · **Map** → `https://map.wildhare.app/` (Cloudflare Access) |
+| CSP | the `localhost:8765` entries are gone again; `img-src` is now `'self' data: https:` (member photos). Nothing else changed |
 | Data lanes | `main` · `data` · `data-sales` — unchanged; both non-`main` lanes are written **by other projects** |
 | Operator token | `localStorage` key `mip_auth_token`, Settings → Operator Access; **none in the built-in browser pane's profile** |
-| Board | `docs/OPEN-ITEMS.md` **rev 12** — **MIP-11** (CC) open; **MIP-12** and **MIP-13** closed this session |
+| Board | `docs/OPEN-ITEMS.md` **rev 13** — **MIP-11** (CC) open; **MIP-12**, **MIP-13**, **MIP-14** closed this session |
 | Untracked | `serve-mrd.log` (server log, left alone) |
 
 ⚠ Re-probe before relying on the build number (doctrine item 14).
@@ -58,16 +59,26 @@ adds item 4). Full record: **MIP-12** and **MIP-13** in `docs/OPEN-ITEMS.md`.
    button through the same `openApp()`, marker bump only, no CSP change. The built-in browser pane
    blocked the popup (automation may not open popups there), so the destination was verified by
    `curl` (302 to the Access login) rather than rendered. Smoke re-run unchanged: 13/20, all 403.
+7. **`p222r1` — second request.** Sales Disclosures became a launcher (the frame could never show the
+   standalone dashboard: `FRAMED` switches datasets and hides Tile Studio); Map; Zonda off; Schedule
+   Builder; Jurisdictions → **Profiles** (summary, members, inline full-width profile, Update Profiles /
+   Update Members, update log under the summary) and **Hearings** (no summary). Full record **MIP-14**.
 
 ## Gotchas carried forward
 
-- ⚠ **The Sales frame is `localhost:8765`, not `127.0.0.1:8765`, on purpose.** That repo's
-  `Start Sales Dashboard.bat` documents that review edits live in `localStorage` for the origin
-  `http://localhost:8765`; `127.0.0.1` is a different origin and shows none of them. The CSP lists
-  the origin under **both** `frame-src` and `connect-src` — drop either and the tab goes blank or
-  the probe fails closed.
-- ⚠ **The MRD never starts another repo's server.** Down → notice + Retry. The view init runs
-  once per page load, so Retry is the only re-check short of a reload.
+- ⛔ **Do not re-embed the Sales Disclosures dashboard.** It tests `window.self !== window.top`
+  and, framed, loads the published two-year CDN file and hides Tile Studio and Review records on
+  purpose (Ty, 2026-10-07 and 2026-10-20). The launcher must stay `localhost`, not `127.0.0.1`:
+  that repo keeps review edits in `localStorage` for the `localhost:8765` origin.
+- ⚠ **Profiles and Hearings are one DOM.** Both nav buttons activate `#view-muni`; `muniMode`
+  decides what `renderMuniPanel` draws. Legacy `switchView('muni')` means Hearings. Member cards
+  and the inline profile are only rendered in Profiles mode; `#member-detail` (the old right rail)
+  is still in the DOM but always hidden.
+- ⚠ **Update Members / Update Profiles are browser-local and not live-searched yet.** Results sit
+  in `localStorage` (`mip_member_overlay_v1`, `mip_muni_update_log_v1`) and are merged at render
+  by `applyMemberOverlay`; clearing site data drops them. The backend proxy ignores the
+  `tools:[{googleSearch:{}}]` the FE already sends, and no member write route exists. Both need
+  `indiana-agenda-tracker` work (session card proposed 2026-10-21). Photo URLs are model-sourced.
 - ⚠ **The built-in browser pane is not a launcher test bed.** Loopback `window.open` targets
   navigated the *same* tab; an external one (`map.wildhare.app`) was **blocked** outright — popups
   open there only from the user's own clicks. Chrome opens a new tab for all three. Do not "fix"
@@ -105,9 +116,13 @@ depend on, not just the thing you are editing.
 
 ## Next session
 
-1. **MIP-11** — `CLAUDE.md` rev 6, whole-file: the `p168r2` pointer, the line-72 asset list, the
+1. **Backend follow-up in `C:\Users\ty\Claude_Code\indiana-agenda-tracker`** (card proposed 2026-10-21):
+   forward an allow-listed `tools` field through `gemini_proxy` so Update Members / Update Profiles
+   search live; add member roster / profile write routes that land on the `Members` sheet (incl.
+   `photo_url`) and surface them via `member_profiles`; add `PHOTO_URL` to `MemberResearch.js`.
+2. **MIP-11** — `CLAUDE.md` rev 6, whole-file: the `p168r2` pointer, the line-72 asset list, the
    Apps group paragraph.
-2. Reported, not boarded here (other repos' concerns): Sales Disclosures' spare launch config names
+3. Reported, not boarded here (other repos' concerns): Sales Disclosures' spare launch config names
    8766 (the Video Console's port); Permit-Resources documents 8770, which Tile Studio holds; Sales
    Disclosures binds `0.0.0.0`; auto-starting the four servers belongs in `C:\Users\ty\Claude_Code\_serve`.
    The MRD is local to this desktop and not reachable from the laptop over Remote Control.
