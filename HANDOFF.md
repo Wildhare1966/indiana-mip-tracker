@@ -1,6 +1,6 @@
 # HANDOFF — Indiana MIP Tracker (MRD front end)
 
-HANDOFF-STAMP: 2026-10-21 | rev 8
+HANDOFF-STAMP: 2026-10-21 | rev 9
 
 > **Read first:** [`CLAUDE.md`](CLAUDE.md) → this file → [`docs/OPEN-ITEMS.md`](docs/OPEN-ITEMS.md).
 > Backend coordinates: `C:\Users\ty\Claude_Code\indiana-agenda-tracker\ARCHITECTURE.md` §0 is the
@@ -9,23 +9,23 @@ HANDOFF-STAMP: 2026-10-21 | rev 8
 
 ## One line
 
-Build **`p221r1`**: the MRD is now the launcher for the sibling apps — the Sales Disclosures tab
+Build **`p221r2`**: the MRD is now the launcher for the sibling apps — the Sales Disclosures tab
 frames the **live** dashboard on port 8765 (the in-repo copy is gone) and a top-bar **Apps** group
-opens the Video Console and the Cropper in new tabs. Item 4 of Ty's request, the Land Presentation
-Map button, waits on his URL choice: **MIP-13**.
+opens the Video Console, the Cropper and the Land Presentation Map (live build, Ty's ruling on
+**MIP-13**) in new tabs. All four items of Ty's 2026-10-21 request shipped. One item open: **MIP-11**.
 
 ## Live coordinates (probed 2026-10-21 on this desktop)
 
 | Thing | State |
 |---|---|
-| Repo | `main` @ **`38b6c4d`** (`p221r1`) plus this close-out commit, pushed — public remote `Wildhare1966/indiana-mip-tracker` |
-| Served build | **`p221r1`** on both markers — `mrd-ad682070b7/index.html` line 2 and `styles.css?v=` line 14; served at `http://localhost:8778/mrd-ad682070b7/` (listener `127.0.0.1:8778`, answering `200`) |
+| Repo | `main` @ **`11d5e9d`** (`p221r2`; `38b6c4d` was `p221r1`) plus this close-out commit, pushed — public remote `Wildhare1966/indiana-mip-tracker` |
+| Served build | **`p221r2`** on both markers — `mrd-ad682070b7/index.html` line 2 and `styles.css?v=` line 14; served at `http://localhost:8778/mrd-ad682070b7/` (listener `127.0.0.1:8778`, answering `200`) |
 | Sales Disclosures tab | `#sd-frame` → `http://localhost:8765/sales_dashboard.html?theme=…`, **live** from `C:\Users\ty\Claude_Code\Sales Disclosures` (`tools\serve_nocache.py`, bound `0.0.0.0:8765`, running at probe time, file at `c3eb983` 2026-10-20). `mrd-ad682070b7/sales_dashboard.html` **removed** |
-| Apps group | **Video Console** → `http://127.0.0.1:8766/` (`market-video-pipeline\tools\console-server.mjs`, running) · **Cropper** → `http://127.0.0.1:8756/` (`Skill-cropper\crop.py`, **not** running; `Start Cropper.bat`) · **Land Presentation Map**: slot is an HTML comment after Cropper, pending **MIP-13** |
+| Apps group | **Video Console** → `http://127.0.0.1:8766/` (`market-video-pipeline\tools\console-server.mjs`, running) · **Cropper** → `http://127.0.0.1:8756/` (`Skill-cropper\crop.py`, **not** running; `Start Cropper.bat`) · **Land Presentation Map** → `https://map.wildhare.app/` (Cloudflare Pages behind Cloudflare Access; a tab that lands on the Access login means that browser is not signed in there) |
 | CSP | `frame-src` and `connect-src` each gained `http://localhost:8765`; nothing else changed |
 | Data lanes | `main` · `data` · `data-sales` — unchanged; both non-`main` lanes are written **by other projects** |
 | Operator token | `localStorage` key `mip_auth_token`, Settings → Operator Access; **none in the built-in browser pane's profile** |
-| Board | `docs/OPEN-ITEMS.md` **rev 11** — **MIP-13** (TY) and **MIP-11** (CC) open; **MIP-12** closed this session |
+| Board | `docs/OPEN-ITEMS.md` **rev 12** — **MIP-11** (CC) open; **MIP-12** and **MIP-13** closed this session |
 | Untracked | `serve-mrd.log` (server log, left alone) |
 
 ⚠ Re-probe before relying on the build number (doctrine item 14).
@@ -35,7 +35,8 @@ so the drift is carried as that named item rather than patched.
 
 ## What shipped this session
 
-Ty's 2026-10-21 request, items 1-3 of 4. Full record: **MIP-12** in `docs/OPEN-ITEMS.md`.
+Ty's 2026-10-21 request, all four items (rev 8 of this file closed items 1-3; rev 9, same session,
+adds item 4). Full record: **MIP-12** and **MIP-13** in `docs/OPEN-ITEMS.md`.
 
 1. **Probed before building.** The embedded copy was 336,471 B (2026-10-06); the live file was
    434,231 B (`c3eb983`, 2026-10-20) and served on 8765 with `200`, no `X-Frame-Options`, no
@@ -53,6 +54,10 @@ Ty's 2026-10-21 request, items 1-3 of 4. Full record: **MIP-12** in `docs/OPEN-I
    Console: no CSP violations from the build.
 5. **Board rotated.** MIP-10's closure moved verbatim to `docs/STATUS-ARCHIVE.md`; rev 7 of this
    file to `docs/HANDOFF-ARCHIVE.md`. **MIP-12** closed, **MIP-13** boarded, **MIP-11** widened.
+6. **`p221r2` — Land Presentation Map.** Ty chose the live build over the local `:8080` copy. One
+   button through the same `openApp()`, marker bump only, no CSP change. The built-in browser pane
+   blocked the popup (automation may not open popups there), so the destination was verified by
+   `curl` (302 to the Access login) rather than rendered. Smoke re-run unchanged: 13/20, all 403.
 
 ## Gotchas carried forward
 
@@ -63,9 +68,10 @@ Ty's 2026-10-21 request, items 1-3 of 4. Full record: **MIP-12** in `docs/OPEN-I
   the probe fails closed.
 - ⚠ **The MRD never starts another repo's server.** Down → notice + Retry. The view init runs
   once per page load, so Retry is the only re-check short of a reload.
-- ⚠ **The built-in browser pane navigates the same tab on `window.open`.** Verified with a plain
-  `window.open(url, '_blank')` from the console (returned `null`). Chrome opens a new tab. Do not
-  "fix" `openApp()` for the pane.
+- ⚠ **The built-in browser pane is not a launcher test bed.** Loopback `window.open` targets
+  navigated the *same* tab; an external one (`map.wildhare.app`) was **blocked** outright — popups
+  open there only from the user's own clicks. Chrome opens a new tab for all three. Do not "fix"
+  `openApp()` for the pane; verify launchers by `curl` plus the pane's popup notice.
 - ⚠ **Line endings.** `core.autocrlf=true`. Probed 2026-10-21 with `file`: `index.html` and
   `styles.css` sit **LF** on disk, the Markdown lanes **CRLF**. Git normalizes on commit either way;
   preserve whatever each file already has rather than converting.
@@ -99,10 +105,9 @@ depend on, not just the thing you are editing.
 
 ## Next session
 
-1. **MIP-13** — Ty picks the map URL; add the button in the Apps slot, bump to `p221r2`.
-2. **MIP-11** — `CLAUDE.md` rev 6, whole-file: the `p168r2` pointer, the line-72 asset list, the
+1. **MIP-11** — `CLAUDE.md` rev 6, whole-file: the `p168r2` pointer, the line-72 asset list, the
    Apps group paragraph.
-3. Reported, not boarded here (other repos' concerns): Sales Disclosures' spare launch config names
+2. Reported, not boarded here (other repos' concerns): Sales Disclosures' spare launch config names
    8766 (the Video Console's port); Permit-Resources documents 8770, which Tile Studio holds; Sales
    Disclosures binds `0.0.0.0`; auto-starting the four servers belongs in `C:\Users\ty\Claude_Code\_serve`.
    The MRD is local to this desktop and not reachable from the laptop over Remote Control.
