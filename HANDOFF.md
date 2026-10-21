@@ -1,6 +1,6 @@
 # HANDOFF — Indiana MIP Tracker (MRD front end)
 
-HANDOFF-STAMP: 2026-10-21 | rev 10
+HANDOFF-STAMP: 2026-10-21 | rev 11
 
 > **Read first:** [`CLAUDE.md`](CLAUDE.md) → this file → [`docs/OPEN-ITEMS.md`](docs/OPEN-ITEMS.md).
 > Backend coordinates: `C:\Users\ty\Claude_Code\indiana-agenda-tracker\ARCHITECTURE.md` §0 is the
@@ -9,24 +9,26 @@ HANDOFF-STAMP: 2026-10-21 | rev 10
 
 ## One line
 
-Build **`p222r1`**: the MRD is the launcher for the sibling apps — a top-bar **Apps** group opens
+Build **`p222r2`**: the MRD is the launcher for the sibling apps — a top-bar **Apps** group opens
 Sales Disclosures (standalone tab, no frame), Video Console, Cropper and Map — and **Jurisdictions is
 split into Profiles and Hearings**, with the member profile inline below the list and **Update Members /
-Update Profiles** buttons (Gemini via the proxy, browser-held results). Zonda is off the nav; Schedule &
-Requirements is **Schedule Builder**. One item open: **MIP-11**. Backend follow-up proposed as a card.
+Update Profiles** buttons that search live (Google Search grounding through the backend proxy, @589)
+and **write the Members sheet**. Zonda is off the nav; Schedule & Requirements is **Schedule Builder**.
+One item open: **MIP-11**. ⚠ The grounded search and a real write are untested without the token.
 
 ## Live coordinates (probed 2026-10-21 on this desktop)
 
 | Thing | State |
 |---|---|
-| Repo | `main` @ **`685cd3e`** (`p222r1`; `11d5e9d` was `p221r2`, `38b6c4d` `p221r1`) plus this close-out commit, pushed — public remote `Wildhare1966/indiana-mip-tracker` |
-| Served build | **`p222r1`** on both markers — `mrd-ad682070b7/index.html` line 2 and `styles.css?v=` line 14; served at `http://localhost:8778/mrd-ad682070b7/` (listener `127.0.0.1:8778`, answering `200`) |
+| Repo | `main` @ **`b0f6fbc`** (`p222r2`; `685cd3e` `p222r1`, `11d5e9d` `p221r2`, `38b6c4d` `p221r1`) plus this close-out commit, pushed — public remote `Wildhare1966/indiana-mip-tracker` |
+| Served build | **`p222r2`** on both markers — `mrd-ad682070b7/index.html` line 2 and `styles.css?v=` line 14; served at `http://localhost:8778/mrd-ad682070b7/` (listener `127.0.0.1:8778`, answering `200`) |
 | Sales Disclosures | a **launcher** (first in the Apps group) → `http://localhost:8765/sales_dashboard.html` in a new tab. The `p221r1` iframe is gone: the dashboard detects a frame and switches to its published two-year dataset, hiding Tile Studio. `mrd-ad682070b7/sales_dashboard.html` remains removed |
 | Apps group | Sales Disclosures → `localhost:8765` · **Video Console** → `http://127.0.0.1:8766/` (`market-video-pipeline`) · **Cropper** → `http://127.0.0.1:8756/` (`Skill-cropper`, start it with `Start Cropper.bat`) · **Map** → `https://map.wildhare.app/` (Cloudflare Access) |
 | CSP | the `localhost:8765` entries are gone again; `img-src` is now `'self' data: https:` (member photos). Nothing else changed |
 | Data lanes | `main` · `data` · `data-sales` — unchanged; both non-`main` lanes are written **by other projects** |
 | Operator token | `localStorage` key `mip_auth_token`, Settings → Operator Access; **none in the built-in browser pane's profile** |
-| Board | `docs/OPEN-ITEMS.md` **rev 13** — **MIP-11** (CC) open; **MIP-12**, **MIP-13**, **MIP-14** closed this session |
+| Backend | `C:\Users\ty\Claude_Code\indiana-agenda-tracker` — **not** this repo. Deploy **@589** (its P224, 2026-10-21): `gemini_proxy` forwards `tools:[{googleSearch:{}}]` and replies with `grounding`; `upsert_member` (GET) and `set_member_profile` (POST) write the `Members` sheet; `member_profiles` and the roster wire carry `status`, `photo_url`, `photo_source`, `civic_affiliations`, `other_public` |
+| Board | `docs/OPEN-ITEMS.md` **rev 14** — **MIP-11** (CC) open; **MIP-12** to **MIP-15** closed this session |
 | Untracked | `serve-mrd.log` (server log, left alone) |
 
 ⚠ Re-probe before relying on the build number (doctrine item 14).
@@ -63,6 +65,10 @@ adds item 4). Full record: **MIP-12** and **MIP-13** in `docs/OPEN-ITEMS.md`.
    standalone dashboard: `FRAMED` switches datasets and hides Tile Studio); Map; Zonda off; Schedule
    Builder; Jurisdictions → **Profiles** (summary, members, inline full-width profile, Update Profiles /
    Update Members, update log under the summary) and **Hearings** (no summary). Full record **MIP-14**.
+8. **`p222r2` — wired to the backend.** `callGeminiProxy` now really sends `tools` (p222r1 dropped it
+   FE-side too) and keeps `grounding`; `mipMemberWrite` carries every verdict to `upsert_member` and
+   every profile find to `set_member_profile`; the log lists queries and sources; the overlay is gone.
+   Both routes answered `Unauthorized` from the page without a token. Full record **MIP-15**.
 
 ## Gotchas carried forward
 
@@ -74,11 +80,14 @@ adds item 4). Full record: **MIP-12** and **MIP-13** in `docs/OPEN-ITEMS.md`.
   decides what `renderMuniPanel` draws. Legacy `switchView('muni')` means Hearings. Member cards
   and the inline profile are only rendered in Profiles mode; `#member-detail` (the old right rail)
   is still in the DOM but always hidden.
-- ⚠ **Update Members / Update Profiles are browser-local and not live-searched yet.** Results sit
-  in `localStorage` (`mip_member_overlay_v1`, `mip_muni_update_log_v1`) and are merged at render
-  by `applyMemberOverlay`; clearing site data drops them. The backend proxy ignores the
-  `tools:[{googleSearch:{}}]` the FE already sends, and no member write route exists. Both need
-  `indiana-agenda-tracker` work (session card proposed 2026-10-21). Photo URLs are model-sourced.
+- ⚠ **Update Members / Update Profiles write the sheet and never retry.** `mipMemberWrite` throws the
+  backend's `error` text; the first `Unauthorized` stops further writes and the log says which rows
+  were not saved. A successful write drops the four warm caches (`mip_muni_data*`,
+  `mip_member_profiles*`) so the next load re-reads the sheet. Only the update log itself
+  (`mip_muni_update_log_v1`) is browser-local. Photo URLs are model-sourced, https-only.
+- ⚠ **`callGeminiProxy` only forwards named fields.** Adding a Gemini option means adding it to the
+  body it builds — `tools` was silently dropped there for a whole build (p222r1). `grounding` from
+  the proxy lands on `callGeminiProxy.lastGrounding` after each call.
 - ⚠ **The built-in browser pane is not a launcher test bed.** Loopback `window.open` targets
   navigated the *same* tab; an external one (`map.wildhare.app`) was **blocked** outright — popups
   open there only from the user's own clicks. Chrome opens a new tab for all three. Do not "fix"
@@ -116,10 +125,9 @@ depend on, not just the thing you are editing.
 
 ## Next session
 
-1. **Backend follow-up in `C:\Users\ty\Claude_Code\indiana-agenda-tracker`** (card proposed 2026-10-21):
-   forward an allow-listed `tools` field through `gemini_proxy` so Update Members / Update Profiles
-   search live; add member roster / profile write routes that land on the `Members` sheet (incl.
-   `photo_url`) and surface them via `member_profiles`; add `PHOTO_URL` to `MemberResearch.js`.
+1. **Ty's first live click** on Update Members with the token entered is the test `p222r2` could not
+   run: expect `saved N` and a Sources line in the log; a `not saved` line names the backend error.
+   Backend side done 2026-10-21 (@589); its `ARCHITECTURE.md` §0 did not yet name @589 when probed.
 2. **MIP-11** — `CLAUDE.md` rev 6, whole-file: the `p168r2` pointer, the line-72 asset list, the
    Apps group paragraph.
 3. Reported, not boarded here (other repos' concerns): Sales Disclosures' spare launch config names
