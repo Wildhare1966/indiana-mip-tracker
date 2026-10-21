@@ -1,107 +1,110 @@
 # HANDOFF — Indiana MIP Tracker (MRD front end)
 
-HANDOFF-STAMP: 2026-10-06 | rev 7
+HANDOFF-STAMP: 2026-10-21 | rev 8
 
 > **Read first:** [`CLAUDE.md`](CLAUDE.md) → this file → [`docs/OPEN-ITEMS.md`](docs/OPEN-ITEMS.md).
 > Backend coordinates: `C:\Users\ty\Claude_Code\indiana-agenda-tracker\ARCHITECTURE.md` §0 is the
-> source of truth. rev 6 (2026-08-29, MIP-3..9) and rev 1 are in
+> source of truth. rev 7 (2026-10-06, MIP-10), rev 6 and rev 1 are in
 > [`docs/HANDOFF-ARCHIVE.md`](docs/HANDOFF-ARCHIVE.md).
 
 ## One line
 
-The laptop's last FE commit and the desktop's unpushed one are reconciled: `main` reads `p209r1` →
-`p209r2` → **`p210r1`**, pushed as a fast-forward, the `laptop/943404b` side branch is deleted, and the
-served build is **`p210r1`**. One item open: **MIP-11**, two guards that still name `p168r2`.
+Build **`p221r1`**: the MRD is now the launcher for the sibling apps — the Sales Disclosures tab
+frames the **live** dashboard on port 8765 (the in-repo copy is gone) and a top-bar **Apps** group
+opens the Video Console and the Cropper in new tabs. Item 4 of Ty's request, the Land Presentation
+Map button, waits on his URL choice: **MIP-13**.
 
-## Live coordinates (probed 2026-10-06 on Dexters-Machine)
+## Live coordinates (probed 2026-10-21 on this desktop)
 
 | Thing | State |
 |---|---|
-| Repo | `main` @ **`13d98a6`** (`p210r1`) plus this close-out commit, pushed — public remote `Wildhare1966/indiana-mip-tracker` |
-| Remote heads | `main` · `data` · `data-sales` · four `claude/*` agent-scratch branches; **no `laptop/*`** |
-| Served build | **`p210r1`** on both markers — `mrd-ad682070b7/index.html`, 757,777 B in the working copy; served `index.html` and `sales_dashboard.html` hash-match `HEAD` |
-| Local URL | `http://localhost:8778/mrd-ad682070b7/` via `serve-mrd.bat` (loopback only) — answering **200** |
-| GitHub Pages | off (`gh api … --jq .has_pages` → `false`) — the local server is the only deploy |
-| Data lanes | `main` · `data` · `data-sales` — both non-`main` lanes are written **by other projects** |
-| Operator token | `localStorage` key `mip_auth_token`, entered under Settings → Operator Access; **none in the built-in browser pane's profile** |
-| Backend | lives in `C:\Users\ty\Claude_Code\indiana-agenda-tracker` — **not** this repo |
-| Board | `docs/OPEN-ITEMS.md` **rev 10** — **MIP-11** open (CC); MIP-10 closed this session |
-| Untracked | `serve-mrd.log` (server log, not part of any change; left alone) |
+| Repo | `main` @ **`38b6c4d`** (`p221r1`) plus this close-out commit, pushed — public remote `Wildhare1966/indiana-mip-tracker` |
+| Served build | **`p221r1`** on both markers — `mrd-ad682070b7/index.html` line 2 and `styles.css?v=` line 14; served at `http://localhost:8778/mrd-ad682070b7/` (listener `127.0.0.1:8778`, answering `200`) |
+| Sales Disclosures tab | `#sd-frame` → `http://localhost:8765/sales_dashboard.html?theme=…`, **live** from `C:\Users\ty\Claude_Code\Sales Disclosures` (`tools\serve_nocache.py`, bound `0.0.0.0:8765`, running at probe time, file at `c3eb983` 2026-10-20). `mrd-ad682070b7/sales_dashboard.html` **removed** |
+| Apps group | **Video Console** → `http://127.0.0.1:8766/` (`market-video-pipeline\tools\console-server.mjs`, running) · **Cropper** → `http://127.0.0.1:8756/` (`Skill-cropper\crop.py`, **not** running; `Start Cropper.bat`) · **Land Presentation Map**: slot is an HTML comment after Cropper, pending **MIP-13** |
+| CSP | `frame-src` and `connect-src` each gained `http://localhost:8765`; nothing else changed |
+| Data lanes | `main` · `data` · `data-sales` — unchanged; both non-`main` lanes are written **by other projects** |
+| Operator token | `localStorage` key `mip_auth_token`, Settings → Operator Access; **none in the built-in browser pane's profile** |
+| Board | `docs/OPEN-ITEMS.md` **rev 11** — **MIP-13** (TY) and **MIP-11** (CC) open; **MIP-12** closed this session |
+| Untracked | `serve-mrd.log` (server log, left alone) |
 
-⚠ Re-probe before relying on the build number (doctrine item 14). The marker is on line 2 of
-`mrd-ad682070b7/index.html`; the `styles.css?v=` querystring on line 14 must match it.
-⛔ `CLAUDE.md` line 56 still says `p168r2` — that is **MIP-11**, not the truth.
+⚠ Re-probe before relying on the build number (doctrine item 14).
+⛔ `CLAUDE.md` still says `p168r2` (line 56) and still lists `sales_dashboard.html` as a served asset
+(line 72) — both are **MIP-11**, not the truth. Instruction files are edited whole (doctrine item 4),
+so the drift is carried as that named item rather than patched.
 
 ## What shipped this session
 
-A Ty-authorized git reconciliation after the laptop's retirement (the desktop is now the primary
-machine). Full record: **MIP-10** in `docs/OPEN-ITEMS.md`.
+Ty's 2026-10-21 request, items 1-3 of 4. Full record: **MIP-12** in `docs/OPEN-ITEMS.md`.
 
-1. **Probed before acting.** `origin/main` = `4cebe80` (`p209r1`). Local `main` had unpushed
-   `81cbe77` (`p210r1`: a GET read to the web app gets one retry; writes never retry). The laptop's
-   `943404b` (`p209r2`: Sales Disclosures dashboard to sales-disclosures `7236884`) was on GitHub as
-   `origin/laptop/943404b`. Both on `4cebe80`, neither containing the other.
-2. **Rebased `main` onto `943404b`.** The one conflict was the two marker lines; kept `p210r1`
-   (already in sequence, so no renumbering). Rebased `p210r1` is **`13d98a6`** — `81cbe77` is gone
-   from every ref. `index.html` = `81cbe77`'s byte for byte; `sales_dashboard.html` = `943404b`'s.
-3. **Verified.** Secret-pattern scan of `4cebe80..HEAD` clean. Served page renders (41
-   municipalities, `refreshHearings` still a function). `tests/smoke.html`: 13 pass, 7 fail — every
-   failure is a token-gated suite answering `403 Unauthorized` with no token in the profile, the
-   documented no-token result (`smoke.html` lines 39-41). Sanitizers 10/10, CSP integrity pass.
-4. **Pushed** `4cebe80..13d98a6` as a fast-forward; `ls-remote` = local `HEAD`. Then **deleted**
-   `laptop/943404b` from GitHub; `ls-remote refs/heads/laptop/*` is empty.
-5. **Board rotated.** MIP-1..9 moved verbatim to `docs/STATUS-ARCHIVE.md`; this file's rev 6 moved
-   to `docs/HANDOFF-ARCHIVE.md`. **MIP-11** boarded.
+1. **Probed before building.** The embedded copy was 336,471 B (2026-10-06); the live file was
+   434,231 B (`c3eb983`, 2026-10-20) and served on 8765 with `200`, no `X-Frame-Options`, no
+   `frame-ancestors`. It reads `?theme=` at its line 3088, so the existing theme sync still works.
+2. **Sales Disclosures frames the live server.** One constant `SD_DASHBOARD_URL` feeds both the view
+   init and `applyTheme()`. A `HEAD` probe (`no-cors`) gates the frame; a refused connection shows a
+   plain notice naming `Start Sales Dashboard.bat` with a Retry button instead of a blank frame.
+   `git rm mrd-ad682070b7/sales_dashboard.html` after the grep came back empty (`tests/smoke.html`: 0).
+3. **Apps group.** `.topbar-sep` divider, then Video Console and Cropper, each `openApp(url)` =
+   `window.open(url, '_blank', 'noopener')`. Launchers, not views: no `switchView`, no view element.
+4. **Verified in the built-in browser.** Served marker `p221r1`; the frame renders the 10-20 build
+   (Tile Studio button, 354,107 of 373,843 transactions); theme toggle re-fetched `?theme=light`
+   then `?theme=dark`; Video Console opened the console; Cropper opened to a connection error (its
+   server was not running and was not started). Smoke: 13/20, 7 fail, all `Unauthorized` (no token).
+   Console: no CSP violations from the build.
+5. **Board rotated.** MIP-10's closure moved verbatim to `docs/STATUS-ARCHIVE.md`; rev 7 of this
+   file to `docs/HANDOFF-ARCHIVE.md`. **MIP-12** closed, **MIP-13** boarded, **MIP-11** widened.
 
 ## Gotchas carried forward
 
-- ⚠ **Line endings.** `core.autocrlf=true` (system gitconfig): the index is LF, the working copy
-  CRLF. A tool that rewrites a file through Git Bash `awk`/`sed` can leave it LF on disk; git
-  normalizes on commit, but re-checkout the file afterwards (`rm` it, `git checkout -- <file>`) so the
-  working copy matches its neighbours.
-- ⚠ **The smoke test fails, not skips, without a token.** 7 failures with `Unauthorized` in the
-  message mean "no token in this browser profile," not a regression. To exercise them, Ty enters the
-  token under Settings → Operator Access in the same profile. Claude never enters it.
+- ⚠ **The Sales frame is `localhost:8765`, not `127.0.0.1:8765`, on purpose.** That repo's
+  `Start Sales Dashboard.bat` documents that review edits live in `localStorage` for the origin
+  `http://localhost:8765`; `127.0.0.1` is a different origin and shows none of them. The CSP lists
+  the origin under **both** `frame-src` and `connect-src` — drop either and the tab goes blank or
+  the probe fails closed.
+- ⚠ **The MRD never starts another repo's server.** Down → notice + Retry. The view init runs
+  once per page load, so Retry is the only re-check short of a reload.
+- ⚠ **The built-in browser pane navigates the same tab on `window.open`.** Verified with a plain
+  `window.open(url, '_blank')` from the console (returned `null`). Chrome opens a new tab. Do not
+  "fix" `openApp()` for the pane.
+- ⚠ **Line endings.** `core.autocrlf=true`. Probed 2026-10-21 with `file`: `index.html` and
+  `styles.css` sit **LF** on disk, the Markdown lanes **CRLF**. Git normalizes on commit either way;
+  preserve whatever each file already has rather than converting.
+- ⚠ **The smoke test fails, not skips, without a token.** 7 failures reading `Unauthorized` (or
+  `Expected array, got: object`, the same 403 body) mean "no token in this browser profile," not a
+  regression. Claude never enters the token.
 - ⛔ **`*-ops.html` consoles are served but untracked.** Keep them on disk; back them up to
   `C:\Users\ty\Claude_Code\indiana-agenda-tracker\ops\`. Never re-add a leading slash to the
-  `.gitignore` pattern — that anchors it to the root and was the MIP-8 bug.
-- ⛔ **`refreshHearings()` is NOT dead code.** Four write paths call it after a successful `/exec`
-  write, three inside `setTimeout` where a `ReferenceError` would be silent.
-- ⛔ **Public git history keeps the old token permanently.** Rotation was the fix; a scrub
-  unpublishes nothing.
-- ⛔ **Never open the app as `file://`** — `Origin: null` 404s the `/exec` POST redirect, and the CSP
-  refuses `file:` siblings.
-- ⛔ **Do not "restore" or delete `MIP_Platform.html`** — Ty ruled it stays (MIP-4). It no longer
-  renders standalone; that is expected.
+  `.gitignore` pattern.
+- ⛔ **`refreshHearings()` is NOT dead code.** Four write paths call it, three inside `setTimeout`.
+- ⛔ **Public git history keeps the old token and the stale dashboard copy permanently.** Rotation
+  was the fix for the token; removal unpublishes nothing.
+- ⛔ **Never open the app as `file://`.** ⛔ **Do not "restore" or delete `MIP_Platform.html`.**
 - **`serve-mrd.bat` must use `python.exe`, not `pythonw`.** ⚠ **Port 8765 belongs to
-  `C:\Users\ty\Claude_Code\Sales Disclosures`.**
+  `C:\Users\ty\Claude_Code\Sales Disclosures`**, 8766 to `market-video-pipeline`, 8756 to
+  `Skill-cropper`.
 - ⚠ **`indiana-mip-tracker` vs `indiana-agenda-tracker`** — one word apart, front end vs backend.
-- **`data` and `data-sales` are separate lanes.** Never hand-publish to `data` — P118
-  force-orphan-commits it on a cron. (It moved during this session: `afd1b21` → `9b17f3f`, forced.)
+- **`data` and `data-sales` are separate lanes.** Never hand-publish to `data`.
 
 ## ✦ The reflective lesson
 
-**This repo's lanes went five weeks without a write while its served build moved forty-two p-numbers.**
-The 37 commits from `p168r2` to `p210r1` were driven from `indiana-agenda-tracker` (its ARCHITECTURE §0
-names this clone as the FE source of truth), and that repo's close-out writes *its* lanes, not these. So the build number in
-`CLAUDE.md`, in `MIP_Platform.html`'s header and in rev 6 of this file all froze at `p168r2` — the
-same staleness MIP-4 was opened to fix, and the header even carries a "re-check me on every deploy"
-line that nobody whose job it was could see.
+**A copy is a snapshot pretending to be a link.** The Sales dashboard copy was refreshed by hand in
+`p207r2` and `p209r2` and then fell fourteen days behind without anyone noticing, in a public repo.
+Framing the live server deletes the sync chore and the exposure in one move — at the price of a
+runtime dependency that must fail *loudly*, which is what the notice is for. A dependency you cannot
+see failing is worse than the copy was.
 
-The rule: **a maintenance instruction only works where the person doing the maintenance reads it.**
-A hard number in a doc that is downstream of someone else's deploy will go stale; point at the
-artifact (`index.html` line 2) instead. That is MIP-11.
-
-Second, smaller: a red test is a claim too. Seven failures read as "stop" until each message was
-read — all seven said `Unauthorized`, and the test file documents exactly that. Read the failure
-text before ruling on the count.
+Second: the brief's recommended URL was wrong in a way only the **neighbouring** repo's launcher
+documented. Doctrine item 14 reaches past your own artifact — probe the thing you are about to
+depend on, not just the thing you are editing.
 
 ## Next session
 
-1. **MIP-11** — replace the hard `p168r2` in `CLAUDE.md` (whole-file, rev 6) and the
-   `MIP_Platform.html` header with a pointer to `index.html` line 2. Small, CC-executable.
-2. If Ty wants the authenticated smoke suites run, he enters his token in the browser profile first.
-3. FE work otherwise lands here from `C:\Users\ty\Claude_Code\indiana-agenda-tracker` sessions;
-   start there.
+1. **MIP-13** — Ty picks the map URL; add the button in the Apps slot, bump to `p221r2`.
+2. **MIP-11** — `CLAUDE.md` rev 6, whole-file: the `p168r2` pointer, the line-72 asset list, the
+   Apps group paragraph.
+3. Reported, not boarded here (other repos' concerns): Sales Disclosures' spare launch config names
+   8766 (the Video Console's port); Permit-Resources documents 8770, which Tile Studio holds; Sales
+   Disclosures binds `0.0.0.0`; auto-starting the four servers belongs in `C:\Users\ty\Claude_Code\_serve`.
+   The MRD is local to this desktop and not reachable from the laptop over Remote Control.
 
 ⛔ **Do not recreate `STATUS.md`.** It was retired deliberately (MIP-9).
