@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p221r2 -->
+<!-- MIP build p222r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -8,10 +8,10 @@
      newly-deployed FE reaches users without manual hard-reload. -->
 <meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com http://localhost:8765; img-src 'self' data:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com http://localhost:8765;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data: https:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p221r2">
+<link rel="stylesheet" href="styles.css?v=p222r1">
 </head>
 <body>
 
@@ -20,7 +20,12 @@
   <div class="topbar-logo">MRD <span>// Municipal Resource Dashboard</span></div>
   <div class="topbar-nav">
     <button class="topbar-btn active" onclick="switchView('overview')" id="nav-overview">Overview</button>
-    <button class="topbar-btn" onclick="switchView('muni')" id="nav-muni">Jurisdictions</button>
+    <!-- p222r1 (Ty, 2026-10-21): "Jurisdictions" split into two doors on the same DOM (#view-muni):
+         Profiles = Municipality Summary + Council / Plan Commission members (profile below the list);
+         Hearings = the per-jurisdiction Public Hearings table, no summary. switchView maps both (and the
+         legacy 'muni') onto #view-muni and sets muniMode. -->
+    <button class="topbar-btn" onclick="switchView('profiles')" id="nav-profiles">Profiles</button>
+    <button class="topbar-btn" onclick="switchView('hearings')" id="nav-hearings">Hearings</button>
     <!-- Intelligence Feed nav temporarily removed (P13) — view element and data pipeline retained in code for future re-enable. -->
     <!-- P96: "Hearing Schedule" (Public Hearings) page temporarily hidden per operator request — view element (#view-publichearings) and data pipeline retained in code for future re-enable. To restore, uncomment the button below. -->
     <!-- <button class="topbar-btn" onclick="switchView('publichearings')" id="nav-publichearings">Hearing Schedule</button> -->
@@ -33,19 +38,26 @@
     <button class="topbar-btn" onclick="switchView('tracked')" id="nav-tracked">Tracked Projects</button>
     <!-- p219r1 / AGD-218 (Ty, 2026-10-16): Tracked Topics — keyword watch over agendas + Summaries. Badge = new hits. -->
     <button class="topbar-btn" onclick="switchView('topics')" id="nav-topics">Tracked Topics <span id="nav-topics-badge" style="display:none;background:#1c7c3a;color:#fff;font-size:9px;font-weight:700;padding:0 6px;border-radius:9px;margin-left:2px;vertical-align:middle;"></span></button>
-    <button class="topbar-btn" onclick="switchView('schedule')" id="nav-schedule">Schedule & Requirements</button>
-    <button class="topbar-btn" onclick="switchView('market')" id="nav-market">Zonda</button>
-    <button class="topbar-btn" onclick="switchView('salesdisclosures')" id="nav-salesdisclosures">Sales Disclosures</button>
+    <button class="topbar-btn" onclick="switchView('schedule')" id="nav-schedule">Schedule Builder</button>
+    <!-- p222r1 (Ty, 2026-10-21): Zonda button removed from the nav — #view-market, dashboard.html and the
+         theme wiring stay in place for re-enable. To restore, uncomment the button below. -->
+    <!-- <button class="topbar-btn" onclick="switchView('market')" id="nav-market">Zonda</button> -->
     <!-- p221r1 (Ty, 2026-10-21): "Apps" group — launchers for sibling local tools, each in a NEW TAB via
          openApp(). They are not views: they never call switchView and have no view-* element. Every URL is
          a loopback server owned by another repo under C:\Users\ty\Claude_Code; nothing here starts one.
-         A tab that opens to a connection error means that server is not running — start it from its own repo. -->
+         A tab that opens to a connection error means that server is not running — start it from its own repo.
+         p222r1: Sales Disclosures joined the group. The embedded frame (p221r1) was retired because the
+         dashboard detects a frame (window.self !== window.top) and deliberately switches to its PUBLISHED
+         two-year CDN dataset and hides Tile Studio and Review records; only the standalone tab shows the
+         local six-year file. localhost, not 127.0.0.1: that repo keeps review edits in localStorage for the
+         localhost:8765 origin. -->
     <span class="topbar-sep" aria-hidden="true"></span>
+    <button class="topbar-btn topbar-app" onclick="openApp('http://localhost:8765/sales_dashboard.html')" id="app-salesdisclosures" title="Sales Disclosures dashboard, live from C:\Users\ty\Claude_Code\Sales Disclosures on localhost:8765 — opens in a new tab">Sales Disclosures</button>
     <button class="topbar-btn topbar-app" onclick="openApp('http://127.0.0.1:8766/')" id="app-videoconsole" title="market-video-pipeline console (tools\console-server.mjs) — opens in a new tab">Video Console</button>
     <button class="topbar-btn topbar-app" onclick="openApp('http://127.0.0.1:8756/')" id="app-cropper" title="Skill-cropper (crop.py) — opens in a new tab">Cropper</button>
     <!-- p221r2 (Ty, 2026-10-21, MIP-13): the LIVE build on Cloudflare Pages, behind Cloudflare Access (named email
          allowlist) — a tab that lands on the Access login means this browser is not signed in there, not a fault. -->
-    <button class="topbar-btn topbar-app" onclick="openApp('https://map.wildhare.app/')" id="app-landmap" title="Land_Presentation_Map, live build (Cloudflare Access) — opens in a new tab">Land Presentation Map</button>
+    <button class="topbar-btn topbar-app" onclick="openApp('https://map.wildhare.app/')" id="app-landmap" title="Land Presentation Map, live build (Cloudflare Access) — opens in a new tab">Map</button>
     <button class="topbar-btn" onclick="switchView('settings')" id="nav-settings">⚙ Settings</button>
     <!-- P80 Stage 1.8: operator-only review queue. Hidden until isOperator()
          flips it visible at boot. -->
@@ -938,23 +950,8 @@
               referrerpolicy="no-referrer"></iframe>
     </div>
 
-    <!-- SALES DISCLOSURES VIEW — embedded Indiana SDF dashboard (iframe).
-         p221r1 (2026-10-21): the frame now loads the LIVE dashboard served by the Sales Disclosures repo
-         (SD_DASHBOARD_URL, port 8765) instead of a copy in this repo — a copy went stale (10-06 vs 10-20) and
-         this repo is public. Lazy-loaded: loadSalesDashboardFrame() runs on first open via
-         registerViewInit('salesdisclosures', …); if the server is down the notice below shows instead.
-         The dashboard auto-loads its dataset from the FE repo's data-sales branch via the raw CDN. -->
-    <div id="view-salesdisclosures" class="view" style="padding:0;">
-      <div id="sd-offline" style="display:none;padding:28px 32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:var(--text-dim);">
-        <div style="color:var(--text);font-weight:600;margin-bottom:6px;">The Sales Disclosures server is not running.</div>
-        <div>The dashboard is served live from <code>http://localhost:8765</code> by the Sales Disclosures repo. Start it by double-clicking
-          <strong>Start Sales Dashboard.bat</strong> in <code>C:\Users\ty\Claude_Code\Sales Disclosures</code>, then retry.</div>
-        <button class="refresh-btn" onclick="loadSalesDashboardFrame()" style="margin-top:14px;">↻ Retry</button>
-      </div>
-      <iframe id="sd-frame" title="Sales Disclosures — Indiana SDF Market Activity"
-              style="width:100%;height:calc(100vh - 52px);border:0;display:block;"
-              referrerpolicy="no-referrer"></iframe>
-    </div>
+    <!-- p222r1: the Sales Disclosures VIEW (iframe, p221r1) was removed — it is a top-bar launcher now; see
+         the Apps group comment in the nav for why the frame could never show the standalone dashboard. -->
 
   </div>
 </div>
@@ -2097,6 +2094,7 @@ let COUNTY_GROUPS = [];
 // ═══════════════════════════════════════════════════════
 let currentMuni = null;
 let currentTab = 'hearings';
+let muniMode = 'hearings'; // p222r1: 'profiles' | 'hearings' — which door the Jurisdictions DOM is showing
 let selectedMember = null;
 let activeTagFilters = new Set();
 let memberLookup = {}; // index -> member object
@@ -2421,11 +2419,6 @@ async function fetchLiveIntelFeed() {
 // ═══════════════════════════════════════════════════════
 // THEME TOGGLE — light / dark mode
 // ═══════════════════════════════════════════════════════
-// p221r1: the live Sales Disclosures dashboard. localhost, NOT 127.0.0.1, on purpose — that repo's
-// "Start Sales Dashboard.bat" documents that review edits live in localStorage for the origin
-// http://localhost:8765, and 127.0.0.1 is a different origin that shows none of them. The page CSP
-// lists this origin under frame-src (the iframe) and connect-src (the availability probe).
-var SD_DASHBOARD_URL = 'http://localhost:8765/sales_dashboard.html';
 function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
   const btn = document.getElementById('theme-toggle-btn');
@@ -2434,8 +2427,6 @@ function applyTheme(theme) {
   // Only re-point once it's been opened (src set); first open is themed by registerViewInit.
   const mf = document.getElementById('market-frame');
   if (mf && mf.src) mf.src = 'dashboard.html?theme=' + theme;
-  const sdf = document.getElementById('sd-frame');
-  if (sdf && sdf.src) sdf.src = SD_DASHBOARD_URL + '?theme=' + theme;
 }
 function toggleTheme() {
   const current = document.documentElement.getAttribute('data-theme') || 'dark';
@@ -2665,41 +2656,249 @@ registerViewInit('market', function () {
   var f = document.getElementById('market-frame');
   if (f && !f.src) f.src = 'dashboard.html?theme=' + (document.documentElement.getAttribute('data-theme') || 'dark');
 });
-// Sales Disclosures: defer loading the embedded SDF dashboard (and its CDN dataset)
-// until the operator first opens the page. Theme-follow mirrors the Zonda wiring.
-// p221r1: the dashboard is another repo's local server, so probe it first (HEAD, no-cors — an
-// opaque 200 resolves, a refused connection rejects). Down → show #sd-offline, never a blank frame.
-function loadSalesDashboardFrame() {
-  var f = document.getElementById('sd-frame');
-  var note = document.getElementById('sd-offline');
-  if (!f || f.src) return;
-  var url = SD_DASHBOARD_URL + '?theme=' + (document.documentElement.getAttribute('data-theme') || 'dark');
-  fetch(SD_DASHBOARD_URL, { method: 'HEAD', mode: 'no-cors', cache: 'no-store' })
-    .then(function () { if (note) note.style.display = 'none'; f.style.display = 'block'; f.src = url; })
-    .catch(function (e) {
-      console.warn('[mrd] Sales Disclosures server not reachable at ' + SD_DASHBOARD_URL, e);
-      f.style.display = 'none';
-      if (note) note.style.display = 'block';
-    });
-}
-registerViewInit('salesdisclosures', loadSalesDashboardFrame);
 // p221r1: top-bar "Apps" launchers — open a sibling tool in a new tab. noopener: the new tab gets
 // no window.opener back into this page. Not a view; never touches switchView.
 function openApp(url) {
   window.open(url, '_blank', 'noopener');
 }
+// ═══════════════════════════════════════════════════════════════════════════
+// p222r1 (Ty, 2026-10-21): PROFILES — member overlay, photos, Update Members /
+// Update Profiles. The Jurisdictions page is now two nav doors (Profiles,
+// Hearings) into one DOM; muniMode says which. Everything these buttons learn
+// is kept in THIS BROWSER (localStorage overlay) and merged onto the member
+// objects at render time — the backend has no member write route yet, and
+// its gemini_proxy does not forward the googleSearch tool, so both buttons
+// run on model knowledge until that lands. The log says so every time.
+// ═══════════════════════════════════════════════════════════════════════════
+var MEMBER_OVERLAY_KEY  = 'mip_member_overlay_v1';
+var MUNI_UPDATE_LOG_KEY = 'mip_muni_update_log_v1';
+
+function _loadJson(k, d) { try { var v = JSON.parse(localStorage.getItem(k) || 'null'); return v === null ? d : v; } catch (e) { return d; } }
+function _saveJson(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+function _normName(n) { return String(n || '').toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim(); }
+function _sameName(a, b) {
+  a = _normName(a); b = _normName(b);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  var pa = a.split(' '), pb = b.split(' ');
+  return pa.length > 1 && pb.length > 1 && pa[pa.length - 1] === pb[pb.length - 1] && pa[0][0] === pb[0][0];
+}
+function _memKey(muniId, mem) { return normalizeMemberKey(muniId, mem.body === 'PC' ? 'PC' : 'Council', mem.name || ''); }
+
+function getMemberOverlay(muniId) {
+  var all = _loadJson(MEMBER_OVERLAY_KEY, {});
+  var ov = all[muniId] || { members: {}, added: [] };
+  if (!ov.members) ov.members = {};
+  if (!ov.added) ov.added = [];
+  return ov;
+}
+function saveMemberOverlay(muniId, ov) { var all = _loadJson(MEMBER_OVERLAY_KEY, {}); all[muniId] = ov; _saveJson(MEMBER_OVERLAY_KEY, all); }
+
+// Merge the browser overlay onto the live member objects. Idempotent; called at
+// the top of every renderMuniPanel so a reload or a data refresh cannot lose it.
+function applyMemberOverlay(m) {
+  if (!m || !m.id) return;
+  var ov = getMemberOverlay(m.id);
+  ['council', 'pc'].forEach(function (bt) {
+    var list = m[bt] || [];
+    list.forEach(function (mem) {
+      var o = ov.members[_memKey(m.id, mem)];
+      if (o) Object.keys(o).forEach(function (k) { mem[k] = o[k]; });
+    });
+    ov.added.filter(function (a) { return a._bodyType === bt; }).forEach(function (a) {
+      if (!list.some(function (x) { return _sameName(x.name, a.name); })) list.push(Object.assign({}, a));
+    });
+    m[bt] = list;
+  });
+}
+
+// Photo or initials. Photo URLs are model-sourced (Update Profiles) and the img
+// falls back to initials on any load error. img-src now allows https:.
+function memberPhotoHtml(mem, size) {
+  var initials = String(mem.name || '').split(/\s+/).filter(Boolean).slice(0, 2).map(function (p) { return p[0]; }).join('').toUpperCase() || '?';
+  var cls = size >= 64 ? 'member-photo' : 'member-avatar';
+  var url = mem.photo_url ? escUrl(mem.photo_url) : '';
+  var fb = '<span class="' + cls + ' member-initials" style="width:' + size + 'px;height:' + size + 'px;line-height:' + (size - 2) + 'px;font-size:' + Math.round(size * 0.36) + 'px;' + (url ? 'display:none;' : '') + '">' + esc(initials) + '</span>';
+  var img = url ? '<img class="' + cls + '" src="' + url + '" alt="" width="' + size + '" height="' + size + '" referrerpolicy="no-referrer" loading="lazy" onerror="this.style.display=&quot;none&quot;;if(this.nextSibling)this.nextSibling.style.display=&quot;&quot;;">' : '';
+  return '<span class="member-photo-wrap">' + img + fb + '</span>';
+}
+function removeMemberPhoto(muniId, key) {
+  var ov = getMemberOverlay(muniId);
+  if (ov.members[key]) { delete ov.members[key].photo_url; delete ov.members[key].photo_source; }
+  saveMemberOverlay(muniId, ov);
+  if (selectedMember) { delete selectedMember.photo_url; delete selectedMember.photo_source; }
+  renderMuniPanel(); renderMemberDetail(selectedMember);
+}
+
+// ── Update log: lives at the bottom of the Municipality Summary until dismissed ──
+function getMuniUpdateLog(muniId) { return _loadJson(MUNI_UPDATE_LOG_KEY, {})[muniId] || null; }
+function setMuniUpdateLog(muniId, entries) { var all = _loadJson(MUNI_UPDATE_LOG_KEY, {}); if (entries && entries.length) all[muniId] = entries; else delete all[muniId]; _saveJson(MUNI_UPDATE_LOG_KEY, all); }
+function appendMuniUpdateLog(muniId, title, lines) {
+  var log = getMuniUpdateLog(muniId) || [];
+  log.unshift({ ts: new Date().toISOString(), title: title, lines: lines });
+  setMuniUpdateLog(muniId, log.slice(0, 10));
+  muniSummaryOpenById[muniId] = true;
+}
+function dismissMuniUpdateLog(muniId) { setMuniUpdateLog(muniId, null); renderMuniPanel(); renderMemberDetail(selectedMember); }
+function renderMuniUpdateLog(m) {
+  var log = getMuniUpdateLog(m.id);
+  if (!log || !log.length) return '';
+  return '<div class="muni-update-log" id="muni-update-log-' + esc(m.id) + '">' +
+    '<div class="muni-update-log-head"><span class="detail-section-label" style="margin:0;">Update log — review, then dismiss</span>' +
+    '<button class="settings-add-btn" style="margin-top:0;" onclick="dismissMuniUpdateLog(\'' + escAttr(m.id) + '\')" title="Delete this message">✕ Dismiss</button></div>' +
+    log.map(function (e) {
+      return '<div class="muni-update-entry"><div class="muni-update-title">' + esc(e.title) + ' <span class="muni-update-ts">' + esc(new Date(e.ts).toLocaleString()) + '</span></div>' +
+        (e.lines || []).map(function (l) { return '<div class="muni-update-line">' + esc(l) + '</div>'; }).join('') + '</div>';
+    }).join('') + '</div>';
+}
+
+var MEMBER_SEARCH_CAVEAT = 'Source: Gemini through the backend proxy, which does not yet forward live web search — treat every change as a lead to verify, not a fact. Changes are saved in this browser only until a backend member route exists.';
+
+// ── Update Members: confirm the current roster of both bodies ──
+async function updateMembersRoster(muniId, btn) {
+  var m = MUNICIPALITIES.find(function (x) { return x.id === muniId; });
+  if (!m) return;
+  if (btn) { btn.disabled = true; btn.textContent = 'Checking roster…'; }
+  var known = [].concat(
+    (m.council || []).map(function (x) { return Object.assign({ _bt: 'council' }, x); }),
+    (m.pc || []).map(function (x) { return Object.assign({ _bt: 'pc' }, x); }));
+  var rosterText = known.map(function (x) { return (x._bt === 'council' ? 'COUNCIL' : 'PC') + ' | ' + x.name + ' | ' + (x.role || '') + ' | ' + (x.party || '') + ' | ' + (x.term || ''); }).join('\n') || '(none on record)';
+  var prompt = 'Today is ' + new Date().toISOString().slice(0, 10) + '. Confirm the CURRENT membership of the two governing bodies of ' + m.name + ', ' + m.county + ' County, Indiana: (1) the city or town council and (2) the plan commission.\n\n' +
+    'Our roster on record (BODY | NAME | ROLE | PARTY | TERM):\n' + rosterText + '\n\n' +
+    'Check official sources first: the municipal website, meeting agendas and minutes from the last 90 days, election results, Ballotpedia, local news. ' +
+    'Return ONLY lines in this exact format, one per person, covering every person on our roster plus anyone currently serving who is missing:\n' +
+    'BODY | NAME | ROLE | PARTY | TERM | STATUS | SOURCE\n' +
+    'BODY is COUNCIL or PC. PARTY is R, D, I or blank. STATUS is one of CONFIRMED (on our roster, still serving), CHANGED (still serving but role, party or term differs - give the new values), DEPARTED (no longer serving), NEW (serving now but missing from our roster), UNVERIFIED (could not confirm either way). SOURCE is the URL relied on, or none. No commentary, no header line.';
+  var lines = [];
+  try {
+    var text = await callGeminiProxy({ prompt: prompt, maxTokens: 4096, temperature: 0.1, tools: [{ googleSearch: {} }] });
+    var rows = text.split('\n').map(function (l) { return l.trim().replace(/^[-*•\s]+/, ''); })
+      .filter(function (l) { return l.indexOf('|') > -1 && !/^BODY\s*\|/i.test(l); })
+      .map(function (l) {
+        var p = l.split('|').map(function (s) { return s.trim(); });
+        return { body: /pc|plan/i.test(p[0] || '') ? 'pc' : 'council', name: p[1] || '', role: p[2] || '', party: (p[3] || '').toUpperCase().replace(/[^RDI]/g, '').slice(0, 1), term: p[4] || '', status: (p[5] || '').toUpperCase().replace(/[^A-Z]/g, ''), source: (p[6] || '').replace(/^none$/i, '') };
+      }).filter(function (r) { return r.name && !/^name$/i.test(r.name); });
+    var ov = getMemberOverlay(muniId);
+    var counts = { CONFIRMED: 0, CHANGED: 0, DEPARTED: 0, NEW: 0, UNVERIFIED: 0 };
+    rows.forEach(function (r) {
+      var mem = (m[r.body] || []).find(function (x) { return _sameName(x.name, r.name); })
+             || known.find(function (x) { return _sameName(x.name, r.name); });
+      var st = counts.hasOwnProperty(r.status) ? r.status : 'UNVERIFIED';
+      if (mem && st === 'NEW') st = 'CONFIRMED';
+      if (!mem && (st === 'CONFIRMED' || st === 'CHANGED')) st = 'NEW';
+      counts[st]++;
+      var src = r.source ? ' · ' + r.source : '';
+      if (mem) {
+        var key = _memKey(muniId, mem);
+        var o = ov.members[key] || (ov.members[key] = {});
+        if (st === 'CHANGED') {
+          var ch = [];
+          if (r.role && r.role !== mem.role)   { ch.push('role ' + (mem.role || '—') + ' → ' + r.role); o.role = r.role; }
+          if (r.party && r.party !== mem.party) { ch.push('party ' + (mem.party || '—') + ' → ' + r.party); o.party = r.party; }
+          if (r.term && r.term !== mem.term)   { ch.push('term ' + (mem.term || '—') + ' → ' + r.term); o.term = r.term; }
+          o._status = ''; o._confirmed = new Date().toISOString().slice(0, 10);
+          lines.push('CHANGED · ' + mem.name + ': ' + (ch.join(', ') || 'no field actually differed') + src);
+        } else if (st === 'DEPARTED') {
+          o._status = 'departed';
+          lines.push('DEPARTED · ' + mem.name + src);
+        } else if (st === 'CONFIRMED') {
+          o._status = ''; o._confirmed = new Date().toISOString().slice(0, 10);
+        } else {
+          lines.push('UNVERIFIED · ' + mem.name + src);
+        }
+      } else if (st === 'NEW') {
+        if (!ov.added.some(function (a) { return _sameName(a.name, r.name); })) {
+          ov.added.push({ name: r.name, role: r.role, party: r.party, term: r.term, body: r.body === 'pc' ? 'PC' : 'Council', _bodyType: r.body, _status: 'new', _source: r.source });
+        }
+        lines.push('NEW · ' + r.name + (r.role ? ' (' + r.role + ')' : '') + (r.body === 'pc' ? ' — plan commission' : ' — council') + src);
+      }
+    });
+    known.forEach(function (x) {
+      if (!rows.some(function (r) { return _sameName(r.name, x.name); })) lines.push('NOT MENTIONED · ' + x.name + ' — left unchanged');
+    });
+    saveMemberOverlay(muniId, ov);
+    lines.unshift('Confirmed ' + counts.CONFIRMED + ' · Changed ' + counts.CHANGED + ' · Departed ' + counts.DEPARTED + ' · New ' + counts.NEW + ' · Unverified ' + counts.UNVERIFIED + ' — of ' + known.length + ' on record');
+    lines.push(MEMBER_SEARCH_CAVEAT);
+    appendMuniUpdateLog(muniId, 'Update Members', lines);
+  } catch (e) {
+    appendMuniUpdateLog(muniId, 'Update Members failed', [String(e && e.message || e), /Unauthorized|403/.test(String(e && e.message)) ? 'The backend needs the operator token: Settings → Operator Access.' : '']);
+  }
+  if (btn) { btn.disabled = false; btn.textContent = 'Update Members'; }
+  renderMuniPanel(); renderMemberDetail(null);
+}
+
+// ── Update Profiles: photo, socials, background, affiliations for every member ──
+async function updateAllProfiles(muniId, btn) {
+  var m = MUNICIPALITIES.find(function (x) { return x.id === muniId; });
+  if (!m) return;
+  var members = [].concat(
+    (m.council || []).map(function (x) { return { mem: x, label: 'city/town council' }; }),
+    (m.pc || []).map(function (x) { return { mem: x, label: 'plan commission' }; }));
+  if (!members.length) return;
+  if (btn) btn.disabled = true;
+  var ov = getMemberOverlay(muniId), lines = [], n = 0, photos = 0, socials = 0, failed = 0;
+  for (var i = 0; i < members.length; i++) {
+    var mem = members[i].mem; n++;
+    if (btn) btn.textContent = 'Updating ' + n + '/' + members.length + '…';
+    var prompt = 'Find publicly available profile information for ' + mem.name + ', ' + (mem.role || 'member') + ' of the ' + m.name + ', Indiana ' + members[i].label + '. ' +
+      'Use the municipal website, LinkedIn, Facebook, X/Twitter, campaign sites, Ballotpedia, local news and civic organisation pages. ' +
+      'Return EXACTLY these lines, each on its own line, with "Not found." when unknown:\n' +
+      'PHOTO_URL: [direct URL of an official or public headshot image file, jpg or png, preferably from the municipal website]\n' +
+      'PHOTO_SOURCE: [page the photo appears on]\n' +
+      'LINKEDIN: [URL]\nFACEBOOK: [URL]\nTWITTER: [URL or handle]\nCAMPAIGN_SITE: [URL]\n' +
+      'PROFESSIONAL_BACKGROUND: [one sentence]\n' +
+      'CIVIC_AFFILIATIONS: [semicolon-separated boards, civic organisations, party roles, nonprofits]\n' +
+      'OTHER: [one other relevant public fact, or Not found.]';
+    try {
+      var text = await callGeminiProxy({ prompt: prompt, maxTokens: 1024, temperature: 0.1, tools: [{ googleSearch: {} }] });
+      var get = function (k) { var mm = text.match(new RegExp('^\\s*\\**' + k + '\\**:\\s*(.+)$', 'mi')); var v = mm ? mm[1].trim().replace(/^\[|\]$/g, '') : ''; return (!v || /^not found/i.test(v)) ? '' : v; };
+      var key = _memKey(muniId, mem), o = ov.members[key] || (ov.members[key] = {}), found = [];
+      var photo = get('PHOTO_URL');
+      if (photo && /^https?:\/\/\S+$/i.test(photo)) { o.photo_url = photo; o.photo_source = get('PHOTO_SOURCE'); photos++; found.push('photo'); }
+      [['LINKEDIN', 'linkedin'], ['FACEBOOK', 'facebook'], ['TWITTER', 'twitter'], ['CAMPAIGN_SITE', 'campaign_site']].forEach(function (pair) {
+        var v = get(pair[0]); if (v) { o[pair[1]] = v; socials++; found.push(pair[1]); }
+      });
+      var pb = get('PROFESSIONAL_BACKGROUND'); if (pb) { o.professional_background = pb; found.push('background'); }
+      var civ = get('CIVIC_AFFILIATIONS');     if (civ) { o.notes = civ; found.push('affiliations'); }
+      var oth = get('OTHER');                  if (oth) { o.other_public = oth; found.push('other'); }
+      o._profile_updated = new Date().toISOString();
+      lines.push(mem.name + ': ' + (found.length ? found.join(', ') : 'nothing new'));
+    } catch (e) {
+      failed++;
+      lines.push(mem.name + ': failed — ' + String(e && e.message || e));
+      if (/Unauthorized|403/.test(String(e && e.message))) { lines.push('Stopped: the backend needs the operator token (Settings → Operator Access).'); break; }
+    }
+    saveMemberOverlay(muniId, ov);
+    await new Promise(function (r) { setTimeout(r, 600); });
+  }
+  lines.unshift('Profiles checked for ' + n + ' of ' + members.length + ' members — photos ' + photos + ' · social/campaign links ' + socials + ' · failed ' + failed);
+  lines.push('Photo URLs are model-sourced; a wrong or dead link shows initials instead, and "remove photo" on the profile clears one.');
+  lines.push(MEMBER_SEARCH_CAVEAT);
+  appendMuniUpdateLog(muniId, 'Update Profiles', lines);
+  if (btn) { btn.disabled = false; btn.textContent = 'Update Profiles'; }
+  renderMuniPanel(); renderMemberDetail(selectedMember);
+}
+
 function switchView(name) {
+  // p222r1: Profiles and Hearings are two doors into one DOM (#view-muni). The legacy name 'muni'
+  // (county cards, deep links) means Hearings, the long-standing default tab.
+  if (name === 'profiles' || name === 'hearings' || name === 'muni') {
+    muniMode = (name === 'profiles') ? 'profiles' : 'hearings';
+    if (muniMode === 'hearings') currentTab = 'hearings';
+    else if (currentTab === 'hearings') currentTab = (currentMuni && !(currentMuni.council || []).length && (currentMuni.pc || []).length) ? 'pc' : 'council';
+    name = 'muni';
+  }
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.topbar-btn').forEach(b => b.classList.remove('active'));
   var viewEl = document.getElementById('view-' + name);
-  var navEl = document.getElementById('nav-' + name);
+  var navEl = document.getElementById('nav-' + (name === 'muni' ? muniMode : name));
   if (viewEl) viewEl.classList.add('active');
   if (navEl) navEl.classList.add('active');
   // Zonda (Market Intel) is a full-bleed embedded dashboard — hide the global
   // county/muni sidebar so the iframe spans the full content width. Restored
   // (style.display='') for every other view.
   var sb = document.querySelector('.sidebar');
-  if (sb) sb.style.display = (name === 'market' || name === 'salesdisclosures') ? 'none' : '';
+  if (sb) sb.style.display = (name === 'market') ? 'none' : '';
   // When entering the Jurisdictions view, force the County/muni rail expanded so
   // it's open by default whenever the page opens (overrides a persisted collapse).
   if (name === 'muni' && sb) {
@@ -2717,6 +2916,8 @@ function switchView(name) {
     _viewInited[name] = true;
     try { initFn(); } catch(e) { console.error('[mrd] init failed for view ' + name, e); _viewInited[name] = false; }
   }
+  // p222r1: the mode may have changed under a selected jurisdiction — repaint it.
+  if (name === 'muni' && currentMuni) { renderMuniPanel(); renderMemberDetail(null); }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2750,7 +2951,7 @@ function selectMuni(id) {
   const muni = MUNICIPALITIES.find(m => m.id === id);
   if (!muni) return;
   currentMuni = muni;
-  currentTab = 'hearings';
+  currentTab = (muniMode === 'profiles') ? 'council' : 'hearings';
   selectedMember = null;
   
   // Update sidebar active state
@@ -2758,14 +2959,13 @@ function selectMuni(id) {
   const sidebarItem = [...document.querySelectorAll('.muni-item')].find(el => el.onclick.toString().includes(`'${id}'`));
   if (sidebarItem) sidebarItem.classList.add('active');
   
-  switchView('muni');
-  renderMuniPanel();
-  renderMemberDetail(null);
+  switchView(muniMode); // p222r1: renders the panel itself
 }
 
 function renderMuniPanel() {
   if (!currentMuni) return;
   const m = currentMuni;
+  applyMemberOverlay(m); // p222r1: browser-held roster/profile changes
   const panel = document.getElementById('muni-panel');
 
   const recColors = { high: 'rec-high', med: 'rec-med', low: 'rec-low', mixed: 'rec-mixed' };
@@ -2797,7 +2997,7 @@ function renderMuniPanel() {
       </div>
     </div>
 
-    <div class="muni-summary-box${summaryOpen?' open':''}">
+    ${muniMode !== 'profiles' ? '' : `<div class="muni-summary-box${summaryOpen?' open':''}">
       <div class="section-label muni-summary-toggle" onclick="toggleMuniSummary('${escAttr(m.id)}')" role="button" tabindex="0">
         <span class="muni-summary-caret">${summaryToggleLabel}</span> Municipality Summary
       </div>
@@ -2823,7 +3023,8 @@ function renderMuniPanel() {
           <div class="summary-val" style="text-align:left;line-height:1.5;">${esc(m.notes) || '—'}</div>
         </div>
       </div>
-    </div>
+      ${renderMuniUpdateLog(m)}
+    </div>`}
 
     ${renderMuniIntelFeed(m)}
 
@@ -2832,6 +3033,13 @@ function renderMuniPanel() {
     <!-- P58.7 R4: clearer divider between intel feed and members tabs -->
     <div class="muni-section-divider" aria-hidden="true"></div>
 
+    ${muniMode === 'hearings' ? `
+    <div class="members-section">
+      <div class="members-tabs">
+        <button class="members-tab active" type="button">Public Hearings (${(PUBLIC_HEARINGS[m.id]||[]).length})</button>
+      </div>
+      <div id="members-grid" class="hearings-section">${renderHearingsContent(m.id)}</div>
+    </div>` : `
     <div class="members-section">
       <div class="members-tabs">
         ${(m.council||[]).length > 0 ? `<button class="members-tab ${currentTab==='council'?'active':''}" onclick="switchTab('council')">
@@ -2840,14 +3048,14 @@ function renderMuniPanel() {
         ${(m.pc||[]).length > 0 ? `<button class="members-tab ${currentTab==='pc'?'active':''}" onclick="switchTab('pc')">
           Plan Commission Members (${(m.pc||[]).length})
         </button>` : ''}
-        <button class="members-tab ${currentTab==='hearings'?'active':''}" onclick="switchTab('hearings')">
-          Public Hearings (${(PUBLIC_HEARINGS[m.id]||[]).length})
-        </button>
+        <div class="members-actions">
+          <button class="members-action-btn" id="btn-update-profiles" onclick="updateAllProfiles('${escAttr(m.id)}', this)" title="Research photo, LinkedIn, X, campaign site, civic affiliations for every member of both bodies">Update Profiles</button>
+          <button class="members-action-btn" id="btn-update-members" onclick="updateMembersRoster('${escAttr(m.id)}', this)" title="Confirm who currently sits on the council and plan commission; changes are logged under the Municipality Summary">Update Members</button>
+        </div>
       </div>
-      <div id="members-grid" class="${currentTab==='hearings'?'hearings-section':'members-grid'}">
-        ${currentTab==='hearings' ? renderHearingsContent(m.id) : renderMemberCards(currentTab==='council' ? m.council : m.pc)}
-      </div>
-    </div>
+      <div id="members-grid" class="members-grid">${renderMemberCards(currentTab==='council' ? m.council : m.pc)}</div>
+      <div id="member-detail-inline" class="member-detail-inline empty">Select a member to view their profile.</div>
+    </div>`}
   `;
   // P58.7 R6: reapply "last selected document" highlight after re-render so
   // the visited Agenda/Summary/Minutes button stays marked.
@@ -3684,12 +3892,12 @@ function toggleMuniSummary(muniId) {
 function applyMuniDetailVisibility() {
   var inner = document.querySelector('#view-muni .muni-view-inner');
   if (!inner) return;
-  if (currentTab === 'hearings') {
+  if (muniMode === 'hearings' || currentTab === 'hearings') {
     inner.classList.add('hide-member-detail');
     inner.classList.remove('hide-tp-rail');
   } else {
-    // council / pc — member profile rail visible, TP rail hidden
-    inner.classList.remove('hide-member-detail');
+    // p222r1 Profiles: no rails at all — the profile renders below the member list, full width.
+    inner.classList.add('hide-member-detail');
     inner.classList.add('hide-tp-rail');
   }
 }
@@ -3760,12 +3968,13 @@ function renderMemberCards(members) {
     const termTag = mem.term ? `<span class="member-tag tag-term">${esc(mem.term)}</span>` : '';
 
     return `
-      <div class="member-card ${selectedMember && selectedMember.name === mem.name ? 'selected' : ''}"
+      <div class="member-card ${selectedMember && selectedMember.name === mem.name ? 'selected' : ''}${mem._status === 'departed' ? ' departed' : ''}" data-idx="${idx}"
            onclick="showMemberDetail(${idx})">
+        ${memberPhotoHtml(mem, 32)}
         <div class="member-name">${esc(mem.name)}</div>
         <div class="member-role">${esc(mem.role)}</div>
         <div class="member-tags">
-          ${bodyTag}${partyTag}${termTag}
+          ${bodyTag}${partyTag}${termTag}${mem._status === 'new' ? '<span class="member-tag tag-new">NEW · VERIFY</span>' : mem._status === 'departed' ? '<span class="member-tag tag-departed">DEPARTED?</span>' : ''}
         </div>
       </div>
     `;
@@ -3904,11 +4113,17 @@ function showMemberDetail(idx) {
   const mem = memberLookup[idx];
   if (!mem) return;
   selectedMember = mem;
+  document.querySelectorAll('#members-grid .member-card').forEach(c => c.classList.toggle('selected', c.getAttribute('data-idx') === String(idx)));
   renderMemberDetail(mem);
+  const inl = document.getElementById('member-detail-inline');
+  if (inl && muniMode === 'profiles') inl.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function renderMemberDetail(mem) {
-  const panel = document.getElementById('member-detail');
+  // p222r1: in Profiles the profile renders inline below the member list, full width.
+  const inline = document.getElementById('member-detail-inline');
+  const panel = (muniMode === 'profiles' && inline) ? inline : document.getElementById('member-detail');
+  if (!panel) return;
   if (!mem) {
     panel.innerHTML = `
       <div>
@@ -3928,13 +4143,16 @@ function renderMemberDetail(mem) {
   const savedNotes = localStorage.getItem(notesKey) || '';
 
   panel.innerHTML = `
-    <div>
+    <div class="detail-header">${memberPhotoHtml(mem, 96)}<div>
       <div class="detail-name">${esc(mem.name)}</div>
       <div class="detail-role">${esc(mem.role)}</div>
+      ${mem.photo_url ? `<button class="photo-remove" onclick="removeMemberPhoto('${escAttr(currentMuni?.id || '')}','${escAttr(_memKey(currentMuni?.id || '', mem))}')" title="${escAttr(mem.photo_source || 'model-sourced photo')}">✕ remove photo</button>` : ''}
+      ${mem._status === 'departed' ? `<div style="margin-top:6px;"><span class="member-tag tag-departed">DEPARTED? — flagged by Update Members</span></div>` : mem._status === 'new' ? `<div style="margin-top:6px;"><span class="member-tag tag-new">NEW — added by Update Members, verify</span></div>` : ''}
       ${/* P58.7 R10: "Needs Verification" badge removed; ✓ Verified retained as positive affirmation. */ ''}
       ${isVerified ? `<div style="margin-top:6px;"><span class="member-tag" style="background:rgba(26,122,74,0.2);color:#6dc49a;border:1px solid rgba(26,122,74,0.35);">✓ Verified</span></div>` : ''}
-    </div>
+    </div></div>
 
+    <div class="detail-body">
     <div class="detail-section">
       <div class="detail-section-label">Key Stats</div>
       <div class="detail-row">
@@ -3983,6 +4201,7 @@ function renderMemberDetail(mem) {
     <div class="detail-section">
       <div class="detail-section-label">Civic Affiliations</div>
       ${mem.notes ? `<div class="detail-note">${esc(mem.notes)}</div>` : `<div style="color:var(--text-dim);font-size:11px;">No affiliations recorded.</div>`}
+      ${mem.other_public ? `<div class="detail-note" style="margin-top:6px;">${esc(mem.other_public)}</div>` : ''}
     </div>
 
     <div class="detail-section">
@@ -4058,6 +4277,7 @@ function renderMemberDetail(mem) {
 </div>
 `;
     })()}
+    </div>
   `;
 }
 

@@ -3602,3 +3602,52 @@ body.agenda-panel-locked { overflow: hidden; }
 [data-theme="light"] .sum-flag-chip.sum-flag-self_healing { border-color:rgba(60,90,150,0.35); background:rgba(60,90,150,0.06); color:#3c5a96; }
 [data-theme="light"] .sum-flag-chip.sum-flag-dispositioned, [data-theme="light"] .sum-flag-chip.sum-flag-covered { border-color:rgba(0,0,0,0.15); background:rgba(0,0,0,0.03); color:#64748b; }
 [data-theme="light"] .sum-flag-popover { background:#fff; border-color:rgba(0,0,0,0.12); }
+
+/* ═══ p222r1 (2026-10-21): Profiles / Hearings split, member photos, update log ═══ */
+.members-actions { margin-left: auto; display: flex; gap: 6px; align-items: center; padding-bottom: 4px; }
+.members-action-btn {
+  font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  font-size: 10px; font-weight: 600; padding: 4px 10px; border-radius: 3px;
+  background: rgba(26,122,74,0.22); color: #6dc49a; border: 1px solid rgba(26,122,74,0.5);
+  cursor: pointer; letter-spacing: 0.04em; white-space: nowrap;
+}
+.members-action-btn:hover { background: rgba(26,122,74,0.35); }
+.members-action-btn:disabled { opacity: 0.5; cursor: progress; }
+[data-theme="light"] .members-action-btn { background: rgba(26,122,74,0.12); color: #1a5c3a; }
+
+/* Selected member's profile sits BELOW the member list and uses the full width:
+   header row (photo + name + actions), then the detail sections in a fluid grid. */
+.member-detail-inline { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 14px; display: flex; flex-direction: column; gap: 12px; }
+.member-detail-inline.empty { color: var(--text-dim); font-size: 12px; padding: 12px 0 4px; }
+.member-detail-inline .detail-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px 28px; align-items: start; }
+.member-detail-inline .detail-body > .detail-section { min-width: 0; }
+.member-detail-inline .detail-body > :not(.detail-section) { grid-column: 1 / -1; }
+.member-detail-inline .detail-row { justify-content: flex-start; gap: 14px; }
+.member-detail-inline .detail-key { min-width: 90px; }
+.member-detail-inline .detail-val { text-align: left; }
+.detail-header { display: flex; gap: 16px; align-items: flex-start; }
+.detail-header .detail-name { font-size: 18px; }
+.photo-remove { background: none; border: none; color: var(--text-dim); font-size: 10px; cursor: pointer; padding: 2px 0; display: block; }
+.photo-remove:hover { color: var(--text); }
+
+.member-photo-wrap { display: inline-block; flex: 0 0 auto; }
+.member-photo, .member-avatar { object-fit: cover; border: 1px solid var(--border); background: rgba(255,255,255,0.04); display: inline-block; vertical-align: middle; }
+.member-photo { width: 96px; height: 96px; border-radius: 8px; }
+.member-avatar { width: 32px; height: 32px; border-radius: 50%; }
+.member-initials {
+  text-align: center; color: var(--text-dim);
+  font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  font-weight: 600; letter-spacing: 0.04em; overflow: hidden;
+}
+.member-card .member-photo-wrap { float: right; margin: -2px -4px 0 8px; }
+.member-card.departed { opacity: 0.55; }
+.tag-new { background: rgba(232,160,32,0.18); color: #e8a020; border: 1px solid rgba(232,160,32,0.4); }
+.tag-departed { background: rgba(139,48,48,0.2); color: #e08888; border: 1px solid rgba(139,48,48,0.4); }
+
+/* Update log at the bottom of the Municipality Summary (shown even when the grid is collapsed). */
+.muni-update-log { margin-top: 10px; border-top: 1px dashed var(--border); padding-top: 8px; font-size: 11px; }
+.muni-update-log-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.muni-update-entry { margin-bottom: 8px; }
+.muni-update-title { font-weight: 600; color: var(--text); }
+.muni-update-ts { font-weight: 400; color: var(--text-dim); margin-left: 6px; font-size: 10px; }
+.muni-update-line { color: var(--text); padding: 1px 0 1px 10px; border-left: 2px solid var(--border); margin: 2px 0; line-height: 1.45; word-break: break-word; }
