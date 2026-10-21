@@ -1,6 +1,6 @@
 # HANDOFF — Indiana MIP Tracker (MRD front end)
 
-HANDOFF-STAMP: 2026-10-21 | rev 11
+HANDOFF-STAMP: 2026-10-21 | rev 12
 
 > **Read first:** [`CLAUDE.md`](CLAUDE.md) → this file → [`docs/OPEN-ITEMS.md`](docs/OPEN-ITEMS.md).
 > Backend coordinates: `C:\Users\ty\Claude_Code\indiana-agenda-tracker\ARCHITECTURE.md` §0 is the
@@ -9,26 +9,26 @@ HANDOFF-STAMP: 2026-10-21 | rev 11
 
 ## One line
 
-Build **`p222r2`**: the MRD is the launcher for the sibling apps — a top-bar **Apps** group opens
+Build **`p222r3`**: the MRD is the launcher for the sibling apps — a top-bar **Apps** group opens
 Sales Disclosures (standalone tab, no frame), Video Console, Cropper and Map — and **Jurisdictions is
 split into Profiles and Hearings**, with the member profile inline below the list and **Update Members /
 Update Profiles** buttons that search live (Google Search grounding through the backend proxy, @589)
 and **write the Members sheet**. Zonda is off the nav; Schedule & Requirements is **Schedule Builder**.
-One item open: **MIP-11**. ⚠ The grounded search and a real write are untested without the token.
+One item open: **MIP-11**. ✅ Ty's Lebanon runs confirmed both the sheet writes and the live search.
 
 ## Live coordinates (probed 2026-10-21 on this desktop)
 
 | Thing | State |
 |---|---|
-| Repo | `main` @ **`b0f6fbc`** (`p222r2`; `685cd3e` `p222r1`, `11d5e9d` `p221r2`, `38b6c4d` `p221r1`) plus this close-out commit, pushed — public remote `Wildhare1966/indiana-mip-tracker` |
-| Served build | **`p222r2`** on both markers — `mrd-ad682070b7/index.html` line 2 and `styles.css?v=` line 14; served at `http://localhost:8778/mrd-ad682070b7/` (listener `127.0.0.1:8778`, answering `200`) |
+| Repo | `main` @ **`61db228`** (`p222r3`; `b0f6fbc` `p222r2`, `685cd3e` `p222r1`, `11d5e9d` `p221r2`, `38b6c4d` `p221r1`) plus this close-out commit, pushed — public remote `Wildhare1966/indiana-mip-tracker` |
+| Served build | **`p222r3`** on both markers — `mrd-ad682070b7/index.html` line 2 and `styles.css?v=` line 14; served at `http://localhost:8778/mrd-ad682070b7/` (listener `127.0.0.1:8778`, answering `200`) |
 | Sales Disclosures | a **launcher** (first in the Apps group) → `http://localhost:8765/sales_dashboard.html` in a new tab. The `p221r1` iframe is gone: the dashboard detects a frame and switches to its published two-year dataset, hiding Tile Studio. `mrd-ad682070b7/sales_dashboard.html` remains removed |
 | Apps group | Sales Disclosures → `localhost:8765` · **Video Console** → `http://127.0.0.1:8766/` (`market-video-pipeline`) · **Cropper** → `http://127.0.0.1:8756/` (`Skill-cropper`, start it with `Start Cropper.bat`) · **Map** → `https://map.wildhare.app/` (Cloudflare Access) |
 | CSP | the `localhost:8765` entries are gone again; `img-src` is now `'self' data: https:` (member photos). Nothing else changed |
 | Data lanes | `main` · `data` · `data-sales` — unchanged; both non-`main` lanes are written **by other projects** |
-| Operator token | `localStorage` key `mip_auth_token`, Settings → Operator Access; **none in the built-in browser pane's profile** |
+| Operator token | `localStorage` key `mip_auth_token`, Settings → Operator Access; **present in Ty's Chrome on `localhost:8778`** (status reads ✓, 2026-10-21), none in the built-in browser pane's profile |
 | Backend | `C:\Users\ty\Claude_Code\indiana-agenda-tracker` — **not** this repo. Deploy **@589** (its P224, 2026-10-21): `gemini_proxy` forwards `tools:[{googleSearch:{}}]` and replies with `grounding`; `upsert_member` (GET) and `set_member_profile` (POST) write the `Members` sheet; `member_profiles` and the roster wire carry `status`, `photo_url`, `photo_source`, `civic_affiliations`, `other_public` |
-| Board | `docs/OPEN-ITEMS.md` **rev 14** — **MIP-11** (CC) open; **MIP-12** to **MIP-15** closed this session |
+| Board | `docs/OPEN-ITEMS.md` **rev 15** — **MIP-11** (CC) open; **MIP-12** to **MIP-16** closed this session |
 | Untracked | `serve-mrd.log` (server log, left alone) |
 
 ⚠ Re-probe before relying on the build number (doctrine item 14).
@@ -69,6 +69,9 @@ adds item 4). Full record: **MIP-12** and **MIP-13** in `docs/OPEN-ITEMS.md`.
    FE-side too) and keeps `grounding`; `mipMemberWrite` carries every verdict to `upsert_member` and
    every profile find to `set_member_profile`; the log lists queries and sources; the overlay is gone.
    Both routes answered `Unauthorized` from the page without a token. Full record **MIP-15**.
+9. **Live test passed, then `p222r3`.** **Live test by Ty, 2026-10-21 (City of Lebanon, Boone):** two Update Profiles runs over 14 members — `saved 13` then `saved 14`, no failures; photos 2 then 3, social/campaign links 4 then 2; both entries carried `Searched:` queries and a `Sources:` line of member-specific pages (in.gov, the Lebanon messenger, Ballotpedia, goodparty.org, a member's business site), so the proxy forwarded the tool and Gemini searched live. Run-to-run variance (a photo or campaign site found in one run only) is the model; the sheet keeps the union because unpassed fields are never blanked. Update Members not yet clicked.
+   The log's Searched / Sources lines had shown only the first member's; `_roundRobin` now samples one
+   per member before the caps. Full record **MIP-16**.
 
 ## Gotchas carried forward
 
@@ -125,9 +128,9 @@ depend on, not just the thing you are editing.
 
 ## Next session
 
-1. **Ty's first live click** on Update Members with the token entered is the test `p222r2` could not
-   run: expect `saved N` and a Sources line in the log; a `not saved` line names the backend error.
-   Backend side done 2026-10-21 (@589); its `ARCHITECTURE.md` §0 did not yet name @589 when probed.
+1. **Update Members has not been clicked live yet** (Update Profiles has, twice, on Lebanon — both
+   saved and grounded). Same write mechanism, other route (`upsert_member`); expect `saved N` and a
+   Sources line. Backend @589 done 2026-10-21; its `ARCHITECTURE.md` §0 did not yet name @589 when probed.
 2. **MIP-11** — `CLAUDE.md` rev 6, whole-file: the `p168r2` pointer, the line-72 asset list, the
    Apps group paragraph.
 3. Reported, not boarded here (other repos' concerns): Sales Disclosures' spare launch config names
