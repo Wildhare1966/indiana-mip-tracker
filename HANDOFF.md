@@ -1,145 +1,86 @@
 # HANDOFF — Indiana MIP Tracker (MRD front end)
 
-HANDOFF-STAMP: 2026-10-21 | rev 13
+HANDOFF-STAMP: 2026-10-22 | rev 14
 
 > **Read first:** [`CLAUDE.md`](CLAUDE.md) → this file → [`docs/OPEN-ITEMS.md`](docs/OPEN-ITEMS.md).
 > Backend coordinates: `C:\Users\ty\Claude_Code\indiana-agenda-tracker\ARCHITECTURE.md` §0 is the
-> source of truth. rev 7 (2026-10-06, MIP-10), rev 6 and rev 1 are in
-> [`docs/HANDOFF-ARCHIVE.md`](docs/HANDOFF-ARCHIVE.md).
+> source of truth. rev 13 (2026-10-21, the p221r1 → p222r4 day: launchers, Profiles / Hearings, the
+> backend wiring) and earlier are in [`docs/HANDOFF-ARCHIVE.md`](docs/HANDOFF-ARCHIVE.md).
 
 ## One line
 
-Build **`p222r4`**: the MRD is the launcher for the sibling apps — a top-bar **Apps** group opens
-Sales Disclosures (standalone tab, no frame), Video Console, Cropper and Map — and **Jurisdictions is
-split into Profiles and Hearings**, with the member profile inline below the list and **Update Members /
-Update Profiles** buttons that search live (Google Search grounding through the backend proxy, @589)
-and **write the Members sheet**. Zonda is off the nav; Schedule & Requirements is **Schedule Builder**.
-One item open: **MIP-11**. ✅ Ty's Lebanon runs confirmed both buttons end to end: sheet writes and live search.
+Build **`p223r1`**: Update Members is now the **roster protocol** — an evidence-bound monthly check
+(official site → minutes → county election board → press; no Ballotpedia, no memory) where only an
+official source can save a DEPARTED, NEW or CHANGED verdict, with **Accept / Reject / Restore** on the
+member cards as the review step. Next: **MIP-19**, Update Profiles moves onto the member profile, one
+member at a time, replacing the old AI Research block. Backend monthly schedule proposed as a card.
 
-## Live coordinates (probed 2026-10-21 on this desktop)
+## Live coordinates (probed 2026-10-22 on this desktop)
 
 | Thing | State |
 |---|---|
-| Repo | `main` @ **`a628982`** (`p222r4`; `61db228` `p222r3`, `b0f6fbc` `p222r2`, `685cd3e` `p222r1`, `11d5e9d` `p221r2`, `38b6c4d` `p221r1`) plus this close-out commit, pushed — public remote `Wildhare1966/indiana-mip-tracker` |
-| Served build | **`p222r4`** on both markers — `mrd-ad682070b7/index.html` line 2 and `styles.css?v=` line 14; served at `http://localhost:8778/mrd-ad682070b7/` (listener `127.0.0.1:8778`, answering `200`) |
-| Sales Disclosures | a **launcher** (first in the Apps group) → `http://localhost:8765/sales_dashboard.html` in a new tab. The `p221r1` iframe is gone: the dashboard detects a frame and switches to its published two-year dataset, hiding Tile Studio. `mrd-ad682070b7/sales_dashboard.html` remains removed |
-| Apps group | Sales Disclosures → `localhost:8765` · **Video Console** → `http://127.0.0.1:8766/` (`market-video-pipeline`) · **Cropper** → `http://127.0.0.1:8756/` (`Skill-cropper`, start it with `Start Cropper.bat`) · **Map** → `https://map.wildhare.app/` (Cloudflare Access) |
-| CSP | the `localhost:8765` entries are gone again; `img-src` is now `'self' data: https:` (member photos). Nothing else changed |
-| Data lanes | `main` · `data` · `data-sales` — unchanged; both non-`main` lanes are written **by other projects** |
-| Operator token | `localStorage` key `mip_auth_token`, Settings → Operator Access; **present in Ty's Chrome on `localhost:8778`** (status reads ✓, 2026-10-21), none in the built-in browser pane's profile |
-| Backend | `C:\Users\ty\Claude_Code\indiana-agenda-tracker` — **not** this repo. Deploy **@589** (its P224, 2026-10-21): `gemini_proxy` forwards `tools:[{googleSearch:{}}]` and replies with `grounding`; `upsert_member` (GET) and `set_member_profile` (POST) write the `Members` sheet; `member_profiles` and the roster wire carry `status`, `photo_url`, `photo_source`, `civic_affiliations`, `other_public` |
-| Board | `docs/OPEN-ITEMS.md` **rev 16** — **MIP-11** (CC) open; **MIP-12** to **MIP-17** closed this session |
-| Untracked | `serve-mrd.log` (server log, left alone) |
+| Repo | `main` @ **`0a74570`** (`p223r1`; yesterday's `a628982` `p222r4` … `38b6c4d` `p221r1`) plus this close-out commit, pushed — public remote `Wildhare1966/indiana-mip-tracker` |
+| Served build | **`p223r1`** on both markers — `mrd-ad682070b7/index.html` line 2 and `styles.css?v=` line 14; `http://localhost:8778/mrd-ad682070b7/` (listener `127.0.0.1:8778`, `200`) |
+| Nav | Overview · **Profiles** · **Hearings** · Agenda Items · Youtube Items · Candidates · Jurisdiction Status · Tracked Projects · Tracked Topics · **Schedule Builder** · ┃ Sales Disclosures ↗ · Video Console ↗ · Cropper ↗ · Map ↗ · ⚙ Settings. Zonda commented out, view retained |
+| Apps group | Sales Disclosures → `http://localhost:8765/sales_dashboard.html` (never a frame: the dashboard switches datasets when framed) · Video Console → `127.0.0.1:8766` · Cropper → `127.0.0.1:8756` · Map → `https://map.wildhare.app/` |
+| Profiles / Hearings | two nav doors on one DOM (`#view-muni`, `muniMode`); the profile renders inline below the member list; Update Profiles / Update Members at the right of the tab row; update log under the Municipality Summary |
+| Backend | `C:\Users\ty\Claude_Code\indiana-agenda-tracker`, deploy **@589** (P224): grounded `gemini_proxy`, `upsert_member` (GET) / `set_member_profile` (POST) on the `Members` sheet; P225 (HEAD only): the weekly research batch skips `departed`, researches `new` first |
+| Operator token | `localStorage` `mip_auth_token`, Settings → Operator Access; present in Ty's Chrome on `localhost:8778`, none in the built-in browser pane |
+| Board | `docs/OPEN-ITEMS.md` **rev 17** — **MIP-19** (CC) and **MIP-11** (CC) open; **MIP-18** closed today; MIP-12..17 rotated to the archive |
+| Untracked | `serve-mrd.log` |
 
 ⚠ Re-probe before relying on the build number (doctrine item 14).
-⛔ `CLAUDE.md` still says `p168r2` (line 56) and still lists `sales_dashboard.html` as a served asset
-(line 72) — both are **MIP-11**, not the truth. Instruction files are edited whole (doctrine item 4),
-so the drift is carried as that named item rather than patched.
+⛔ `CLAUDE.md` still says `p168r2` and lists the removed `sales_dashboard.html` — **MIP-11**.
 
 ## What shipped this session
 
-Ty's 2026-10-21 request, all four items (rev 8 of this file closed items 1-3; rev 9, same session,
-adds item 4). Full record: **MIP-12** and **MIP-13** in `docs/OPEN-ITEMS.md`.
-
-1. **Probed before building.** The embedded copy was 336,471 B (2026-10-06); the live file was
-   434,231 B (`c3eb983`, 2026-10-20) and served on 8765 with `200`, no `X-Frame-Options`, no
-   `frame-ancestors`. It reads `?theme=` at its line 3088, so the existing theme sync still works.
-2. **Sales Disclosures frames the live server.** One constant `SD_DASHBOARD_URL` feeds both the view
-   init and `applyTheme()`. A `HEAD` probe (`no-cors`) gates the frame; a refused connection shows a
-   plain notice naming `Start Sales Dashboard.bat` with a Retry button instead of a blank frame.
-   `git rm mrd-ad682070b7/sales_dashboard.html` after the grep came back empty (`tests/smoke.html`: 0).
-3. **Apps group.** `.topbar-sep` divider, then Video Console and Cropper, each `openApp(url)` =
-   `window.open(url, '_blank', 'noopener')`. Launchers, not views: no `switchView`, no view element.
-4. **Verified in the built-in browser.** Served marker `p221r1`; the frame renders the 10-20 build
-   (Tile Studio button, 354,107 of 373,843 transactions); theme toggle re-fetched `?theme=light`
-   then `?theme=dark`; Video Console opened the console; Cropper opened to a connection error (its
-   server was not running and was not started). Smoke: 13/20, 7 fail, all `Unauthorized` (no token).
-   Console: no CSP violations from the build.
-5. **Board rotated.** MIP-10's closure moved verbatim to `docs/STATUS-ARCHIVE.md`; rev 7 of this
-   file to `docs/HANDOFF-ARCHIVE.md`. **MIP-12** closed, **MIP-13** boarded, **MIP-11** widened.
-6. **`p221r2` — Land Presentation Map.** Ty chose the live build over the local `:8080` copy. One
-   button through the same `openApp()`, marker bump only, no CSP change. The built-in browser pane
-   blocked the popup (automation may not open popups there), so the destination was verified by
-   `curl` (302 to the Access login) rather than rendered. Smoke re-run unchanged: 13/20, all 403.
-7. **`p222r1` — second request.** Sales Disclosures became a launcher (the frame could never show the
-   standalone dashboard: `FRAMED` switches datasets and hides Tile Studio); Map; Zonda off; Schedule
-   Builder; Jurisdictions → **Profiles** (summary, members, inline full-width profile, Update Profiles /
-   Update Members, update log under the summary) and **Hearings** (no summary). Full record **MIP-14**.
-8. **`p222r2` — wired to the backend.** `callGeminiProxy` now really sends `tools` (p222r1 dropped it
-   FE-side too) and keeps `grounding`; `mipMemberWrite` carries every verdict to `upsert_member` and
-   every profile find to `set_member_profile`; the log lists queries and sources; the overlay is gone.
-   Both routes answered `Unauthorized` from the page without a token. Full record **MIP-15**.
-9. **Live test passed, then `p222r3`.** **Live test by Ty, 2026-10-21 (City of Lebanon, Boone):** two Update Profiles runs over 14 members — `saved 13` then `saved 14`, no failures; photos 2 then 3, social/campaign links 4 then 2; both entries carried `Searched:` queries and a `Sources:` line of member-specific pages (in.gov, the Lebanon messenger, Ballotpedia, goodparty.org, a member's business site), so the proxy forwarded the tool and Gemini searched live. Run-to-run variance (a photo or campaign site found in one run only) is the model; the sheet keeps the union because unpassed fields are never blanked. Update Members not yet clicked.
-   The log's Searched / Sources lines had shown only the first member's; `_roundRobin` now samples one
-   per member before the caps. Full record **MIP-16**.
-10. **Update Members live, then `p222r4`.** **Update Members live test by Ty, 2026-10-21 (City of Lebanon):** Confirmed 12 · Changed 2 · Departed 0 · New 2 · Unverified 0 of 14 on record, `saved 16`, grounded (queries + sources). CHANGED: Mike Kincaid Member → **President**, Dick Robertson President → Vice President, both with term 2024-2027; NEW: Morris Jones and Matt Reynolds on the plan commission (PC 7 → 9, tagged NEW · VERIFY). Checked by the session against `lebanon.in.gov/city-council`: it lists "Councilman Mike Kincaid (City Council President), District 1" and Robertson as District 4 without the title — the Kincaid change is real, Robertson's new title is likely but not in the text pulled; the two PC names were not checked.
-   The SOURCE cell had held several URLs incl. a long grounding redirect, so lines were walls of text
-   and `source_url` went unwritten; `_firstSourceUrl` + `_srcLink` fix both. Full record **MIP-17**.
+1. **Roster protocol** (`updateMembersRoster`). The prompt names the jurisdiction's official hosts
+   (learned from its agenda / minutes / reference URLs), orders the sources, fixes the role vocabulary
+   (President · Vice President · Member, then the seat) and adds an `EVIDENCE_DATE` column. The page
+   grades every SOURCE itself (`_sourceTier`: 1 own site, 2 other `.gov` / `.in.us`, 4 press, 5
+   none / redirect / Ballotpedia) and downgrades a DEPARTED, NEW or CHANGED verdict without tier ≤ 2 to
+   UNVERIFIED, which never writes. The log shows the hosts searched, the evidence date per line and
+   the downgrade count.
+2. **Review step.** NEW cards carry ✓ Accept (status `current`) and ✕ Reject (status `departed`);
+   departed cards carry ↩ Restore. One `upsert_member` each, one log entry, no search.
+3. **Verified** with no token: Lebanon's official host resolves to `lebanon.in.gov`; tiers grade
+   own-site 1, a sub-host 1, `boonecounty.in.gov` 2, press 4, Ballotpedia and redirects 5; a synthetic
+   NEW card shows both buttons and a departed card shows Restore; Reject reaches the live route and
+   logs `Unauthorized`; smoke 13/20 with the seven no-token 403s; no console errors. Full record
+   **MIP-18**. ⚠ A live grounded run with the new prompt is Ty's first click.
 
 ## Gotchas carried forward
 
-- ⛔ **Do not re-embed the Sales Disclosures dashboard.** It tests `window.self !== window.top`
-  and, framed, loads the published two-year CDN file and hides Tile Studio and Review records on
-  purpose (Ty, 2026-10-07 and 2026-10-20). The launcher must stay `localhost`, not `127.0.0.1`:
-  that repo keeps review edits in `localStorage` for the `localhost:8765` origin.
-- ⚠ **Profiles and Hearings are one DOM.** Both nav buttons activate `#view-muni`; `muniMode`
-  decides what `renderMuniPanel` draws. Legacy `switchView('muni')` means Hearings. Member cards
-  and the inline profile are only rendered in Profiles mode; `#member-detail` (the old right rail)
-  is still in the DOM but always hidden.
-- ⚠ **Update Members / Update Profiles write the sheet and never retry.** `mipMemberWrite` throws the
-  backend's `error` text; the first `Unauthorized` stops further writes and the log says which rows
-  were not saved. A successful write drops the four warm caches (`mip_muni_data*`,
-  `mip_member_profiles*`) so the next load re-reads the sheet. Only the update log itself
-  (`mip_muni_update_log_v1`) is browser-local. Photo URLs are model-sourced, https-only.
-- ⚠ **`callGeminiProxy` only forwards named fields.** Adding a Gemini option means adding it to the
-  body it builds — `tools` was silently dropped there for a whole build (p222r1). `grounding` from
-  the proxy lands on `callGeminiProxy.lastGrounding` after each call.
-- ⚠ **The built-in browser pane is not a launcher test bed.** Loopback `window.open` targets
-  navigated the *same* tab; an external one (`map.wildhare.app`) was **blocked** outright — popups
-  open there only from the user's own clicks. Chrome opens a new tab for all three. Do not "fix"
-  `openApp()` for the pane; verify launchers by `curl` plus the pane's popup notice.
-- ⚠ **Line endings.** `core.autocrlf=true`. Probed 2026-10-21 with `file`: `index.html` and
-  `styles.css` sit **LF** on disk, the Markdown lanes **CRLF**. Git normalizes on commit either way;
-  preserve whatever each file already has rather than converting.
-- ⚠ **The smoke test fails, not skips, without a token.** 7 failures reading `Unauthorized` (or
-  `Expected array, got: object`, the same 403 body) mean "no token in this browser profile," not a
-  regression. Claude never enters the token.
-- ⛔ **`*-ops.html` consoles are served but untracked.** Keep them on disk; back them up to
-  `C:\Users\ty\Claude_Code\indiana-agenda-tracker\ops\`. Never re-add a leading slash to the
-  `.gitignore` pattern.
-- ⛔ **`refreshHearings()` is NOT dead code.** Four write paths call it, three inside `setTimeout`.
-- ⛔ **Public git history keeps the old token and the stale dashboard copy permanently.** Rotation
-  was the fix for the token; removal unpublishes nothing.
-- ⛔ **Never open the app as `file://`.** ⛔ **Do not "restore" or delete `MIP_Platform.html`.**
-- **`serve-mrd.bat` must use `python.exe`, not `pythonw`.** ⚠ **Port 8765 belongs to
-  `C:\Users\ty\Claude_Code\Sales Disclosures`**, 8766 to `market-video-pipeline`, 8756 to
-  `Skill-cropper`.
-- ⚠ **`indiana-mip-tracker` vs `indiana-agenda-tracker`** — one word apart, front end vs backend.
-- **`data` and `data-sales` are separate lanes.** Never hand-publish to `data`.
+- ⚠ **A verdict is only as good as its source tier.** The page, not the model, decides what counts;
+  if a town's own site is not among `agenda_landing_url`, `minutes_landing_url` or its
+  `JURISDICTION_REFS` URLs, only `.gov` / `.in.us` pages rank as official there — check the log's
+  "Official hosts searched first" line when everything downgrades.
+- ⚠ **Writes never retry; the first `Unauthorized` stops them.** A successful write drops the four
+  warm caches so the next load re-reads the sheet. Only the update log is browser-local.
+- ⚠ **`callGeminiProxy` forwards named fields only** — a new Gemini option must be added to the body
+  it builds. `grounding` lands on `callGeminiProxy.lastGrounding`.
+- ⛔ **Do not re-embed the Sales Disclosures dashboard**, and keep its launcher on `localhost`, not
+  `127.0.0.1` (review edits live in that origin's `localStorage`).
+- ⚠ **The built-in browser pane is not a launcher test bed**: loopback `window.open` navigates the
+  same tab, external ones are blocked. Verify launchers by `curl`.
+- ⚠ **Line endings.** `index.html` / `styles.css` sit LF on disk, the Markdown lanes CRLF; preserve
+  whatever each file has. ⚠ **Smoke fails, not skips, without a token** (7 × 403 is the documented
+  result). ⛔ `*-ops.html` stay untracked. ⛔ `refreshHearings()` is not dead code. ⛔ Never `file://`.
+  ⛔ Do not restore or delete `MIP_Platform.html`. ⚠ `indiana-mip-tracker` ≠ `indiana-agenda-tracker`.
 
 ## ✦ The reflective lesson
 
-**A copy is a snapshot pretending to be a link.** The Sales dashboard copy was refreshed by hand in
-`p207r2` and `p209r2` and then fell fourteen days behind without anyone noticing, in a public repo.
-Framing the live server deletes the sync chore and the exposure in one move — at the price of a
-runtime dependency that must fail *loudly*, which is what the notice is for. A dependency you cannot
-see failing is worse than the copy was.
-
-Second: the brief's recommended URL was wrong in a way only the **neighbouring** repo's launcher
-documented. Doctrine item 14 reaches past your own artifact — probe the thing you are about to
-depend on, not just the thing you are editing.
+**Let the model report; let the page decide.** Yesterday's prompt accepted any URL as evidence and
+the sheet got a Google redirect as a source. Today the gate lives in code that grades the host, and
+the model's only job is to say what it saw and where. The same split belongs in the profiles work:
+the operator's Accept is the write, never the model's confidence.
 
 ## Next session
 
-1. **Both buttons are proven live on Lebanon.** Next real use is Ty's: verify the two NEW plan-commission
-   names (Morris Jones, Matt Reynolds) against `lebanon.in.gov/planning-commission`, then run the
-   other 40 jurisdictions at his pace (each Update Profiles run is one Gemini call per member).
-   Backend @589 done 2026-10-21; its `ARCHITECTURE.md` §0 did not yet name @589 when probed.
-2. **MIP-11** — `CLAUDE.md` rev 6, whole-file: the `p168r2` pointer, the line-72 asset list, the
-   Apps group paragraph.
-3. Reported, not boarded here (other repos' concerns): Sales Disclosures' spare launch config names
-   8766 (the Video Console's port); Permit-Resources documents 8770, which Tile Studio holds; Sales
-   Disclosures binds `0.0.0.0`; auto-starting the four servers belongs in `C:\Users\ty\Claude_Code\_serve`.
-   The MRD is local to this desktop and not reachable from the laptop over Remote Control.
+1. **MIP-19** — Update Profiles per member: move the button onto the profile, one member per click,
+   per-field source links, accept / reject before the sheet, remove the old "AI Research Profile" block.
+2. **Backend monthly roster schedule** — proposed as a session card 2026-10-22 (two jurisdictions a
+   day, all 41 in early January and after the November 2027 election, minutes-keyword re-queue).
+3. **MIP-11** — `CLAUDE.md` rev 6, whole-file.
 
 ⛔ **Do not recreate `STATUS.md`.** It was retired deliberately (MIP-9).
