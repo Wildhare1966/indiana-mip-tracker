@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p222r4 -->
+<!-- MIP build p223r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data: https:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p222r4">
+<link rel="stylesheet" href="styles.css?v=p223r1">
 </head>
 <body>
 
@@ -2809,23 +2809,49 @@ function renderMuniUpdateLog(m) {
     }).join('') + '</div>';
 }
 
-var MEMBER_SEARCH_CAVEAT = 'Searched live (Google Search grounding through the backend proxy) and saved to the Members sheet; sources are listed below. It is still a model reading of the web — verify a DEPARTED or NEW before acting on it.';
+// ── Update Members: the monthly roster protocol (p223r1, Ty's ruling 2026-10-22) ──
+// Evidence-bound. The model reports what it found and WHERE; this page decides what counts.
+// A DEPARTED, NEW or CHANGED verdict is written to the sheet only when its source is an official
+// page — the jurisdiction's own site (hosts learned from its agenda/minutes/reference URLs) or a
+// .gov / .in.us host such as the county election board. Anything else is downgraded to UNVERIFIED
+// and logged as a lead. Ballotpedia is not a source for towns this size. Each line carries the
+// evidence date the model relied on. UNVERIFIED never writes.
+function _officialHosts(m) {
+  var hosts = {};
+  var urls = [m.agenda_landing_url, m.minutes_landing_url];
+  var ref = (typeof JURISDICTION_REFS !== 'undefined' && JURISDICTION_REFS[m.id]) || {};
+  Object.keys(ref).forEach(function (k) { if (/Url$/.test(k) && ref[k]) urls.push(ref[k]); });
+  urls.forEach(function (u) { try { var h = new URL(u).hostname.replace(/^www\./, '').toLowerCase(); if (h) hosts[h] = 1; } catch (e) {} });
+  return Object.keys(hosts);
+}
+// 1 = the jurisdiction's own site · 2 = other government (.gov / .in.us) · 4 = press / other · 5 = none, redirect, Ballotpedia
+function _sourceTier(url, officialHosts) {
+  if (!url || _isSearchRedirect(url)) return 5;
+  var h; try { h = new URL(url).hostname.replace(/^www\./, '').toLowerCase(); } catch (e) { return 5; }
+  if ((officialHosts || []).some(function (o) { return h === o || h.slice(-(o.length + 1)) === '.' + o; })) return 1;
+  if (/\.gov$|\.in\.us$/.test(h)) return 2;
+  if (/(^|\.)ballotpedia\.org$/.test(h)) return 5;
+  return 4;
+}
+var MEMBER_SEARCH_CAVEAT = 'Searched live (Google Search grounding through the backend proxy). A DEPARTED, NEW or CHANGED verdict was saved only when its source was an official page; everything else above is a lead to check against the source. Accept or reject a NEW card on the member list.';
 
-// ── Update Members: confirm the current roster of both bodies, write each verdict to the sheet ──
 async function updateMembersRoster(muniId, btn) {
   var m = MUNICIPALITIES.find(function (x) { return x.id === muniId; });
   if (!m) return;
   if (btn) { btn.disabled = true; btn.textContent = 'Searching roster…'; }
+  var hosts = _officialHosts(m);
   var known = [].concat(
     (m.council || []).map(function (x) { return Object.assign({ _bt: 'council' }, x); }),
     (m.pc || []).map(function (x) { return Object.assign({ _bt: 'pc' }, x); }));
   var rosterText = known.map(function (x) { return (x._bt === 'council' ? 'COUNCIL' : 'PC') + ' | ' + x.name + ' | ' + (x.role || '') + ' | ' + (x.party || '') + ' | ' + (x.term || ''); }).join('\n') || '(none on record)';
-  var prompt = 'Today is ' + _today() + '. Confirm the CURRENT membership of the two governing bodies of ' + m.name + ', ' + m.county + ' County, Indiana: (1) the city or town council and (2) the plan commission.\n\n' +
+  var prompt = 'Today is ' + _today() + '. Confirm the CURRENT membership of two bodies of ' + m.name + ', ' + m.county + ' County, Indiana: (1) the city or town council and (2) the plan commission.\n\n' +
+    'Work from the record, in this order: (1) the jurisdiction\'s own website' + (hosts.length ? ' — known official hosts: ' + hosts.join(', ') : '') + ' (its council page, plan commission page, boards and commissions page); (2) agendas and minutes of the last 90 days and of the January reorganization meeting, where officers are elected and appointments made; (3) the county election board\'s certified results or the Indiana Election Division; (4) local press. Do not use Ballotpedia for a town this size, and do not rely on memory.\n\n' +
     'Our roster on record (BODY | NAME | ROLE | PARTY | TERM):\n' + rosterText + '\n\n' +
-    'Search official sources first: the municipal website, meeting agendas and minutes from the last 90 days, election results, Ballotpedia, local news. ' +
     'Return ONLY lines in this exact format, one per person, covering every person on our roster plus anyone currently serving who is missing:\n' +
-    'BODY | NAME | ROLE | PARTY | TERM | STATUS | SOURCE\n' +
-    'BODY is COUNCIL or PC. PARTY is R, D, I or blank. STATUS is one of CONFIRMED (on our roster, still serving), CHANGED (still serving but role, party or term differs - give the new values), DEPARTED (no longer serving), NEW (serving now but missing from our roster), UNVERIFIED (could not confirm either way). SOURCE is the URL relied on, or none. No commentary, no header line.';
+    'BODY | NAME | ROLE | PARTY | TERM | STATUS | EVIDENCE_DATE | SOURCE\n' +
+    'BODY: COUNCIL or PC. NAME: as the municipality spells it. ROLE: exactly one of President, Vice President, Member, then " · " and the seat (a district number, At-Large, or for PC the appointing authority such as Mayoral appt or Council appt). PARTY: R, D, I or blank; blank for PC members unless the record states it. TERM: start-end years or the expiry date the record gives, else blank. ' +
+    'STATUS: CONFIRMED (on our roster and still serving per the record), CHANGED (still serving but role, party or term differs — give the new values), DEPARTED (the record shows a resignation, a replacement, or a successor sworn in), NEW (serving now per the record but missing from our roster), UNVERIFIED (not found in the record). ' +
+    'EVIDENCE_DATE: the date of the page, minutes or result you relied on, YYYY-MM-DD, or blank. SOURCE: one URL — the page or document itself — or none. Never report DEPARTED or NEW from memory or from press alone. No commentary, no header line.';
   var lines = [], grounding = null;
   try {
     var text = await callGeminiProxy({ prompt: prompt, maxTokens: 4096, temperature: 0.1, tools: [{ googleSearch: {} }] });
@@ -2834,9 +2860,11 @@ async function updateMembersRoster(muniId, btn) {
       .filter(function (l) { return l.indexOf('|') > -1 && !/^BODY\s*\|/i.test(l); })
       .map(function (l) {
         var p = l.split('|').map(function (s) { return s.trim(); });
-        return { body: /pc|plan/i.test(p[0] || '') ? 'pc' : 'council', name: p[1] || '', role: p[2] || '', party: (p[3] || '').toUpperCase().replace(/[^RDI]/g, '').slice(0, 1), term: p[4] || '', status: (p[5] || '').toUpperCase().replace(/[^A-Z]/g, ''), source: (p[6] || '').replace(/^none$/i, '') };
+        var eight = p.length >= 8;
+        return { body: /pc|plan/i.test(p[0] || '') ? 'pc' : 'council', name: p[1] || '', role: p[2] || '', party: (p[3] || '').toUpperCase().replace(/[^RDI]/g, '').slice(0, 1), term: p[4] || '', status: (p[5] || '').toUpperCase().replace(/[^A-Z]/g, ''),
+                 evidence: eight ? ((p[6] || '').match(/\d{4}-\d{2}-\d{2}/) || [''])[0] : '', source: (eight ? p[7] : p[6]) || '' };
       }).filter(function (r) { return r.name && !/^name$/i.test(r.name); });
-    var counts = { CONFIRMED: 0, CHANGED: 0, DEPARTED: 0, NEW: 0, UNVERIFIED: 0 }, written = 0, failed = 0, stop = false;
+    var counts = { CONFIRMED: 0, CHANGED: 0, DEPARTED: 0, NEW: 0, UNVERIFIED: 0 }, written = 0, failed = 0, downgraded = 0, stop = false;
     if (btn) btn.textContent = 'Saving…';
     for (var i = 0; i < rows.length; i++) {
       var r = rows[i];
@@ -2845,11 +2873,19 @@ async function updateMembersRoster(muniId, btn) {
       var st = counts.hasOwnProperty(r.status) ? r.status : 'UNVERIFIED';
       if (mem && st === 'NEW') st = 'CONFIRMED';
       if (!mem && (st === 'CONFIRMED' || st === 'CHANGED')) st = 'NEW';
-      counts[st]++;
       var srcUrl = _firstSourceUrl(r.source) || undefined;
+      var tier = _sourceTier(srcUrl, hosts);
+      var ev = r.evidence ? ' · evidence ' + r.evidence : '';
       var srcLine = function (text) { return srcUrl ? { text: text, url: srcUrl } : text; };
-      if (st === 'UNVERIFIED') { lines.push(srcLine('UNVERIFIED · ' + r.name)); continue; }
-      if (stop) { lines.push(st + ' · ' + r.name + ' — not saved (writes stopped)'); continue; }
+      // The protocol's gate: a change needs an official source (tier 1 or 2).
+      if ((st === 'DEPARTED' || st === 'NEW' || st === 'CHANGED') && tier > 2) {
+        downgraded++;
+        lines.push(srcLine(st + ' → UNVERIFIED · ' + (mem ? mem.name : r.name) + ' — needs an official source, got ' + (srcUrl ? _srcLabel(srcUrl) : 'none') + ev));
+        st = 'UNVERIFIED';
+      }
+      counts[st]++;
+      if (st === 'UNVERIFIED') { if (!/→ UNVERIFIED/.test(String(lines[lines.length - 1] && (lines[lines.length - 1].text || lines[lines.length - 1])))) lines.push(srcLine('UNVERIFIED · ' + (mem ? mem.name : r.name) + ev)); continue; }
+      if (stop) { lines.push(st + ' · ' + (mem ? mem.name : r.name) + ' — not saved (writes stopped)'); continue; }
       var fields, applyFn;
       if (mem) {
         var bodyLabel = mem.body === 'PC' ? 'PC' : 'Council';
@@ -2859,23 +2895,24 @@ async function updateMembersRoster(muniId, btn) {
           if (r.party && r.party !== mem.party) ch.push('party ' + (mem.party || '—') + ' → ' + r.party);
           if (r.term && r.term !== mem.term)   ch.push('term ' + (mem.term || '—') + ' → ' + r.term);
           fields = { muni_id: muniId, body: bodyLabel, name: mem.name, role: r.role || undefined, party: r.party || undefined, term: r.term || undefined, status: 'current', source_url: srcUrl, confirmed_date: _today() };
-          applyFn = (function (mem, r) { return function () { if (r.role) mem.role = r.role; if (r.party) mem.party = r.party; if (r.term) mem.term = r.term; mem._status = ''; mem.status = 'current'; }; })(mem, r);
-          lines.push(srcLine('CHANGED · ' + mem.name + ': ' + (ch.join(', ') || 'no field actually differed')));
+          applyFn = (function (mem, r) { return function () { if (r.role) mem.role = r.role; if (r.party) mem.party = r.party; if (r.term) mem.term = r.term; mem._status = ''; mem.status = 'current'; mem.confirmed_date = _today(); }; })(mem, r);
+          lines.push(srcLine('CHANGED · ' + mem.name + ': ' + (ch.join(', ') || 'no field actually differed') + ev));
         } else if (st === 'DEPARTED') {
           fields = { muni_id: muniId, body: bodyLabel, name: mem.name, status: 'departed', source_url: srcUrl, confirmed_date: _today() };
           applyFn = (function (mem) { return function () { mem._status = 'departed'; mem.status = 'departed'; }; })(mem);
-          lines.push(srcLine('DEPARTED · ' + mem.name));
-        } else { // CONFIRMED
-          fields = { muni_id: muniId, body: bodyLabel, name: mem.name, status: 'current', source_url: srcUrl, confirmed_date: _today() };
+          lines.push(srcLine('DEPARTED · ' + mem.name + ev));
+        } else { // CONFIRMED — press-only confirmations are noted, still the status quo
+          fields = { muni_id: muniId, body: bodyLabel, name: mem.name, status: 'current', source_url: tier <= 2 ? srcUrl : undefined, confirmed_date: _today() };
           applyFn = (function (mem) { return function () { mem._status = ''; mem.status = 'current'; mem.confirmed_date = _today(); }; })(mem);
+          if (tier > 2) lines.push(srcLine('CONFIRMED (press only) · ' + mem.name + ev));
         }
-      } else { // NEW
+      } else { // NEW, official source
         fields = { muni_id: muniId, body: r.body === 'pc' ? 'PC' : 'Council', name: r.name, role: r.role || undefined, party: r.party || undefined, term: r.term || undefined, status: 'new', source_url: srcUrl, confirmed_date: _today() };
         applyFn = (function (r) { return function () {
           var list = m[r.body] || (m[r.body] = []);
           if (!list.some(function (x) { return _sameName(x.name, r.name); })) list.push({ name: r.name, role: r.role, party: r.party, term: r.term, body: r.body === 'pc' ? 'PC' : 'Council', status: 'new', _status: 'new', source_url: r.source });
         }; })(r);
-        lines.push(srcLine('NEW · ' + r.name + (r.role ? ' (' + r.role + ')' : '') + (r.body === 'pc' ? ' — plan commission' : ' — council')));
+        lines.push(srcLine('NEW · ' + r.name + (r.role ? ' (' + r.role + ')' : '') + (r.body === 'pc' ? ' — plan commission' : ' — council') + ' — accept or reject on the card' + ev));
       }
       try { await mipMemberWrite('upsert_member', fields); applyFn(); written++; }
       catch (e) {
@@ -2888,13 +2925,35 @@ async function updateMembersRoster(muniId, btn) {
       if (!rows.some(function (r) { return _sameName(r.name, x.name); })) lines.push('NOT MENTIONED · ' + x.name + ' — left unchanged');
     });
     if (written) invalidateMemberCaches();
-    lines.unshift('Confirmed ' + counts.CONFIRMED + ' · Changed ' + counts.CHANGED + ' · Departed ' + counts.DEPARTED + ' · New ' + counts.NEW + ' · Unverified ' + counts.UNVERIFIED + ' — of ' + known.length + ' on record · saved ' + written + (failed ? ' · failed ' + failed : ''));
-    lines.push(grounding && grounding.sources && grounding.sources.length ? MEMBER_SEARCH_CAVEAT : 'The reply carried no grounding sources — the model answered from memory this time; treat every change as a lead to verify.');
+    lines.unshift('Official hosts searched first: ' + (hosts.length ? hosts.join(', ') : 'none on record for this jurisdiction — only .gov / .in.us pages count as official'));
+    lines.unshift('Confirmed ' + counts.CONFIRMED + ' · Changed ' + counts.CHANGED + ' · Departed ' + counts.DEPARTED + ' · New ' + counts.NEW + ' · Unverified ' + counts.UNVERIFIED + (downgraded ? ' (' + downgraded + ' downgraded for lack of an official source)' : '') + ' — of ' + known.length + ' on record · saved ' + written + (failed ? ' · failed ' + failed : ''));
+    lines.push(grounding && grounding.sources && grounding.sources.length ? MEMBER_SEARCH_CAVEAT : 'The reply carried no grounding sources — the model answered from memory this time; nothing it reported should be trusted without the source.');
     appendMuniUpdateLog(muniId, 'Update Members', lines, grounding);
   } catch (e) {
     appendMuniUpdateLog(muniId, 'Update Members failed', [String(e && e.message || e), /Unauthorized|403/.test(String(e && e.message)) ? 'The backend needs the operator token: Settings → Operator Access.' : '']);
   }
   if (btn) { btn.disabled = false; btn.textContent = 'Update Members'; }
+  renderMuniPanel(); renderMemberDetail(null);
+}
+
+// Accept / Reject a NEW card, Restore a departed one — one write, one log line, no search.
+async function memberStatusAction(muniId, body, name, status, btn) {
+  var m = MUNICIPALITIES.find(function (x) { return x.id === muniId; });
+  if (!m) return;
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  var verb = status === 'current' ? 'Accepted' : 'Rejected';
+  try {
+    await mipMemberWrite('upsert_member', { muni_id: muniId, body: body, name: name, status: status, confirmed_date: _today() });
+    var list = m[body === 'PC' ? 'pc' : 'council'] || [];
+    var mem = list.find(function (x) { return _sameName(x.name, name); });
+    var was = mem ? memStatus(mem) : '';
+    if (mem) { mem.status = status; mem._status = status === 'departed' ? 'departed' : ''; mem.confirmed_date = _today(); }
+    if (was === 'departed' && status === 'current') verb = 'Restored';
+    invalidateMemberCaches();
+    appendMuniUpdateLog(muniId, verb + ' · ' + name, [verb + ' by the operator on the member list — ' + body + ' row now ' + status + '.']);
+  } catch (e) {
+    appendMuniUpdateLog(muniId, 'Roster change failed · ' + name, [String(e && e.message || e), /Unauthorized|403/.test(String(e && e.message)) ? 'The backend needs the operator token: Settings → Operator Access.' : '']);
+  }
   renderMuniPanel(); renderMemberDetail(null);
 }
 
@@ -4062,6 +4121,14 @@ function renderMemberCards(members) {
         <div class="member-tags">
           ${bodyTag}${partyTag}${termTag}${memStatus(mem) === 'new' ? '<span class="member-tag tag-new">NEW · VERIFY</span>' : memStatus(mem) === 'departed' ? '<span class="member-tag tag-departed">DEPARTED?</span>' : ''}
         </div>
+        ${(function () {
+          // p223r1: the review step for the roster protocol — one write each, no search.
+          var st = memStatus(mem); if (!st) return '';
+          var args = "'" + escAttr(currentMuni ? currentMuni.id : '') + "','" + escAttr(mem.body === 'PC' ? 'PC' : 'Council') + "','" + escAttr(mem.name) + "'";
+          return st === 'new'
+            ? '<div class="member-card-actions"><button class="mca-accept" onclick="event.stopPropagation();memberStatusAction(' + args + ",'current',this)\" title=\"Mark as a current member\">✓ Accept</button><button class=\"mca-reject\" onclick=\"event.stopPropagation();memberStatusAction(" + args + ",'departed',this)\" title=\"Not a member — mark departed\">✕ Reject</button></div>"
+            : '<div class="member-card-actions"><button class="mca-accept" onclick="event.stopPropagation();memberStatusAction(' + args + ",'current',this)\" title=\"Still serving — restore\">↩ Restore</button></div>";
+        })()}
       </div>
     `;
   }).join('');

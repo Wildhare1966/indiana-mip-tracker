@@ -3654,3 +3654,16 @@ body.agenda-panel-locked { overflow: hidden; }
 .muni-update-sources { margin-top: 4px; font-size: 10px; color: var(--text-dim); line-height: 1.5; word-break: break-word; }
 .muni-update-sources a { color: var(--accent); }
 .muni-update-line a { color: var(--accent); }
+/* p223r1: roster review controls on NEW / departed member cards */
+.member-card-actions { display: flex; gap: 4px; margin-top: 7px; }
+.mca-accept, .mca-reject {
+  font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 3px; cursor: pointer; letter-spacing: 0.03em;
+}
+.mca-accept { background: rgba(26,122,74,0.22); color: #6dc49a; border: 1px solid rgba(26,122,74,0.5); }
+.mca-accept:hover { background: rgba(26,122,74,0.35); }
+.mca-reject { background: rgba(139,48,48,0.2); color: #e08888; border: 1px solid rgba(139,48,48,0.45); }
+.mca-reject:hover { background: rgba(139,48,48,0.32); }
+.mca-accept:disabled, .mca-reject:disabled { opacity: 0.5; cursor: progress; }
+[data-theme="light"] .mca-accept { background: rgba(26,122,74,0.12); color: #1a5c3a; }
+[data-theme="light"] .mca-reject { background: rgba(139,48,48,0.10); color: #7a2525; }
