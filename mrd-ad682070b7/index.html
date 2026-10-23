@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p223r1 -->
+<!-- MIP build p223r2 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data: https:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p223r1">
+<link rel="stylesheet" href="styles.css?v=p223r2">
 </head>
 <body>
 
@@ -31,6 +31,9 @@
     <!-- <button class="topbar-btn" onclick="switchView('publichearings')" id="nav-publichearings">Hearing Schedule</button> -->
     <button class="topbar-btn" onclick="switchView('agendaitems')" id="nav-agendaitems">Agenda Items</button>
     <button class="topbar-btn" onclick="switchView('youtubeitems')" id="nav-youtubeitems">Youtube Items</button>
+    <!-- p223r2 / AGD-232 (Ty, 2026-10-23): Summary Status — videos with a missing or suspect Summary; priority + a queue
+         the 04:00 local transcript task works. Badge = rows still open. -->
+    <button class="topbar-btn" onclick="switchView('summarystatus')" id="nav-summarystatus">Summary Status <span id="nav-ss-badge" style="display:none;background:#9a5b00;color:#fff;font-size:9px;font-weight:700;padding:0 6px;border-radius:9px;margin-left:2px;vertical-align:middle;"></span></button>
     <button class="topbar-btn" onclick="switchView('candidates')" id="nav-candidates">Candidates <span id="nav-cand-badge" style="display:none;background:#1c7c3a;color:#fff;font-size:9px;font-weight:700;padding:0 6px;border-radius:9px;margin-left:2px;vertical-align:middle;"></span></button>
     <!-- p204r1 (Ty, 2026-09-26): Suggested Matches (P134) and Parse Status (P121) retired here;
          Jurisdiction Status takes the slot. -->
@@ -753,6 +756,34 @@
     </div>
 
     <!-- SCHEDULE & REQUIREMENTS VIEW -->
+    <!-- p223r2 / AGD-232: SUMMARY STATUS VIEW -->
+    <div id="view-summarystatus" class="view">
+      <div style="padding:24px 32px;">
+        <div style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;">
+          <div>
+            <div class="overview-title">Summary Status</div>
+            <div class="overview-sub">Hearing videos whose Summary is <b>missing</b> or <b>suspect</b> (cut short, or naming only an earlier year), newest hearing first. Set a <b>priority</b> (1 = first) and <b>Queue</b> a row: the 04:00 local transcript task works the queue each night — captions, retire the old Summary if there is one, draft the new one — and writes the result back here. <b>Not needed</b> hides a row; <b>No source</b> marks a video that has no usable recording. YouTube's rate limit can stop a night early; queued rows carry over.</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <select id="ss-f-kind" onchange="ssRender()" title="Problem" style="font-size:12px;padding:4px 8px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:5px;">
+              <option value="">All problems</option><option value="missing">No Summary</option><option value="truncated">Cut short</option><option value="suspect_year">Wrong year</option>
+            </select>
+            <select id="ss-f-status" onchange="ssRender()" title="Status" style="font-size:12px;padding:4px 8px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:5px;">
+              <option value="open">Open</option><option value="queued">Queued / running</option><option value="failed">Failed</option><option value="done">Done</option><option value="not_needed">Not needed / no source</option><option value="all">All</option>
+            </select>
+            <select id="ss-f-juris" onchange="ssRender()" title="Jurisdiction" style="font-size:12px;padding:4px 8px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:5px;"><option value="">All jurisdictions</option></select>
+            <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="ss-f-tracked" onchange="ssRender()"> Tracked jurisdictions</label>
+            <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="ss-f-route" onchange="ssRender()" checked> Has a route</label>
+            <button class="refresh-btn" id="ss-bulk-queue" onclick="ssBulk('queued')" style="display:none;">Queue selected</button>
+            <button class="refresh-btn" id="ss-bulk-skip" onclick="ssBulk('not_needed')" style="display:none;">Not needed</button>
+            <button class="refresh-btn" onclick="ssLoad(true)" title="Re-read from the backend">↺ Refresh</button>
+          </div>
+        </div>
+        <div id="ss-summary" class="js-sub" style="margin-bottom:8px;"></div>
+        <div id="ss-list"><div style="color:var(--text-dim);">Loading Summary status…</div></div>
+      </div>
+    </div>
+
     <div id="view-schedule" class="view">
       <div style="padding:24px 32px;max-width:1200px;margin:0 auto;width:100%;">
         <div style="margin-bottom:20px;">
@@ -12594,6 +12625,135 @@ function jsExportCsv(){
   setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },500);
 }
 registerViewInit('jurisstatus', function(){ jsLoad(false); });
+
+// ═══ p223r2 / AGD-232 (Ty, 2026-10-23): Summary Status ═══════════════════════════════════════════
+// Read: summary_status (public). Write: summary_queue_set (token-gated) — priority, status (queued |
+// not_needed | clear), disposition (no-source | clear). The 04:00 local transcript task works the
+// queued rows in priority order and writes running / delivered / done / failed back.
+var _ssRows=[], _ssSel={}, _ssMeta={}, _ssSort='date';
+var SS_KIND={missing:'No Summary',truncated:'Cut short',suspect_year:'Wrong year',resolved:'Resolved'};
+var SS_WHY={TRANSCRIPT_FETCH_FAILED:'transcript fetch failed',NO_TRANSCRIPT_NO_DOC:'no transcript',NEEDS_REVIEW_NO_DOC:'needs review',
+  AWAITING_CAPTIONS:'awaiting captions',HALLUCINATED_NO_DOC:'Summary rejected as invented'};
+function _ssNeedToken(){ if(getAuthToken()) return true; alert('Set the operator token in Settings to prioritise or queue Summaries.'); return false; }
+function _ssJ(j){ var n=String(j||'').toLowerCase().replace(/-/g,' ').replace(/,?\s*indiana\b/,'').replace(/^(city|town) of\s+/,'').replace(/\s+/g,' ').trim(); return n.replace(/\b([a-z])/g,function(c){ return c.toUpperCase(); }); }
+function _ssClosed(r){ return r.kind==='resolved'||r.status==='done'||r.status==='not_needed'||!!r.disposition; }
+function ssLoad(force){
+  var el=document.getElementById('ss-list'); if(!el) return;
+  if(!getWebAppUrl()){ el.innerHTML='<div style="color:var(--text-dim);">No dashboard connection configured.</div>'; return; }
+  if(force||!_ssRows.length) el.innerHTML='<div style="color:var(--text-dim);">Loading Summary status…</div>';
+  mipReadFetch('&action=summary_status').then(function(res){
+    if(!res||!res.ok){ el.innerHTML='<div style="color:var(--text-dim);">Could not load Summary status: '+_diagEsc((res&&res.error)||'unknown')+'</div>'; return; }
+    _ssRows=res.rows||[]; _ssMeta={generated_at:res.generated_at, audit:res.audit||{}}; _ssSel={};
+    var sel=document.getElementById('ss-f-juris'), cur=sel?sel.value:'', js={};
+    _ssRows.forEach(function(r){ var j=_ssJ(r.jurisdiction); if(j) js[j]=(js[j]||0)+1; });
+    if(sel){ sel.innerHTML='<option value="">All jurisdictions</option>'+Object.keys(js).sort().map(function(j){ return '<option value="'+escAttr(j)+'"'+(j===cur?' selected':'')+'>'+_diagEsc(j)+' ('+js[j]+')</option>'; }).join(''); }
+    ssRender();
+  }).catch(function(e){ el.innerHTML='<div style="color:var(--text-dim);">Could not load Summary status: '+_diagEsc(e&&e.message)+'</div>'; });
+}
+function _ssFiltered(){
+  var g=function(id){ var e=document.getElementById(id); return e?(e.type==='checkbox'?e.checked:e.value):''; };
+  var kind=g('ss-f-kind'), st=g('ss-f-status')||'open', jur=g('ss-f-juris'), tr=g('ss-f-tracked'), rt=g('ss-f-route');
+  var rows=_ssRows.filter(function(r){
+    if(kind&&r.kind!==kind) return false;
+    if(jur&&_ssJ(r.jurisdiction)!==jur) return false;
+    if(tr&&!(r.tracked_in_jurisdiction>0||(r.projects||[]).length)) return false;
+    if(rt&&r.kind!=='resolved'&&String(r.route||'').indexOf('yes')!==0) return false;
+    if(st==='open') return !_ssClosed(r);
+    if(st==='queued') return r.status==='queued'||r.status==='running'||r.status==='delivered';
+    if(st==='failed') return r.status==='failed';
+    if(st==='done') return r.status==='done'||r.kind==='resolved';
+    if(st==='not_needed') return r.status==='not_needed'||!!r.disposition;
+    return true;
+  });
+  rows.sort(function(a,b){
+    if(_ssSort==='priority'){ var pa=a.priority==null?99999:a.priority, pb=b.priority==null?99999:b.priority; if(pa!==pb) return pa-pb; }
+    return String(b.meeting_date||'').localeCompare(String(a.meeting_date||''));
+  });
+  return rows;
+}
+function ssSetSort(k){ _ssSort=k; ssRender(); }
+function _ssBadge(){
+  var b=document.getElementById('nav-ss-badge'); if(!b) return;
+  var n=_ssRows.filter(function(r){ return !_ssClosed(r)&&String(r.route||'').indexOf('yes')===0; }).length;
+  b.textContent=n; b.style.display=n?'':'none';
+}
+function ssRender(){
+  var el=document.getElementById('ss-list'); if(!el) return;
+  var rows=_ssFiltered(), sum=document.getElementById('ss-summary'), c={};
+  _ssRows.forEach(function(r){ c[r.kind]=(c[r.kind]||0)+1; if(r.status) c['s_'+r.status]=(c['s_'+r.status]||0)+1; });
+  if(sum){
+    var a=_ssMeta.audit||{}, last=''; try{ last=a.last_tick?JSON.parse(a.last_tick).at:''; }catch(e){}
+    sum.innerHTML='Showing <b>'+rows.length+'</b> of '+_ssRows.length+' &middot; '+(c.missing||0)+' with no Summary, '+(c.truncated||0)+' cut short, '+(c.suspect_year||0)+' wrong year'
+      +' &middot; queue: <b>'+((c.s_queued||0)+(c.s_running||0))+'</b> queued, '+(c.s_delivered||0)+' delivered, '+(c.s_failed||0)+' failed'
+      +(last?' &middot; audit last read '+_diagEsc(String(last).slice(0,16).replace('T',' '))+' UTC':'')
+      +' &middot; sort: <a href="#" onclick="ssSetSort(\''+(_ssSort==='date'?'priority':'date')+'\');return false;">'+(_ssSort==='date'?'newest first':'priority')+'</a>';
+  }
+  var nSel=Object.keys(_ssSel).length;
+  ['ss-bulk-queue','ss-bulk-skip'].forEach(function(id){ var b=document.getElementById(id); if(b){ b.style.display=nSel?'':'none'; b.textContent=(id==='ss-bulk-queue'?'Queue selected':'Not needed')+' ('+nSel+')'; } });
+  _ssBadge();
+  if(!rows.length){ el.innerHTML='<div style="color:var(--text-dim);padding:18px 0;">Nothing matches these filters.</div>'; return; }
+  var html='<div style="overflow:auto;max-height:calc(100vh - 250px);border:1px solid var(--border);border-radius:4px;"><table id="ss-table"><thead><tr>'
+    +'<th><input type="checkbox" onchange="ssSelectAll(this.checked)" title="Select every row shown"></th>'
+    +'<th title="1 = first; blank = after every numbered row">Priority</th><th>Hearing</th><th>Jurisdiction</th><th>Body</th><th>Problem</th><th>Tracked</th><th>Route</th><th>Status</th><th>Links</th><th style="text-align:right;">Action</th></tr></thead><tbody>';
+  rows.forEach(function(r){
+    var id=String(r.meeting_id), ida=escAttr(id), st=r.status||'', canRoute=String(r.route||'').indexOf('yes')===0;
+    var prob=SS_KIND[r.kind]||r.kind;
+    var why=r.kind==='missing'?(SS_WHY[r.problem]||r.problem):r.problem;
+    var tracked=(r.projects||[]).length?_diagEsc((r.projects||[]).join('; ')):(r.tracked_in_jurisdiction?r.tracked_in_jurisdiction+' in jurisdiction':'<span style="color:var(--text-dim);">0</span>');
+    var stTxt=r.disposition?('no source'===r.disposition||r.disposition==='no-source'?'no source':r.disposition):(st||'—');
+    var stCol={queued:'#d9a400',running:'#d9a400',delivered:'#3a8ee6',done:'#5ad37f',failed:'#e05d5d',not_needed:'var(--text-dim)'}[st]||(r.disposition?'var(--text-dim)':'inherit');
+    var links=(r.video_id?'<a href="https://youtu.be/'+escAttr(r.video_id)+'" target="_blank" rel="noopener">video</a>':'')
+      +(r.summary_doc?' &middot; <a href="'+escUrl(r.summary_doc)+'" target="_blank" rel="noopener">Summary</a>':'');
+    var acts='';
+    if(r.kind!=='resolved'){
+      if(canRoute&&st!=='queued'&&st!=='running'&&!r.disposition) acts+='<button class="refresh-btn tt-btn-sm tt-btn-go" onclick="ssSet(\''+ida+'\',{status:\'queued\'},this)" title="The 04:00 local task drafts it">Queue</button> ';
+      if(st!=='not_needed'&&!r.disposition) acts+='<button class="refresh-btn tt-btn-sm" onclick="ssSet(\''+ida+'\',{status:\'not_needed\'},this)">Not needed</button> ';
+      if(r.kind==='missing'&&!r.disposition) acts+='<button class="refresh-btn tt-btn-sm" onclick="ssSet(\''+ida+'\',{disposition:\'no-source\'},this)" title="No usable recording: stop the daily alarm">No source</button> ';
+      if(st||r.disposition) acts+='<button class="refresh-btn tt-btn-sm" onclick="ssSet(\''+ida+'\',{status:\'clear\''+(r.disposition?',disposition:\'clear\'':'')+'},this)" title="Back to open">Clear</button>';
+    }
+    html+='<tr>'
+      +'<td><input type="checkbox" '+(_ssSel[id]?'checked':'')+' onchange="ssToggleSel(\''+ida+'\',this.checked)"></td>'
+      +'<td><input type="number" min="0" max="9999" value="'+(r.priority==null?'':r.priority)+'" style="width:56px;font-size:12px;padding:2px 4px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:4px;" onchange="ssSet(\''+ida+'\',{priority:this.value},null)"'+(r.kind==='resolved'?' disabled':'')+'></td>'
+      +'<td style="white-space:nowrap;">'+_diagEsc(r.meeting_date||'—')+'</td>'
+      +'<td>'+_diagEsc(_ssJ(r.jurisdiction)||'—')+'</td>'
+      +'<td>'+_diagEsc(r.meeting_type||'—')+'</td>'
+      +'<td><b>'+_diagEsc(prob)+'</b>'+(why?'<div style="font-size:11px;color:var(--text-dim);">'+_diagEsc(why)+'</div>':'')+'</td>'
+      +'<td style="max-width:240px;">'+tracked+'</td>'
+      +'<td style="font-size:11px;">'+(canRoute?'<span style="color:#5ad37f;">yes</span>':_diagEsc(String(r.route||'').replace(/^no:\s*/,'no — ')))+'</td>'
+      +'<td><span style="color:'+stCol+';font-weight:600;">'+_diagEsc(stTxt)+'</span>'+(r.result?'<div style="font-size:10px;color:var(--text-dim);max-width:260px;">'+_diagEsc(r.result)+(r.result_at?' &middot; '+_diagEsc(String(r.result_at).slice(0,16).replace('T',' ')):'')+'</div>':'')+(r.note?'<div style="font-size:10px;color:var(--text-dim);">'+_diagEsc(r.note)+'</div>':'')+'</td>'
+      +'<td style="white-space:nowrap;">'+(links||'—')+'</td>'
+      +'<td style="text-align:right;white-space:nowrap;">'+acts+'</td></tr>';
+  });
+  el.innerHTML=html+'</tbody></table></div>';
+}
+function ssToggleSel(id,on){ if(on) _ssSel[id]=true; else delete _ssSel[id]; ssRender(); }
+function ssSelectAll(on){ _ssSel={}; if(on) _ssFiltered().forEach(function(r){ if(r.kind!=='resolved') _ssSel[String(r.meeting_id)]=true; }); ssRender(); }
+// One write for one or many rows; the rows update locally from the reply, then a quiet re-read.
+function ssSet(ids, f, btn){
+  if(!_ssNeedToken()) return;
+  var list=Array.isArray(ids)?ids:[ids]; if(!list.length) return;
+  if(f.priority!==undefined&&f.priority!==''&&!/^\d{1,4}$/.test(String(f.priority))){ alert('Priority is a whole number (1 = first), or blank.'); return; }
+  var q='&action=summary_queue_set&meeting_ids='+encodeURIComponent(list.join(','));
+  Object.keys(f).forEach(function(k){ q+='&'+k+'='+encodeURIComponent(f[k]); });
+  if(btn){ btn.disabled=true; btn.textContent='Saving…'; }
+  mipWriteFetch(q).then(function(r){
+    if(!r||!r.ok){ alert('Save failed: '+((r&&(r.error||(r.errors||[]).join('; ')))||'unknown')); if(btn){ btn.disabled=false; btn.textContent='Retry'; } return; }
+    var done={}; (r.updated||[]).forEach(function(id){ done[id]=true; });
+    _ssRows.forEach(function(x){ if(!done[String(x.meeting_id)]) return;
+      if(f.status!==undefined){ x.status=f.status==='clear'?'':f.status; if(f.status==='queued'){ x.result=''; } }
+      if(f.priority!==undefined) x.priority=f.priority===''?null:Number(f.priority);
+      if(f.disposition!==undefined) x.disposition=f.disposition==='clear'?'':f.disposition; });
+    list.forEach(function(id){ delete _ssSel[id]; });
+    if((r.errors||[]).length) alert('Some rows were not saved:\n'+r.errors.join('\n'));
+    ssRender();
+  }).catch(function(e){ alert('Save failed: '+(e&&e.message)); if(btn){ btn.disabled=false; btn.textContent='Retry'; } });
+}
+function ssBulk(status){
+  var ids=Object.keys(_ssSel); if(!ids.length) return;
+  if(!confirm((status==='queued'?'Queue ':'Mark not needed: ')+ids.length+' row'+(ids.length===1?'':'s')+'?')) return;
+  ssSet(ids,{status:status},document.getElementById(status==='queued'?'ss-bulk-queue':'ss-bulk-skip'));
+}
+registerViewInit('summarystatus', function(){ ssLoad(false); });
 window.jsLoad = jsLoad; window.jsRender = jsRender; window.jsNoteChanged = jsNoteChanged; window.jsNoteSave = jsNoteSave;
 window.jsNoteRestore = jsNoteRestore; window.jsExportCsv = jsExportCsv;
 
@@ -13952,6 +14112,11 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
   #tt-table th{position:sticky;top:0;z-index:1;background:var(--bg-card,#1a1a1a);text-align:left;padding:8px 6px;border-bottom:1px solid var(--border);white-space:nowrap;}
   #tt-table td{padding:6px;border-bottom:1px solid var(--border);vertical-align:top;}
   #tt-table tr:hover td{background:rgba(127,127,127,0.06);}
+  /* p223r2 / AGD-232: Summary Status — the Tracked Topics table geometry */
+  #ss-table{width:100%;border-collapse:collapse;font-size:11px;}
+  #ss-table th{position:sticky;top:0;z-index:1;background:var(--bg-card,#1a1a1a);text-align:left;padding:8px 6px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  #ss-table td{padding:6px;border-bottom:1px solid var(--border);vertical-align:top;}
+  #ss-table tr:hover td{background:rgba(127,127,127,0.06);}
   .tt-kw{display:inline-block;background:rgba(27,124,58,0.18);color:#5ad37f;border-radius:9px;padding:0 7px;font-size:10px;font-weight:600;margin:1px 2px 1px 0;white-space:nowrap;}
   [data-theme="light"] .tt-kw{color:#1c7c3a;}
   .tt-src{display:inline-block;border-radius:3px;padding:0 5px;font-size:9px;font-weight:700;letter-spacing:.03em;}
