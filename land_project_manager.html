@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Land Project Manager</title>
+<style>
+  :root{
+    --bg:#f1f4f8; --panel:#ffffff; --ink:#15202b; --muted:#4a5560;
+    --line:#dfe5ec; --brand:#1b4965; --brand2:#236a87; --accent:#e8a30c;
+    --good:#2e8b57; --bad:#c0392b; --shadow:0 1px 3px rgba(16,30,54,.08),0 1px 2px rgba(16,30,54,.06);
+  }
+  :root{color-scheme:light}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--ink);font-size:14px;line-height:1.4}
+
+  header.app{background:var(--brand);color:#fff;padding:10px 20px;display:flex;flex-wrap:wrap;
+    align-items:center;justify-content:space-between;gap:10px 16px;box-shadow:var(--shadow);position:sticky;top:0;z-index:30}
+  header.app h1{font-size:17px;margin:0;font-weight:700;letter-spacing:.2px;white-space:nowrap}
+  header.app .sub{font-size:12px;opacity:.85;font-weight:400}
+  .hdr-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+  .seg button{border:none;background:#fff;padding:7px 13px;font-size:13px;font-weight:600;cursor:pointer;color:var(--muted)}
+  .seg button+button{border-left:1px solid var(--line)}
+  .seg button.active{background:var(--brand2);color:#fff}
+  .seg.dark{border-color:rgba(255,255,255,.5)}
+  .seg.dark button{background:transparent;color:#eaf2f7}
+  .seg.dark button+button{border-left-color:rgba(255,255,255,.35)}
+  .seg.dark button.active{background:#fff;color:var(--brand)}
+
+  .btn{border:1px solid var(--line);background:#fff;color:var(--brand2);border-radius:7px;
+    padding:7px 13px;font-size:13px;font-weight:600;cursor:pointer;line-height:1.2}
+  .btn:hover{background:#f3f9fc}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#3a2c00}
+  .btn.primary:hover{filter:brightness(1.05)}
+  .btn.danger{color:var(--bad)}
+  .btn.small{padding:4px 9px;font-size:12px}
+
+  main.content{max-width:1280px;margin:0 auto;padding:18px 22px}
+
+  /* ---- summary tiles ---- */
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+  .tile{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:12px 14px;box-shadow:var(--shadow)}
+  .tile .t-label{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:700}
+  .tile .t-value{font-size:24px;font-weight:800;color:var(--brand);margin-top:2px}
+  .tile .t-note{font-size:11.5px;color:var(--muted);margin-top:2px}
+
+  /* ---- toolbar ---- */
+  .toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+  .toolbar input[type=search]{flex:1 1 220px;max-width:340px;border:1px solid var(--line);border-radius:7px;
+    padding:7px 11px;font-size:13px;background:#fff;outline:none}
+  .toolbar input[type=search]:focus{border-color:var(--brand2)}
+  .toolbar select{border:1px solid var(--line);border-radius:7px;padding:7px 9px;font-size:13px;background:#fff}
+
+  /* ---- pipeline board ---- */
+  .board{display:flex;gap:12px;align-items:flex-start;overflow-x:auto;padding-bottom:10px}
+  .col{flex:0 0 232px;background:#e9eef4;border:1px solid var(--line);border-radius:9px;min-height:120px}
+  .col-head{padding:9px 11px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;
+    color:var(--muted);display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line)}
+  .col-head .cnt{background:#fff;border:1px solid var(--line);border-radius:10px;padding:1px 8px;font-size:11px;color:var(--brand2)}
+  .col-body{padding:8px;display:flex;flex-direction:column;gap:8px;min-height:60px}
+  .col-body.dragover{outline:2px dashed var(--brand2);outline-offset:-4px;border-radius:8px}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 11px;
+    box-shadow:var(--shadow);cursor:pointer}
+  .card:hover{border-color:var(--brand2)}
+  .card.dragging{opacity:.45}
+  .card .c-name{font-weight:700;font-size:13.5px;margin-bottom:2px}
+  .card .c-meta{font-size:11.5px;color:var(--muted)}
+  .card .c-foot{display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:11px}
+  .card .c-date{color:var(--muted)}
+  .card .c-date.overdue{color:var(--bad);font-weight:700}
+  .card .c-date.soon{color:var(--accent);font-weight:700}
+  .card .c-tasks{color:var(--brand2);font-weight:600}
+
+  .stage-chip{display:inline-block;border-radius:10px;padding:1px 9px;font-size:11px;font-weight:700;color:#fff}
+
+  /* ---- table view ---- */
+  .tablewrap{background:var(--panel);border:1px solid var(--line);border-radius:9px;box-shadow:var(--shadow);overflow-x:auto}
+  table.projects{border-collapse:collapse;width:100%;font-size:13px}
+  table.projects th{position:sticky;top:0;background:#f6f8fb;text-align:left;font-size:11.5px;text-transform:uppercase;
+    letter-spacing:.4px;color:var(--muted);padding:9px 11px;border-bottom:1px solid var(--line);white-space:nowrap;cursor:pointer;user-select:none}
+  table.projects th .arrow{font-size:10px;color:var(--brand2)}
+  table.projects td{padding:8px 11px;border-bottom:1px solid var(--line);white-space:nowrap}
+  table.projects tbody tr{cursor:pointer}
+  table.projects tbody tr:hover{background:#f3f9fc}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  .empty-note{padding:26px;text-align:center;color:var(--muted);font-size:13.5px}
+
+  /* ---- deadlines view ---- */
+  .dl-list{background:var(--panel);border:1px solid var(--line);border-radius:9px;box-shadow:var(--shadow);overflow:hidden}
+  .dl-row{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line);cursor:pointer}
+  .dl-row:last-child{border-bottom:none}
+  .dl-row:hover{background:#f3f9fc}
+  .dl-when{flex:0 0 120px;font-weight:700;font-variant-numeric:tabular-nums}
+  .dl-when.overdue{color:var(--bad)}
+  .dl-when.soon{color:var(--accent)}
+  .dl-what{flex:1}
+  .dl-what .dw-title{font-weight:600}
+  .dl-what .dw-sub{font-size:12px;color:var(--muted)}
+  .dl-days{flex:0 0 auto;font-size:12px;color:var(--muted)}
+
+  /* ---- detail drawer ---- */
+  .overlay{display:none;position:fixed;inset:0;background:rgba(16,30,54,.42);z-index:40}
+  .overlay.open{display:block}
+  .drawer{position:fixed;top:0;right:0;bottom:0;width:min(640px,96vw);background:var(--panel);z-index:50;
+    box-shadow:-4px 0 18px rgba(16,30,54,.22);transform:translateX(102%);transition:transform .18s ease;display:flex;flex-direction:column}
+  .drawer.open{transform:translateX(0)}
+  .drawer-head{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;background:#f6f8fb}
+  .drawer-head h2{margin:0;font-size:16px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .drawer-body{flex:1;overflow-y:auto;padding:16px 18px}
+  .drawer-foot{padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:space-between;background:#f6f8fb}
+
+  .fgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+  .fgrid .wide{grid-column:1/-1}
+  .field label{display:block;font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px}
+  .field input,.field select,.field textarea{width:100%;border:1px solid var(--line);border-radius:6px;
+    padding:7px 9px;font-size:13px;background:#fff;outline:none;font-family:inherit}
+  .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--brand2)}
+  .field textarea{resize:vertical;min-height:64px}
+
+  .sect{margin-top:20px}
+  .sect>h3{font-size:12.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);
+    border-bottom:1px solid var(--line);padding-bottom:5px;margin:0 0 10px}
+
+  /* tasks */
+  .task-row{display:flex;align-items:center;gap:8px;padding:5px 0}
+  .task-row input[type=checkbox]{margin:0}
+  .task-row .t-name{flex:1;border:none;background:transparent;font-size:13px;padding:3px 4px;border-radius:4px;outline:none}
+  .task-row .t-name:focus{background:#f3f9fc}
+  .task-row.done .t-name{text-decoration:line-through;color:var(--muted)}
+  .task-row input[type=date]{border:1px solid var(--line);border-radius:5px;font-size:12px;padding:3px 5px}
+  .task-row .t-owner{width:90px;border:1px solid var(--line);border-radius:5px;font-size:12px;padding:3px 6px;outline:none}
+  .task-row .t-due-flag{font-size:11px;font-weight:700;width:58px;text-align:right}
+  .task-row .t-due-flag.overdue{color:var(--bad)}
+  .task-row .t-due-flag.soon{color:var(--accent)}
+  .icon-x{border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:14px;padding:2px 6px;border-radius:4px}
+  .icon-x:hover{color:var(--bad);background:#faeceb}
+  .add-inline{display:flex;gap:8px;margin-top:6px}
+  .add-inline input{flex:1;border:1px solid var(--line);border-radius:6px;padding:6px 9px;font-size:13px;outline:none}
+
+  /* contacts / links */
+  .kv-row{display:flex;gap:8px;align-items:center;padding:4px 0}
+  .kv-row input{border:1px solid var(--line);border-radius:5px;font-size:12.5px;padding:5px 7px;outline:none}
+  .kv-row .k{width:130px}
+  .kv-row .v{flex:1}
+  .kv-row a{font-size:12px;color:var(--brand2);white-space:nowrap}
+
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--ink);color:#fff;
+    padding:9px 18px;border-radius:8px;font-size:13px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:opacity .2s;z-index:80}
+  .toast.show{opacity:.95}
+
+  @media (max-width:720px){
+    .fgrid{grid-template-columns:1fr}
+    main.content{padding:14px 12px}
+  }
+</style>
+</head>
+<body>
+
+<header class="app">
+  <div>
+    <h1>Land Project Manager</h1>
+    <div class="sub">Deal pipeline · due diligence · entitlement · closing</div>
+  </div>
+  <div class="hdr-actions">
+    <div class="seg dark" id="viewSeg">
+      <button data-view="board" class="active">Pipeline</button>
+      <button data-view="table">Table</button>
+      <button data-view="deadlines">Deadlines</button>
+    </div>
+    <button class="btn primary" id="btnNew">+ New Project</button>
+    <button class="btn" id="btnExport" title="Download all data as JSON">Export</button>
+    <button class="btn" id="btnImport" title="Restore from a JSON export">Import</button>
+    <input type="file" id="importFile" accept="application/json" style="display:none">
+  </div>
+</header>
+
+<main class="content">
+  <div class="tiles" id="tiles"></div>
+
+  <div class="toolbar">
+    <input type="search" id="q" placeholder="Search name, seller, jurisdiction, county…">
+    <select id="fltCounty"><option value="">All counties</option></select>
+    <select id="fltStage"><option value="">All stages</option></select>
+    <label style="font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:5px">
+      <input type="checkbox" id="showDead"> show closed / dead
+    </label>
+  </div>
+
+  <section id="viewBoard" class="board"></section>
+
+  <section id="viewTable" style="display:none">
+    <div class="tablewrap"><table class="projects">
+      <thead id="tblHead"></thead><tbody id="tblBody"></tbody>
+    </table><div class="empty-note" id="tblEmpty" style="display:none"></div></div>
+  </section>
+
+  <section id="viewDeadlines" style="display:none">
+    <div class="dl-list" id="dlList"></div>
+  </section>
+</main>
+
+<div class="overlay" id="overlay"></div>
+<aside class="drawer" id="drawer" aria-label="Project detail">
+  <div class="drawer-head">
+    <h2 id="dTitle">Project</h2>
+    <span class="stage-chip" id="dStageChip"></span>
+    <button class="icon-x" id="btnCloseDrawer" title="Close">✕</button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+  <div class="drawer-foot">
+    <button class="btn danger" id="btnDelete">Delete project</button>
+    <span style="font-size:12px;color:var(--muted);align-self:center" id="savedNote">Changes save automatically</span>
+  </div>
+</aside>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* =====================================================================
+   Land Project Manager — self-contained, no backend.
+   All data lives in localStorage under LS_KEY; Export/Import moves it
+   between machines. Shape: {version, projects:[{...}]}
+   ===================================================================== */
+
+const LS_KEY = "lpm_data_v1";
+
+const STAGES = [
+  {id:"prospect",   label:"Prospect",       color:"#6c7a89"},
+  {id:"loi",        label:"LOI",            color:"#8e6bb5"},
+  {id:"contract",   label:"Under Contract", color:"#236a87"},
+  {id:"dd",         label:"Due Diligence",  color:"#e8a30c"},
+  {id:"entitle",    label:"Entitlement",    color:"#c0662b"},
+  {id:"closed",     label:"Closed",         color:"#2e8b57"},
+  {id:"dead",       label:"Dead",           color:"#c0392b"},
+];
+const stageById = id => STAGES.find(s=>s.id===id) || STAGES[0];
+
+/* Key dates shown on the project + fed to the Deadlines view */
+const DATE_FIELDS = [
+  {key:"loiDate",       label:"LOI signed"},
+  {key:"contractDate",  label:"Contract executed"},
+  {key:"ddExpires",     label:"DD expiration",     deadline:true},
+  {key:"hearingDate",   label:"Entitlement hearing",deadline:true},
+  {key:"closingDate",   label:"Closing",           deadline:true},
+];
+
+const DEFAULT_TASKS = [
+  "Order title work","Order ALTA survey","Phase I environmental","Geotech borings",
+  "Wetland delineation","Utility availability letters","Traffic study (if required)",
+  "Zoning / entitlement pre-app meeting","School & impact fee check","Drainage / stormwater review",
+];
+
+let data = load();
+let view = "board";
+let sortCol = "name", sortDir = 1;
+let openId = null;   // project id currently in the drawer
+
+/* ---------- persistence ---------- */
+function load(){
+  try{
+    const raw = localStorage.getItem(LS_KEY);
+    if(raw){ const d = JSON.parse(raw); if(d && Array.isArray(d.projects)) return d; }
+  }catch(e){ console.warn("LPM: could not parse saved data", e); }
+  return {version:1, projects:[]};
+}
+function save(){
+  try{ localStorage.setItem(LS_KEY, JSON.stringify(data)); }
+  catch(e){ toast("⚠ Could not save (storage full?)"); }
+}
+function uid(){ return "p" + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+function newProject(name){
+  return {
+    id: uid(), name: name || "Untitled project", stage: "prospect",
+    county:"", jurisdiction:"", seller:"", acreage:"", lots:"",
+    price:"", earnest:"", notes:"", driveUrl:"",
+    loiDate:"", contractDate:"", ddExpires:"", hearingDate:"", closingDate:"",
+    tasks: DEFAULT_TASKS.map(t=>({id:uid(), name:t, done:false, due:"", owner:""})),
+    contacts: [], links: [],
+    created: new Date().toISOString(),
+  };
+}
+
+/* ---------- helpers ---------- */
+const $ = sel => document.querySelector(sel);
+const esc = s => String(s??"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmtMoney = v => { const n = parseFloat(v); return isFinite(n) ? "$"+n.toLocaleString(undefined,{maximumFractionDigits:0}) : ""; };
+const fmtNum = v => { const n = parseFloat(v); return isFinite(n) ? n.toLocaleString() : ""; };
+function perLot(p){ const pr=parseFloat(p.price), l=parseFloat(p.lots); return (isFinite(pr)&&isFinite(l)&&l>0) ? pr/l : null; }
+function daysUntil(iso){
+  if(!iso) return null;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const d = new Date(iso+"T00:00:00");
+  return Math.round((d - today) / 86400000);
+}
+function dateFlag(iso){
+  const n = daysUntil(iso);
+  if(n===null) return "";
+  if(n<0) return "overdue";
+  if(n<=14) return "soon";
+  return "";
+}
+function fmtDate(iso){
+  if(!iso) return "";
+  const d = new Date(iso+"T00:00:00");
+  return d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"});
+}
+function nextDeadline(p){
+  let best = null;
+  for(const f of DATE_FIELDS){
+    if(!f.deadline || !p[f.key]) continue;
+    const n = daysUntil(p[f.key]);
+    if(p.stage==="closed"||p.stage==="dead") continue;
+    if(best===null || n < best.days) best = {days:n, label:f.label, date:p[f.key]};
+  }
+  return best;
+}
+function toast(msg){
+  const t = $("#toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast._h); toast._h = setTimeout(()=>t.classList.remove("show"), 2200);
+}
+
+/* ---------- filtering ---------- */
+function visibleProjects(){
+  const q = $("#q").value.trim().toLowerCase();
+  const county = $("#fltCounty").value, stage = $("#fltStage").value;
+  const showDead = $("#showDead").checked;
+  return data.projects.filter(p=>{
+    if(!showDead && (p.stage==="closed"||p.stage==="dead") && stage!==p.stage) return false;
+    if(county && p.county!==county) return false;
+    if(stage && p.stage!==stage) return false;
+    if(q){
+      const hay = [p.name,p.seller,p.jurisdiction,p.county].join(" ").toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+/* ---------- render: summary tiles ---------- */
+function renderTiles(){
+  const act = data.projects.filter(p=>p.stage!=="closed"&&p.stage!=="dead");
+  const lots = act.reduce((s,p)=>s+(parseFloat(p.lots)||0),0);
+  const acres = act.reduce((s,p)=>s+(parseFloat(p.acreage)||0),0);
+  const money = act.reduce((s,p)=>s+(parseFloat(p.price)||0),0);
+  const over = act.reduce((s,p)=>{ const d=nextDeadline(p); return s+((d&&d.days<0)?1:0); },0);
+  const soon = act.reduce((s,p)=>{ const d=nextDeadline(p); return s+((d&&d.days>=0&&d.days<=14)?1:0); },0);
+  $("#tiles").innerHTML = `
+    <div class="tile"><div class="t-label">Active projects</div><div class="t-value">${act.length}</div></div>
+    <div class="tile"><div class="t-label">Lots in pipeline</div><div class="t-value">${lots.toLocaleString()}</div></div>
+    <div class="tile"><div class="t-label">Acres</div><div class="t-value">${acres.toLocaleString(undefined,{maximumFractionDigits:0})}</div></div>
+    <div class="tile"><div class="t-label">Pipeline value</div><div class="t-value">${money?fmtMoney(money):"—"}</div></div>
+    <div class="tile"><div class="t-label">Deadlines ≤ 14 days</div><div class="t-value" style="color:${soon? "var(--accent)":"var(--brand)"}">${soon}</div>
+      <div class="t-note">${over? `<span style="color:var(--bad);font-weight:700">${over} overdue</span>`:"none overdue"}</div></div>`;
+}
+
+/* ---------- render: pipeline board ---------- */
+function renderBoard(){
+  const wrap = $("#viewBoard"); wrap.innerHTML = "";
+  const vis = visibleProjects();
+  for(const st of STAGES){
+    const items = vis.filter(p=>p.stage===st.id);
+    if((st.id==="closed"||st.id==="dead") && !$("#showDead").checked && !items.length && $("#fltStage").value!==st.id) continue;
+    const col = document.createElement("div"); col.className="col";
+    col.innerHTML = `<div class="col-head"><span style="color:${st.color}">${st.label}</span><span class="cnt">${items.length}</span></div>`;
+    const body = document.createElement("div"); body.className="col-body"; body.dataset.stage = st.id;
+    body.addEventListener("dragover", e=>{ e.preventDefault(); body.classList.add("dragover"); });
+    body.addEventListener("dragleave", ()=>body.classList.remove("dragover"));
+    body.addEventListener("drop", e=>{
+      e.preventDefault(); body.classList.remove("dragover");
+      const id = e.dataTransfer.getData("text/plain");
+      const p = data.projects.find(x=>x.id===id);
+      if(p && p.stage!==st.id){ p.stage = st.id; save(); renderAll(); toast(`${p.name} → ${st.label}`); }
+    });
+    for(const p of items){
+      const dl = nextDeadline(p);
+      const open = p.tasks.filter(t=>!t.done).length;
+      const card = document.createElement("div"); card.className="card"; card.draggable = true;
+      card.innerHTML = `
+        <div class="c-name">${esc(p.name)}</div>
+        <div class="c-meta">${esc([p.jurisdiction, p.county && p.county+" Co."].filter(Boolean).join(" · "))}</div>
+        <div class="c-meta">${[fmtNum(p.lots)&&fmtNum(p.lots)+" lots", fmtNum(p.acreage)&&fmtNum(p.acreage)+" ac",
+            perLot(p)&&fmtMoney(perLot(p))+"/lot"].filter(Boolean).join(" · ")}</div>
+        <div class="c-foot">
+          <span class="c-date ${dl?dateFlag(dl.date):""}">${dl? esc(dl.label)+" "+fmtDate(dl.date) : ""}</span>
+          <span class="c-tasks">${open? open+" open" : "✓"}</span>
+        </div>`;
+      card.addEventListener("click", ()=>openDrawer(p.id));
+      card.addEventListener("dragstart", e=>{ e.dataTransfer.setData("text/plain", p.id); card.classList.add("dragging"); });
+      card.addEventListener("dragend", ()=>card.classList.remove("dragging"));
+      body.appendChild(card);
+    }
+    col.appendChild(body); wrap.appendChild(col);
+  }
+}
+
+/* ---------- render: table ---------- */
+const COLS = [
+  {key:"name",     label:"Project",       get:p=>p.name},
+  {key:"stage",    label:"Stage",         get:p=>STAGES.findIndex(s=>s.id===p.stage),
+     cell:p=>{const s=stageById(p.stage);return `<span class="stage-chip" style="background:${s.color}">${s.label}</span>`;}},
+  {key:"county",   label:"County",        get:p=>p.county},
+  {key:"jurisdiction",label:"Jurisdiction",get:p=>p.jurisdiction},
+  {key:"seller",   label:"Seller",        get:p=>p.seller},
+  {key:"acreage",  label:"Acres",  num:true, get:p=>parseFloat(p.acreage)||0, cell:p=>fmtNum(p.acreage)},
+  {key:"lots",     label:"Lots",   num:true, get:p=>parseFloat(p.lots)||0,    cell:p=>fmtNum(p.lots)},
+  {key:"price",    label:"Price",  num:true, get:p=>parseFloat(p.price)||0,   cell:p=>fmtMoney(p.price)},
+  {key:"perlot",   label:"$/Lot",  num:true, get:p=>perLot(p)||0,             cell:p=>perLot(p)?fmtMoney(perLot(p)):""},
+  {key:"deadline", label:"Next deadline", get:p=>{const d=nextDeadline(p);return d?d.days:1e9;},
+     cell:p=>{const d=nextDeadline(p); if(!d) return "";
+       return `<span class="c-date ${dateFlag(d.date)}">${esc(d.label)} · ${fmtDate(d.date)}</span>`;}},
+  {key:"tasks",    label:"Open tasks", num:true, get:p=>p.tasks.filter(t=>!t.done).length,
+     cell:p=>String(p.tasks.filter(t=>!t.done).length)},
+];
+function renderTable(){
+  $("#tblHead").innerHTML = "<tr>" + COLS.map(c=>
+    `<th data-col="${c.key}">${c.label} ${sortCol===c.key?`<span class="arrow">${sortDir>0?"▲":"▼"}</span>`:""}</th>`).join("") + "</tr>";
+  document.querySelectorAll("#tblHead th").forEach(th=>{
+    th.addEventListener("click", ()=>{
+      const k = th.dataset.col;
+      if(sortCol===k) sortDir=-sortDir; else { sortCol=k; sortDir=1; }
+      renderTable();
+    });
+  });
+  const col = COLS.find(c=>c.key===sortCol) || COLS[0];
+  const vis = visibleProjects().slice().sort((a,b)=>{
+    const av=col.get(a), bv=col.get(b);
+    return (typeof av==="number" ? av-bv : String(av).localeCompare(String(bv))) * sortDir;
+  });
+  $("#tblBody").innerHTML = vis.map(p=>"<tr data-id='"+p.id+"'>" + COLS.map(c=>
+      `<td class="${c.num?"num":""}">${c.cell? c.cell(p) : esc(c.get(p))}</td>`).join("") + "</tr>").join("");
+  document.querySelectorAll("#tblBody tr").forEach(tr=>
+    tr.addEventListener("click", ()=>openDrawer(tr.dataset.id)));
+  const empty = !vis.length;
+  $("#tblEmpty").style.display = empty? "block":"none";
+  if(empty) $("#tblEmpty").textContent = data.projects.length? "No projects match the current filters." : "No projects yet — click “+ New Project” to add your first deal.";
+}
+
+/* ---------- render: deadlines ---------- */
+function renderDeadlines(){
+  const rows = [];
+  for(const p of visibleProjects()){
+    if(p.stage==="closed"||p.stage==="dead") continue;
+    for(const f of DATE_FIELDS){
+      if(!f.deadline || !p[f.key]) continue;
+      rows.push({p, label:f.label, date:p[f.key], days:daysUntil(p[f.key])});
+    }
+    for(const t of p.tasks){
+      if(t.done || !t.due) continue;
+      rows.push({p, label:"Task: "+t.name, date:t.due, days:daysUntil(t.due), owner:t.owner});
+    }
+  }
+  rows.sort((a,b)=>a.days-b.days);
+  $("#dlList").innerHTML = rows.length ? rows.map(r=>`
+    <div class="dl-row" data-id="${r.p.id}">
+      <span class="dl-when ${dateFlag(r.date)}">${fmtDate(r.date)}</span>
+      <span class="dl-what"><span class="dw-title">${esc(r.label)}</span>
+        <div class="dw-sub">${esc(r.p.name)}${r.owner? " · "+esc(r.owner):""}</div></span>
+      <span class="dl-days">${r.days<0? Math.abs(r.days)+"d overdue" : r.days===0? "today" : "in "+r.days+"d"}</span>
+    </div>`).join("")
+    : `<div class="empty-note">No upcoming deadlines. Add DD expiration, hearing or closing dates — or task due dates — and they'll show up here.</div>`;
+  document.querySelectorAll(".dl-row").forEach(el=>
+    el.addEventListener("click", ()=>openDrawer(el.dataset.id)));
+}
+
+/* ---------- render: filters ---------- */
+function renderFilters(){
+  const counties = [...new Set(data.projects.map(p=>p.county).filter(Boolean))].sort();
+  const cSel = $("#fltCounty"), prevC = cSel.value;
+  cSel.innerHTML = `<option value="">All counties</option>` + counties.map(c=>`<option>${esc(c)}</option>`).join("");
+  cSel.value = counties.includes(prevC)? prevC : "";
+  const sSel = $("#fltStage"), prevS = sSel.value;
+  sSel.innerHTML = `<option value="">All stages</option>` + STAGES.map(s=>`<option value="${s.id}">${s.label}</option>`).join("");
+  sSel.value = prevS;
+}
+
+function renderAll(){
+  renderFilters(); renderTiles();
+  $("#viewBoard").style.display     = view==="board"? "flex":"none";
+  $("#viewTable").style.display     = view==="table"? "block":"none";
+  $("#viewDeadlines").style.display = view==="deadlines"? "block":"none";
+  if(view==="board") renderBoard();
+  if(view==="table") renderTable();
+  if(view==="deadlines") renderDeadlines();
+}
+
+/* ---------- detail drawer ---------- */
+function openDrawer(id){
+  const p = data.projects.find(x=>x.id===id);
+  if(!p) return;
+  openId = id;
+  $("#dTitle").textContent = p.name;
+  const st = stageById(p.stage);
+  const chip = $("#dStageChip"); chip.textContent = st.label; chip.style.background = st.color;
+  $("#drawerBody").innerHTML = drawerHtml(p);
+  bindDrawer(p);
+  $("#overlay").classList.add("open");
+  $("#drawer").classList.add("open");
+}
+function closeDrawer(){
+  openId = null;
+  $("#overlay").classList.remove("open");
+  $("#drawer").classList.remove("open");
+  renderAll();
+}
+
+function drawerHtml(p){
+  const f = (key,label,attrs)=>`<div class="field"><label>${label}</label><input data-f="${key}" value="${esc(p[key])}" ${attrs||""}></div>`;
+  return `
+  <div class="fgrid">
+    <div class="field wide"><label>Project name</label><input data-f="name" value="${esc(p.name)}"></div>
+    <div class="field"><label>Stage</label>
+      <select data-f="stage">${STAGES.map(s=>`<option value="${s.id}" ${p.stage===s.id?"selected":""}>${s.label}</option>`).join("")}</select></div>
+    ${f("seller","Seller")}
+    ${f("county","County")}
+    ${f("jurisdiction","Jurisdiction / township")}
+    ${f("acreage","Acres",'type="number" step="0.1" min="0"')}
+    ${f("lots","Planned lots",'type="number" step="1" min="0"')}
+    ${f("price","Purchase price ($)",'type="number" step="1000" min="0"')}
+    ${f("earnest","Earnest money ($)",'type="number" step="500" min="0"')}
+    <div class="field"><label>$ / lot (computed)</label><input value="${perLot(p)?fmtMoney(perLot(p)):"—"}" disabled></div>
+    <div class="field wide"><label>Drive folder / docs URL</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input data-f="driveUrl" value="${esc(p.driveUrl)}" placeholder="https://drive.google.com/…" style="flex:1">
+        ${p.driveUrl? `<a class="btn small" href="${esc(p.driveUrl)}" target="_blank" rel="noopener">Open</a>`:""}
+      </div></div>
+  </div>
+
+  <div class="sect"><h3>Key dates</h3>
+    <div class="fgrid">
+      ${DATE_FIELDS.map(d=>`<div class="field"><label>${d.label}${d.deadline?" ⏰":""}</label>
+        <input data-f="${d.key}" type="date" value="${esc(p[d.key])}"></div>`).join("")}
+    </div>
+  </div>
+
+  <div class="sect"><h3>Due diligence & entitlement tasks
+    <span style="float:right;font-weight:400;text-transform:none;letter-spacing:0">
+      ${p.tasks.filter(t=>t.done).length}/${p.tasks.length} done</span></h3>
+    <div id="taskList">${p.tasks.map(taskRowHtml).join("")}</div>
+    <div class="add-inline"><input id="newTask" placeholder="Add a task…"><button class="btn small" id="btnAddTask">Add</button></div>
+  </div>
+
+  <div class="sect"><h3>Contacts</h3>
+    <div id="contactList">${p.contacts.map(contactRowHtml).join("")}</div>
+    <div class="add-inline"><input id="newContact" placeholder="Add contact — e.g. Jane Doe / Civil engineer / 317-555-0100">
+      <button class="btn small" id="btnAddContact">Add</button></div>
+  </div>
+
+  <div class="sect"><h3>Links</h3>
+    <div id="linkList">${p.links.map(linkRowHtml).join("")}</div>
+    <div class="add-inline"><input id="newLinkName" placeholder="Label (e.g. Purchase agreement)" style="flex:0 0 40%">
+      <input id="newLinkUrl" placeholder="https://…"><button class="btn small" id="btnAddLink">Add</button></div>
+  </div>
+
+  <div class="sect"><h3>Notes</h3>
+    <div class="field"><textarea data-f="notes" rows="5" placeholder="Deal terms, contingencies, extension options…">${esc(p.notes)}</textarea></div>
+  </div>`;
+}
+function taskRowHtml(t){
+  const flag = !t.done ? dateFlag(t.due) : "";
+  const n = daysUntil(t.due);
+  return `<div class="task-row ${t.done?"done":""}" data-tid="${t.id}">
+    <input type="checkbox" ${t.done?"checked":""} data-tf="done">
+    <input class="t-name" data-tf="name" value="${esc(t.name)}">
+    <input class="t-owner" data-tf="owner" value="${esc(t.owner)}" placeholder="owner">
+    <input type="date" data-tf="due" value="${esc(t.due)}">
+    <span class="t-due-flag ${flag}">${flag==="overdue"? Math.abs(n)+"d late" : flag==="soon"? (n===0?"today":n+"d") : ""}</span>
+    <button class="icon-x" data-tdel title="Remove task">✕</button>
+  </div>`;
+}
+function contactRowHtml(c){
+  return `<div class="kv-row" data-cid="${c.id}">
+    <input class="k" data-cf="name" value="${esc(c.name)}" placeholder="Name">
+    <input class="k" data-cf="role" value="${esc(c.role)}" placeholder="Role">
+    <input class="v" data-cf="info" value="${esc(c.info)}" placeholder="Phone / email">
+    <button class="icon-x" data-cdel title="Remove contact">✕</button>
+  </div>`;
+}
+function linkRowHtml(l){
+  return `<div class="kv-row" data-lid="${l.id}">
+    <input class="k" data-lf="name" value="${esc(l.name)}" placeholder="Label">
+    <input class="v" data-lf="url" value="${esc(l.url)}" placeholder="https://…">
+    ${l.url? `<a href="${esc(l.url)}" target="_blank" rel="noopener">open ↗</a>`:""}
+    <button class="icon-x" data-ldel title="Remove link">✕</button>
+  </div>`;
+}
+
+function bindDrawer(p){
+  const body = $("#drawerBody");
+  // Top-level fields save on change; name/stage refresh header immediately.
+  body.querySelectorAll("[data-f]").forEach(el=>{
+    el.addEventListener("change", ()=>{
+      p[el.dataset.f] = el.value;
+      save();
+      if(el.dataset.f==="name") $("#dTitle").textContent = p.name;
+      if(el.dataset.f==="stage"){
+        const st = stageById(p.stage);
+        const chip = $("#dStageChip"); chip.textContent = st.label; chip.style.background = st.color;
+      }
+    });
+  });
+  // tasks
+  body.querySelectorAll(".task-row").forEach(row=>{
+    const t = p.tasks.find(x=>x.id===row.dataset.tid); if(!t) return;
+    row.querySelectorAll("[data-tf]").forEach(el=>{
+      el.addEventListener("change", ()=>{
+        t[el.dataset.tf] = el.type==="checkbox"? el.checked : el.value;
+        save();
+        row.classList.toggle("done", t.done);
+      });
+    });
+    row.querySelector("[data-tdel]").addEventListener("click", ()=>{
+      p.tasks = p.tasks.filter(x=>x.id!==t.id); save(); refreshDrawer(p);
+    });
+  });
+  const addTask = ()=>{
+    const inp = $("#newTask"); const name = inp.value.trim(); if(!name) return;
+    p.tasks.push({id:uid(), name, done:false, due:"", owner:""}); save(); refreshDrawer(p);
+  };
+  $("#btnAddTask").addEventListener("click", addTask);
+  $("#newTask").addEventListener("keydown", e=>{ if(e.key==="Enter") addTask(); });
+  // contacts
+  body.querySelectorAll("[data-cid]").forEach(row=>{
+    const c = p.contacts.find(x=>x.id===row.dataset.cid); if(!c) return;
+    row.querySelectorAll("[data-cf]").forEach(el=>
+      el.addEventListener("change", ()=>{ c[el.dataset.cf]=el.value; save(); }));
+    row.querySelector("[data-cdel]").addEventListener("click", ()=>{
+      p.contacts = p.contacts.filter(x=>x.id!==c.id); save(); refreshDrawer(p);
+    });
+  });
+  const addContact = ()=>{
+    const inp = $("#newContact"); const raw = inp.value.trim(); if(!raw) return;
+    const parts = raw.split("/").map(s=>s.trim());
+    p.contacts.push({id:uid(), name:parts[0]||"", role:parts[1]||"", info:parts[2]||""});
+    save(); refreshDrawer(p);
+  };
+  $("#btnAddContact").addEventListener("click", addContact);
+  $("#newContact").addEventListener("keydown", e=>{ if(e.key==="Enter") addContact(); });
+  // links
+  body.querySelectorAll("[data-lid]").forEach(row=>{
+    const l = p.links.find(x=>x.id===row.dataset.lid); if(!l) return;
+    row.querySelectorAll("[data-lf]").forEach(el=>
+      el.addEventListener("change", ()=>{ l[el.dataset.lf]=el.value; save(); }));
+    row.querySelector("[data-ldel]").addEventListener("click", ()=>{
+      p.links = p.links.filter(x=>x.id!==l.id); save(); refreshDrawer(p);
+    });
+  });
+  const addLink = ()=>{
+    const name = $("#newLinkName").value.trim(), url = $("#newLinkUrl").value.trim();
+    if(!name && !url) return;
+    p.links.push({id:uid(), name, url}); save(); refreshDrawer(p);
+  };
+  $("#btnAddLink").addEventListener("click", addLink);
+  $("#newLinkUrl").addEventListener("keydown", e=>{ if(e.key==="Enter") addLink(); });
+}
+function refreshDrawer(p){
+  $("#drawerBody").innerHTML = drawerHtml(p);
+  bindDrawer(p);
+}
+
+/* ---------- header actions ---------- */
+$("#btnNew").addEventListener("click", ()=>{
+  const name = prompt("Project name?");
+  if(name===null) return;
+  const p = newProject(name.trim());
+  data.projects.unshift(p); save(); renderAll(); openDrawer(p.id);
+});
+$("#btnDelete").addEventListener("click", ()=>{
+  const p = data.projects.find(x=>x.id===openId); if(!p) return;
+  if(!confirm(`Delete "${p.name}"? This cannot be undone.`)) return;
+  data.projects = data.projects.filter(x=>x.id!==p.id);
+  save(); closeDrawer(); toast("Project deleted");
+});
+$("#btnCloseDrawer").addEventListener("click", closeDrawer);
+$("#overlay").addEventListener("click", closeDrawer);
+document.addEventListener("keydown", e=>{ if(e.key==="Escape" && openId) closeDrawer(); });
+
+$("#btnExport").addEventListener("click", ()=>{
+  const blob = new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "land-projects-" + new Date().toISOString().slice(0,10) + ".json";
+  a.click(); URL.revokeObjectURL(a.href);
+  toast("Exported " + data.projects.length + " projects");
+});
+$("#btnImport").addEventListener("click", ()=>$("#importFile").click());
+$("#importFile").addEventListener("change", e=>{
+  const file = e.target.files[0]; if(!file) return;
+  const rd = new FileReader();
+  rd.onload = ()=>{
+    try{
+      const d = JSON.parse(rd.result);
+      if(!d || !Array.isArray(d.projects)) throw new Error("not an LPM export");
+      if(data.projects.length &&
+         !confirm(`Replace your ${data.projects.length} current project(s) with the ${d.projects.length} in this file?`)) return;
+      data = d; save(); renderAll();
+      toast("Imported " + d.projects.length + " projects");
+    }catch(err){ toast("⚠ Import failed: " + err.message); }
+  };
+  rd.readAsText(file);
+  e.target.value = "";
+});
+
+/* view switch + filters */
+document.querySelectorAll("#viewSeg button").forEach(b=>{
+  b.addEventListener("click", ()=>{
+    document.querySelectorAll("#viewSeg button").forEach(x=>x.classList.toggle("active", x===b));
+    view = b.dataset.view; renderAll();
+  });
+});
+["#q","#fltCounty","#fltStage","#showDead"].forEach(sel=>{
+  $(sel).addEventListener("input", renderAll);
+});
+
+renderAll();
+</script>
+</body>
+</html>
