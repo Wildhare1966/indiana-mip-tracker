@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p229r3 -->
+<!-- MIP build p230r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data: https:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p229r3">
+<link rel="stylesheet" href="styles.css?v=p230r1">
 </head>
 <body>
 
@@ -614,12 +614,13 @@
           <table id="tp-table" style="width:100%;border-collapse:collapse;font-size:12px;">
             <thead>
               <!-- p190r2 / AGD-117 (Ty's rulings 2026-09-14): the Upcoming / Previous meeting groups.
-                   PublicStatus moved beside the project; the Map column is gone. 18 columns. -->
+                   PublicStatus moved beside the project; the Map column is gone. 18 columns.
+                   p230r1 / AGD-247: Ord left of Tagged Docs (Ty's rulings 2026-11-04). 19 columns. -->
               <tr style="background:var(--bg-card,#1a1a1a);text-align:left;">
                 <th colspan="7" class="tp-band"></th>
                 <th colspan="3" class="tp-band tp-band-up">Upcoming meeting<small>today or later</small></th>
                 <th colspan="5" class="tp-band tp-band-prev">Previous meeting<small>most recent before today</small></th>
-                <th colspan="4" class="tp-band"></th>
+                <th colspan="5" class="tp-band"></th>
               </tr>
               <tr style="background:var(--bg-card,#1a1a1a);text-align:left;">
                 <th style="padding:8px 4px;border-bottom:1px solid var(--border,#333);width:28px;"></th>
@@ -638,6 +639,7 @@
                 <th class="tp-col-prev" style="padding:8px 8px;border-bottom:1px solid var(--border,#333);white-space:nowrap;" title="Only from the summary (video or minutes) of that same meeting — never an older one. Otherwise the cell says why it is empty.">Last result</th>
                 <th class="tp-col-prev" style="padding:8px 8px;border-bottom:1px solid var(--border,#333);white-space:nowrap;" title="The summary of the previous meeting">Summary</th>
                 <th style="padding:8px 6px;border-bottom:1px solid var(--border,#333);" title="All agenda documents this project was referenced on (newest first)">Agendas</th>
+                <th style="padding:8px 6px;border-bottom:1px solid var(--border,#333);white-space:nowrap;" title="The project's ordinance. Blue: an Approved Ordinance in force (the base and each current amendment). Green: a draft, or a copy not yet confirmed; shown only when no approved copy exists. Hover a link for its number and date.">Ord</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;">Tagged Docs</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);white-space:nowrap;" title="ArcGIS record key — manually entered unique ID matching the corresponding ArcGIS record (for future MRD→ArcGIS upload/sync)">MapID</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--border,#333);"></th>
@@ -8056,12 +8058,14 @@ function tpRenderTable() {
       // P124r2: 4 links per row (was 5) — narrows the Agendas column ~20%.
       // P200: 3 per row — narrower again, freeing the width the App column needs. The "+N"
       // affordance is untouched, so no link is lost; the overflow rows just hold three each.
-      if (_links.length > 3) {
+      // p230r1 / AGD-247: 2 per row — the Ord column's width comes out of this one (Ty, 11/04).
+      var _per = 2;
+      if (_links.length > _per) {
         var _rest = '';
-        for (var _ai = 3; _ai < _links.length; _ai += 3) { _rest += '<div class="tp-agendas-row">' + _links.slice(_ai, _ai + 3).join(' ') + '</div>'; }
+        for (var _ai = _per; _ai < _links.length; _ai += _per) { _rest += '<div class="tp-agendas-row">' + _links.slice(_ai, _ai + _per).join(' ') + '</div>'; }
         agendaRefsCell = '<div class="tp-agendas-wrap">'
-          + '<div class="tp-agendas-row">' + _links.slice(0, 3).join(' ')
-          + ' <a href="javascript:void(0)" class="tp-agendas-more" title="Show / hide the rest" onclick="this.closest(\'.tp-agendas-wrap\').classList.toggle(\'expanded\');return false;">+' + (_links.length - 3) + '</a></div>'
+          + '<div class="tp-agendas-row">' + _links.slice(0, _per).join(' ')
+          + ' <a href="javascript:void(0)" class="tp-agendas-more" title="Show / hide the rest" onclick="this.closest(\'.tp-agendas-wrap\').classList.toggle(\'expanded\');return false;">+' + (_links.length - _per) + '</a></div>'
           + '<div class="tp-agendas-rest">' + _rest + '</div></div>';
       } else {
         agendaRefsCell = '<div class="tp-agendas-wrap"><div class="tp-agendas-row">' + _links.join(' ') + '</div></div>';
@@ -8123,6 +8127,26 @@ function tpRenderTable() {
       return badge + tagBtn;
     })();
 
+    // p230r1 / AGD-247 (Ty's rulings 2026-11-04): Ord — the project's ordinance documents, from
+    // list_project_document_counts (_p218OrdinanceLinks_). Blue = an Approved Ordinance in force: the
+    // base and each current amendment, superseded copies left out. Green = an unapproved copy (a packet
+    // draft, or one not yet ruled), sent only when the project has no approved copy. Every link reads
+    // "Ord"; the number, role and date are on hover.
+    var ordCell = (function() {
+      if (tpOrdinances === null) return '<span style="color:var(--muted,#888);" title="The backend does not send ordinance links yet (needs the web-app redeploy)">…</span>';
+      var list = tpOrdinances[p.projectId] || [];
+      if (!list.length) return '<span style="color:var(--muted,#888);">—</span>';
+      return '<div class="tp-ord-cell">' + list.map(function(o) {
+        var approved = o.kind === 'approved';
+        var what = approved
+          ? 'Approved Ordinance' + (o.role === 'amendment' ? ' (amendment)' : o.role === 'replacement' ? ' (replacement)' : '')
+          : (o.status === 'rejected' ? 'Draft ordinance (not the approved copy)' : 'Ordinance not yet confirmed (shown as a draft)');
+        var tip = what + (o.no ? ' · ' + o.no : '') + (o.effective ? ' · ' + o.effective : '') + (o.label ? '\n' + o.label : '');
+        // esc, not escAttr: escAttr is for onclick JS strings (it writes \n and \" into an attribute).
+        return '<a class="tp-ord-link ' + (approved ? 'tp-ord-approved' : 'tp-ord-draft') + '" href="' + escUrl(o.url) + '" target="_blank" rel="noopener" data-no-tag title="' + esc(tip) + '">Ord</a>';
+      }).join('') + '</div>';
+    })();
+
     // P61 task 2: Edit button + expanded inline edit row.
     var isEditing = (tpEditingPid === p.projectId);
     var editBtn = '<button class="refresh-btn" onclick="tpToggleEditRow(\'' + pidAttr + '\')" title="Edit project / aliases / delete" style="font-size:11px;padding:2px 7px;background:transparent;border:1px solid var(--border,#444);">' + (isEditing ? '×' : '✎') + '</button>';
@@ -8164,6 +8188,7 @@ function tpRenderTable() {
       '<td style="padding:8px 10px;vertical-align:top;text-align:center;">' + lotsCell + '</td>' +
       upCells + prevCells +
       '<td class="tp-agendas-cell" style="padding:8px 6px;vertical-align:top;font-size:11px;">' + agendaRefsCell + '</td>' +
+      '<td class="tp-ord-td" style="padding:8px 6px;vertical-align:top;font-size:11px;">' + ordCell + '</td>' +
       '<td style="padding:8px 10px;vertical-align:top;white-space:nowrap;">' + taggedCell + '</td>' +
       // P94 item 4: MapID — manually-entered ArcGIS record key (Tracked_Projects
       // col S / map_id). Persists via the same inline-save path as map_url.
@@ -8915,6 +8940,7 @@ window.tpStatusChange     = tpStatusChange;
 var TAG_MODE_KEY   = 'mip_tag_mode';           // sessionStorage: project_id when ON, absent when OFF
 var TAG_CLIENT_KEY = 'mip_client_id';          // localStorage: stable UUID for audit attribution
 var tpDocCounts    = {};                       // { project_id: count }
+var tpOrdinances   = {};                       // p230r1 / AGD-247: { project_id: [ordinance link] }; null = backend predates it
 var _tagMoObserver = null;                     // MutationObserver for active view re-decoration
 
 function tagClientId() {
@@ -9297,14 +9323,15 @@ function tpUntagDoc(docId, projectId, btnEl) {
     });
 }
 
-// Refresh the per-project tagged-doc counts. Called from tpLoad.
+// Refresh the per-project tagged-doc counts (and, p230r1, the Ord column's links). Called from tpLoad.
 function tpLoadDocCounts() {
   var webappUrl = getWebAppUrl();
   if (!webappUrl) return Promise.resolve();
   return fetch(webappUrl + '&action=list_project_document_counts')
     .then(function(r) { return r.json(); })
     .then(function(res) {
-      if (res && res.ok) tpDocCounts = res.counts || {};
+      // null = a backend older than the Ord column (no `ordinances` field), told apart from "none".
+      if (res && res.ok) { tpDocCounts = res.counts || {}; tpOrdinances = res.ordinances || null; }
     })
     .catch(function(err) { console.warn('tpLoadDocCounts:', err); });
 }
@@ -14088,6 +14115,13 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
   /* P118 rev6: Tracked Projects "Agendas" column — same neon #-links as Agenda Items. */
   .tp-agendas-link{color:#3be3ff;text-decoration:none;font-weight:600;}
   .tp-agendas-link:hover{text-decoration:underline;}
+  /* p230r1 / AGD-247: Ord column — blue = Approved Ordinance in force, green = draft / not yet confirmed.
+     Two links a line, so a base and three amendments stay inside the width Agendas gave up. */
+  .tp-ord-cell{display:flex;flex-wrap:wrap;gap:2px 6px;max-width:64px;line-height:1.6;}
+  .tp-ord-link{font-weight:700;text-decoration:none;white-space:nowrap;}
+  .tp-ord-link:hover{text-decoration:underline;}
+  .tp-ord-approved{color:#4f8dff;}
+  .tp-ord-draft{color:#3fca7e;}
   /* P118r6: 5 links per row (single line, no wrap); #6+ stack in rows of 5 under
      a "+N" toggle. Each row is nowrap so exactly the 5 sliced links stay on one
      line — the column sizes to fit them rather than wrapping at ~3. */
