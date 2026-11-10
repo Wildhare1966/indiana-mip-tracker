@@ -1418,6 +1418,9 @@
   .nature-discussed  { background: rgba(255,255,255,0.07); color: var(--text-dim); border: 1px solid var(--border); }
   .nature-public-hearing { background: rgba(232,160,32,0.15); color: var(--accent); border: 1px solid rgba(232,160,32,0.3); }
   .nature-second-reading { background: rgba(122,172,223,0.15); color: #7aacdf; border: 1px solid rgba(122,172,223,0.3); }
+  /* p232r3 / AGD-254: classifyNature now answers `pending` for a hearing not yet held and `withdrawn` */
+  .nature-pending    { background: rgba(232,160,32,0.10); color: var(--accent); border: 1px dashed rgba(232,160,32,0.35); }
+  .nature-withdrawn  { background: rgba(255,255,255,0.05); color: var(--text-dim); border: 1px solid var(--border); text-decoration: line-through; }
   .tracked-timeline { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.06); }
   .tracked-timeline-item { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
   .tracked-timeline-item:last-child { border-bottom: none; }
