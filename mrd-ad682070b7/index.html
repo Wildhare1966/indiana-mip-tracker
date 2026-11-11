@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p232r3 -->
+<!-- MIP build p233r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data: https:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p232r3">
+<link rel="stylesheet" href="styles.css?v=p233r1">
 </head>
 <body>
 
@@ -683,7 +683,9 @@
               <input type="date" id="tt-f-from" onchange="ttRender()" title="Meeting date from" style="font-size:12px;padding:3px 6px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:5px;">
               <input type="date" id="tt-f-to" onchange="ttRender()" title="Meeting date to" style="font-size:12px;padding:3px 6px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:5px;">
               <input type="text" id="tt-f-text" oninput="ttSetSearch(this.value)" placeholder="Search snippet / keywords" style="font-size:12px;padding:4px 10px;background:var(--card,#1a1a1a);color:inherit;border:1px solid var(--border,#444);border-radius:5px;min-width:190px;">
-              <button class="refresh-btn" id="tt-bulk-dismiss" onclick="ttBulkDismiss()" style="display:none;" title="Dismiss every selected hit">Dismiss selected</button>
+              <label style="font-size:12px;display:inline-flex;align-items:center;gap:4px;cursor:pointer;" title="One section per municipality"><input type="checkbox" id="tt-f-group" onchange="ttSetGroup(this.checked)"> Group by municipality</label>
+              <button class="refresh-btn tt-btn-go" id="tt-bulk-approve" onclick="ttBulk('approved')" style="display:none;" title="Approve every checked hit">Approve checked</button>
+              <button class="refresh-btn" id="tt-bulk-dismiss" onclick="ttBulk('dismissed')" style="display:none;" title="Dismiss every checked hit">Dismiss checked</button>
               <button class="refresh-btn" onclick="ttLoad(true)" title="Re-read the hit queue from the backend">↺ Refresh</button>
             </div>
           </div>
@@ -11668,6 +11670,7 @@ registerViewInit('candidates', candLoad);
 // ═══════════════════════════════════════════════════════
 var _ttHits=[], _ttTopics=[], _ttCounts={}, _ttByTopic={};
 var _ttStatus='new', _ttTopic='', _ttJuris='', _ttSearch='', _ttSel={}, _ttApplied=false;
+var _ttGroup=false; try{ _ttGroup=localStorage.getItem('mip_tt_group')==='1'; }catch(e){}   // p233r1 / AGD-258
 var _ttEdit=null;            // null = no form; {} = new topic; {topic_id,…} = editing
 var _ttRun={};               // topic_id -> last dry/apply reply (for the rail's run panel)
 
@@ -11727,6 +11730,7 @@ function ttSetStatus(v){ _ttStatus=v||'new'; _ttSel={}; ttLoad(true); }
 function ttSetTopic(v){ _ttTopic=v||''; _ttSel={}; ttLoad(true); }
 function ttSetJuris(v){ _ttJuris=v||''; ttRender(); }
 function ttSetSearch(v){ _ttSearch=String(v||'').toLowerCase().trim(); ttRender(); }
+function ttSetGroup(on){ _ttGroup=!!on; try{ localStorage.setItem('mip_tt_group',_ttGroup?'1':'0'); }catch(e){} ttRender(); }
 
 function _ttFiltered(){
   var from=(document.getElementById('tt-f-from')||{}).value||'', to=(document.getElementById('tt-f-to')||{}).value||'';
@@ -11735,7 +11739,7 @@ function _ttFiltered(){
     var d=String(h.meeting_date||'').slice(0,10);
     if(from && d && d<from) return false;
     if(to && d && d>to) return false;
-    if(_ttSearch){ var hay=((h.snippet||'')+' '+(h.matched_keywords||'')+' '+(h.jurisdiction||'')).toLowerCase(); if(hay.indexOf(_ttSearch)===-1) return false; }
+    if(_ttSearch){ var hay=((h.snippet||'')+' '+(h.matched_keywords||'')+' '+(h.jurisdiction||'')+' '+(h.item_title||'')+' '+(h.item_description||'')+' '+(h.last_result||'')+' '+(h.d_body||'')).toLowerCase(); if(hay.indexOf(_ttSearch)===-1) return false; }
     return true;
   });
 }
@@ -11752,40 +11756,78 @@ function ttRender(){
     sum.innerHTML='Showing <b>'+rows.length+'</b> of '+_ttHits.length+' '+_diagEsc(_ttStatus==='all'?'':_ttStatus)+' hit'+(_ttHits.length===1?'':'s')
       +' &middot; queue: <b>'+(c['new']||0)+'</b> new, '+(c.approved||0)+' approved, '+(c.dismissed||0)+' dismissed &middot; '+_ttTopics.length+' topic'+(_ttTopics.length===1?'':'s');
   }
-  var bd=document.getElementById('tt-bulk-dismiss'); if(bd){ var nSel=Object.keys(_ttSel).length; bd.style.display=nSel?'':'none'; bd.textContent='Dismiss selected ('+nSel+')'; }
+  _ttBulkButtons();
   if(!_ttTopics.length){
     el.innerHTML='<div style="color:var(--text-dim);padding:18px 0;">No topics yet. Add one in the right rail &rarr; name it, list its keywords, then <b>Run now</b>.</div>'; return;
   }
   if(!rows.length){
     el.innerHTML='<div style="color:var(--text-dim);padding:18px 0;">No '+_diagEsc(_ttStatus==='all'?'':_ttStatus)+' hits match these filters.</div>'; return;
   }
-  var showSel=(_ttStatus==='new');
+  var gb=document.getElementById('tt-f-group'); if(gb) gb.checked=_ttGroup;
+  var NCOL=14;
   var html='<div style="overflow:auto;max-height:calc(100vh - 250px);border:1px solid var(--border);border-radius:4px;"><table id="tt-table"><thead><tr>'
-    +(showSel?'<th><input type="checkbox" onchange="ttSelectAll(this.checked)" title="Select every row shown"></th>':'')
-    +'<th>Date</th><th>Jurisdiction</th><th>Source</th><th>Topic</th><th>Matched</th><th>Snippet</th><th>Link</th><th>Status</th><th style="text-align:right;">Action</th></tr></thead><tbody>';
-  rows.forEach(function(h){
+    +'<th><input type="checkbox" onchange="ttSelectAll(this.checked)" title="Check every row shown"></th>'
+    +'<th title="Date the hit was found">Date</th><th>Jurisdiction</th><th>Topic</th><th>Matched</th>'
+    +'<th>Meeting type</th><th>Meeting date</th><th>Agenda item</th><th>Agenda</th><th title="Summary of the meeting (video transcript or minutes)">Summary</th>'
+    +'<th>Last results</th><th>Tagged documents</th><th>Status</th><th style="text-align:right;">Action</th></tr></thead><tbody>';
+  function rowHtml(h){
     var t=_ttTopicById(h.topic_id), id=String(h.hit_id), st=String(h.status||'new');
-    var link=h.url?'<a href="'+escUrl(h.source_type==='summary_doc'?h.url:inlineViewerUrl(h.url))+'" target="_blank" rel="noopener">open</a>':'<span style="color:var(--text-dim);">—</span>';
     var acts='';
     if(st!=='approved') acts+='<button class="refresh-btn tt-btn-sm tt-btn-go" onclick="ttRule(\''+escAttr(id)+'\',\'approved\',this)">Approve</button> ';
     if(st!=='dismissed') acts+='<button class="refresh-btn tt-btn-sm" onclick="ttRule(\''+escAttr(id)+'\',\'dismissed\',this)">Dismiss</button> ';
     if(st!=='new') acts+='<button class="refresh-btn tt-btn-sm" onclick="ttRule(\''+escAttr(id)+'\',\'new\',this)" title="Back to the review queue">Reopen</button>';
-    html+='<tr>'
-      +(showSel?'<td><input type="checkbox" '+(_ttSel[id]?'checked':'')+' onchange="ttToggleSel(\''+escAttr(id)+'\',this.checked)"></td>':'')
-      +'<td style="white-space:nowrap;">'+_diagEsc(String(h.meeting_date||'').slice(0,10)||'—')+'</td>'
-      +'<td>'+_diagEsc(_normJurisName(h.jurisdiction||'')||h.jurisdiction||'—')+'</td>'
-      +'<td>'+_ttSrcBadge(h)+'</td>'
+    var dim='<span style="color:var(--text-dim);">—</span>';
+    var item;
+    if(h.source_type==='summary_doc') item='<span class="tt-src doc">SUMMARY</span> <span style="color:var(--text-dim);">Found in the meeting Summary; no single agenda item.</span>'+(h.snippet?'<div class="tt-snip">'+_diagEsc(h.snippet)+'</div>':'');
+    else item='<div style="font-weight:600;">'+_diagEsc(h.item_title||'')+'</div>'+(h.item_description?'<div>'+_diagEsc(h.item_description)+'</div>':'')
+      +(h.snippet&&!h.item_description?'<div class="tt-snip">'+_diagEsc(h.snippet)+'</div>':'');
+    if(h.tracked_project_id) item+='<div style="font-size:10px;color:#5ad37f;">already matched to Tracked Project '+_diagEsc(h.tracked_project_id)+'</div>';
+    var ag=h.agenda_url?'<a href="'+escUrl(inlineViewerUrl(h.agenda_url))+'" target="_blank" rel="noopener">Agenda</a>':dim;
+    var sm=h.summary_url?'<a href="'+escUrl(h.summary_url)+'" target="_blank" rel="noopener">Summary</a>':(h.url&&h.source_type==='summary_doc'?'<a href="'+escUrl(h.url)+'" target="_blank" rel="noopener">Summary</a>':dim);
+    if(h.url && h.source_type==='agenda_item' && /youtube\.com|youtu\.be/.test(h.url)) sm+=' &middot; <a href="'+escUrl(h.url)+'" target="_blank" rel="noopener" title="The item in the video">video</a>';
+    var docs=(h.documents||[]).map(function(d){ return '<a class="tt-doc" href="'+escUrl(d.type==='Summary'?d.url:inlineViewerUrl(d.url))+'" target="_blank" rel="noopener" title="'+escAttr(d.body||'')+'">'+_diagEsc(d.type||'Document')+'</a>'; }).join(' ');
+    return '<tr>'
+      +'<td><input type="checkbox" '+(_ttSel[id]?'checked':'')+' onchange="ttToggleSel(\''+escAttr(id)+'\',this.checked)"></td>'
+      +'<td style="white-space:nowrap;">'+_diagEsc(String(h.found_at||'').slice(0,10)||'—')+'</td>'
+      +'<td>'+_diagEsc(_ttMuni(h.jurisdiction))+'</td>'
       +'<td style="white-space:nowrap;">'+_diagEsc(t?t.name:h.topic_id)+'</td>'
       +'<td>'+_ttKwChips(h.matched_keywords)+'</td>'
-      +'<td style="min-width:260px;max-width:520px;line-height:1.45;">'+_diagEsc(h.snippet||'')+(h.tracked_project_id?'<div style="font-size:10px;color:#5ad37f;">already matched to Tracked Project '+_diagEsc(h.tracked_project_id)+'</div>':'')+'</td>'
-      +'<td style="white-space:nowrap;">'+link+'</td>'
+      +'<td>'+_diagEsc(h.d_body||h.meeting_type||'—')+'</td>'
+      +'<td style="white-space:nowrap;">'+_diagEsc(String(h.meeting_date||'').slice(0,10)||'—')+'</td>'
+      +'<td style="min-width:240px;max-width:420px;line-height:1.45;">'+item+'</td>'
+      +'<td style="white-space:nowrap;">'+ag+'</td>'
+      +'<td style="white-space:nowrap;">'+sm+'</td>'
+      +'<td style="min-width:160px;max-width:300px;line-height:1.45;">'+(h.last_result?_diagEsc(h.last_result):dim)+'</td>'
+      +'<td style="max-width:200px;">'+(docs||dim)+'</td>'
       +'<td><span class="tt-status '+_diagEsc(st)+'">'+_diagEsc(st)+'</span>'+(h.note?'<div style="font-size:10px;color:var(--text-dim);">'+_diagEsc(h.note)+'</div>':'')+'</td>'
       +'<td style="text-align:right;white-space:nowrap;">'+acts+'</td>'
       +'</tr>';
-  });
+  }
+  if(_ttGroup){
+    var groups={}, order=[];
+    rows.forEach(function(h){ var j=_ttMuni(h.jurisdiction); if(!groups[j]){ groups[j]=[]; order.push(j); } groups[j].push(h); });
+    order.sort(function(a,b){ return a.localeCompare(b); });
+    order.forEach(function(j){
+      var ids=groups[j].map(function(h){ return String(h.hit_id); }), allOn=ids.every(function(i){ return _ttSel[i]; });
+      html+='<tr class="tt-group"><td><input type="checkbox" '+(allOn?'checked':'')+' onchange="ttSelectGroup(\''+escAttr(j)+'\',this.checked)" title="Check every row of '+escAttr(j)+'"></td>'
+        +'<td colspan="'+(NCOL-1)+'">'+_diagEsc(j)+' <span style="color:var(--text-dim);font-weight:400;">('+groups[j].length+')</span></td></tr>';
+      groups[j].forEach(function(h){ html+=rowHtml(h); });
+    });
+  } else rows.forEach(function(h){ html+=rowHtml(h); });
   el.innerHTML=html+'</tbody></table></div>';
 }
-function ttToggleSel(id, on){ if(on) _ttSel[id]=true; else delete _ttSel[id]; var bd=document.getElementById('tt-bulk-dismiss'); if(bd){ var n=Object.keys(_ttSel).length; bd.style.display=n?'':'none'; bd.textContent='Dismiss selected ('+n+')'; } }
+function _ttMuni(j){ var t=String(j||'').replace(/,\s*indiana\s*$/i,'').replace(/^\s*(city|town)\s+of\s+/i,'').replace(/\s+/g,' ').trim(); if(!t) return '—'; return t.replace(/([a-z])/g,function(m){ return m.toUpperCase(); }); }
+function _ttBulkButtons(){
+  var n=Object.keys(_ttSel).length;
+  var ba=document.getElementById('tt-bulk-approve'), bd=document.getElementById('tt-bulk-dismiss');
+  if(ba){ ba.style.display=n?'':'none'; ba.textContent='Approve checked ('+n+')'; }
+  if(bd){ bd.style.display=n?'':'none'; bd.textContent='Dismiss checked ('+n+')'; }
+}
+function ttSelectGroup(j, on){
+  _ttFiltered().forEach(function(h){ if(_ttMuni(h.jurisdiction)===j){ if(on) _ttSel[String(h.hit_id)]=true; else delete _ttSel[String(h.hit_id)]; } });
+  ttRender();
+}
+function ttToggleSel(id, on){ if(on) _ttSel[id]=true; else delete _ttSel[id]; _ttBulkButtons(); }
 function ttSelectAll(on){ _ttSel={}; if(on) _ttFiltered().forEach(function(h){ _ttSel[String(h.hit_id)]=true; }); ttRender(); }
 
 // One ruling (or many): the backend writes status + reviewed_at; the rows leave the current queue locally.
@@ -11803,7 +11845,8 @@ function ttRule(ids, status, btn){
     _ttFillTopicFilter(); ttRender(); ttRenderRail(); _ttBadge();
   }).catch(function(e){ alert('Ruling failed: '+(e&&e.message)); if(btn){ btn.disabled=false; btn.textContent='Retry'; } });
 }
-function ttBulkDismiss(){ var ids=Object.keys(_ttSel); if(!ids.length) return; if(!confirm('Dismiss '+ids.length+' selected hit'+(ids.length===1?'':'s')+'? They will not come back on a re-run.')) return; ttRule(ids,'dismissed',document.getElementById('tt-bulk-dismiss')); }
+function ttBulk(status){ var ids=Object.keys(_ttSel); if(!ids.length) return; var verb=status==='approved'?'Approve':'Dismiss'; if(!confirm(verb+' '+ids.length+' checked hit'+(ids.length===1?'':'s')+'?'+(status==='dismissed'?' They will not come back on a re-run.':''))) return; ttRule(ids,status,document.getElementById(status==='approved'?'tt-bulk-approve':'tt-bulk-dismiss')); }
+function ttBulkDismiss(){ ttBulk('dismissed'); }
 
 // ── Right rail: the topic manager ──
 function ttRenderRail(){
@@ -11905,7 +11948,7 @@ function ttRun(id, apply){
   }).catch(function(e){ _ttRun[id]={ open:true, busy:false, from:from, to:to, reply:{ok:false,error:(e&&e.message)||'network error'} }; ttRenderRail(); });
 }
 window.ttLoad=ttLoad; window.ttRender=ttRender; window.ttSetStatus=ttSetStatus; window.ttSetTopic=ttSetTopic; window.ttSetJuris=ttSetJuris; window.ttSetSearch=ttSetSearch;
-window.ttRule=ttRule; window.ttBulkDismiss=ttBulkDismiss; window.ttToggleSel=ttToggleSel; window.ttSelectAll=ttSelectAll; window.ttShowOnly=ttShowOnly;
+window.ttRule=ttRule; window.ttBulkDismiss=ttBulkDismiss; window.ttBulk=ttBulk; window.ttSetGroup=ttSetGroup; window.ttSelectGroup=ttSelectGroup; window.ttToggleSel=ttToggleSel; window.ttSelectAll=ttSelectAll; window.ttShowOnly=ttShowOnly;
 window.ttNew=ttNew; window.ttEditTopic=ttEditTopic; window.ttCancelEdit=ttCancelEdit; window.ttSave=ttSave; window.ttRunPanel=ttRunPanel; window.ttRunClose=ttRunClose; window.ttRun=ttRun;
 registerViewInit('topics', function(){ ttLoad(false); });
 
@@ -14201,6 +14244,9 @@ window.copyScheduleToClipboard = copyScheduleToClipboard;
   #ss-table th{position:sticky;top:0;z-index:1;background:var(--bg-card,#1a1a1a);text-align:left;padding:8px 6px;border-bottom:1px solid var(--border);white-space:nowrap;}
   #ss-table td{padding:6px;border-bottom:1px solid var(--border);vertical-align:top;}
   #ss-table tr:hover td{background:rgba(127,127,127,0.06);}
+  #tt-table tr.tt-group td{background:rgba(127,127,127,0.12);font-weight:700;font-size:12px;position:sticky;top:31px;z-index:0;}
+  .tt-snip{color:var(--text-dim);font-size:10px;margin-top:2px;}
+  .tt-doc{display:inline-block;margin:0 4px 2px 0;white-space:nowrap;}
   .tt-kw{display:inline-block;background:rgba(27,124,58,0.18);color:#5ad37f;border-radius:9px;padding:0 7px;font-size:10px;font-weight:600;margin:1px 2px 1px 0;white-space:nowrap;}
   [data-theme="light"] .tt-kw{color:#1c7c3a;}
   .tt-src{display:inline-block;border-radius:3px;padding:0 5px;font-size:9px;font-weight:700;letter-spacing:.03em;}
