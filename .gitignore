@@ -15,3 +15,6 @@
 #
 # The pattern below is unanchored, so it matches at ANY depth. Keep it that way.
 *-ops.html
+
+# Local server log (AGD-256): serve-mrd.py output + the MRD Server task launcher lines.
+serve-mrd.log
