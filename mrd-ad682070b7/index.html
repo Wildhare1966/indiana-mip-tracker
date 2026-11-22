@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p237r1 -->
+<!-- MIP build p237r2 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data: https:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p237r1">
+<link rel="stylesheet" href="styles.css?v=p237r2">
 </head>
 <body>
 
@@ -11736,7 +11736,7 @@ function _ttFillJurisFilter(){
   if(_ttJuris && !seen[_ttJuris]) _ttJuris='';
   sel.innerHTML='<option value="">All jurisdictions</option>'+keys.map(function(j){ return '<option value="'+escAttr(j)+'"'+(j===_ttJuris?' selected':'')+'>'+_diagEsc(j)+' ('+seen[j]+')</option>'; }).join('');
 }
-function ttSetStatus(v){ _ttStatus=v||'new'; _ttSel={}; ttLoad(true); }
+function ttSetStatus(v){ _ttSelChanged(); _ttStatus=v||'new'; _ttSel={}; ttLoad(true); }
 function ttSetTopic(v){ _ttTopic=v||''; _ttSel={}; ttLoad(true); }
 function ttSetJuris(v){ _ttJuris=v||''; ttRender(); }
 function ttSetSearch(v){ _ttSearch=String(v||'').toLowerCase().trim(); ttRender(); }
@@ -11828,18 +11828,22 @@ function ttRender(){
 }
 function _ttMuni(j){ var t=String(j||'').replace(/,\s*indiana\s*$/i,'').replace(/^\s*(city|town)\s+of\s+/i,'').replace(/\s+/g,' ').trim(); if(!t) return '—'; return t.replace(/([a-z])/g,function(m){ return m.toUpperCase(); }); }
 function _ttBulkButtons(){
-  if(typeof _ttArm!=='undefined' && _ttArm.status){ clearTimeout(_ttArm.timer); _ttArm.status=''; }   // AGD-272: a selection change disarms
-  var n=Object.keys(_ttSel).length;
+  // AGD-272 (rev 2): a re-render keeps the arm. The live topic read lands ~30 s after the page opens
+  // and repaints; rev 1 disarmed on every repaint, so the second press only re-armed and nothing was sent.
+  var n=Object.keys(_ttSel).length, arm=(typeof _ttArm!=='undefined')?_ttArm.status:'';
   var ba=document.getElementById('tt-bulk-approve'), bd=document.getElementById('tt-bulk-dismiss');
-  if(ba){ ba.style.display=n?'':'none'; ba.textContent='Approve checked ('+n+')'; }
-  if(bd){ bd.style.display=n?'':'none'; bd.textContent='Dismiss checked ('+n+')'; }
+  if(ba){ ba.style.display=n?'':'none'; ba.textContent=arm==='approved'?'Press again to approve '+n:'Approve checked ('+n+')'; }
+  if(bd){ bd.style.display=n?'':'none'; bd.textContent=arm==='dismissed'?'Press again to dismiss '+n:'Dismiss checked ('+n+')'; }
 }
+// A selection change is the one thing that disarms (the count the operator agreed to has changed).
+function _ttSelChanged(){ if(typeof _ttArm!=='undefined' && _ttArm.status){ clearTimeout(_ttArm.timer); _ttArm.status=''; _ttMsg('Selection changed: press the button again to arm it for the new count.'); } }
 function ttSelectGroup(j, on){
+  _ttSelChanged();
   _ttFiltered().forEach(function(h){ if(_ttMuni(h.jurisdiction)===j){ if(on) _ttSel[String(h.hit_id)]=true; else delete _ttSel[String(h.hit_id)]; } });
   ttRender();
 }
-function ttToggleSel(id, on){ if(on) _ttSel[id]=true; else delete _ttSel[id]; _ttBulkButtons(); }
-function ttSelectAll(on){ _ttSel={}; if(on) _ttFiltered().forEach(function(h){ _ttSel[String(h.hit_id)]=true; }); ttRender(); }
+function ttToggleSel(id, on){ _ttSelChanged(); if(on) _ttSel[id]=true; else delete _ttSel[id]; _ttBulkButtons(); }
+function ttSelectAll(on){ _ttSelChanged(); _ttSel={}; if(on) _ttFiltered().forEach(function(h){ _ttSel[String(h.hit_id)]=true; }); ttRender(); }
 
 // One ruling (or many): the backend writes status + reviewed_at; the rows leave the current queue locally.
 // AGD-272: the ids go in chunks. The write is a GET, and one URL for every checked id fails outright
@@ -11875,7 +11879,9 @@ function ttRule(ids, status, btn){
       if(bulk || missing.length) _ttMsg(verb+' '+nDone+' of '+list.length+(missing.length?' — '+missing.length+' not found (already gone from the sheet): '+missing.slice(0,5).join(', ')+(missing.length>5?'…':''):'')+'.', missing.length?'err':'ok');
       return;
     }
+    console.info('[tt] set_topic_hit_status chunk '+(i+1)+'/'+chunks.length+': '+chunks[i].length+' ids → '+status);
     mipWriteFetch('&action=set_topic_hit_status&hit_ids='+encodeURIComponent(chunks[i].join(','))+'&status='+encodeURIComponent(status)).then(function(r){
+      console.info('[tt] chunk '+(i+1)+' reply', r);
       if(!r||!r.ok) return fail((r&&r.error)||'unknown');
       nDone+=(r.updated||[]).length; missing=missing.concat(r.missing||[]);
       _ttApplyUpdated(r.updated, status);
@@ -11888,18 +11894,18 @@ function ttRule(ids, status, btn){
 }
 // AGD-272: a two-press arm, not confirm() (repo rule; confirm() is swallowed in some browsers and
 // returned false, so the bulk did nothing). First press arms for 5 s; a second press of the same
-// button applies.
-var _ttArm={status:'',timer:0};
-function _ttDisarm(){ _ttBulkButtons(); }
+// button applies. rev 2: 8 s, kept across re-renders, and an expired arm says so (it used to go blank,
+// which read as "done").
+var _ttArm={status:'',timer:0}, TT_ARM_MS=8000;
+function _ttDisarm(){ clearTimeout(_ttArm.timer); _ttArm.status=''; _ttBulkButtons(); }
 function ttBulk(status){
   var ids=Object.keys(_ttSel); if(!ids.length) return;
   var btn=document.getElementById(status==='approved'?'tt-bulk-approve':'tt-bulk-dismiss');
   if(_ttArm.status!==status){
     _ttDisarm(); if(!_ttNeedToken()) return;
-    _ttArm.status=status;
-    if(btn) btn.textContent='Press again to '+(status==='approved'?'approve ':'dismiss ')+ids.length;
-    _ttMsg((status==='approved'?'Approve ':'Dismiss ')+ids.length+' checked hit'+(ids.length===1?'':'s')+'?'+(status==='dismissed'?' They will not come back on a re-run (Reopen in the Dismissed queue undoes it).':'')+' Press the button again within 5 seconds.');
-    _ttArm.timer=setTimeout(function(){ _ttDisarm(); _ttMsg(''); },5000);
+    _ttArm.status=status; _ttBulkButtons();
+    _ttMsg((status==='approved'?'Approve ':'Dismiss ')+ids.length+' checked hit'+(ids.length===1?'':'s')+'?'+(status==='dismissed'?' They will not come back on a re-run (Reopen in the Dismissed queue undoes it).':'')+' Press the button again within 8 seconds.');
+    _ttArm.timer=setTimeout(function(){ _ttDisarm(); _ttMsg('Nothing was sent: the second press did not come within 8 seconds. The rows are still checked.','err'); },TT_ARM_MS);
     return;
   }
   clearTimeout(_ttArm.timer); _ttArm.status='';
