@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p233r1 -->
+<!-- MIP build p237r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data: https:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p233r1">
+<link rel="stylesheet" href="styles.css?v=p237r1">
 </head>
 <body>
 
@@ -690,6 +690,7 @@
             </div>
           </div>
           <div id="tt-summary" class="js-sub" style="margin-bottom:8px;"></div>
+          <div id="tt-msg" role="status" aria-live="polite" style="display:none;font-size:12px;margin-bottom:8px;padding:6px 10px;border-radius:5px;border:1px solid var(--border,#444);"></div>
           <div id="tt-list"><div style="color:var(--text-dim);">Loading topics…</div></div>
         </div>
         <aside class="cand-tp-rail tt-rail" id="tt-rail" aria-label="Topics"></aside>
@@ -11675,7 +11676,16 @@ var _ttEdit=null;            // null = no form; {} = new topic; {topic_id,…} =
 var _ttRun={};               // topic_id -> last dry/apply reply (for the rail's run panel)
 
 function _ttTopicById(id){ for(var i=0;i<_ttTopics.length;i++){ if(String(_ttTopics[i].topic_id)===String(id)) return _ttTopics[i]; } return null; }
-function _ttNeedToken(){ if(getAuthToken()) return true; alert('Set the operator token in Settings to edit topics or rule on hits.'); return false; }
+function _ttNeedToken(){ if(getAuthToken()) return true; _ttMsg('Set the operator token in Settings to edit topics or rule on hits.','err'); alert('Set the operator token in Settings to edit topics or rule on hits.'); return false; }
+// AGD-272: an inline status line. Native alert()/confirm() are swallowed with no dialog in some
+// browsers (the Claude app's browser pane returns confirm()=false in 5 ms), which made a bulk
+// ruling look like "nothing happened". Every outcome of a ruling is written here as well.
+function _ttMsg(text, kind){
+  var el=document.getElementById('tt-msg'); if(!el) return;
+  if(!text){ el.style.display='none'; el.textContent=''; return; }
+  el.style.display=''; el.textContent=text;
+  el.style.color=kind==='err'?'var(--red,#e05252)':(kind==='ok'?'var(--green,#4caf50)':'inherit');
+}
 
 function ttLoad(force){
   var el=document.getElementById('tt-list'); if(!el) return;
@@ -11818,6 +11828,7 @@ function ttRender(){
 }
 function _ttMuni(j){ var t=String(j||'').replace(/,\s*indiana\s*$/i,'').replace(/^\s*(city|town)\s+of\s+/i,'').replace(/\s+/g,' ').trim(); if(!t) return '—'; return t.replace(/([a-z])/g,function(m){ return m.toUpperCase(); }); }
 function _ttBulkButtons(){
+  if(typeof _ttArm!=='undefined' && _ttArm.status){ clearTimeout(_ttArm.timer); _ttArm.status=''; }   // AGD-272: a selection change disarms
   var n=Object.keys(_ttSel).length;
   var ba=document.getElementById('tt-bulk-approve'), bd=document.getElementById('tt-bulk-dismiss');
   if(ba){ ba.style.display=n?'':'none'; ba.textContent='Approve checked ('+n+')'; }
@@ -11831,21 +11842,69 @@ function ttToggleSel(id, on){ if(on) _ttSel[id]=true; else delete _ttSel[id]; _t
 function ttSelectAll(on){ _ttSel={}; if(on) _ttFiltered().forEach(function(h){ _ttSel[String(h.hit_id)]=true; }); ttRender(); }
 
 // One ruling (or many): the backend writes status + reviewed_at; the rows leave the current queue locally.
+// AGD-272: the ids go in chunks. The write is a GET, and one URL for every checked id fails outright
+// near 370 ids (15.8k chars: "Failed to fetch"); 40 ids is about 1.8k chars. Chunks run one after
+// another, rows leave the list as each chunk lands, and a failed chunk stops the run with the
+// count done so far (Retry resends only the ids still checked).
+var TT_RULE_CHUNK=40;
+function _ttApplyUpdated(updated, status){
+  var done={}; (updated||[]).forEach(function(id){ done[String(id)]=true; });
+  _ttHits.forEach(function(h){ if(done[String(h.hit_id)]){ var was=String(h.status||'new'); h.status=status; _ttCounts[was]=Math.max(0,(_ttCounts[was]||0)-1); _ttCounts[status]=(_ttCounts[status]||0)+1;
+    var bt=_ttByTopic[h.topic_id]; if(bt){ bt[was]=Math.max(0,(bt[was]||0)-1); bt[status]=(bt[status]||0)+1; } } });
+  if(_ttStatus!=='all') _ttHits=_ttHits.filter(function(h){ return String(h.status||'new')===_ttStatus; });
+}
 function ttRule(ids, status, btn){
   if(!_ttNeedToken()) return;
-  var list=Array.isArray(ids)?ids:[ids]; if(!list.length) return;
+  var list=(Array.isArray(ids)?ids:[ids]).map(String); if(!list.length) return;
+  var verb=status==='approved'?'Approved':(status==='dismissed'?'Dismissed':'Reopened');
+  var chunks=[]; for(var c=0;c<list.length;c+=TT_RULE_CHUNK) chunks.push(list.slice(c,c+TT_RULE_CHUNK));
+  var nDone=0, missing=[], bulk=list.length>1;
   if(btn){ btn.disabled=true; btn.textContent='Saving…'; }
-  mipWriteFetch('&action=set_topic_hit_status&hit_ids='+encodeURIComponent(list.join(','))+'&status='+encodeURIComponent(status)).then(function(r){
-    if(!r||!r.ok){ alert('Ruling failed: '+((r&&r.error)||'unknown')); if(btn){ btn.disabled=false; btn.textContent='Retry'; } return; }
-    var done={}; (r.updated||[]).forEach(function(id){ done[id]=true; });
-    _ttHits.forEach(function(h){ if(done[String(h.hit_id)]){ var was=String(h.status||'new'); h.status=status; _ttCounts[was]=Math.max(0,(_ttCounts[was]||0)-1); _ttCounts[status]=(_ttCounts[status]||0)+1;
-      var bt=_ttByTopic[h.topic_id]; if(bt){ bt[was]=Math.max(0,(bt[was]||0)-1); bt[status]=(bt[status]||0)+1; } } });
-    if(_ttStatus!=='all') _ttHits=_ttHits.filter(function(h){ return String(h.status||'new')===_ttStatus; });
-    list.forEach(function(id){ delete _ttSel[id]; });
-    _ttFillTopicFilter(); ttRender(); ttRenderRail(); _ttBadge();
-  }).catch(function(e){ alert('Ruling failed: '+(e&&e.message)); if(btn){ btn.disabled=false; btn.textContent='Retry'; } });
+  if(bulk) _ttMsg('Saving 0 of '+list.length+'…');
+  function fail(msg){
+    var t='Ruling failed after '+nDone+' of '+list.length+': '+msg;
+    _ttMsg(t+(bulk?' — the rows not saved are still checked; press the button again to resend them.':''),'err'); if(!bulk) alert(t);
+    if(btn) btn.disabled=false;
+    if(bulk){ _ttFillTopicFilter(); ttRender(); ttRenderRail(); _ttBadge(); }
+    else if(btn) btn.textContent='Retry';
+  }
+  function next(i){
+    if(i>=chunks.length){
+      if(btn) btn.disabled=false;
+      _ttFillTopicFilter(); ttRender(); ttRenderRail(); _ttBadge();
+      if(bulk || missing.length) _ttMsg(verb+' '+nDone+' of '+list.length+(missing.length?' — '+missing.length+' not found (already gone from the sheet): '+missing.slice(0,5).join(', ')+(missing.length>5?'…':''):'')+'.', missing.length?'err':'ok');
+      return;
+    }
+    mipWriteFetch('&action=set_topic_hit_status&hit_ids='+encodeURIComponent(chunks[i].join(','))+'&status='+encodeURIComponent(status)).then(function(r){
+      if(!r||!r.ok) return fail((r&&r.error)||'unknown');
+      nDone+=(r.updated||[]).length; missing=missing.concat(r.missing||[]);
+      _ttApplyUpdated(r.updated, status);
+      chunks[i].forEach(function(id){ delete _ttSel[id]; });
+      if(bulk){ _ttMsg('Saving '+nDone+' of '+list.length+'…'); ttRender(); if(btn){ btn.disabled=true; btn.textContent='Saving…'; } }
+      next(i+1);
+    }).catch(function(e){ fail((e&&e.message)||String(e)); });
+  }
+  next(0);
 }
-function ttBulk(status){ var ids=Object.keys(_ttSel); if(!ids.length) return; var verb=status==='approved'?'Approve':'Dismiss'; if(!confirm(verb+' '+ids.length+' checked hit'+(ids.length===1?'':'s')+'?'+(status==='dismissed'?' They will not come back on a re-run.':''))) return; ttRule(ids,status,document.getElementById(status==='approved'?'tt-bulk-approve':'tt-bulk-dismiss')); }
+// AGD-272: a two-press arm, not confirm() (repo rule; confirm() is swallowed in some browsers and
+// returned false, so the bulk did nothing). First press arms for 5 s; a second press of the same
+// button applies.
+var _ttArm={status:'',timer:0};
+function _ttDisarm(){ _ttBulkButtons(); }
+function ttBulk(status){
+  var ids=Object.keys(_ttSel); if(!ids.length) return;
+  var btn=document.getElementById(status==='approved'?'tt-bulk-approve':'tt-bulk-dismiss');
+  if(_ttArm.status!==status){
+    _ttDisarm(); if(!_ttNeedToken()) return;
+    _ttArm.status=status;
+    if(btn) btn.textContent='Press again to '+(status==='approved'?'approve ':'dismiss ')+ids.length;
+    _ttMsg((status==='approved'?'Approve ':'Dismiss ')+ids.length+' checked hit'+(ids.length===1?'':'s')+'?'+(status==='dismissed'?' They will not come back on a re-run (Reopen in the Dismissed queue undoes it).':'')+' Press the button again within 5 seconds.');
+    _ttArm.timer=setTimeout(function(){ _ttDisarm(); _ttMsg(''); },5000);
+    return;
+  }
+  clearTimeout(_ttArm.timer); _ttArm.status='';
+  ttRule(ids,status,btn);
+}
 function ttBulkDismiss(){ ttBulk('dismissed'); }
 
 // ── Right rail: the topic manager ──
