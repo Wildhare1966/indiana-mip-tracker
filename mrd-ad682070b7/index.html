@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p237r2 -->
+<!-- MIP build p238r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data: https:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p237r2">
+<link rel="stylesheet" href="styles.css?v=p238r1">
 </head>
 <body>
 
@@ -966,7 +966,7 @@
               <th>Jurisdiction</th>
               <th title="Which scraper config names this jurisdiction, with its agenda landing page. Small text: the platform stamped on its rows in the last year.">Platform / scrape</th>
               <th title="A row in the Channel ID sheet means its hearing videos are ingested from YouTube.">YouTube</th>
-              <th title="Configured route: YouTube (channel), Minutes (P110 minutes cron), or both. Small text: how many Summary Docs came from each in the data.">Summaries from</th>
+              <th title="p238r1 / AGD-261: the MEASURED route. Summaries with a meeting date in the last 365 days, counted by what made each one (Meetings col O): Supadata, local transcript (made on the desktop: captions, Whisper, SharePoint, Swagit, Granicus), Gemini video, minutes, results PDF; unlabeled = made before the route was recorded (Apr–May 2026). Small text: the newest Summary's route and the configured route.">Summaries from</th>
               <th title="p205r1: how this town's videos get a transcript, from the data — P181 caption checks (yes / no / error), P187 AI-transcription jobs, and the col H sentinel on every past video with no Summary.">Caption route</th>
               <th title="p205r1: the P156 body-freshness detector, live — a body silent longer than its own cadence allows (ratio × median gap, 45-day floor). Grey = label drift (same body, new label) or deferred (dormant by decision).">Freshness</th>
               <th title="p205r2: last night's scrapeAllHeadless as the Scraper Log records it — did this town's platform run, get skipped by the runtime budget, or error — the newest ERROR line naming the site, and the freshness cron's last live source probe (empty_index = page loads but lists nothing; source_broken = HTTP error; unverified = stale and not probed).">Last scrape</th>
@@ -12656,12 +12656,15 @@ function _jsSortKey(r, mode){
   if(mode==='note') return [n.updated_at?('0'+String(9999999999999-new Date(n.updated_at).getTime())):'9', r.name||''];
   return [r.county||'', r.name||''];
 }
+// p238r1 / AGD-261: the backend's route keys, as the cell shows them (mirror of P204_ROUTE_NAMES).
+var _JS_ROUTE_NAMES={supadata:'Supadata',local_transcript:'local transcript',minutes:'minutes',results_pdf:'results PDF',gemini_video:'Gemini video',unlabeled:'unlabeled'};
+function _jsRouteName(k){ return _JS_ROUTE_NAMES[k]||String(k||'').replace(/^other:/,''); }
 function _jsVisibleRows(){
   var term=((document.getElementById('js-filter')||{}).value||'').trim().toLowerCase();
   var mode=((document.getElementById('js-sort')||{}).value)||'county';
   var rows=_jsRows.filter(function(r){
     if(!term) return true;
-    var hay=[r.name,r.county,(r.configured||{}).platform_label,(r.configured||{}).summary_source,(r.note||{}).note].join(' ').toLowerCase();
+    var hay=[r.name,r.county,(r.configured||{}).platform_label,(r.configured||{}).summary_source,(r.measured||{}).route_label,(r.note||{}).note].join(' ').toLowerCase();
     return hay.indexOf(term)!==-1;
   });
   rows.sort(function(a,b){ var ka=_jsSortKey(a,mode), kb=_jsSortKey(b,mode); return ka[0]<kb[0]?-1:ka[0]>kb[0]?1:ka[1].localeCompare(kb[1]); });
@@ -12692,7 +12695,14 @@ function jsRender(){
       +(c.data_gap?'<div><span class="js-chip gap" title="'+escAttr(c.gap_note||'data_gap flagged in Muni_Data')+'">data gap</span></div>':'');
     var yt=c.youtube_channel;
     var ytCell=yt?('<span class="js-chip ok" title="'+escAttr(yt.channel_id)+'">✓ channel</span>'+(yt.keywords?'<div class="js-sub" title="Title keywords the intake matches">'+_diagEsc(yt.keywords)+'</div>':'')):'<span class="js-age none">no channel</span>';
-    var sumCell=_diagEsc(c.summary_source||'')+(m.summary_mix?'<div class="js-sub">docs: '+_diagEsc(m.summary_mix)+'</div>':'');
+    // p238r1 / AGD-261: the measured route (col O counts, 365 d) replaces the configured label; an older backend
+    // without route_label falls back to the configured label so the cell is never blank on a stale deploy.
+    var rl=m.route_last||{};
+    var sumCell=(m.route_label!==undefined
+        ? (m.route_label?_diagEsc(m.route_label):'<span class="js-age none">no Summaries in 365 d</span>')
+          +(rl.route?'<div class="js-sub">last: '+_diagEsc(_jsRouteName(rl.route))+' '+_diagEsc(rl.date||'')+'</div>':'')
+          +'<div class="js-sub" title="What the config says: a YouTube channel, the P110 minutes cron, or both">configured: '+_diagEsc(c.summary_source||'')+'</div>'
+        : _diagEsc(c.summary_source||'')+(m.summary_mix?'<div class="js-sub">docs: '+_diagEsc(m.summary_mix)+'</div>':''));
     // p205r1: caption route (P181 checks + P187 jobs + col H sentinels) and the P156 freshness verdict.
     var route=String(m.caption_route||'');
     var routeCls=/blocked/.test(route)?'blocked':/no captions|mixed/.test(route)?'await':/^captions/.test(route)?'ok':'';
@@ -12792,13 +12802,13 @@ function jsNoteRestore(id){
 }
 function jsExportCsv(){
   var rows=_jsVisibleRows();
-  var head=['jurisdiction','county','platform','agenda_landing_url','youtube_channel','summaries_from','summary_docs','caption_route','captions_yes','captions_no','ai_transcripts_done','stuck_by','freshness_alarms','freshness_drift','scrape_last_run','scrape_result','scrape_probe','scrape_last_error','coverage_90d_pct','coverage_90d_covered','coverage_90d_held','coverage_other_bodies_held','bodies_365d','excluded_bodies','last_agenda','last_minutes','last_summary','awaiting_summary','blocked_videos','tracked_active','documents_tagged','documents_url_only','documents_failed','open_issues','note','note_updated'];
+  var head=['jurisdiction','county','platform','agenda_landing_url','youtube_channel','summaries_from','summary_route_365d','last_summary_route','last_summary_route_date','summary_docs','caption_route','captions_yes','captions_no','ai_transcripts_done','stuck_by','freshness_alarms','freshness_drift','scrape_last_run','scrape_result','scrape_probe','scrape_last_error','coverage_90d_pct','coverage_90d_covered','coverage_90d_held','coverage_other_bodies_held','bodies_365d','excluded_bodies','last_agenda','last_minutes','last_summary','awaiting_summary','blocked_videos','tracked_active','documents_tagged','documents_url_only','documents_failed','open_issues','note','note_updated'];
   var q=function(v){ v=String(v==null?'':v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; };
   var lines=[head.join(',')].concat(rows.map(function(r){
     var c=r.configured||{}, m=r.measured||{}, n=r.note||{}, bare=_jsBare(r.name);
     var bodies=Object.keys(m.bodies_recent||{}).sort(function(a,b){ return m.bodies_recent[b]-m.bodies_recent[a]; }).map(function(b){ return b+' '+m.bodies_recent[b]; }).join('; ');
     var fr=m.freshness||{}; var stuck=Object.keys(m.blocked_by||{}).map(function(k){ return k+' '+m.blocked_by[k]; }).join('; ');
-    return [r.name,r.county,c.platform_label,c.agenda_landing_url,(c.youtube_channel||{}).channel_id||'',c.summary_source,m.summary_mix,m.caption_route,m.captions_yes,m.captions_no,m.ai_transcripts_completed,stuck,
+    return [r.name,r.county,c.platform_label,c.agenda_landing_url,(c.youtube_channel||{}).channel_id||'',c.summary_source,m.route_label||'',_jsRouteName((m.route_last||{}).route),(m.route_last||{}).date||'',m.summary_mix,m.caption_route,m.captions_yes,m.captions_no,m.ai_transcripts_completed,stuck,
       (fr.alarms||[]).map(function(a){ return a.body+' '+a.days_silent+'d '+a.ratio+'x'; }).join('; '),(fr.drift||[]).map(function(a){ return a.body+' -> '+(a.absorbed_by||''); }).join('; '),
       (m.scrape||{}).last_run_at||'',(m.scrape||{}).platform_result||'',((m.scrape||{}).probe||{}).status||'',(((m.scrape||{}).last_error||{}).at||'')+' '+(((m.scrape||{}).last_error||{}).message||''),
       (m.coverage_90d||{}).pct==null?'':(m.coverage_90d||{}).pct,(m.coverage_90d||{}).covered||0,(m.coverage_90d||{}).held||0,(m.coverage_90d||{}).other_held||0,
