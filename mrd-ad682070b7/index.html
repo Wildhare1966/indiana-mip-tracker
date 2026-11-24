@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MIP build p238r1 -->
+<!-- MIP build p241r1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://docs.google.com https://raw.githubusercontent.com; img-src 'self' data: https:; frame-src 'self' https://docs.google.com https://docs.googleusercontent.com https://drive.google.com;">
 <title>Municipal Resource Dashboard</title>
 <!-- P31 R5: cache-bust stylesheet via build-version querystring. Bump on each deploy. -->
-<link rel="stylesheet" href="styles.css?v=p238r1">
+<link rel="stylesheet" href="styles.css?v=p241r1">
 </head>
 <body>
 
@@ -1101,6 +1101,59 @@ function mipHedgedRead(fetchFn, url, init, hedgeMs, timers) {
 })();
 </script>
 <script>
+// ── AGD-272 (Ty, ruled 2026-11-23): every write gate is a two-press arm, never confirm() ──
+// confirm() is swallowed in some browsers (the Claude app's browser pane returns false in 5 ms with
+// no dialog), so a gated write silently did nothing. Same contract as the ops console's armConfirm:
+// the first press arms the control and shows what it will do; a second press of the SAME control
+// within ARM_MS applies. Any other click, or the timeout, disarms, and an expired arm says so.
+// Call sites stay `if(!armConfirm(msg)) return;` — the handler runs again on the second press.
+var ARM_MS = 15000;
+var _arm = { el: null, label: '', armedLabel: '', timer: 0, pass: null, last: null, lastAt: 0 };
+function _armNote(text, kind) {
+  var n = document.getElementById('mrd-arm-note');
+  if (!n) {
+    n = document.createElement('div'); n.id = 'mrd-arm-note'; n.setAttribute('role', 'status');
+    n.style.cssText = 'position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:10001;max-width:560px;'
+      + 'padding:10px 14px;border-radius:6px;font-size:12px;line-height:1.45;white-space:pre-wrap;'
+      + 'box-shadow:0 4px 16px rgba(0,0,0,0.5);font-family:inherit;color:#fff;display:none;';
+    document.body.appendChild(n);
+  }
+  if (!text) { n.style.display = 'none'; n.textContent = ''; return; }
+  n.style.background = kind === 'expired' ? '#4a3a12' : '#5a1a1a';
+  n.style.border = '1px solid ' + (kind === 'expired' ? '#b8941a' : '#c0392b');
+  n.textContent = text; n.style.display = '';
+}
+function _armRestore() {
+  var el = _arm.el; if (!el) return;
+  if (el.innerHTML === _arm.armedLabel) el.innerHTML = _arm.label;   // a re-render may have relabelled it
+  el.style.outline = ''; el.removeAttribute('data-armed');
+  _arm.el = null; clearTimeout(_arm.timer);
+}
+document.addEventListener('click', function (e) {
+  var t = e.target && e.target.closest ? e.target.closest('button,a,[onclick],[role="button"]') : null;
+  _arm.last = t; _arm.lastAt = Date.now();
+  if (!_arm.el) return;
+  if (t && t === _arm.el) { _arm.pass = t; setTimeout(function () { _arm.pass = null; }, 0); }
+  _armRestore(); _armNote('');
+}, true);   // capture: runs before the control's own onclick, even one that stops propagation
+function armConfirm(msg) {
+  var el = (Date.now() - _arm.lastAt < 2000) ? _arm.last : null;
+  if (!el) return window.confirm(msg);          // not from a press (a script call): the native dialog
+  if (el === _arm.pass) { _arm.pass = null; return true; }
+  _armRestore();
+  _arm.el = el; _arm.label = el.innerHTML;
+  el.textContent = 'Confirm — press again'; _arm.armedLabel = el.innerHTML;
+  el.style.outline = '2px solid #c0392b'; el.setAttribute('data-armed', '1');
+  _armNote(String(msg) + '\n\nPress “Confirm — press again” within ' + (ARM_MS / 1000) + ' s to apply. Any other click cancels.');
+  _arm.timer = setTimeout(function () {
+    _armRestore();
+    _armNote('Nothing was sent: the second press did not come within ' + (ARM_MS / 1000) + ' s.', 'expired');
+    setTimeout(function () { var n = document.getElementById('mrd-arm-note'); if (n && /^Nothing was sent/.test(n.textContent)) _armNote(''); }, 5000);
+  }, ARM_MS);
+  return false;
+}
+window.armConfirm = armConfirm;
+
 // ── MEMBER PROFILE PIPELINE CONSTANTS ────────────────────────────────────────────────────────────────────────
 const PROFILE_CACHE_KEY = 'mip_member_profiles';
 const PROFILE_CACHE_TS_KEY = 'mip_profiles_fetched_at';
@@ -4990,7 +5043,7 @@ function mnFromMinutesBtnHtml(entry) {
 }
 async function mnSummaryFromMinutes(btn, sdId, body) {
   if (!sdId) return;
-  if (!confirm('Summarize this meeting from its minutes?\n\nOne Gemini call for the meeting summary, plus one per Tracked Project on this meeting for its Detailed Summary. It can take a few minutes.')) return;
+  if (!armConfirm('Summarize this meeting from its minutes?\n\nOne Gemini call for the meeting summary, plus one per Tracked Project on this meeting for its Detailed Summary. It can take a few minutes.')) return;
   const orig = btn.textContent;
   const show = (html) => {
     let s = btn.nextElementSibling;
@@ -5208,7 +5261,7 @@ async function agReject(docId, meetingType, jurisdiction, btnYesId, btnNoId, row
 // "Cancelled" badge. The backend keeps emitting the row with approval_status
 // 'cancelled' so the badge survives reloads ("for future reference").
 async function agCancel(docId, meetingType, jurisdiction, rowId) {
-  if (!confirm('Mark this meeting as Cancelled? The agenda link will be replaced with a “Cancelled” note.')) return;
+  if (!armConfirm('Mark this meeting as Cancelled? The agenda link will be replaced with a “Cancelled” note.')) return;
   const row = document.getElementById(rowId);
   // Optimistic UI: swap the cell to the Cancelled badge immediately.
   if (row) {
@@ -6693,7 +6746,7 @@ async function refreshRecentChanges() {
 }
 
 async function rollbackManualEntry(entryId) {
-  if (!confirm('Roll back entry ' + entryId.slice(0,8) + '? This will undo the change.')) return;
+  if (!armConfirm('Roll back entry ' + entryId.slice(0,8) + '? This will undo the change.')) return;
   try {
     const params = new URLSearchParams({
       action: 'rollback_manual_entry',
@@ -6720,7 +6773,7 @@ window.rollbackManualEntry = rollbackManualEntry;
 // (entry_action=delete, target_table=Meetings). The overlay in
 // applyManualEntriesToHearings_ filters the row from future bootstrap reads.
 async function removeHearing(meetingId, muniId, date, meetingType, btnId) {
-  if (!confirm('Are you sure you want to remove this hearing date?')) return;
+  if (!armConfirm('Are you sure you want to remove this hearing date?')) return;
   const btn = document.getElementById(btnId);
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
   try {
@@ -7715,7 +7768,7 @@ function toggleProjectTimeline(projectId) {
 }
 
 function closeProjectConfirm(projectId, projectName) {
-  if (!confirm('Close tracking for "' + projectName + '"? This cannot be undone.')) return;
+  if (!armConfirm('Close tracking for "' + projectName + '"? This cannot be undone.')) return;
   var webappUrl = getWebAppUrl();
   if (!webappUrl) return;
   fetch(webappUrl + '&action=close_tracked_project&project_id=' + encodeURIComponent(projectId))
@@ -8952,7 +9005,7 @@ function tpSubmitNew() {
 }
 
 function tpCloseProject(pid, name) {
-  if (!confirm('Close tracking for "' + name + '"? This cannot be undone.')) return;
+  if (!armConfirm('Close tracking for "' + name + '"? This cannot be undone.')) return;
   // The server-side create_tracked_project sent the petitioner_applicant; close just
   // calls close_tracked_project which requires no new params.
   closeProjectConfirm(pid, name);
@@ -9335,7 +9388,7 @@ function tpOpenDocsPopup(projectId, anchorEl) {
 }
 
 function tpUntagDoc(docId, projectId, btnEl) {
-  if (!confirm('Untag this document? (archives the row — operator can restore by clearing status in the sheet)')) return;
+  if (!armConfirm('Untag this document? (archives the row — operator can restore by clearing status in the sheet)')) return;
   btnEl.disabled = true;
   btnEl.textContent = '…';
   var webappUrl = getWebAppUrl();
@@ -11159,10 +11212,10 @@ function candRenderRail(){
 function p167RunCleanup(mode, btn) {
   var extra = {};
   if (mode === 'apply') {
-    if (!confirm('Remove the bad project matches? This dismisses the agenda items that only a junk term explained, and strips those terms from the alias lists. Every change is reversible with the "Undo removal" button.')) return;
+    if (!armConfirm('Remove the bad project matches? This dismisses the agenda items that only a junk term explained, and strips those terms from the alias lists. Every change is reversible with the "Undo removal" button.')) return;
     extra = { apply: 'true' };
   } else if (mode === 'undo') {
-    if (!confirm('Put every removed match back? This restores the dismissed matches AND the original alias lists.')) return;
+    if (!armConfirm('Put every removed match back? This restores the dismissed matches AND the original alias lists.')) return;
     extra = { undo: 'true', apply: 'true' };
   }
   p165RunProbe('p167PurgeRefsByTerm', btn, { optional: true, extra: extra });
@@ -11176,10 +11229,10 @@ window.p167RunCleanup = p167RunCleanup;
 function p167RunUnmatch(mode, btn) {
   var extra = {};
   if (mode === 'apply') {
-    if (!confirm('Clear EVERY agenda-item match off all six projects? This removes right and wrong matches alike so you can rematch by hand. Every row is backed up first and "Undo unmatch" restores them.')) return;
+    if (!armConfirm('Clear EVERY agenda-item match off all six projects? This removes right and wrong matches alike so you can rematch by hand. Every row is backed up first and "Undo unmatch" restores them.')) return;
     extra = { apply: 'true' };
   } else if (mode === 'undo') {
-    if (!confirm('Restore every match that was cleared? This puts all backed-up rows back on the six projects.')) return;
+    if (!armConfirm('Restore every match that was cleared? This puts all backed-up rows back on the six projects.')) return;
     extra = { undo: 'true', apply: 'true' };
   }
   p165RunProbe('p167UnmatchProjects', btn, { optional: true, extra: extra });
@@ -11624,7 +11677,7 @@ function candAddToExisting(cid, btn){
 function candBulkDismiss(){
   var ids=_candFiltered().filter(function(c){ return _candSel[c.candidate_id]; }).map(function(c){ return c.candidate_id; });
   if(!ids.length) return;
-  if(!window.confirm('Dismiss '+ids.length+' selected candidate'+(ids.length===1?'':'s')+'? This removes them from the queue.')) return;
+  if(!armConfirm('Dismiss '+ids.length+' selected candidate'+(ids.length===1?'':'s')+'? This removes them from the queue.')) return;
   var base=getWebAppUrl(); if(!base) return;
   var btn=document.getElementById('cand-bulk-dismiss'); if(btn){ btn.style.pointerEvents='none'; btn.style.opacity='.5'; }
   var statusEl=document.getElementById('cand-bulk-status');
@@ -12472,7 +12525,7 @@ function aiBulkAccept(stream){
   var rows=_aiFiltered(stream).filter(function(it){ return s.sel[it.item_id]; });
   if(!rows.length) return;
   var nLink=rows.filter(_aiAcceptable).length;
-  if(!window.confirm('Accept '+rows.length+' selected item'+(rows.length===1?'':'s')+'? '+
+  if(!armConfirm('Accept '+rows.length+' selected item'+(rows.length===1?'':'s')+'? '+
       (nLink?(nLink+' with an unlinked Matched Project '+(nLink===1?'is':'are')+' attached to it (name/ord # folded into aliases, references re-scanned); '):'')+
       'all selected rows are then dismissed so they leave these tabs (reversible in the backend via dismissAgendaItem&undo=true).')) return;
   var base=getWebAppUrl(); if(!base) return;
@@ -12524,7 +12577,7 @@ function aiBulkDismiss(stream){
   var s=_aiState[stream];
   var rows=_aiFiltered(stream).filter(function(it){ return s.sel[it.item_id]; });
   if(!rows.length) return;
-  if(!window.confirm('Dismiss '+rows.length+' selected item'+(rows.length===1?'':'s')+'? They leave these tabs WITHOUT being linked to any Tracked Project (reversible in the backend via dismissAgendaItem&undo=true).')) return;
+  if(!armConfirm('Dismiss '+rows.length+' selected item'+(rows.length===1?'':'s')+'? They leave these tabs WITHOUT being linked to any Tracked Project (reversible in the backend via dismissAgendaItem&undo=true).')) return;
   var base=getWebAppUrl(); if(!base) return;
   ['accept','dismiss','clear'].forEach(function(k){
     var b=document.getElementById('ai-'+stream+'-bulk-'+k);
@@ -12796,7 +12849,7 @@ function jsNoteSave(id){
 }
 function jsNoteRestore(id){
   var row=_jsRowById(id); if(!row||!row.note||!row.note.previous_note) return;
-  if(!confirm('Restore the previous note for '+(row.name||id)+'?\n\n'+row.note.previous_note)) return;
+  if(!armConfirm('Restore the previous note for '+(row.name||id)+'?\n\n'+row.note.previous_note)) return;
   var ta=document.getElementById('js-note-'+id); if(ta) ta.value=row.note.previous_note;
   jsNoteSave(id);
 }
@@ -12945,7 +12998,7 @@ function ssSet(ids, f, btn){
 }
 function ssBulk(status){
   var ids=Object.keys(_ssSel); if(!ids.length) return;
-  if(!confirm((status==='queued'?'Queue ':'Mark not needed: ')+ids.length+' row'+(ids.length===1?'':'s')+'?')) return;
+  if(!armConfirm((status==='queued'?'Queue ':'Mark not needed: ')+ids.length+' row'+(ids.length===1?'':'s')+'?')) return;
   ssSet(ids,{status:status},document.getElementById(status==='queued'?'ss-bulk-queue':'ss-bulk-skip'));
 }
 registerViewInit('summarystatus', function(){ ssLoad(false); });
